@@ -9,12 +9,13 @@ namespace UltiSim.Core.SimObjects;
 // Identified by its CO index. Overlay state (VFX, statuses) lives on the base;
 // this layer adds Index-based pointer lookup, movement, and the "free the
 // handle on Despawn" lifecycle.
-public unsafe class SimNpc : SimCharacter
+public unsafe class SimNpc : SimPartySlot
 {
     public const uint InvalidIndex = 0xFFFFFFFF;
 
     public uint Index { get; private set; }
     private bool pendingDraw;
+    private float pendingDespawnTimer = -1f;
     private Vector3? moveTarget;
     private float moveSpeed;
     private float? moveFinalRotation;
@@ -32,7 +33,15 @@ public unsafe class SimNpc : SimCharacter
         pendingDraw = index != InvalidIndex;
     }
 
-    public override bool IsAlive => Index != InvalidIndex && GetGameObject() != null;
+    public override bool IsAlive => !Dead && Index != InvalidIndex && GetGameObject() != null;
+
+    public void PlayActionTimeline(ushort timelineId)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        if (chara->Timeline.TimelineSequencer.Parent == null) return;
+        chara->Timeline.PlayActionTimeline(timelineId);
+    }
 
     public override uint EntityId
     {
@@ -89,15 +98,38 @@ public unsafe class SimNpc : SimCharacter
         obj->SetPosition(position.X, position.Y, position.Z);
     }
 
-    public override void Move(Vector3 position, float rotation)
+    public override void Move(Placement placement)
     {
         var obj = GetGameObject();
         if (obj == null) return;
-        obj->SetPosition(position.X, position.Y, position.Z);
+        obj->SetPosition(placement.Position.X, placement.Position.Y, placement.Position.Z);
         // Direct field write at +0xC0 isn't enough for animated NPCs — the game
         // re-derives the visible facing each frame from internal state. The
         // virtual SetRotation(float) propagates the change properly.
-        obj->SetRotation(MathUtil.NormalizeRotation(rotation));
+        obj->SetRotation(MathUtil.NormalizeRotation(placement.Rotation));
+    }
+
+    // Snaps the NPC's facing toward `target` on the XZ plane. No-op when the
+    // target is at the same XZ position. Does not affect movement state.
+    public void Face(Vector3 target)
+    {
+        var obj = GetGameObject();
+        if (obj == null) return;
+        var dx = target.X - obj->Position.X;
+        var dz = target.Z - obj->Position.Z;
+        if (dx * dx + dz * dz < 1e-6f) return;
+        obj->SetRotation(MathUtil.NormalizeRotation(MathF.Atan2(dx, dz)));
+    }
+
+    public void Face(IPositioned target) => Face(target.Position);
+
+    // Plays `timelineId` immediately and despawns after `delay` seconds. No-op
+    // when already despawned. Useful for warp-out / death animations.
+    public void Despawn(ushort timelineId, float delay)
+    {
+        if (!IsAlive) return;
+        PlayActionTimeline(timelineId);
+        pendingDespawnTimer = MathF.Max(0f, delay);
     }
 
     // Sets a destination the Tick loop walks toward at `speed` units/sec, facing
@@ -127,7 +159,8 @@ public unsafe class SimNpc : SimCharacter
         var chara = GetBattleChara();
         if (chara == null) return;
         chara->Timeline.BaseOverride = moveTimelineId;
-        chara->Timeline.TimelineSequencer.PlayTimeline(moveTimelineId);
+        if (chara->Timeline.TimelineSequencer.Parent != null)
+            chara->Timeline.TimelineSequencer.PlayTimeline(moveTimelineId);
         moveAnimActive = true;
     }
 
@@ -165,7 +198,7 @@ public unsafe class SimNpc : SimCharacter
             {
                 var rot = moveFinalRotation
                           ?? (distSq > 1e-6f ? MathF.Atan2(dx, dz) : Rotation);
-                Move(target, rot);
+                Move(new Placement(target, rot));
                 moveTarget = null;
                 moveFinalRotation = null;
                 StopMoveAnim();
@@ -175,8 +208,14 @@ public unsafe class SimNpc : SimCharacter
                 var dist = MathF.Sqrt(distSq);
                 var nx = current.X + dx / dist * step;
                 var nz = current.Z + dz / dist * step;
-                Move(new Vector3(nx, current.Y, nz), MathF.Atan2(dx, dz));
+                Move(new Placement(new Vector3(nx, current.Y, nz), MathF.Atan2(dx, dz)));
             }
+        }
+
+        if (pendingDespawnTimer >= 0f)
+        {
+            pendingDespawnTimer -= deltaSeconds;
+            if (pendingDespawnTimer <= 0f) { pendingDespawnTimer = -1f; Despawn(); }
         }
     }
 

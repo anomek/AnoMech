@@ -112,6 +112,15 @@ internal static unsafe class VfxFunctions
     public static void ClearTether(Character* chara, byte slot)
         => SetTether(chara, slot, 0, default, 0);
 
+    // Reads the channeling-sheet id currently occupying a tether slot. Returns 0
+    // when chara is null or the slot is empty. Used by SimTether's auto-expire
+    // path to avoid clearing a slot that a chained tether has already overwritten.
+    public static ushort GetTetherId(Character* chara, byte slot)
+    {
+        if (chara == null) return 0;
+        return chara->Vfx.Tethers[slot].Id;
+    }
+
     private static ActorVfxCreateDelegate? ResolveActorVfxCreate()
     {
         if (actorVfxCreate != null) return actorVfxCreate;
@@ -149,7 +158,7 @@ internal static unsafe class VfxFunctions
         return actorVfxRemove;
     }
 
-    public static StaticVfxStruct* SpawnStaticVfx(string path, Vector3 position, float rotation, Vector3 scale)
+    public static StaticVfxStruct* SpawnStaticVfx(string path, Placement placement, Vector3 scale)
     {
         if (string.IsNullOrEmpty(path)) return null;
         var create = ResolveStaticVfxCreate();
@@ -167,8 +176,8 @@ internal static unsafe class VfxFunctions
         }
         if (vfx == null) return null;
 
-        vfx->Position = position;
-        var q = Quaternion.CreateFromYawPitchRoll(rotation, 0f, 0f);
+        vfx->Position = placement.Position;
+        var q = Quaternion.CreateFromYawPitchRoll(placement.Rotation, 0f, 0f);
         vfx->Rotation = q;
         vfx->Scale = scale;
         vfx->Flags |= 0x2;          // mark dirty so position/rotation/scale apply

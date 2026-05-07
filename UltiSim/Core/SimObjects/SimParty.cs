@@ -1,20 +1,28 @@
-using System;
 using System.Collections.Generic;
-using System.Numerics;
 
 namespace UltiSim.Core.SimObjects;
 
 // Fixed-size 8-slot party indexed by PartyRole. Each slot holds either a
 // SimPartyMember (spawned NPC) or the SimPlayer (the player's own role).
-// Get(role) returns the SimCharacter at the slot or null when unfilled.
+// Get(role) returns the SimPartySlot at the slot or null when unfilled.
+//
+// Owns its own PartyHud mirror: any slot mutation (SetSlot) flips a dirty
+// flag, and the next Tick refreshes the HUD. Despawn clears the HUD
+// directly. Dispose unregisters the AddonLifecycle listener for plugin teardown.
 public sealed class SimParty : ISimObject
 {
-    private readonly SimCharacter?[] slots = new SimCharacter?[8];
+    private readonly SimPartySlot?[] slots = new SimPartySlot?[8];
+    private readonly PartyHud partyHud = new();
+    private readonly CharacterFind<SimPartySlot> finder;
 
-    public SimCharacter? Get(int roleId)
+    public SimParty() { finder = new CharacterFind<SimPartySlot>(ActiveMembers); }
+
+    public CharacterFind<SimPartySlot> Find => finder;
+
+    public SimPartySlot? Get(int roleId)
         => roleId >= 0 && roleId < slots.Length ? slots[roleId] : null;
 
-    public SimCharacter? Get(PartyRole role) => Get((int)role);
+    public SimPartySlot? Get(PartyRole role) => Get((int)role);
 
     // The role the local player fills — i.e. the slot SimPartyMember spawning
     // skipped (PartyPresets returns null for the player's own job). After Game
@@ -30,71 +38,35 @@ public sealed class SimParty : ISimObject
         }
     }
 
-    // Walks all eight role slots and returns whichever resolved entity is closest
-    // (XZ plane) to the given point. Empty slots are skipped.
-    public SimCharacter? FindClosest(Vector3 from)
+    internal void SetSlot(PartyRole role, SimPartySlot slot)
     {
-        SimCharacter? best = null;
-        var bestDist = float.MaxValue;
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (slots[i] is not { } c) continue;
-            var pos = c.Position;
-            var dx = pos.X - from.X;
-            var dz = pos.Z - from.Z;
-            var d = dx * dx + dz * dz;
-            if (d < bestDist) { bestDist = d; best = c; }
-        }
-        return best;
+        slot.Role = role;
+        slots[(int)role] = slot;
     }
 
-    // Returns up to `count` roles ordered by ascending XZ distance from `from`.
-    // Useful when the caller needs to remember which slot was picked (e.g. so a
-    // later AI step can position the chosen role's member). Empty slots are skipped.
-    public IReadOnlyList<PartyRole> FindClosestRolesN(Vector3 from, int count)
-    {
-        var entries = new List<(PartyRole role, float distSq)>(8);
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (slots[i] is not { } c) continue;
-            var pos = c.Position;
-            var dx = pos.X - from.X;
-            var dz = pos.Z - from.Z;
-            entries.Add(((PartyRole)i, dx * dx + dz * dz));
-        }
-        entries.Sort((a, b) => a.distSq.CompareTo(b.distSq));
-        var result = new List<PartyRole>(Math.Min(count, entries.Count));
-        for (int i = 0; i < count && i < entries.Count; i++)
-            result.Add(entries[i].role);
-        return result;
-    }
-
-    // Returns the count nearest party slots ordered by ascending XZ distance from
-    // `from`. Empty slots are skipped.
-    public IReadOnlyList<SimCharacter> FindClosestN(Vector3 from, int count)
-    {
-        var entries = new List<(SimCharacter c, float distSq)>(8);
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (slots[i] is not { } c) continue;
-            var pos = c.Position;
-            var dx = pos.X - from.X;
-            var dz = pos.Z - from.Z;
-            entries.Add((c, dx * dx + dz * dz));
-        }
-        entries.Sort((a, b) => a.distSq.CompareTo(b.distSq));
-        var result = new List<SimCharacter>(Math.Min(count, entries.Count));
-        for (int i = 0; i < count && i < entries.Count; i++)
-            result.Add(entries[i].c);
-        return result;
-    }
-
-    internal void SetSlot(PartyRole role, SimCharacter character) => slots[(int)role] = character;
-
-    internal IEnumerable<SimCharacter> ActiveMembers()
+    internal IEnumerable<SimPartySlot> ActiveMembers()
     {
         for (int i = 0; i < slots.Length; i++)
             if (slots[i] is { IsAlive: true } m) yield return m;
+    }
+
+    // All filled slots with their role index, alive or dead. Used by PartyFinder
+    // proximity queries (which follow the same no-alive-filter contract the old
+    // FindClosest* methods had).
+    internal IEnumerable<(PartyRole role, SimPartySlot member)> FilledSlots()
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i] is { } m) yield return ((PartyRole)i, m);
+    }
+
+    // Every filled slot, alive or dead. Used by the party HUD so dead members
+    // keep their slot (HP=0 is the visible "dead" state) instead of being
+    // silently dropped — and so other members don't shift up the list when
+    // someone dies. Mechanic resolvers should keep using ActiveMembers.
+    internal IEnumerable<SimPartySlot> AllMembers()
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i] is { } m) yield return m;
     }
 
     public bool IsAlive
@@ -109,7 +81,19 @@ public sealed class SimParty : ISimObject
 
     public void Tick(float deltaSeconds)
     {
-        for (int i = 0; i < slots.Length; i++) slots[i]?.Tick(deltaSeconds);
+        // Skip the SimPlayer slot — SimWorld.Tick ticks the player directly so
+        // it stays alive even when no scenario has wired the player into the
+        // party. Ticking it here too would double-tick our overlays (statuses,
+        // VFX expiry) every frame.
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i] is null or SimPlayer) continue;
+            slots[i]!.Tick(deltaSeconds);
+        }
+        // Refresh every tick: per-member state (HP=0 on death, HP changes if we
+        // ever simulate damage) needs to propagate without us tracking every
+        // mutation. Refresh internally early-outs when there's nothing to write.
+        partyHud.Refresh(this);
     }
 
     public void Despawn()
@@ -119,5 +103,6 @@ public sealed class SimParty : ISimObject
             slots[i]?.Despawn();
             slots[i] = null;
         }
+        partyHud.Clear();
     }
 }

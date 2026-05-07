@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using UltiSim.Core;
 using static UltiSim.Scenarios.TopP5Delta.TopP5DeltaConstants;
 
@@ -30,11 +32,11 @@ public sealed class Side
 
     // StatusLoopVFX rows 534/535 → VFX rows 1591/1592 → these files. The m0771
     // prefix on the filename is just naming convention; the file lives under common/.
-    public static readonly Side Right = new(31638, 31636, 3452, "vfx/common/eff/m0771stlp3c0c.avfx", -1, BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw);
-    public static readonly Side Left = new(31639, 31637, 3453, "vfx/common/eff/m0771stlp4c0c.avfx", 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
+    public static readonly Side Right = new(ActionId.OversampledWaveCannonRight, ActionId.SwivelCannonR, StatusId.PlayerMonitorRight, "vfx/common/eff/m0771stlp3c0c.avfx", -1, BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw);
+    public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, "vfx/common/eff/m0771stlp4c0c.avfx", 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
 }
 
-public enum NorthSouth 
+public enum NorthSouth
 {
     North = 1,
     South = -1
@@ -45,7 +47,7 @@ public sealed class TopP5DeltaState
     public IReadOnlyList<PartyRole> TetherOrder { get; }
     public NorthSouth EyeSpawn { get; }
     public IReadOnlyList<int> FistRotations { get; }  // length 6, three +1 and three -1
-    public IReadOnlyList<int> FistColors { get; }     // length 8, each half has two 0s and two 1s
+    public IReadOnlyList<uint> FistColors { get; }    // length 8, each half has two BNpcBaseId.RocketPunchYellow and two RocketPunchBlue
     public IReadOnlyList<Side> ArmHandedness { get; } // length 6, three Left and three Right
     public Side SwivelCannonSide { get; }
     public Side OmegaMonitorSide { get; }
@@ -54,33 +56,73 @@ public sealed class TopP5DeltaState
     public int NearWorldTetherIndex { get; } // 0..3, distinct from FarWorldTetherIndex
     public int FarWorldTetherIndex { get; }  // 0..3, distinct from NearWorldTetherIndex
 
-    // Set by the scenario when BeyondDefenseAOE picks its target. The AI uses it
-    // to position the targeted slot away from the rest of the monitor stack.
+    public TriOption BeyondDefenceForPlayer { get; }
+
     public PartyRole? BeyondDefenseTarget { get; set; }
+    public PartyRole NearWorldRole { get; set; }
+    public PartyRole FarWorldRole { get; set; }
+    public bool PunchExplosionUnmitigated { get; set; }
+    public List<Vector3>? PunchTargets { get; set; }
+
+    public int BeyondDefenseIndex()
+    {
+        if (BeyondDefenseTarget is not { } target) return 0;
+        return TetherOrder.Select((role, i) => (role, i))
+                          .Where(t => t.role == target)
+                          .Select(t => t.i)
+                          .FirstOrDefault(0);
+    }
 
     public TopP5DeltaState(TopP5DeltaStateOverrides overrides, PartyRole playerRole)
     {
         var rng = new Random();
 
         var roles = ShuffleRoles(rng);
-        // Force-player-on-monitor pins the player to TetherOrder[0] (and below sets
-        // PlayerMonitorIndex=0). Swap the player's role into slot 0 instead of biasing
-        // the shuffle so the rest of the order stays uniformly random.
-        if (overrides.ForcePlayerOnMonitor)
+
+        // Resolve effective tether assignment, applying forced overrides in priority order:
+        //   BD=Yes → close inner (highest priority)
+        //   Monitor=Yes or HelloWorld=Near/Far on a far assignment → close any
+        var effectiveTether = overrides.TetherAssignment;
+        if (overrides.BeyondDefence == TriOption.Yes)
+            effectiveTether = PlayerTetherAssignment.CloseInner;
+        else if ((overrides.Monitor == TriOption.Yes ||
+                  overrides.HelloWorld is HelloWorldOption.Near or HelloWorldOption.Far) &&
+                 effectiveTether is PlayerTetherAssignment.FarAny or PlayerTetherAssignment.FarInner or PlayerTetherAssignment.FarOuter)
+            effectiveTether = PlayerTetherAssignment.CloseAny;
+
+        // Slots 0-1 = close inner, 2-3 = close outer, 4-5 = far inner, 6-7 = far outer.
+        int[]? validSlots = effectiveTether switch
         {
-            var idx = Array.IndexOf(roles, playerRole);
-            if (idx > 0) (roles[0], roles[idx]) = (roles[idx], roles[0]);
+            PlayerTetherAssignment.CloseInner => new[] { 0, 1 },
+            PlayerTetherAssignment.CloseOuter => new[] { 2, 3 },
+            PlayerTetherAssignment.CloseAny   => new[] { 0, 1, 2, 3 },
+            PlayerTetherAssignment.FarInner   => new[] { 4, 5 },
+            PlayerTetherAssignment.FarOuter   => new[] { 6, 7 },
+            PlayerTetherAssignment.FarAny     => new[] { 4, 5, 6, 7 },
+            _                                  => null,
+        };
+
+        if (validSlots != null)
+        {
+            var currentIdx = Array.IndexOf(roles, playerRole);
+            if (Array.IndexOf(validSlots, currentIdx) < 0)
+            {
+                var targetSlot = validSlots[rng.Next(validSlots.Length)];
+                (roles[currentIdx], roles[targetSlot]) = (roles[targetSlot], roles[currentIdx]);
+            }
         }
 
         TetherOrder = roles;
+        var playerSlot = Array.IndexOf(roles, playerRole);
+        var playerInClose = playerSlot < 4;
 
         EyeSpawn = overrides.EyeSpawn ?? (rng.Next(2) == 0 ? NorthSouth.North : NorthSouth.South);
         FistRotations = ShuffleInPlace(new[] { 1, 1, 1, -1, -1, -1 }, rng);
         ArmHandedness = ShuffleSides(rng);
 
-        var colors = new int[8];
-        var first = ShuffleInPlace(new[] { 0, 0, 1, 1 }, rng);
-        var second = ShuffleInPlace(new[] { 0, 0, 1, 1 }, rng);
+        var colors = new uint[8];
+        var first = ShuffleInPlace(new[] { BNpcBaseId.RocketPunchYellow, BNpcBaseId.RocketPunchYellow, BNpcBaseId.RocketPunchBlue, BNpcBaseId.RocketPunchBlue }, rng);
+        var second = ShuffleInPlace(new[] { BNpcBaseId.RocketPunchYellow, BNpcBaseId.RocketPunchYellow, BNpcBaseId.RocketPunchBlue, BNpcBaseId.RocketPunchBlue }, rng);
         Array.Copy(first, 0, colors, 0, 4);
         Array.Copy(second, 0, colors, 4, 4);
         FistColors = colors;
@@ -88,13 +130,59 @@ public sealed class TopP5DeltaState
         SwivelCannonSide = overrides.SwivelCannonSide ?? RandomSide(rng);
         OmegaMonitorSide = RandomSide(rng);
         PlayerMonitorSide = RandomSide(rng);
-        PlayerMonitorIndex = overrides.ForcePlayerOnMonitor ? 0 : rng.Next(4);
 
-        var near = rng.Next(4);
-        var far = rng.Next(3);
-        if (far >= near) far++;
+        PlayerMonitorIndex = (overrides.Monitor, playerInClose) switch
+        {
+            (TriOption.Yes, true) => playerSlot,
+            (TriOption.No,  true) => RandomExclude(rng, 4, playerSlot),
+            _                     => rng.Next(4),
+        };
+
+        // Near/Far world tether index assignment (both are distinct slots from 0-3).
+        int near, far;
+        if (overrides.HelloWorld == HelloWorldOption.Near && playerInClose)
+        {
+            near = playerSlot;
+            far  = RandomExclude(rng, 4, near);
+        }
+        else if (overrides.HelloWorld == HelloWorldOption.Far && playerInClose)
+        {
+            far  = playerSlot;
+            near = RandomExclude(rng, 4, far);
+        }
+        else if (overrides.HelloWorld == HelloWorldOption.No && playerInClose)
+        {
+            near = RandomExclude(rng, 4, playerSlot);
+            far  = RandomExclude2(rng, 4, near, playerSlot);
+        }
+        else
+        {
+            near = rng.Next(4);
+            far  = rng.Next(3);
+            if (far >= near) far++;
+        }
         NearWorldTetherIndex = near;
-        FarWorldTetherIndex = far;
+        FarWorldTetherIndex  = far;
+        NearWorldRole = TetherOrder[near];
+        FarWorldRole  = TetherOrder[far];
+
+        BeyondDefenceForPlayer = overrides.BeyondDefence;
+    }
+
+    // Random int in [0, max) excluding `exclude`.
+    private static int RandomExclude(Random rng, int max, int exclude)
+    {
+        var v = rng.Next(max - 1);
+        return v >= exclude ? v + 1 : v;
+    }
+
+    // Random int in [0, max) excluding both ex1 and ex2 (assumed distinct).
+    private static int RandomExclude2(Random rng, int max, int ex1, int ex2)
+    {
+        var pool = new List<int>(max);
+        for (int i = 0; i < max; i++)
+            if (i != ex1 && i != ex2) pool.Add(i);
+        return pool.Count > 0 ? pool[rng.Next(pool.Count)] : RandomExclude(rng, max, ex1);
     }
 
     private static Side RandomSide(Random rng) => rng.Next(2) == 0 ? Side.Left : Side.Right;
@@ -123,7 +211,7 @@ public sealed class TopP5DeltaState
         return sides;
     }
 
-    private static int[] ShuffleInPlace(int[] values, Random rng)
+    private static T[] ShuffleInPlace<T>(T[] values, Random rng)
     {
         for (int i = values.Length - 1; i > 0; i--)
         {

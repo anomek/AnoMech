@@ -1,4 +1,5 @@
 using System;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace UltiSim.Core;
@@ -24,6 +25,8 @@ internal static unsafe class BattleCharaSpawn
             Plugin.Log.Warning($"Failed to retrieve spawned object at index {index}");
             return false;
         }
+
+        obj->EntityId = 0xE0000001 + index;
         return true;
     }
 
@@ -32,5 +35,30 @@ internal static unsafe class BattleCharaSpawn
         var max = Math.Min(name.Length, 63);
         for (int i = 0; i < max; i++) obj->Name[i] = (byte)name[i];
         obj->Name[max] = 0;
+    }
+
+    // ClientObjectManager and CharacterManager hold separate _battleCharas arrays;
+    // the HudManager EntityId resolver (used by both _PartyList and _EnemyList)
+    // walks the latter, so spawned BCs must be appended there too or they're
+    // invisible to those addons. Array is shared with all BCs in the zone, so
+    // this only works reliably in low-density spots.
+    public static void RegisterInCharacterManager(BattleChara* chara)
+    {
+        var cm = CharacterManager.Instance();
+        if (cm == null || chara == null) return;
+        var arr = cm->BattleCharas;
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i].Value == chara) return;
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i].Value == null) { arr[i] = chara; return; }
+    }
+
+    public static void UnregisterFromCharacterManager(BattleChara* chara)
+    {
+        var cm = CharacterManager.Instance();
+        if (cm == null || chara == null) return;
+        var arr = cm->BattleCharas;
+        for (int i = 0; i < arr.Length; i++)
+            if (arr[i].Value == chara) { arr[i] = (BattleChara*)null; return; }
     }
 }

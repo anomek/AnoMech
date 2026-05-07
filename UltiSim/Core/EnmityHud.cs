@@ -2,27 +2,32 @@ using System;
 using System.Collections.Generic;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using UltiSim.Core.SimObjects;
 using Action = Lumina.Excel.Sheets.Action;
 
 namespace UltiSim.Core;
 
-// Mirrors the spawned-enemy list into UIState.Hate / UIState.Hater each frame
-// so the in-game enmity HUD shows our enemies. Hate/Hater don't carry cast info
-// and the game's HudManager copier doesn't read CastInfo from our spawned
-// BattleChara, so the cast bar stays empty if we only write Hate/Hater.
+// Drives the in-game _EnemyList addon by writing rows directly into its
+// NumberArray / StringArray during PreRequestedUpdate. We deliberately don't go
+// through UIState.Hate/Hater + HudManager copier — that path requires the BC to
+// be findable via CharacterManager.LookupBattleCharaByEntityId, which means
+// inserting the BC into CharacterManager._battleCharas, which triggers a per-frame
+// CharacterManager update that attaches the BC into render-side caches (Skeleton,
+// CharacterLookAtController). Those attachments aren't drained by
+// DeleteObjectByIndex, so freeing the BC produces a ghost render that crashes the
+// next render task on a freed Skeleton vtable.
 //
-// Direct AtkArrayData writes during Framework.Update don't stick either —
-// Dalamud's Update fires before CSFramework::Tick, and the copier overwrites
-// our slot writes. Instead we hook _EnemyList's PreRequestedUpdate, which
-// fires right before the addon reads its arrays (after the copier), and
-// inject CastPercent / Castname there.
+// Writing the addon arrays directly avoids the resolver lookup entirely. The
+// addon doesn't care that the EntityId doesn't resolve to a real BC — it just
+// renders whatever we put in the slots.
 //
-// Requires each SimEnemy to be registered in CharacterManager._battleCharas so the
-// HudManager's EntityId lookup succeeds. See reference_charactermanager_register.md
-// for the low-density zone caveat.
+// Number array layout (EnemyListNumberArray): 5-int header, then 8 × 6-int rows:
+//   header[0] Unk0, [1] EnemyCount, [2] TargetEntityId, [3] UnkEntityId, [4] Unk4
+//   row[i] base = 5 + i*6: [+0] HP%, [+1] MaxHP%, [+2] Cast%, [+3] EntityId,
+//          [+4] ActiveInList (bool-as-int), [+5] Unk5
+// String array layout (EnemyListStringArray): 8 × 2 strings, base i*2:
+//   [+0] EnemyName, [+1] CastName
 internal sealed unsafe class EnmityHud : IDisposable
 {
     private const int EnemyListSize = 8;
@@ -32,63 +37,7 @@ internal sealed unsafe class EnmityHud : IDisposable
 
     public EnmityHud()
     {
-         Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRequestedUpdate, AddonName, OnPreRequestedUpdate);
-    }
-
-    public void Refresh(IEnumerable<SimEnemy> enemies)
-    {
-        Array.Clear(slotEnemies);
-
-        var ui = UIState.Instance();
-        if (ui == null) return;
-
-        
-        ref var hate = ref ui->Hate;
-        ref var hater = ref ui->Hater;
-        
-        var written = 0;
-        foreach (var e in enemies)
-        {
-            if (written >= 32) break;
-            if (!e.InEnemyList) continue;
-            var entityId = e.EntityId;
-            if (entityId == 0) continue;
-
-            hate.HateInfo[written].EntityId = entityId;
-            hate.HateInfo[written].Enmity = 100;
-
-            ref var slot = ref hater.Haters[written];
-            slot.EntityId = entityId;
-            slot.Enmity = 100;
-            WriteName(ref slot, e.DisplayName);
-
-            if (written < slotEnemies.Length) slotEnemies[written] = e;
-            written++;
-        }
-
-        if (written == 0)
-        {
-            hate.HateArrayLength = 0;
-            hate.HateTargetId = 0;
-            hater.HaterCount = 0;
-            return;
-        }
-
-        hate.HateArrayLength = written;
-        hate.HateTargetId = hater.Haters[0].EntityId;
-        hater.HaterCount = written;
-    }
-
-    public void Clear()
-    {
-        var ui = UIState.Instance();
-        if (ui != null)
-        {
-            ui->Hate.HateArrayLength = 0;
-            ui->Hate.HateTargetId = 0;
-            ui->Hater.HaterCount = 0;
-        }
-        Array.Clear(slotEnemies);
+        Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRequestedUpdate, AddonName, OnPreRequestedUpdate);
     }
 
     public void Dispose()
@@ -96,10 +45,24 @@ internal sealed unsafe class EnmityHud : IDisposable
         Plugin.AddonLifecycle.UnregisterListener(AddonEvent.PreRequestedUpdate, AddonName, OnPreRequestedUpdate);
     }
 
-    // Fired by Dalamud right before _EnemyList reads its AtkArrayData each frame.
-    // The game's HudManager copier has already populated HP / EntityId / etc by
-    // this point; we slot in cast info on top, keyed by our slotEnemies order
-    // (which matches the order we wrote to Hater).
+    // Snapshot which enemies should occupy each addon slot. Called from
+    // SimWorld.Tick once per frame; OnPreRequestedUpdate reads slotEnemies later
+    // in the same frame to populate the addon arrays.
+    public void Refresh(IEnumerable<SimEnemy> enemies)
+    {
+        Array.Clear(slotEnemies);
+        var written = 0;
+        foreach (var e in enemies)
+        {
+            if (written >= EnemyListSize) break;
+            if (!e.InEnemyList) continue;
+            if (!e.IsAlive) continue;
+            slotEnemies[written++] = e;
+        }
+    }
+
+    public void Clear() => Array.Clear(slotEnemies);
+
     private void OnPreRequestedUpdate(AddonEvent type, AddonArgs args)
     {
         if (args is not AddonRequestedUpdateArgs reqArgs) return;
@@ -113,28 +76,59 @@ internal sealed unsafe class EnmityHud : IDisposable
 
         var actionSheet = Plugin.DataManager.GetExcelSheet<Action>();
 
+        var activeCount = 0;
+        var firstEntityId = 0;
         for (int i = 0; i < EnemyListSize; i++)
         {
             var e = slotEnemies[i];
+            if (e is null || !e.IsAlive)
+            {
+                WriteEmptyRow(numArr, strArr, i);
+                continue;
+            }
+
+            activeCount++;
+            var entityId = (int)e.EntityId;
+            if (firstEntityId == 0) firstEntityId = entityId;
+
             var castPercent = -1;
             var castName = string.Empty;
-
-            if (e is { IsCasting: true })
+            if (e.IsCasting)
             {
                 castPercent = (int)Math.Clamp(e.CastProgress * 100f, 0f, 100f);
                 if (e.CastActionId != 0 && actionSheet.TryGetRow(e.CastActionId, out var action))
                     castName = action.Name.ExtractText() ?? string.Empty;
             }
 
-            numArr->SetValue(5 + i * 6 + 2, castPercent);
-            strArr->SetValue(1 + i * 2, castName, managed: true);
+            var rowBase = 5 + i * 6;
+            numArr->SetValue(rowBase + 0, 100); // HP%
+            numArr->SetValue(rowBase + 1, 100); // MaxHP%
+            numArr->SetValue(rowBase + 2, castPercent);
+            numArr->SetValue(rowBase + 3, entityId);
+            numArr->SetValue(rowBase + 4, 1); // ActiveInList
+            numArr->SetValue(rowBase + 5, 0);
+
+            var strBase = i * 2;
+            strArr->SetValue(strBase + 0, e.DisplayName, managed: true);
+            strArr->SetValue(strBase + 1, castName, managed: true);
         }
+
+        numArr->SetValue(1, activeCount);
+        numArr->SetValue(2, firstEntityId);
     }
 
-    private static void WriteName(ref HaterInfo slot, string name)
+    private static void WriteEmptyRow(NumberArrayData* numArr, StringArrayData* strArr, int i)
     {
-        var max = Math.Min(name.Length, 63);
-        for (int i = 0; i < max; i++) slot.Name[i] = (byte)name[i];
-        slot.Name[max] = 0;
+        var rowBase = 5 + i * 6;
+        numArr->SetValue(rowBase + 0, 0);
+        numArr->SetValue(rowBase + 1, 0);
+        numArr->SetValue(rowBase + 2, -1);
+        numArr->SetValue(rowBase + 3, 0);
+        numArr->SetValue(rowBase + 4, 0);
+        numArr->SetValue(rowBase + 5, 0);
+
+        var strBase = i * 2;
+        strArr->SetValue(strBase + 0, string.Empty, managed: true);
+        strArr->SetValue(strBase + 1, string.Empty, managed: true);
     }
 }

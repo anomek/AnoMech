@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -20,7 +21,7 @@ public record struct EnemySpawnConfig(
     Vector3 Offset = default,
     float Rotation = 0f,
     uint ModelCharaId = 0,
-    float Scale = 0f, // 0 = use BNpcBase.Scale
+    float Scale = 0f,    // 0 = use BNpcBase.Scale
     float Lifetime = 0f); // 0 = persist until explicit Despawn / scenario reset
 
 public sealed unsafe class SimEnemy : SimNpc
@@ -39,14 +40,16 @@ public sealed unsafe class SimEnemy : SimNpc
     private uint pendingOmenActionId;
     private bool pendingOmenScheduled;
 
+    public uint BNpcBaseId { get; }
     public string DisplayName { get; }
     public bool InEnemyList { get; }
     public bool IsCasting => casting;
     public uint CastActionId { get; private set; }
     public float CastProgress => castTotal <= 0f ? 0f : Math.Clamp(castElapsed / castTotal, 0f, 1f);
 
-    internal SimEnemy(uint index, string displayName, bool inEnemyList, EventScheduler events, float lifetime) : base(index)
+    internal SimEnemy(uint index, uint bNpcBaseId, string displayName, bool inEnemyList, EventScheduler events, float lifetime) : base(index)
     {
+        BNpcBaseId = bNpcBaseId;
         DisplayName = displayName;
         InEnemyList = inEnemyList;
         // Auto-despawn schedule for short-lived helpers (e.g. AOE-source dummies).
@@ -113,7 +116,7 @@ public sealed unsafe class SimEnemy : SimNpc
         if (config.Level != 0) chara->Level = config.Level;
 
         Plugin.Log.Info($"SimEnemy: spawned BNpcBase {config.BNpcBaseId} (ModelChara {bnpc.ModelChara.RowId}, scale {bnpc.Scale}) at index {idx}");
-        return new SimEnemy(idx, displayName, config.InEnemyList, events, config.Lifetime);
+        return new SimEnemy(idx, config.BNpcBaseId, displayName, config.InEnemyList, events, config.Lifetime);
     }
 
     // The game stores each model's unscaled hitbox radius in ModelChara's first numeric
@@ -129,13 +132,38 @@ public sealed unsafe class SimEnemy : SimNpc
         return unscaled * scale;
     }
 
+    // BNpcName.Singular is stored lowercase for generic enemies ("rocket punch")
+    // and capitalized for proper-noun bosses ("Omega"). The game capitalizes the
+    // generic ones at display time; we mirror that by title-casing every word so
+    // the enemy list shows "Rocket Punch"-style consistently.
     private static string? ResolveBNpcName(uint nameId)
     {
         if (nameId == 0) return null;
         var sheet = Plugin.DataManager.GetExcelSheet<BNpcName>();
         if (!sheet.TryGetRow(nameId, out var row)) return null;
         var s = row.Singular.ExtractText();
-        return string.IsNullOrEmpty(s) ? null : s;
+        if (string.IsNullOrEmpty(s)) return null;
+        return TitleCaseWords(s);
+    }
+
+    private static string TitleCaseWords(string s)
+    {
+        var chars = s.ToCharArray();
+        var capitalizeNext = true;
+        for (int i = 0; i < chars.Length; i++)
+        {
+            var c = chars[i];
+            if (char.IsLetter(c))
+            {
+                if (capitalizeNext) chars[i] = char.ToUpperInvariant(c);
+                capitalizeNext = false;
+            }
+            else
+            {
+                capitalizeNext = true;
+            }
+        }
+        return new string(chars);
     }
 
     public override void Despawn()
@@ -145,12 +173,9 @@ public sealed unsafe class SimEnemy : SimNpc
         base.Despawn();
     }
 
-    public void PlayActionTimeline(ushort timelineId)
-    {
-        var chara = GetBattleChara();
-        if (chara == null) return;
-        chara->Timeline.PlayActionTimeline(timelineId);
-    }
+    // Scenarios rarely call Game.Kill on enemies (boss HP isn't modeled), but
+    // include the override for symmetry — a killed enemy just despawns.
+    internal override void OnKilled() => Despawn();
 
     public void SetTargetable(bool targetable)
     {
@@ -262,7 +287,7 @@ public sealed unsafe class SimEnemy : SimNpc
             _ => new Vector3(range, 1f, range),
         };
         // Cones / rectangles need to point along the caster's facing; circles ignore rotation.
-        castOmen = VfxFunctions.SpawnStaticVfx(resolvedPath, origin, MathUtil.NormalizeRotation(chara->Rotation + extraRotation), scale);
+        castOmen = VfxFunctions.SpawnStaticVfx(resolvedPath, new Placement(origin, MathUtil.NormalizeRotation(chara->Rotation + extraRotation)), scale);
     }
 
     // Lumina's Omen.Path is typically a bare name (`gl_circle_5007_x1`); the on-disk
@@ -300,6 +325,7 @@ public sealed unsafe class SimEnemy : SimNpc
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+
         if (!casting) return;
 
         var chara = GetBattleChara();
@@ -392,5 +418,10 @@ public sealed unsafe class SimEnemy : SimNpc
                 null,
                 null);
         }
+    }
+
+    public CharacterFind<T> Find<T>(List<T> targets) where T : IPositioned
+    {
+        return new CharacterFind<T>(targets);
     }
 }

@@ -21,22 +21,30 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
     [PluginService] internal static ISigScanner SigScanner { get; private set; } = null!;
+    [PluginService] internal static IGameInteropProvider GameInterop { get; private set; } = null!;
+    [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     private const string CommandName = "/pmycommand";
 
     public Configuration Configuration { get; init; }
+    internal static Configuration Config { get; private set; } = null!;
 
     public readonly WindowSystem WindowSystem = new("UltiSim");
     public Game Game { get; }
+    // SimObjects need the Game (e.g. SimPlayer reads Game.PlayerInputHooks for
+    // stun on death). Mirror the pattern of the other Plugin.* statics.
+    internal static Game GameInstance { get; private set; } = null!;
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
 
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        Config = Configuration;
 
         Game = new Game();
+        GameInstance = Game;
         ConfigWindow = new ConfigWindow(this);
         MainWindow = new MainWindow(this);
 

@@ -53,19 +53,19 @@ internal static unsafe class PartyCreator
                 origin.Z + MathF.Cos(angle) * distance);
             var facingPlayer = MathF.Atan2(origin.X - pos.X, origin.Z - pos.Z);
 
-            var member = Spawn(preset, (PartyRole)i, pos, facingPlayer, itemSheet);
+            var member = Spawn(preset, (PartyRole)i, new Placement(pos, facingPlayer), itemSheet);
             if (member != null) party.SetSlot((PartyRole)i, member);
         }
     }
 
-    private static SimPartyMember? Spawn(PartyMemberPreset preset, PartyRole role, Vector3 position, float rotation, ExcelSheet<Item> itemSheet)
+    private static SimPartyMember? Spawn(PartyMemberPreset preset, PartyRole role, Placement placement, ExcelSheet<Item> itemSheet)
     {
         if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
 
         var chara = (BattleChara*)obj;
         chara->ObjectKind = ObjectKind.Pc;
-        chara->Position = position;
-        chara->Rotation = MathUtil.NormalizeRotation(rotation);
+        chara->Position = placement.Position;
+        chara->Rotation = MathUtil.NormalizeRotation(placement.Rotation);
         chara->Scale = 1f;
         chara->ModelContainer.ModelCharaId = 0;
         chara->ModelContainer.ModelSkeletonId = 0;

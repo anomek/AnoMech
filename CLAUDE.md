@@ -29,6 +29,9 @@ The reference scenario is **TOP P5 Delta** (`Scenarios/TopP5Delta/`). Treat it a
 ### Scenarios
 `Scenarios/IScenario.cs` is the contract: `Run(SimWorld, PartyRole)`. `Game.RunScenario` wires up origin snapshot, party init, waymarks, then invokes `Run`. A scenario typically declares its event timeline via `world.Events.Add(offset, action)` — the EventScheduler then fires each lambda at the scheduled time. The TOP P5 Delta scenario is split into `TopP5DeltaScenario` (event timeline + spawns + casts), `TopP5DeltaAi` (party-member movement choreography), `TopP5DeltaState` (per-run randomization), `TopP5DeltaConstants` (BNpc / action / status / tether IDs), `TopP5DeltaSettingsWindow` + `TopP5DeltaStateOverrides` (debug overrides).
 
+### Scenario timeline conventions
+- **Use absolute time literals in `world.Events.Add`.** Every entry in a scenario's `Run` should be `world.Events.Add(<absolute t>, ...)` from scenario start (e.g. `55f`, `56.5f`) — not `<base> + offset` arithmetic, named time constants, or chained `Events.Add` calls inside event handlers. The whole scenario timeline should be readable top-to-bottom as a single list of absolute timestamps. If state needs to flow between events, store it on `TopP5DeltaState` (or the equivalent scenario-state object) and have each handler read/mutate it.
+
 ### Heavy native interop
 Most SimObject code is `unsafe` and walks `FFXIVClientStructs` types directly (`BattleChara*`, `GameObject*`, `StatusManager`, `CastInfo`, `Timeline`, `DrawData`, `CharacterManager`, `ClientObjectManager`, `GroupManager.MainGroup`, `UIState.Hate/Hater`, `AgentHUD`, `AtkArrayData`). When you need to know what a field does, prefer the local checkouts (see `~/.claude/projects/D--Projects-ffxiv-UltiSim/memory/MEMORY.md` references) over websearch.
 

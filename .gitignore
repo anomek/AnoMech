@@ -1,5 +1,6 @@
 .vs/
 obj/
+/logs/
 bin/
 .idea/
 .claude/

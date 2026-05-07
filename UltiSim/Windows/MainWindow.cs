@@ -6,12 +6,16 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 using UltiSim.Core;
 using UltiSim.Core.SimObjects;
+using UltiSim.Scenarios;
 
 namespace UltiSim.Windows;
 
 public unsafe class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
+    private bool _leftPanelOpen = true;
+    private IScenario? _selectedScenario;
+
 #if DEBUG
     private string debugBNpcBaseIdText = "0x3D69";
     private string debugSpawnScaleText = "0";
@@ -23,9 +27,10 @@ public unsafe class MainWindow : Window, IDisposable
     {
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(280, 220),
+            MinimumSize = new Vector2(220, 80),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
+        Flags |= ImGuiWindowFlags.AlwaysAutoResize;
 
         this.plugin = plugin;
         IsOpen = true;
@@ -35,25 +40,92 @@ public unsafe class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        DrawSpeedControl();
-        ImGui.Spacing();
+        var leftWidth = _leftPanelOpen ? 180f : 30f;
 
-        if (ImGui.BeginTabBar("##UltiSimTabs"))
+        if (ImGui.BeginTable("##layout", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingFixedFit))
         {
-            if (ImGui.BeginTabItem("Scenarios"))
-            {
-                DrawScenariosTab();
-                ImGui.EndTabItem();
-            }
-#if DEBUG
-            if (ImGui.BeginTabItem("Debug"))
-            {
-                DrawDebugTab();
-                ImGui.EndTabItem();
-            }
-#endif
-            ImGui.EndTabBar();
+            ImGui.TableSetupColumn("##left", ImGuiTableColumnFlags.WidthFixed, leftWidth);
+            ImGui.TableSetupColumn("##right", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            DrawScenariosPanel();
+            ImGui.TableSetColumnIndex(1);
+            DrawMainContent();
+            ImGui.EndTable();
         }
+    }
+
+    private void DrawScenariosPanel()
+    {
+        if (_leftPanelOpen)
+        {
+            ImGui.TextUnformatted("Scenarios");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("<##collapse")) _leftPanelOpen = false;
+            ImGui.Separator();
+
+            foreach (var scenario in plugin.Game.Scenarios)
+            {
+                var selected = _selectedScenario == scenario;
+                if (selected) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
+                ImGui.PushID(scenario.Name);
+                if (ImGui.Button(scenario.Name, new Vector2(-1, 0))) _selectedScenario = scenario;
+                ImGui.PopID();
+                if (selected) ImGui.PopStyleColor();
+            }
+        }
+        else
+        {
+            if (ImGui.Button(">##expand")) _leftPanelOpen = true;
+        }
+    }
+
+    private void DrawMainContent()
+    {
+        if (_selectedScenario == null)
+        {
+            ImGui.TextDisabled("Select a scenario");
+            return;
+        }
+
+        var game = plugin.Game;
+
+        ImGui.TextUnformatted(_selectedScenario.Name);
+        ImGui.Separator();
+
+        if (ImGui.Button("Start")) game.RunScenario(_selectedScenario);
+        ImGui.SameLine();
+        if (ImGui.Button("Reset")) game.Reset();
+        if (game.IsInInstance)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Leave")) game.Leave();
+        }
+
+        var god = game.GodMode;
+        if (ImGui.Checkbox("God mode", ref god)) game.GodMode = god;
+
+#if DEBUG
+        DrawSpeedControl();
+#endif
+
+        if (game.Paused) ImGui.TextDisabled("(scenario paused — press Reset to clear)");
+
+        ImGui.Spacing();
+        if (ImGui.CollapsingHeader("Scenario config", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            ImGui.Indent();
+            _selectedScenario.DrawSettings();
+            ImGui.Unindent();
+        }
+
+#if DEBUG
+        ImGui.Spacing();
+        if (ImGui.CollapsingHeader("Debug"))
+        {
+            DrawDebugContent();
+        }
+#endif
     }
 
     // Buttons modify Game.EventTimeScale live so callers can speed up / slow down a
@@ -67,39 +139,18 @@ public unsafe class MainWindow : Window, IDisposable
         {
             ImGui.SameLine();
             var active = MathF.Abs(game.EventTimeScale - x) < 0.01f;
-            if (active)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
-                if (ImGui.Button($"x{x}")) game.EventTimeScale = x;
-                ImGui.PopStyleColor();
-            }
-            else
-            {
-                if (ImGui.Button($"x{x}")) game.EventTimeScale = x;
-            }
-        }
-    }
-
-    private void DrawScenariosTab()
-    {
-        foreach (var scenario in plugin.Game.Scenarios)
-        {
-            ImGui.PushID(scenario.Name);
-            if (ImGui.Button(scenario.Name))
-            {
-                plugin.Game.RunScenario(scenario);
-            }
-            ImGui.Indent();
-            scenario.DrawSettings();
-            ImGui.Unindent();
-            ImGui.Spacing();
-            ImGui.PopID();
+            if (active) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
+            if (ImGui.Button($"x{x}")) game.EventTimeScale = x;
+            if (active) ImGui.PopStyleColor();
         }
     }
 
 #if DEBUG
-    private void DrawDebugTab()
+    private void DrawDebugContent()
     {
+        ImGui.TextUnformatted($"TerritoryId: {Plugin.ClientState.TerritoryType}");
+
+        ImGui.Spacing();
         ImGui.TextUnformatted("Manual spawn");
         ImGui.Separator();
         ImGui.SetNextItemWidth(120);
@@ -149,11 +200,15 @@ public unsafe class MainWindow : Window, IDisposable
             DumpNearbyObjects();
 
         ImGui.Spacing();
+        ImGui.TextUnformatted("Death system");
         ImGui.Separator();
-        if (ImGui.Button("Reset"))
+        if (ImGui.Button("Kill MT"))
         {
-            plugin.Game.Reset();
+            var mt = plugin.Game.World.Party.Get(PartyRole.MainTank);
+            if (mt != null) plugin.Game.Kill(mt, "Debug kill");
         }
+        ImGui.SameLine();
+        if (ImGui.Button("Kill player")) plugin.Game.Kill(plugin.Game.World.Player, "Debug kill");
     }
 
     // Accepts decimal ("1340") or hex ("0x53C" / "53Ch" — case-insensitive).

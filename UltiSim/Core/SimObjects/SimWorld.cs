@@ -5,6 +5,13 @@ using System.Numerics;
 
 namespace UltiSim.Core.SimObjects;
 
+// Per-scenario zone fine-tuning applied after a client-side zone load. Scenarios
+// set World.Zone during Run(); Game reads it after Enter() and applies it.
+public sealed class ZoneSettings
+{
+    public byte? WeatherId { get; init; }
+}
+
 // Holds the live game state Game manipulates: a fixed-slot SimParty plus a
 // children list of transient scenario SimObjects (enemies, tethers, waymarks,
 // hidden objects). Spawn entry points (SpawnEnemy, Tether, PlaceWaymarks,
@@ -18,12 +25,15 @@ public sealed class SimWorld : ISimObject, IDisposable
     // Party is intentionally NOT in this list: it's a permanent fixture whose
     // Despawn clears slots without freeing the container.
     private readonly List<ISimObject> children = new();
-    private readonly PartyHud partyHud = new();
     private readonly EnmityHud enmityHud = new();
+
+    // MapEffect replayer + logging hook. Scenarios address it as world.Map.Apply(...).
+    internal MapEffectFunctions Map { get; } = new MapEffectFunctions();
 
     public SimParty Party { get; } = new();
     public SimPlayer Player { get; } = new();
     public IEnumerable<SimEnemy> Enemies => children.OfType<SimEnemy>();
+    public SimAI? AI { get; set; }
     // Passthrough to Game's EventScheduler so scenarios and SimObjects keep
     // calling world.Events.Add(...). The instance itself is owned by Game.
     public EventScheduler Events { get; }
@@ -31,6 +41,9 @@ public sealed class SimWorld : ISimObject, IDisposable
     // scenario-relative coordinate resolution. Ad-hoc callers (e.g. MainWindow
     // debug Spawn) are responsible for stamping this themselves before spawning.
     public Vector3 ScenarioOrigin { get; set; }
+    // Optional zone fine-tuning; scenario sets this during Run(). Game reads it
+    // after Enter() to apply weather and other per-zone settings.
+    public ZoneSettings? Zone { get; set; }
 
     public SimWorld(EventScheduler events)
     {
@@ -70,6 +83,14 @@ public sealed class SimWorld : ISimObject, IDisposable
         return enemy;
     }
 
+    // Per-frame arena fence centered on ScenarioOrigin. Any active party
+    // member (player included) whose XZ distance exceeds `radius` is killed
+    // with `cause`. Tracked as a normal child so reset clears it.
+    public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
+    {
+        children.Add(new SimArenaBoundary(this, ScenarioOrigin, radius, cause));
+    }
+
     public void Tick(float deltaSeconds)
     {
         // Game.Tick has already advanced Events for this frame; we just tick
@@ -85,7 +106,8 @@ public sealed class SimWorld : ISimObject, IDisposable
         // that may have been applied (defensive — no-op if none).
         Player.Tick(deltaSeconds);
         enmityHud.Refresh(Enemies);
-        partyHud.Refresh(Party);
+        // Party owns its own HUD refresh — Party.Tick auto-refreshes when
+        // composition changes (SetSlot flips a dirty flag).
     }
 
     public void Reset()
@@ -96,11 +118,13 @@ public sealed class SimWorld : ISimObject, IDisposable
         // among children.
         for (int i = children.Count - 1; i >= 0; i--) children[i].Despawn();
         children.Clear();
-        Party.Despawn();      // SimPartyMember slots free their handles; SimPlayer slot (if any) clears overlays
+        Party.Despawn();      // SimPartyMember slots free their handles; SimPlayer slot (if any) clears overlays; PartyHud cleared by Party
         Player.Despawn();     // defensive: ensure overlays cleared even if Party didn't hold the player slot
-        partyHud.Clear();
         enmityHud.Clear();
         ScenarioOrigin = default;
+        Zone = null;
+        AI = null;
+        Map.ExpectedTerritoryId = null;
     }
 
     // ISimObject.Despawn is the contract entry point for teardown; it forwards to
@@ -111,6 +135,6 @@ public sealed class SimWorld : ISimObject, IDisposable
     {
         Reset();
         enmityHud.Dispose();
-        partyHud.Dispose();
+        Map.Dispose();
     }
 }

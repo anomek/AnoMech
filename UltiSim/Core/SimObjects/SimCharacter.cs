@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -9,15 +10,15 @@ namespace UltiSim.Core.SimObjects;
 
 // Common base for anything in the simulated world that has a BattleChara behind
 // it — spawned NPCs (SimNpc) and the real local player (SimPlayer). Owns the
-// shared overlay state (attached VFX, pinned statuses) and Move/MoveTo as
-// virtual no-ops so callers can treat all characters uniformly. Subclasses
-// expose the pointer + identity via the abstract properties below; everything
-// else is concrete here.
+// shared overlay state (attached VFX, statuses) and Move/MoveTo as virtual
+// no-ops so callers can treat all characters uniformly. Subclasses expose the
+// pointer + identity via the abstract properties below; everything else is
+// concrete here.
 public abstract unsafe class SimCharacter : ISimObject, IPositioned
 {
     private readonly Dictionary<string, IntPtr> attachedVfx = new();
     private readonly Dictionary<string, float> attachedVfxExpiry = new();
-    private readonly Dictionary<ushort, PinnedStatus> pinnedStatuses = new();
+    private readonly List<SimStatus> statuses = new();
 
     internal abstract BattleChara* BattleCharaPtr { get; }
     public abstract GameObjectId GameObjectId { get; }
@@ -25,17 +26,34 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
     public abstract Vector3 Position { get; }
     public abstract float Rotation { get; }
     public abstract float HitboxRadius { get; }
+    public Placement Placement => new(Position, Rotation);
 
-    // Default IsAlive: a character is alive if its BattleChara handle resolves.
-    // SimNpc overrides to also check Index validity; SimPlayer can rely on this.
-    public virtual bool IsAlive => BattleCharaPtr != null;
+    // Set by Game.Kill() — the character is corpse-on-floor / stunned / despawned
+    // depending on subclass. Subclass IsAlive overrides AND with this so engine
+    // checks (party.Tick, AI movement, scenario lookups) all see them as gone.
+    public bool Dead { get; internal set; }
+
+    // Default IsAlive: a character is alive if its BattleChara handle resolves
+    // and Game.Kill hasn't been called on it. SimNpc overrides to also check
+    // Index validity; SimPlayer can rely on this.
+    public virtual bool IsAlive => !Dead && BattleCharaPtr != null;
+
+    // Per-subclass effects of dying. Game.Kill() flips Dead and routes here so
+    // subclasses do the right thing — SimPartyMember sets HP=0 + plays the KO
+    // timeline, SimPlayer kicks the input-lockout hooks, SimEnemy despawns.
+    internal virtual void OnKilled() { }
+
+    // Scenario-facing facade for Game.Kill — same global side effects (chat
+    // line, freeze timer, godmode short-circuit), just shorter at the call
+    // site than reaching for Plugin.GameInstance.
+    public void Die(string cause) => Plugin.GameInstance.Kill(this, cause);
 
     // Movement is a no-op by default — only SimNpc has writable position because
     // the real local player moves themselves. Scenarios call .MoveTo on a
     // uniform SimCharacter without checking the concrete type; calls that land
     // on SimPlayer are silently dropped. Override in SimNpc.
     public virtual void Move(Vector3 position) { }
-    public virtual void Move(Vector3 position, float rotation) { }
+    public virtual void Move(Placement placement) { }
     public virtual void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null, ushort timelineId = SimNpc.DefaultRunTimelineId) { }
     public virtual void StopMoving() { }
 
@@ -97,23 +115,60 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
         attachedVfxExpiry.Clear();
     }
 
-    // Pinned (no-countdown) status tracked per-id. Re-stamped to -1f each Tick so
-    // the engine's per-frame decrement (twice per frame on dual-registered party
-    // members) doesn't drift the value into a visible counter.
-    public void AddStatus(ushort statusId)
+    // Status on this character. Default duration of 0 means apply once and
+    // leave alone (no auto-remove from our side); pass a positive duration for
+    // a visible countdown that auto-removes on expiry. Param is the stack
+    // count / sheet Param the slot should carry (0 if the status doesn't use
+    // it). Returned reference lets callers Despawn() it early (e.g. SimTether
+    // tearing its tether debuff); otherwise the character ticks and prunes it.
+    public SimStatus AddStatus(ushort statusId, float duration = 0f, ushort stacks = 0)
     {
-        if (statusId == 0 || pinnedStatuses.ContainsKey(statusId)) return;
-        pinnedStatuses[statusId] = new PinnedStatus(this, statusId);
+        var current = statuses
+            .FirstOrDefault(status => status.StatusId == statusId);
+        if (current == null)
+        {
+            var s = new SimStatus(this, statusId, duration, stacks);
+            statuses.Add(s);
+            return s;
+        }
+        else
+        {
+            current.Reapply(duration, stacks);
+            return current;
+        }
     }
 
     public void RemoveStatus(ushort statusId)
     {
-        if (pinnedStatuses.Remove(statusId, out var pin)) pin.Clear();
+        for (int i = statuses.Count - 1; i >= 0; i--)
+        {
+            if (statuses[i].StatusId != statusId) continue;
+            statuses[i].Despawn();
+            statuses.RemoveAt(i);
+        }
     }
+
+    // Returns the most recently added active SimStatus for this id, or null if
+    // there isn't one. Used by mechanic resolvers (stack increment) to read
+    // the current Param without re-walking the BattleChara slot array.
+    public SimStatus? GetStatus(ushort statusId)
+    {
+        for (int i = statuses.Count - 1; i >= 0; i--)
+            if (statuses[i].IsActive && statuses[i].StatusId == statusId) return statuses[i];
+        return null;
+    }
+
+    public bool HasStatus(ushort statusId) => GetStatus(statusId) != null;
 
     public virtual void Tick(float deltaSeconds)
     {
-        foreach (var pin in pinnedStatuses.Values) pin.Tick();
+        // Tick statuses; prune ones that auto-expired (or were explicitly
+        // Despawn'd) so the list doesn't grow unbounded across a long scenario.
+        for (int i = statuses.Count - 1; i >= 0; i--)
+        {
+            statuses[i].Tick(deltaSeconds);
+            if (!statuses[i].IsActive) statuses.RemoveAt(i);
+        }
 
         if (attachedVfxExpiry.Count > 0)
         {
@@ -131,7 +186,7 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
     public virtual void Despawn()
     {
         ClearAttachedVfx();
-        foreach (var pin in pinnedStatuses.Values) pin.Clear();
-        pinnedStatuses.Clear();
+        foreach (var s in statuses) s.Despawn();
+        statuses.Clear();
     }
 }
