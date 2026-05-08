@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using UltiSim.Core;
+using UltiSim.Core.Map;
 using UltiSim.Core.SimObjects;
 using UltiSim.Scenarios;
 using static UltiSim.Scenarios.TopP5Delta.TopP5DeltaConstants;
@@ -18,19 +19,21 @@ public sealed class TopP5DeltaScenario : IScenario
         TerritoryId: 1122,
         Origin: new Vector3(100f, 0f, 100f),
         PlayerPosition: new Vector3(100f, 0f, 116f),
-        WeatherId: 89);
+        WeatherId: 174);
     public IReadOnlyList<ScenarioOriginOverride> OriginOverrides { get; } = [
         new(TerritoryId: 801, X: 100f, Z: 100f),
         new(TerritoryId: 1045, X: 0f, Z: 0)
     ];
     public IReadOnlyList<uint> HiddenBaseIds { get; } = [BNpcBaseId.AlphaShield];
     public IReadOnlyList<Waymark> Waymarks { get; } = WaymarkPresets.Ring(13.63f);
+    public ushort Bgm => BgmId.TopP5;
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 
     private TopP5DeltaState state = null!;
     private TopP5DeltaAi ai = null!;
     private SimWorld world = null!;
+    private SimParty party = null!;
     private readonly Random rng = new();
 
     private SimEnemy? omega;
@@ -46,6 +49,7 @@ public sealed class TopP5DeltaScenario : IScenario
     public void Run(SimWorld worldParam, PartyRole playerRole)
     {
         world = worldParam;
+        party = worldParam.Party;
         state = new TopP5DeltaState(settingsWindow.Overrides, playerRole);
         ai = new TopP5DeltaAi(state);
         ai.Run(world);
@@ -55,7 +59,7 @@ public sealed class TopP5DeltaScenario : IScenario
         // Replay the server MapEffect IPC that sets up the TOP arena for P5.
         // Only has visible effect when physically inside TOP (ContentDirector must exist
         // with the territory's layout rows loaded). Safe to call elsewhere — no-ops.
-        world.Events.Add(1f, InitTopArena);
+        world.Events.Add(2f, InitTopArena);
 
         // Scenario timeline. Don't add events anywhere else unless there is no other way around it
         // Use absolute values for offsets.
@@ -65,10 +69,10 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(2f, () => omega?.Cast(ActionId.RunMiDeltaVersion));
         // Delta arena transition animation (index 0x07) — real game fires these
         // at +8/+24/+27/+42s relative to the Run: mi cast. Cast is at t=2f here.
-        world.Events.Add(10f, DeltaTransitionStart);
-        world.Events.Add(26f, DeltaTransitionAnimA);
-        world.Events.Add(29f, DeltaTransitionAnimB);
-        world.Events.Add(44f, DeltaTransitionEnd);
+        world.Events.Add(10f, EyeSpawn);
+        world.Events.Add(26f, EyeStartCharging);
+        world.Events.Add(29f, EyeDoneCharging);
+        world.Events.Add(44f, EyeDespawn);
         world.Events.Add(7f, () => omega?.SetTargetable(false));
         world.Events.Add(10.1f, ApplyDeltaTethers);           // HW debuffs confirmed at t=10.053s
         world.Events.Add(11f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
@@ -122,7 +126,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void CheckHelloWorldDeath()
     {
-        foreach (var member in world.Party.AllMembers())
+        foreach (var member in party.AllMembers())
         {
             if (member.IsAlive) continue;
             if (member.HasStatus(StatusId.HelloNearWorld))
@@ -173,8 +177,8 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: new Vector3(-20f, 0f, 0f) * (int)state.EyeSpawn,
-            Rotation: MathF.PI / 2f * (int)state.EyeSpawn));
+            Offset: new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul,
+            Rotation: MathF.PI / 2f * state.EyeSpawn.Mul));
         beetle?.PlayActionTimeline(TimelineId.Spawn);
 
         opticalUnit = world.SpawnEnemy(new EnemySpawnConfig(
@@ -183,8 +187,8 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: Level,
             Targetable: false,
             InEnemyList: false,
-            Offset: new Vector3(0f, 0f, -45f) * (int)state.EyeSpawn,
-            Rotation: MathF.PI / 2f * (int)state.EyeSpawn));
+            Offset: new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul,
+            Rotation: MathF.PI / 2f * state.EyeSpawn.Mul));
 
         finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.FinalHelper,
@@ -192,15 +196,15 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: new Vector3(20f, 0f, 0f) * (int)state.EyeSpawn,
-            Rotation: -MathF.PI / 2f * (int)state.EyeSpawn));
+            Offset: new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul,
+            Rotation: -MathF.PI / 2f * state.EyeSpawn.Mul));
         finalHelper?.PlayActionTimeline(TimelineId.Spawn);
     }
 
     private void ApplyDeltaTethers()
     {
         var targets = new SimCharacter[8];
-        for (int i = 0; i < 8; i++) targets[i] = world.Party.Get(state.TetherOrder[i])!;
+        for (int i = 0; i < 8; i++) targets[i] = party.Get(state.TetherOrder[i])!;
 
         world.Tether(targets[0], targets[1], TetherId.HWPrepRemote, 18f, StatusId.HWPrepRemoteTether);
         world.Tether(targets[2], targets[3], TetherId.HWPrepRemote, 18f, StatusId.HWPrepRemoteTether);
@@ -216,16 +220,16 @@ public sealed class TopP5DeltaScenario : IScenario
         beetle?.Cast(ActionId.PeripheralSynthesis);
         rocketPunches = Enumerable.Range(0, 8).Select(i =>
         {
-            var placement = world.Party.Get(state.TetherOrder[i])!.Placement.MoveForward(-Geometry.PunchBackDistance);
+            var placement = party.Get(state.TetherOrder[i])!.Placement.MoveForward(-Geometry.PunchBackDistance);
             var punch = world.SpawnEnemy(new EnemySpawnConfig(
                                              BNpcBaseId: state.FistColors[i],
                                              NameId: BNpcNameId.RocketPunch,
                                              Level: Level,
                                              Targetable: false,
                                              InEnemyList: true,
-                                             Offset: placement.Position,
+                                             Offset: placement.Position - world.ScenarioOrigin,
                                              Rotation: placement.Rotation));
-            punch?.PlayActionTimeline(TimelineId.RocketPunchSpawn);
+            punch?.AddVfx("vfx/monster/m0114/eff/m0114cbbm_sp_pop_c0i.avfx", persistent: false);
             return punch;
         }).ToList();
     }
@@ -241,7 +245,7 @@ public sealed class TopP5DeltaScenario : IScenario
                 Level: Level,
                 Targetable: false,
                 InEnemyList: true,
-                Offset: Geometry.ArmUnitPlacements[i].Position * new Vector3((int)state.EyeSpawn, 1, 1),
+                Offset: Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1),
                 Rotation: Geometry.ArmUnitPlacements[i].Rotation));
             unit?.PlayActionTimeline(TimelineId.Spawn);
             return unit;
@@ -252,13 +256,14 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         armUnits?.Select((unit, i) => (unit, i))
             .ToList()
-            .ForEach(t => t.unit?.AttachLockonVfx(state.ArmHandedness[t.i].RotateLockonId, duration: 8f));
+            .ForEach(t => t.unit?.AttachLockonVfx(state.ArmHandedness[t.i].RotateLockonId, persistent: false));
+            // .ForEach(t => t.unit?.AttachLockonVfx(state.ArmHandedness[t.i].RotateLockonId, duration: 8f));
     }
 
     private void ApplyDeltaRealTethers()
     {
         var targets = new SimCharacter[8];
-        for (int i = 0; i < 8; i++) targets[i] = world.Party.Get(state.TetherOrder[i])!;
+        for (int i = 0; i < 8; i++) targets[i] = party.Get(state.TetherOrder[i])!;
 
         tethersShort =
         [
@@ -302,7 +307,7 @@ public sealed class TopP5DeltaScenario : IScenario
             Offset: pos - world.ScenarioOrigin,
             Lifetime: Duration.MonitorHelperLifetime));
         helper?.Cast(actionId);
-        world.Party
+        party
              .ActiveMembers()
              .ToList()
              .ForEach(ApplyHwTetherBreakHit);
@@ -321,7 +326,7 @@ public sealed class TopP5DeltaScenario : IScenario
         omega?.Cast(ActionId.BeyondDefense);
         finalHelper?.Cast(state.OmegaMonitorSide.DeltaOversampledWaveCannonActionId);
 
-        var playerMonitor = world.Party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
+        var playerMonitor = party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
         playerMonitor.AddStatus(state.PlayerMonitorSide.MonitorDebuffId);
         playerMonitor.AddVfx(state.PlayerMonitorSide.MonitorVfxPath);
     }
@@ -332,7 +337,7 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         if (rocketPunches is null) return;
         state.PunchTargets = Enumerable.Range(0, 8)
-                                       .Select(i => world.Party.Get(state.TetherOrder[i])!.Position)
+                                       .Select(i => party.Get(state.TetherOrder[i])!.Position)
                                        .ToList();
         for(var i = 0; i < 8; i++)
         {
@@ -353,7 +358,7 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         if (state.PunchTargets is null) return;
         state.PunchTargets
-             .SelectMany(target => world.Party.Find.InsideCircle(target, Geometry.RocketPunchAoeRadius))
+             .SelectMany(target => party.Find.InsideCircle(target, Geometry.RocketPunchAoeRadius))
              .ToList()
              .ForEach(hit => hit.Die("Rocket Punch AOE"));
         state.PunchTargets = null;
@@ -367,12 +372,12 @@ public sealed class TopP5DeltaScenario : IScenario
         switch (state.BeyondDefenceForPlayer)
         {
             case TriOption.Yes:
-                target = world.Party.Get(world.Party.PlayerRole);
+                target = party.Get(party.PlayerRole);
                 break;
             case TriOption.No:
             {
-                var player = world.Party.Get(world.Party.PlayerRole);
-                var closest2 = world.Party.Find.ClosestN(omega.Position, 2);
+                var player = party.Get(party.PlayerRole);
+                var closest2 = party.Find.ClosestN(omega.Position, 2);
                 if (closest2.Any(m => m == player))
                     target = closest2.FirstOrDefault(m => m != player);
                 else
@@ -380,7 +385,7 @@ public sealed class TopP5DeltaScenario : IScenario
                 break;
             }
             default:
-                target = world.Party.Find.RandomClosestN(omega.Position, 2);
+                target = party.Find.RandomClosestN(omega.Position, 2);
                 break;
         }
         if (target is null) return;
@@ -395,10 +400,10 @@ public sealed class TopP5DeltaScenario : IScenario
     private void ResolveBeyondDefenseAoe()
     {
         if (state.BeyondDefenseTarget is null) return;
-        var mainTarget = world.Party.Get(state.BeyondDefenseTarget.Value);
+        var mainTarget = party.Get(state.BeyondDefenseTarget.Value);
         if (mainTarget is null) return;
 
-        foreach (var hit in world.Party.Find.InsideCircle(mainTarget.Position, Geometry.BeyondDefenseAoeRadius))
+        foreach (var hit in party.Find.InsideCircle(mainTarget.Position, Geometry.BeyondDefenseAoeRadius))
             if (hit != mainTarget) hit.Die("Beyond Defense AOE");
         
 
@@ -415,7 +420,7 @@ public sealed class TopP5DeltaScenario : IScenario
             .ToList()
             .ForEach(unit =>
             {
-                unit.Face(world.Party.Find.Closest(unit.Position)!.Position);
+                unit.Face(party.Find.Closest(unit.Position)!.Position);
                 unit.Cast(ActionId.DeltaHyperPulseFirst);
             });
     }
@@ -449,7 +454,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void ResolveHyperPulseRect(SimEnemy arm)
     {
-        foreach (var hit in world.Party.Find.InsideRect(arm.Placement, Geometry.HyperPulseHalfWidth, Geometry.HyperPulseLength))
+        foreach (var hit in party.Find.InsideRect(arm.Placement, Geometry.HyperPulseHalfWidth, Geometry.HyperPulseLength))
             hit.Die("Delta Hyper Pulse");
     }
 
@@ -459,7 +464,7 @@ public sealed class TopP5DeltaScenario : IScenario
         opticalUnit.Cast(ActionId.OpticalLaser);
         var rotation = state.EyeSpawn == NorthSouth.North ? 0f : MathF.PI;
         var placement = new Placement(opticalUnit.Position, rotation);
-        foreach (var hit in world.Party.Find.InsideRect(placement, Geometry.OpticalLaserHalfWidth, Geometry.OpticalLaserLength))
+        foreach (var hit in party.Find.InsideRect(placement, Geometry.OpticalLaserHalfWidth, Geometry.OpticalLaserLength))
             hit.Die("Optical Laser");
     }
 
@@ -471,7 +476,7 @@ public sealed class TopP5DeltaScenario : IScenario
             foreach (var m in FireMonitorOnSide(helper.Placement, state.OmegaMonitorSide, exclude: null))
                 aoePositions.Add(m.Position);
 
-        var playerMonitor = world.Party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
+        var playerMonitor = party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
         foreach (var m in FireMonitorOnSide(playerMonitor.Placement, state.PlayerMonitorSide, exclude: playerMonitor))
             aoePositions.Add(m.Position);
         playerMonitor.RemoveStatus(state.PlayerMonitorSide.MonitorDebuffId);
@@ -479,7 +484,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
         var hit = new HashSet<SimPartySlot>();
         foreach (var pos in aoePositions)
-            foreach (var member in world.Party.Find.InsideCircle(pos, Geometry.OversampledWaveCannonAoeRadius))
+            foreach (var member in party.Find.InsideCircle(pos, Geometry.OversampledWaveCannonAoeRadius))
                 hit.Add(member);
 
         foreach (var member in hit)
@@ -497,7 +502,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private IReadOnlyList<SimPartySlot> FireMonitorOnSide(Placement src, Side side, SimPartySlot? exclude = null)
     {
-        var targets = world.Party.Find.OnSideN(src, side.Mul, count: 2, exclude: exclude);
+        var targets = party.Find.OnSideN(src, side.Mul, count: 2, exclude: exclude);
         foreach (var member in targets)
         {
             var pos = member.Position;
@@ -515,7 +520,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private void FirePilePitch()
     {
         if (omega is null) return;
-        var target = world.Party.Find.Closest(omega.Position)!;
+        var target = party.Find.Closest(omega.Position)!;
         pilePitchPosition = target.Position;
         omega.Cast(
             ActionId.PilePitch,
@@ -529,7 +534,7 @@ public sealed class TopP5DeltaScenario : IScenario
         var pos = pilePitchPosition.Value;
         pilePitchPosition = null;
 
-        var inAoe = world.Party.Find.InsideCircle(pos, Geometry.PilePitchAoeRadius);
+        var inAoe = party.Find.InsideCircle(pos, Geometry.PilePitchAoeRadius);
         if (inAoe.Count < 3)
         {
             foreach (var hit in inAoe) hit.Die("Pile Pitch (too few players)");
@@ -559,7 +564,7 @@ public sealed class TopP5DeltaScenario : IScenario
         if (beetle is not { IsAlive: true }) return;
         var rotation = beetle.Rotation + state.SwivelCannonSide.Mul * MathF.PI / 2;
         var placement = new Placement(beetle.Position, rotation);
-        foreach (var hit in world.Party.Find.InsideCone(placement, Geometry.SwivelCannonHalfAngle, Geometry.SwivelCannonRange))
+        foreach (var hit in party.Find.InsideCone(placement, Geometry.SwivelCannonHalfAngle, Geometry.SwivelCannonRange))
             hit.Die("Swivel Cannon");
     }
 
@@ -571,7 +576,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void DropHelloPuddle(PartyRole role, uint spellId)
     {
-        var target = world.Party.Get(role)!;
+        var target = party.Get(role)!;
         var pos = target.Position;
         var helper = world.SpawnEnemy(new EnemySpawnConfig(
                                           BNpcBaseId: BNpcBaseId.OmegaHelper,
@@ -585,7 +590,7 @@ public sealed class TopP5DeltaScenario : IScenario
             ? Geometry.HelloWorldJumpAoeRadius
             : Geometry.HelloWorldInitialAoeRadius;
 
-        if (world.Party.Find.InsideCircle(pos, radius).Count > 1)
+        if (party.Find.InsideCircle(pos, radius).Count > 1)
         {
             HelloWorldFail(pos);
             return;
@@ -603,10 +608,10 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private PartyRole HopHelloPuddle(PartyRole currentRole, uint jumpSpell, bool useClosest)
     {
-        var current = world.Party.Get(currentRole)!;
+        var current = party.Get(currentRole)!;
         var next = useClosest
-            ? world.Party.Find.Closest(current.Position, exclude: current)
-            : world.Party.Find.Farest(current.Position, exclude: current);
+            ? party.Find.Closest(current.Position, exclude: current)
+            : party.Find.Farest(current.Position, exclude: current);
         if (next == null)
         {
             HelloWorldFail(current.Position);
@@ -630,7 +635,7 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void WipeAllPlayers(string cause)
     {
-        foreach (var member in world.Party.ActiveMembers().ToList())
+        foreach (var member in party.ActiveMembers().ToList())
             if (member.IsAlive) member.Die(cause);
     }
     
@@ -656,16 +661,22 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void InitTopArena()
     {
-        world.Map.Apply(0x00080004, 0x00); // clear all
-        world.Map.Apply(0x00020001, 0x00); // reset state
-        for (byte i = 0x0C; i <= 0x13; i++)
-            world.Map.Apply(0x00040004, i); // enable base arena elements
+        for (byte i = 1; i <= 8; i++)
+        {
+            world.Map.AddEffect(0x00040004, i); // hide eyes
+            // world.Map.AddEffect(0x00010004, i); // hide eyes
+            // world.Map.AddEffect(0x00080000, i); // clear?
+            // world.Map.AddEffect(0x108A0000, i); // hide eyes
+        }
+        // for (byte i = 0x0C; i <= 0x13; i++)
+        //     world.Map.AddEffect(0x00040004, i); // enable base arena elements
+        world.Map.AddEffect(0x00020002, 0x00);  // show death wall
     }
 
     // Delta arena transition animation (index 0x07).
     // Real game fires at +8/+24/+27/+42s relative to "Run: mi (Delta Version)" cast.
-    private void DeltaTransitionStart() => world.Map.Apply(0x00020001, 0x07);
-    private void DeltaTransitionAnimA()  => world.Map.Apply(0x00800040, 0x07);
-    private void DeltaTransitionAnimB()  => world.Map.Apply(0x10000001, 0x07);
-    private void DeltaTransitionEnd()    => world.Map.Apply(0x00080004, 0x07);
+    private void EyeSpawn() => world.Map.AddEffect(0x00000002, state.EyeSpawn.EffectIndex);
+    private void EyeStartCharging()  => world.Map.AddEffect(0x00000040, state.EyeSpawn.EffectIndex);
+    private void EyeDoneCharging()  => world.Map.AddEffect(0x00000001, state.EyeSpawn.EffectIndex);
+    private void EyeDespawn()    => world.Map.AddEffect(0x00000008, state.EyeSpawn.EffectIndex);
 }

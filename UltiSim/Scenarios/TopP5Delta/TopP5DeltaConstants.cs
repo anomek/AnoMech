@@ -130,6 +130,13 @@ internal static class TopP5DeltaConstants
         ];
     }
 
+    public static class BgmId
+    {
+        // Content scene BGM for the TOP P5 phase (set in-game, not derivable from the
+        // ACT pull log — IINACT doesn't capture sound packets).
+        public const ushort TopP5 = 964;
+    }
+
     public static class Duration
     {
         public const float HelloWorldDebuff = 44f;

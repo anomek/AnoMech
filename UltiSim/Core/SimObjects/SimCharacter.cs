@@ -59,13 +59,27 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
 
     // Self-attached actor VFX keyed by path. Path is validated via FileExists before
     // spawning to avoid the file-thread crash StaticVfxCreate has on bad paths.
-    // Re-adding the same path is a no-op so callers can be lazy.
-    public IntPtr AddVfx(string path)
+    //
+    // persistent: true  → tracked in attachedVfx; cleaned up on RemoveVfx or by
+    //                     ClearAttachedVfx at Despawn / Reset. Re-adding the same
+    //                     path is a no-op so callers can be lazy. With duration > 0
+    //                     also auto-removed on its own counter via attachedVfxExpiry.
+    // persistent: false → fire-and-forget. The AVFX self-completes and the game
+    //                     frees the VfxData internally; we must NOT call
+    //                     ActorVfxRemove on it later (that's the VfxData::Dtor
+    //                     crash). duration is ignored in this mode.
+    public IntPtr AddVfx(string path, float duration = 0f, bool persistent = true)
     {
         if (string.IsNullOrEmpty(path)) return IntPtr.Zero;
-        if (attachedVfx.TryGetValue(path, out var existing)) return existing;
         var chara = BattleCharaPtr;
         if (chara == null) return IntPtr.Zero;
+
+        if (persistent && attachedVfx.TryGetValue(path, out var existing))
+        {
+            if (duration > 0f) attachedVfxExpiry[path] = duration;
+            return existing;
+        }
+
         try
         {
             if (!Plugin.DataManager.FileExists(path))
@@ -82,7 +96,12 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
 
         var vfx = VfxFunctions.SpawnActorVfx(path, (Character*)chara, (Character*)chara);
         if (vfx == IntPtr.Zero) return IntPtr.Zero;
-        attachedVfx[path] = vfx;
+
+        if (persistent)
+        {
+            attachedVfx[path] = vfx;
+            if (duration > 0f) attachedVfxExpiry[path] = duration;
+        }
         return vfx;
     }
 
@@ -95,17 +114,15 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
 
     // Raid head-marker style attachment (e.g. arm-unit rotation arrows). lockonId maps
     // to the Lockon excel sheet's IconName, which resolves to vfx/lockon/eff/{IconName}.avfx.
-    // When duration > 0, the VFX auto-detaches after that many seconds (driven by Tick).
-    public void AttachLockonVfx(uint lockonId, float duration = 0f)
+    // See AddVfx for the persistent / duration semantics.
+    public void AttachLockonVfx(uint lockonId, float duration = 0f, bool persistent = true)
     {
         if (!IsAlive) return;
         var sheet = Plugin.DataManager.GetExcelSheet<Lockon>();
         if (!sheet.TryGetRow(lockonId, out var row)) return;
         var iconName = row.IconName.ExtractText();
         if (string.IsNullOrEmpty(iconName)) return;
-        var path = $"vfx/lockon/eff/{iconName}.avfx";
-        var ptr = AddVfx(path);
-        if (ptr != IntPtr.Zero && duration > 0f) attachedVfxExpiry[path] = duration;
+        AddVfx($"vfx/lockon/eff/{iconName}.avfx", duration, persistent);
     }
 
     public void ClearAttachedVfx()

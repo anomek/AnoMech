@@ -12,52 +12,29 @@ namespace UltiSim.Scenarios.TopP5Delta;
 // schedules movement through World.Events so it can react to fight timestamps.
 public sealed class TopP5DeltaAi
 {
-    private const float RunSpeed = 6f; // ~standard FFXIV run
-    private const float ArenaRadius = 20f;
-
-    private const float MovementJitterRadius = 0.3f; // every AI MoveTo target gets a uniform XZ disk offset
-
-    // Bait stands inside the arena far enough that the random jitter applied to
-    // every MoveTo can't push the resolved position outside the wall (the
-    // boundary check kills anyone past ArenaRadius). 0.5u of "actually inside"
-    // on top of the jitter radius keeps the visible position comfortably in.
-    private const float ArenaEdgeBuffer = MovementJitterRadius + 0.5f;
-
-    // Arm-bait positions need to read as a hard-stuck wall hug — full jitter
-    // throws the cleave dodge by enough to clip a neighbour. Tighter jitter
-    // also lets us push closer to the wall (smaller edge buffer) so the cleave
-    // is clearly baited outward.
-    private const float BaitJitterRadius = 0.2f;
-    private const float BaitArenaEdgeBuffer = BaitJitterRadius + 0.3f;
-    private const float ArmBaitDistance = 1.5f; // chord distance from arm to bait
-    private const float BossHitboxRadius = 5f;  // BossP5 (R5.010) — boss spawns at origin facing north
-
     // Tether-resolve positions in scenario-local coords (origin (0,0) = world (100,100)).
     // Even slots are caller-specified, odd slots are mirrored across the east-west axis
     // (same X, negated Z) so each pair lands on opposite sides. EyeSpawn==South flips
     // the entire layout 180° (negate both X and Z).
 
     private readonly TopP5DeltaState state;
-    private readonly Random rng = new();
-    private SimWorld world = null!;
 
     public void Run(SimWorld world)
     {
-        this.world = world;
-        world.AI = new SimAI(world);
-        world.AI.Move(0.5f, InitialPositions);
-        world.AI.Move(13f, TetherPrePosition);
-        world.AI.Move(21f, FistResolveSlots);
-        world.AI.Move(28.8f, TetherResolveStep);
-        world.AI.Move(31.2f, HyperPulseBaitArms);
-        world.AI.Move(36.2f, HyperPulseDodge, 0);
-        world.AI.Move(38.4f, MonitorPositions);
-        world.AI.Move(40, MonitorAdjustment, 0);
-        world.AI.Move(46f, SwivelDodge);
-        world.AI.Move(50f, RescueUnsafe);
-        world.AI.Move(56f, ReturnToMiddle);
-        world.AI.Move(56.5f, TankForward);
-        world.AI.Move(60.5f, BreakLastTether);
+        var ai = new AiManager(world);
+        ai.Move(0.5f, InitialPositions);
+        ai.Move(13f, TetherPrePosition);
+        ai.Move(21f, FistResolveSlots);
+        ai.Move(28.8f, TetherResolveStep);
+        ai.Move(31.2f, HyperPulseBaitArms);
+        ai.Move(36.2f, HyperPulseDodge, 0);
+        ai.Move(38.4f, MonitorPositions);
+        ai.Move(40, MonitorAdjustment, 0);
+        ai.Move(46f, SwivelDodge);
+        ai.Move(50f, RescueUnsafe);
+        ai.Move(56f, ReturnToMiddle);
+        ai.Move(56.5f, TankForward);
+        ai.Move(60.5f, BreakLastTether);
     }
 
 
@@ -96,7 +73,7 @@ public sealed class TopP5DeltaAi
 
     private void OmegaMonitorSafeSide(AiMove move)
     {
-        var mul = -state.OmegaMonitorSide.Mul * (int)state.EyeSpawn;
+        var mul = -state.OmegaMonitorSide.Mul * state.EyeSpawn.Mul;
         move.MultiplyY(0, mul);
         move.MultiplyY(1, mul);
         move.MultiplyY(2, mul);
@@ -105,7 +82,7 @@ public sealed class TopP5DeltaAi
 
     private void SwivelSafeSide(AiMove move)
     {
-        move.MultiplyY(state.SwivelCannonSide.Mul * (int)state.EyeSpawn);
+        move.MultiplyY(state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
     }
 
     private void SwivelAdjustments(AiMove move)
@@ -113,8 +90,8 @@ public sealed class TopP5DeltaAi
         move.Swap(0, state.FarWorldTetherIndex);
         move.Swap(state.FarWorldTetherIndex == 1 ? 0 : 1, state.NearWorldTetherIndex);
         // 4/5 does not to be adjusted by swivel side, so unadjust it
-        move.MultiplyY(4, state.SwivelCannonSide.Mul * (int)state.EyeSpawn);
-        move.MultiplyY(5, state.SwivelCannonSide.Mul * (int)state.EyeSpawn);
+        move.MultiplyY(4, state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
+        move.MultiplyY(5, state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
     }
 
     private void TetherAssignment(AiMove move)
@@ -124,7 +101,7 @@ public sealed class TopP5DeltaAi
 
     private void AdjustEyePosition(AiMove move)
     {
-        move.MultiplyX((int)state.EyeSpawn);
+        move.MultiplyX(state.EyeSpawn.Mul);
     }
 
     private AiMove InitialPositions()
@@ -193,7 +170,7 @@ public sealed class TopP5DeltaAi
             ArmUnitPlacements.Select((placement, i) =>
                                          placement.MoveForward(0.5f)
                                                   .RotateAroundOrigin(
-                                                      0.15f * state.ArmHandedness[i].Mul * (int)state.EyeSpawn)
+                                                      0.15f * state.ArmHandedness[i].Mul * state.EyeSpawn.Mul)
                                                   .Position2)
                              .Prepend(new Vector2(0f, 6f))
                              .Prepend(new Vector2(0f, -6f))
@@ -282,7 +259,7 @@ public sealed class TopP5DeltaAi
     private AiMove RescueUnsafe()
     {
         return AiMove.Single(
-            state.SwivelCannonSide.Mul * (int)state.EyeSpawn > 0 ? 4 : 5,
+            state.SwivelCannonSide.Mul * state.EyeSpawn.Mul > 0 ? 4 : 5,
             new(-9.5f, 3.5f)
         ).Apply(
             Swap45,

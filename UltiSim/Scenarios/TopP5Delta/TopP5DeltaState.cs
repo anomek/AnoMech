@@ -36,10 +36,10 @@ public sealed class Side
     public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, "vfx/common/eff/m0771stlp4c0c.avfx", 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
 }
 
-public enum NorthSouth
+public record NorthSouth(float Mul, byte EffectIndex)
 {
-    North = 1,
-    South = -1
+    public static readonly NorthSouth North = new(1, 1);
+    public static readonly NorthSouth South = new(-1, 5);
 }
 
 public sealed class TopP5DeltaState

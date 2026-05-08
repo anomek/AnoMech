@@ -8,9 +8,9 @@ namespace UltiSim.Core;
 // Drives slot-ordered party movement from a scenario's position functions.
 // Owns jitter, run speed, event scheduling, and local→world coordinate conversion.
 // Position functions return an AiMove whose entries are scenario-local XZ coords;
-// SimAI adds ScenarioOrigin and sets Y from origin. Eye-spawn flip and slot
+// AiManager adds ScenarioOrigin and sets Y from origin. Eye-spawn flip and slot
 // reordering are handled inside the AiMove before it reaches here.
-public sealed class SimAI
+public sealed class AiManager
 {
     private const float RunSpeed = 6f;
     private const float DefaultJitter = 0.3f;
@@ -18,7 +18,7 @@ public sealed class SimAI
     private readonly SimWorld world;
     private readonly Random rng = new();
 
-    public SimAI(SimWorld world)
+    public AiManager(SimWorld world)
     {
         this.world = world;
     }

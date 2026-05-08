@@ -63,14 +63,8 @@ public sealed unsafe class SimPlayer : SimPartySlot
         }
     }
 
-    // Visual icon shown on the player while the input-lockout hooks are
-    // active. The actual lockout is enforced by Plugin.GameInstance's
-    // LocalPlayerInputHooks; status writes to the local-player slot are
-    // overwritten by the server's StatusEffectList memcpy, so this is just
-    // a hint that something is happening. Status row 7 = "Stun" placeholder
-    // — verify in-game and swap for a row that reads better if needed.
-    private const ushort StunStatusId = 7;
-    private const float StunDurationSeconds = 10f;
+    // "Down for the Count" (896) — IsPermanent + LockControl variant.
+    private const ushort StunStatusId = 896;
 
     private float deadElapsed;
 
@@ -82,7 +76,7 @@ public sealed unsafe class SimPlayer : SimPartySlot
             hooks.DisableAllActions = true;
             hooks.ZeroMovement = true;
         }
-        AddStatus(StunStatusId, StunDurationSeconds);
+        AddStatus(StunStatusId, 0);
         // Visual KO pose only — leave HP alone (the server owns it). Input
         // lockout above is what actually keeps the player still long enough
         // for the prone pose to read.

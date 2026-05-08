@@ -14,7 +14,7 @@ using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using Lumina.Excel.Sheets;
 using static FFXIVClientStructs.FFXIV.Client.Network.PacketDispatcher.Delegates;
 
-namespace UltiSim.Core;
+namespace UltiSim.Core.Map;
 
 // Client-side zone loading and packet firewall. Ported from Hyperborea (Memory.cs
 // + Utils.cs). Must be in the Inn before calling Enter(); Leave() reloads the inn.

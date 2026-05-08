@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
 
-namespace UltiSim.Core;
+namespace UltiSim.Core.Map;
 
 // Replays native DirectorUpdate events via the ProcessDirectorUpdate function
 // (sig from ECommons/Hyperborea). Only works when an InstanceContentDirector

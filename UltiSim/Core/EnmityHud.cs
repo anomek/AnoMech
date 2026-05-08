@@ -65,6 +65,13 @@ internal sealed unsafe class EnmityHud : IDisposable
 
     private void OnPreRequestedUpdate(AddonEvent type, AddonArgs args)
     {
+        // No scenario running — all slots null after Clear(). Let the game
+        // populate the list without interference.
+        var anyTracked = false;
+        for (int i = 0; i < EnemyListSize; i++)
+            if (slotEnemies[i] != null) { anyTracked = true; break; }
+        if (!anyTracked) return;
+
         if (args is not AddonRequestedUpdateArgs reqArgs) return;
         var numArrays = (NumberArrayData**)reqArgs.NumberArrayData;
         var strArrays = (StringArrayData**)reqArgs.StringArrayData;

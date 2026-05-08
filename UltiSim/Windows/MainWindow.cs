@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
+using Lumina.Excel.Sheets;
+using UltiSim.Core.Map;
 using UltiSim.Core;
 using UltiSim.Core.SimObjects;
 using UltiSim.Scenarios;
@@ -14,12 +18,17 @@ public unsafe class MainWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
     private bool _leftPanelOpen = true;
+    internal IScenario? SelectedScenario => _selectedScenario;
     private IScenario? _selectedScenario;
 
 #if DEBUG
     private string debugBNpcBaseIdText = "0x3D69";
     private string debugSpawnScaleText = "0";
     private string debugTimelineIdText = "0x53C";
+    private string debugMapEffectIndexText = "0x00";
+    private string debugMapEffectStatusText = "0x0000";
+    private string debugMapEffectFlagText = "0x00";
+    private string debugBgmIdText = "964";
 #endif
 
     public MainWindow(Plugin plugin)
@@ -92,11 +101,12 @@ public unsafe class MainWindow : Window, IDisposable
 
         ImGui.TextUnformatted(_selectedScenario.Name);
         ImGui.Separator();
+        DrawLocationHint();
 
         if (ImGui.Button("Start")) game.RunScenario(_selectedScenario);
         ImGui.SameLine();
         if (ImGui.Button("Reset")) game.Reset();
-        if (game.IsInInstance)
+        if (game.World.Map.IsInInstance)
         {
             ImGui.SameLine();
             if (ImGui.Button("Leave")) game.Leave();
@@ -127,6 +137,63 @@ public unsafe class MainWindow : Window, IDisposable
         }
 #endif
     }
+
+    private void DrawLocationHint()
+    {
+        var scenario = _selectedScenario!;
+        var territory = Plugin.ClientState.TerritoryType;
+
+        if (ZoneSession.IsInInn())
+        {
+            ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.4f, 1f), "Full simulation available");
+        }
+        else if (IsScenarioTerritory(scenario, territory))
+        {
+            var name = GetTerritoryName(territory) ?? territory.ToString();
+            ImGui.TextColored(new Vector4(1f, 0.75f, 0.2f, 1f), $"Some visuals might be missing — {name}");
+        }
+        else
+        {
+            ImGui.TextDisabled("Works anywhere · Inn gives the full experience");
+        }
+
+        ImGui.SameLine();
+        var help =
+            "Inn: full scenario with correct arena geometry.\n" +
+            "Supported instance: some visuals might be missing, zone layout auto-detected.\n" +
+            "Anywhere else: some visuals might be missing, not adjusted for ground geometry — origin anchors to your position.";
+        var supportedNames = GetSupportedDutyNames(scenario);
+        if (supportedNames.Count > 0)
+            help += "\n\nSupported instances:\n  " + string.Join("\n  ", supportedNames);
+        ImGuiComponents.HelpMarker(help);
+    }
+
+    private static bool IsScenarioTerritory(IScenario scenario, uint territory)
+    {
+        if (scenario.TargetInstance?.TerritoryId == territory) return true;
+        foreach (var ovr in scenario.OriginOverrides)
+            if (ovr.TerritoryId == territory) return true;
+        return false;
+    }
+
+    private static List<string> GetSupportedDutyNames(IScenario scenario)
+    {
+        var names = new List<string>();
+        foreach (var ovr in scenario.OriginOverrides)
+        {
+            var n = GetDutyName(ovr.TerritoryId);
+            if (!string.IsNullOrEmpty(n)) names.Add(n);
+        }
+        return names;
+    }
+
+    private static string? GetTerritoryName(uint id) =>
+        Plugin.DataManager.GetExcelSheet<TerritoryType>()
+            ?.GetRowOrDefault(id)?.PlaceName.ValueNullable?.Name.ExtractText();
+
+    private static string? GetDutyName(uint territoryId) =>
+        Plugin.DataManager.GetExcelSheet<TerritoryType>()
+            ?.GetRowOrDefault(territoryId)?.ContentFinderCondition.ValueNullable?.Name.ExtractText();
 
     // Buttons modify Game.EventTimeScale live so callers can speed up / slow down a
     // scenario mid-run. Only event scheduling is affected; cast bars and animations
@@ -200,6 +267,27 @@ public unsafe class MainWindow : Window, IDisposable
             DumpNearbyObjects();
 
         ImGui.Spacing();
+        ImGui.TextUnformatted("Map effect");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputText("Index", ref debugMapEffectIndexText, 16);
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputText("Status", ref debugMapEffectStatusText, 16);
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputText("Flag", ref debugMapEffectFlagText, 16);
+        if (ImGui.Button("Apply map effect"))
+        {
+            if (!TryParseId(debugMapEffectIndexText, out var idx) || idx > 0xFF)
+                Plugin.Log.Warning($"Map effect: can't parse Index '{debugMapEffectIndexText}'");
+            else if (!TryParseId(debugMapEffectStatusText, out var status) || status > 0xFFFF)
+                Plugin.Log.Warning($"Map effect: can't parse Status '{debugMapEffectStatusText}'");
+            else if (!TryParseId(debugMapEffectFlagText, out var flag) || flag > 0xFF)
+                Plugin.Log.Warning($"Map effect: can't parse Flag '{debugMapEffectFlagText}'");
+            else
+                plugin.Game.World.Map.AddEffect((status << 16) | (flag & 0xFFu), (byte)idx);
+        }
+
+        ImGui.Spacing();
         ImGui.TextUnformatted("Death system");
         ImGui.Separator();
         if (ImGui.Button("Kill MT"))
@@ -208,7 +296,23 @@ public unsafe class MainWindow : Window, IDisposable
             if (mt != null) plugin.Game.Kill(mt, "Debug kill");
         }
         ImGui.SameLine();
-        if (ImGui.Button("Kill player")) plugin.Game.Kill(plugin.Game.World.Player, "Debug kill");
+        if (ImGui.Button("Kill player") && plugin.Game.Player is { } p) plugin.Game.Kill(p, "Debug kill");
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("BGM test");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputText("BgmId", ref debugBgmIdText, 16);
+        ImGui.SameLine();
+        if (ImGui.Button("Play##bgm"))
+        {
+            if (!TryParseId(debugBgmIdText, out var bgmId) || bgmId > ushort.MaxValue)
+                Plugin.Log.Warning($"BGM: can't parse BgmId '{debugBgmIdText}'");
+            else
+                plugin.Game.Bgm.Play((ushort)bgmId);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Stop##bgm")) plugin.Game.Bgm.Reset();
     }
 
     // Accepts decimal ("1340") or hex ("0x53C" / "53Ch" — case-insensitive).
@@ -232,7 +336,7 @@ public unsafe class MainWindow : Window, IDisposable
             return;
         }
         var targetId = target.GameObjectId;
-        foreach (var enemy in plugin.Game.World.Enemies)
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
         {
             if ((ulong)enemy.GameObjectId == targetId)
             {

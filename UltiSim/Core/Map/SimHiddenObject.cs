@@ -1,6 +1,7 @@
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using UltiSim.Core.SimObjects;
 
-namespace UltiSim.Core.SimObjects;
+namespace UltiSim.Core.Map;
 
 // Wraps a native GameObject (typically the duty Exit portal or scenery clutter)
 // that we want to suppress for the duration of a scenario. The native API operates
@@ -42,6 +43,7 @@ public sealed unsafe class SimHiddenObject : ISimObject
         return null;
     }
 
+    public bool IsAlive => hidden;
     public void Tick(float deltaSeconds) { }
 
     public void Despawn()

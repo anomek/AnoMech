@@ -11,13 +11,14 @@ namespace UltiSim.Core.SimObjects;
 // directly. Dispose unregisters the AddonLifecycle listener for plugin teardown.
 public sealed class SimParty : ISimObject
 {
+    public static readonly SimParty Empty = new();
+
     private readonly SimPartySlot?[] slots = new SimPartySlot?[8];
     private readonly PartyHud partyHud = new();
-    private readonly CharacterFind<SimPartySlot> finder;
 
-    public SimParty() { finder = new CharacterFind<SimPartySlot>(ActiveMembers); }
+    public SimParty() { Find = new CharacterFind<SimPartySlot>(ActiveMembers); }
 
-    public CharacterFind<SimPartySlot> Find => finder;
+    public CharacterFind<SimPartySlot> Find { get; }
 
     public SimPartySlot? Get(int roleId)
         => roleId >= 0 && roleId < slots.Length ? slots[roleId] : null;
@@ -37,6 +38,8 @@ public sealed class SimParty : ISimObject
             return PartyRole.MainTank;
         }
     }
+
+    public SimPlayer? Player => Get(PlayerRole) as SimPlayer;
 
     internal void SetSlot(PartyRole role, SimPartySlot slot)
     {
@@ -81,13 +84,9 @@ public sealed class SimParty : ISimObject
 
     public void Tick(float deltaSeconds)
     {
-        // Skip the SimPlayer slot — SimWorld.Tick ticks the player directly so
-        // it stays alive even when no scenario has wired the player into the
-        // party. Ticking it here too would double-tick our overlays (statuses,
-        // VFX expiry) every frame.
         for (int i = 0; i < slots.Length; i++)
         {
-            if (slots[i] is null or SimPlayer) continue;
+            if (slots[i] is null) continue;
             slots[i]!.Tick(deltaSeconds);
         }
         // Refresh every tick: per-member state (HP=0 on death, HP changes if we

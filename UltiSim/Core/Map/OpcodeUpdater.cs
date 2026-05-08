@@ -4,7 +4,7 @@ using System.Net.Http;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using ThreadingTask = System.Threading.Tasks.Task;
 
-namespace UltiSim.Core;
+namespace UltiSim.Core.Map;
 
 // Downloads per-version ZoneDown opcode allowlist from Hyperborea's GitHub so the
 // packet firewall stays current after game patches. Runs asynchronously on first

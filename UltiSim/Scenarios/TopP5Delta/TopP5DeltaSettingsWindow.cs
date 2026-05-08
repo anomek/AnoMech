@@ -41,12 +41,9 @@ public sealed class TopP5DeltaSettingsWindow
 
     private void DrawEyeSpawn()
     {
-        var mode = Overrides.EyeSpawn switch
-        {
-            NorthSouth.North => 1,
-            NorthSouth.South => 2,
-            _ => 0,
-        };
+        var mode = 0;
+        if (Overrides.EyeSpawn == NorthSouth.North) mode = 1;
+        if (Overrides.EyeSpawn == NorthSouth.North) mode = 2;
         ImGui.TextUnformatted("Eye spawn:");
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##eye",  mode == 0)) Overrides.EyeSpawn = null;

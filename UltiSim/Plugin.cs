@@ -1,9 +1,12 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.DutyState;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
 using UltiSim.Core;
+using UltiSim.Core.Map;
 using UltiSim.Windows;
 
 namespace UltiSim;
@@ -23,9 +26,11 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ISigScanner SigScanner { get; private set; } = null!;
     [PluginService] internal static IGameInteropProvider GameInterop { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal static IPartyList PartyList { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+    [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
 
-    private const string CommandName = "/pmycommand";
+    private const string CommandName = "/ultisim";
 
     public Configuration Configuration { get; init; }
     internal static Configuration Config { get; private set; } = null!;
@@ -35,6 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     // SimObjects need the Game (e.g. SimPlayer reads Game.PlayerInputHooks for
     // stun on death). Mirror the pattern of the other Plugin.* statics.
     internal static Game GameInstance { get; private set; } = null!;
+    internal static LogManager LogManager { get; private set; } = null!;
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
 
@@ -42,6 +48,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Config = Configuration;
+
+        LogManager = new LogManager();
+        if (Config.EnableEventLogging) LogManager.Open();
 
         Game = new Game();
         GameInstance = Game;
@@ -53,7 +62,7 @@ public sealed class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "A useful message to display in /xlhelp"
+            HelpMessage = "Open UltiSim. Subcommands: config, start, reset, leave"
         });
 
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
@@ -61,6 +70,10 @@ public sealed class Plugin : IDalamudPlugin
 
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+        ClientState.TerritoryChanged += OnTerritoryChanged;
+        DutyState.DutyStarted += OnDutyStarted;
+        DutyState.DutyWiped += OnDutyWiped;
+        DutyState.DutyCompleted += OnDutyCompleted;
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }
@@ -71,10 +84,15 @@ public sealed class Plugin : IDalamudPlugin
         Framework.Update -= OnFrameworkUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        ClientState.TerritoryChanged -= OnTerritoryChanged;
+        DutyState.DutyStarted -= OnDutyStarted;
+        DutyState.DutyWiped -= OnDutyWiped;
+        DutyState.DutyCompleted -= OnDutyCompleted;
 
         WindowSystem.RemoveAllWindows();
 
         Game.Dispose();
+        LogManager.Dispose();
         ConfigWindow.Dispose();
         MainWindow.Dispose();
 
@@ -86,7 +104,65 @@ public sealed class Plugin : IDalamudPlugin
         Game.Tick((float)framework.UpdateDelta.TotalSeconds);
     }
 
-    private void OnCommand(string command, string args) => MainWindow.Toggle();
+    private void OnTerritoryChanged(uint territory)
+    {
+        var row = DataManager.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(territory);
+        var isInn = row?.TerritoryIntendedUse.RowId == 2; // TerritoryIntendedUse.Inn
+        if (!isInn)
+        {
+            var name = row?.PlaceName.ValueNullable?.Name.ExtractText() ?? string.Empty;
+            LogManager.LogEnterInstance(territory, name);
+        }
+
+        if (Config.OpenSimMenuOnInn && isInn)
+        {
+            MainWindow.IsOpen = true;
+            return;
+        }
+        if (Config.OpenSimMenuOnSupportedInstanceSolo && PartyList.Length <= 1)
+        {
+            foreach (var scenario in Game.Scenarios)
+            {
+                bool match = scenario.TargetInstance?.TerritoryId == territory;
+                if (!match)
+                    foreach (var ovr in scenario.OriginOverrides)
+                        if (ovr.TerritoryId == territory) { match = true; break; }
+                if (match) { MainWindow.IsOpen = true; return; }
+            }
+        }
+    }
+
+    private void OnDutyStarted(IDutyStateEventArgs args)
+        => LogManager.LogCombatStart(args.TerritoryType.RowId);
+
+    private void OnDutyWiped(IDutyStateEventArgs args)
+        => LogManager.LogCombatEnd(args.TerritoryType.RowId, wipe: true);
+
+    private void OnDutyCompleted(IDutyStateEventArgs args)
+        => LogManager.LogCombatEnd(args.TerritoryType.RowId, wipe: false);
+
+    private void OnCommand(string command, string args)
+    {
+        switch (args.Trim())
+        {
+            case "config":
+                ConfigWindow.Toggle();
+                break;
+            case "start":
+                if (MainWindow.SelectedScenario is { } scenario)
+                    Game.RunScenario(scenario);
+                break;
+            case "reset":
+                Game.Reset();
+                break;
+            case "leave":
+                Game.Leave();
+                break;
+            default:
+                MainWindow.Toggle();
+                break;
+        }
+    }
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => MainWindow.Toggle();

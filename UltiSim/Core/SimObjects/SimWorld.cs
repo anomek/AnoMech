@@ -2,48 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using UltiSim.Core;
+using UltiSim.Core.Map;
 
 namespace UltiSim.Core.SimObjects;
 
-// Per-scenario zone fine-tuning applied after a client-side zone load. Scenarios
-// set World.Zone during Run(); Game reads it after Enter() and applies it.
-public sealed class ZoneSettings
-{
-    public byte? WeatherId { get; init; }
-}
-
-// Holds the live game state Game manipulates: a fixed-slot SimParty plus a
-// children list of transient scenario SimObjects (enemies, tethers, waymarks,
-// hidden objects). Spawn entry points (SpawnEnemy, Tether, PlaceWaymarks,
-// HideObject) construct the SimObject and register it for teardown. The actual
-// BattleChara construction lives on the SimObject types themselves.
+// Holds the live game state Game manipulates: a children list of SimObjects
+// (party, enemies, tethers, waymarks, hidden objects). Spawn entry points
+// (CreateParty, SpawnEnemy, Tether, PlaceWaymarks, HideObject,
+// EnforceArenaBoundary) construct the SimObject and register it for teardown.
+// Zone loading and map effects go through world.Map.
 public sealed class SimWorld : ISimObject, IDisposable
 {
-    // Transient scenario children: enemies, tethers, waymarks. Order matters for
-    // teardown — we Despawn in reverse-insertion order so things added later
-    // (tethers reference entities; tethers spawn after entities) clear first.
-    // Party is intentionally NOT in this list: it's a permanent fixture whose
-    // Despawn clears slots without freeing the container.
+    // Ownership
     private readonly List<ISimObject> children = new();
     private readonly EnmityHud enmityHud = new();
 
-    // MapEffect replayer + logging hook. Scenarios address it as world.Map.Apply(...).
-    internal MapEffectFunctions Map { get; } = new MapEffectFunctions();
+    // Zone loading and map effects entry point.
+    public MapController Map { get; } = new();
 
-    public SimParty Party { get; } = new();
-    public SimPlayer Player { get; } = new();
-    public IEnumerable<SimEnemy> Enemies => children.OfType<SimEnemy>();
-    public SimAI? AI { get; set; }
-    // Passthrough to Game's EventScheduler so scenarios and SimObjects keep
-    // calling world.Events.Add(...). The instance itself is owned by Game.
+    // Convenience reference — SimParty.Empty until CreateParty is called.
+    public SimParty Party { get; private set; } = SimParty.Empty;
+    public IEnumerable<ISimObject> Children => children;
     public EventScheduler Events { get; }
-    // Set by Game before scenario.Run; read by SpawnEnemy / PlaceWaymarks for
-    // scenario-relative coordinate resolution. Ad-hoc callers (e.g. MainWindow
-    // debug Spawn) are responsible for stamping this themselves before spawning.
     public Vector3 ScenarioOrigin { get; set; }
-    // Optional zone fine-tuning; scenario sets this during Run(). Game reads it
-    // after Enter() to apply weather and other per-zone settings.
-    public ZoneSettings? Zone { get; set; }
 
     public SimWorld(EventScheduler events)
     {
@@ -62,20 +44,6 @@ public sealed class SimWorld : ISimObject, IDisposable
         return tether;
     }
 
-    // Places the scenario's waymark layout via MarkingController.PlacePreset.
-    // Coordinates are scenario-relative; we resolve them against the snapshotted origin.
-    internal void PlaceWaymarks(IReadOnlyList<Waymark> waymarks)
-    {
-        if (waymarks.Count == 0) return;
-        children.Add(new SimWaymarks(waymarks, ScenarioOrigin));
-    }
-
-    internal void HideObject(uint baseId)
-    {
-        var hidden = SimHiddenObject.Hide(baseId);
-        if (hidden != null) children.Add(hidden);
-    }
-
     public SimEnemy? SpawnEnemy(EnemySpawnConfig config)
     {
         var enemy = SimEnemy.Spawn(config, ScenarioOrigin, Events);
@@ -83,12 +51,36 @@ public sealed class SimWorld : ISimObject, IDisposable
         return enemy;
     }
 
-    // Per-frame arena fence centered on ScenarioOrigin. Any active party
-    // member (player included) whose XZ distance exceeds `radius` is killed
-    // with `cause`. Tracked as a normal child so reset clears it.
-    public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
+    // Places the scenario's waymark layout. Coordinates are scenario-relative;
+    // resolved against the snapshotted ScenarioOrigin.
+    public void PlaceWaymarks(IReadOnlyList<Waymark> waymarks)
     {
-        children.Add(new SimArenaBoundary(this, ScenarioOrigin, radius, cause));
+        if (waymarks.Count == 0) return;
+        children.Add(new SimWaymarks(waymarks, ScenarioOrigin));
+    }
+
+    // Suppress a native GameObject (by BaseId) for the duration of the scenario.
+    public void HideObject(uint baseId)
+    {
+        var hidden = SimHiddenObject.Hide(baseId);
+        if (hidden != null) children.Add(hidden);
+    }
+
+    // Per-frame arena fence at `radius` from ScenarioOrigin. Kills any active
+    // party member (player included) who leaves the ring, and spawns a VFX border.
+    public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
+        => children.Add(new SimArenaBoundary(Party, ScenarioOrigin, radius, cause, showVfx: !Map.IsInInstance));
+
+    // Spawns the eight party slots and wires in the local player. Must be called
+    // after ScenarioOrigin is set. Party is added first so it despawns last in
+    // Reset's reverse-order teardown (tethers and enemies reference slot positions).
+    public SimParty CreateParty(uint playerJob)
+    {
+        var party = new SimParty();
+        PartyCreator.Populate(party, new SimPlayer(), playerJob, ScenarioOrigin);
+        children.Add(party);
+        Party = party;
+        return party;
     }
 
     public void Tick(float deltaSeconds)
@@ -99,32 +91,20 @@ public sealed class SimWorld : ISimObject, IDisposable
         // safe but the snapshot guards against future drift.
         var count = children.Count;
         for (int i = 0; i < count; i++) children[i].Tick(deltaSeconds);
-        Party.Tick(deltaSeconds);
-        // Tick the player explicitly too: Party only ticks Player when the
-        // player slot has been wired in (Game does this after PartyCreator).
-        // Outside that window, Player still needs ticking for any overlays
-        // that may have been applied (defensive — no-op if none).
-        Player.Tick(deltaSeconds);
-        enmityHud.Refresh(Enemies);
-        // Party owns its own HUD refresh — Party.Tick auto-refreshes when
-        // composition changes (SetSlot flips a dirty flag).
+        enmityHud.Refresh(children.OfType<SimEnemy>());
     }
 
     public void Reset()
     {
         // Events is owned by Game; Game.ResetInternal clears it before calling here.
-        // Reverse-insertion order: tethers (added late) clear before the entities
-        // they reference; hidden objects (added at scenario start) restore last
-        // among children.
+        // Reverse-insertion order: tethers and enemies (added during scenario.Run)
+        // despawn before the party they reference; party despawns before hidden
+        // objects, which were added at the start.
         for (int i = children.Count - 1; i >= 0; i--) children[i].Despawn();
         children.Clear();
-        Party.Despawn();      // SimPartyMember slots free their handles; SimPlayer slot (if any) clears overlays; PartyHud cleared by Party
-        Player.Despawn();     // defensive: ensure overlays cleared even if Party didn't hold the player slot
+        Party = SimParty.Empty;
         enmityHud.Clear();
         ScenarioOrigin = default;
-        Zone = null;
-        AI = null;
-        Map.ExpectedTerritoryId = null;
     }
 
     // ISimObject.Despawn is the contract entry point for teardown; it forwards to

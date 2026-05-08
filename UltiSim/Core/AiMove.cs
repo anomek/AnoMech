@@ -6,7 +6,7 @@ namespace UltiSim.Core;
 // Holds 8 scenario-local XZ positions (one per party slot). Null entries mean
 // "no movement for that slot." Fluent transforms (MultiplyX, Reorder) let
 // position functions adjust for eye-spawn and tether-order before handing off
-// to SimAI, which converts each non-null entry to world space and drives movement.
+// to AiManager, which converts each non-null entry to world space and drives movement.
 public sealed class AiMove
 {
     private readonly Vector2?[] positions = new Vector2?[8];

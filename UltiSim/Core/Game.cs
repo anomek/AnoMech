@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
+using UltiSim.Core.Map;
 using UltiSim.Core.SimObjects;
 using UltiSim.Scenarios;
 using UltiSim.Scenarios.TopP5Delta;
@@ -19,9 +20,10 @@ public sealed class Game : IDisposable
 
     public EventScheduler Events { get; } = new();
     public SimWorld World { get; }
+    public SimPlayer? Player => World.Party.Player;
     public IReadOnlyList<IScenario> Scenarios { get; }
     public LocalPlayerInputHooks PlayerInputHooks { get; }
-    public ZoneSession ZoneSession { get; }
+    public Bgm Bgm { get; } = new();
 
     // Multiplier applied only to the EventScheduler's delta. Intentionally does not
     // scale enemy/party/tether/status ticks so cast bars, animations, and movement
@@ -36,10 +38,6 @@ public sealed class Game : IDisposable
     // gameplay side effect (HP=0, KO timeline, stun hooks, freeze timer).
     public bool GodMode { get; set; }
 
-    // True while the active scenario was started by loading a zone via ZoneSession.
-    // Drives the Leave button visibility in MainWindow.
-    public bool IsInInstance { get; private set; }
-
     private IScenario? activeScenario;
     private float scenarioElapsed;
     private bool firstDeathScheduled;
@@ -49,7 +47,6 @@ public sealed class Game : IDisposable
     {
         World = new SimWorld(Events);
         PlayerInputHooks = new LocalPlayerInputHooks(Plugin.GameInterop);
-        ZoneSession = new ZoneSession();
         opcodeUpdater = new OpcodeUpdater();
         Scenarios = new IScenario[]
         {
@@ -75,51 +72,17 @@ public sealed class Game : IDisposable
 
         World.HideObject(ExitObjectBaseId);
         foreach (var baseId in scenario.HiddenBaseIds) World.HideObject(baseId);
-
-        Vector3 origin;
-        if (scenario.TargetInstance is { } target)
-        {
-            if (ZoneSession.IsActive) // TODO: improve. We need to check that zone is proper once we have more scenarios. Good for now.
-            {
-                // Already inside the target territory — use target origin, no zone load needed.
-                // IsInInstance stays false: ZoneSession was never entered so Leave has nothing to revert.
-                origin = new Vector3(target.Origin.X, player.Position.Y, target.Origin.Z);
-                IsInInstance = true;
-            }
-            else if (ZoneSession.IsInInn())
-            {
-                ZoneSession.Enter(target.TerritoryId, target.PlayerPosition);
-                origin = new Vector3(target.Origin.X, player.Position.Y, target.Origin.Z);
-                IsInInstance = true;
-                if (scenario.TargetInstance?.WeatherId is { } wid)
-                    ZoneSession.ApplyWeather(wid);
-            }
-            else
-            {
-                origin = ResolveScenarioOrigin(scenario, player.Position);
-                IsInInstance = false;
-            }
-        }
-        else
-        {
-            origin = ResolveScenarioOrigin(scenario, player.Position);
-            IsInInstance = false;
-        }
-
-        World.ScenarioOrigin = origin;
-        World.Map.ExpectedTerritoryId = scenario.TargetInstance?.TerritoryId;
-        if (IsInInstance)
-            DirectorFunctions.Commence();
+        World.Map.TryLoad(scenario.TargetInstance);
+        World.ScenarioOrigin = ResolveScenarioOrigin(scenario, player.Position);
         World.PlaceWaymarks(scenario.Waymarks);
-
-        var playerJob = player.ClassJob.RowId;
-        PartyCreator.Populate(World.Party, World.Player, playerJob, origin);
-
-        scenario.Run(World, World.Party.PlayerRole);
-
-
+        var party = World.CreateParty(player.ClassJob.RowId);
+        scenario.Run(World, party.PlayerRole);
         activeScenario = scenario;
         scenarioElapsed = 0f;
+
+        if (!Plugin.Config.SuppressBgm && scenario.Bgm != 0)
+            Bgm.Play(scenario.Bgm);
+
         Plugin.ChatGui.Print(new XivChatEntry
         {
             Type = XivChatType.SystemMessage,
@@ -127,14 +90,10 @@ public sealed class Game : IDisposable
         });
     }
 
-    // Scenario origin = (X, Z) anchor for all scenario-relative offsets, with Y
-    // taken from the player so spawns stay on the floor. If the scenario declares
-    // an OriginOverride matching the active territory, use that fixed (X, Z);
-    // otherwise snapshot the player's current position. Orientation is intentionally
-    // ignored — offsets are interpreted in world axes (+X east, +Z south) so the
-    // arena layout doesn't drift if the player turns.
-    private static Vector3 ResolveScenarioOrigin(IScenario scenario, Vector3 playerPosition)
+    private Vector3 ResolveScenarioOrigin(IScenario scenario, Vector3 playerPosition)
     {
+        if (World.Map.IsInInstance && scenario.TargetInstance is { } target)
+            return new Vector3(target.Origin.X, target.Origin.Y, target.Origin.Z);
         var territory = Plugin.ClientState.TerritoryType;
         foreach (var ovr in scenario.OriginOverrides)
             if (ovr.TerritoryId == territory)
@@ -197,8 +156,7 @@ public sealed class Game : IDisposable
         Plugin.Framework.Run(() =>
         {
             ResetInternal();
-            ZoneSession.Revert();
-            IsInInstance = false;
+            World.Map.Unload();
         });
     }
 
@@ -208,6 +166,8 @@ public sealed class Game : IDisposable
         scenarioElapsed = 0f;
         Events.Clear();
         World.Reset();
+        Bgm.Reset();
+
         Paused = false;
         firstDeathScheduled = false;
         PlayerInputHooks.DisableAllActions = false;
@@ -222,9 +182,9 @@ public sealed class Game : IDisposable
     {
         activeScenario = null;
         Events.Clear();
+        Bgm.Dispose();
         World.Dispose();
         PlayerInputHooks.Dispose();
-        ZoneSession.Dispose();
         opcodeUpdater.Dispose();
     }
 }
