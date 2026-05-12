@@ -38,8 +38,8 @@ public sealed class TopP5SigmaScenario : IScenario
     private SimParty party = null!;
 
     private SimEnemy? omegaM;
-    private SimEnemy? spinner;
-    private SimEnemy? sigmaHelper;
+    private SimEnemy? finalHelper;
+    private SimEnemy? beetleHelper;
     private SimEnemy? omegaMClone;
     private SimEnemy? omegaFCloneA;
     private SimEnemy? armUnitA;
@@ -67,26 +67,19 @@ public sealed class TopP5SigmaScenario : IScenario
         world.Events.Add(0.7f, () => omegaM?.Cast(ActionId.Unknown7B42));            // TODO: identify
         world.Events.Add(1.0f, () => TopUtils.InitTopArena(world));
         world.Events.Add(2.0f, () => omegaM?.Cast(ActionId.RunMiSigmaVersion, castSeconds: 4.7f));
-        // Log: 4000A63C goes untargetable at 01:23:12.79 (t=10.1) and immediately
-        // plays the warp-out timeline (273 0197 1E39 at 01:23:12.83). Without the
-        // PlayActionTimeline call the doppel just stands frozen + untargetable.
         world.Events.Add(10.1f, () => omegaM?.SetTargetable(false));
         world.Events.Add(10.1f, () => omegaM?.PlayActionTimeline(TopConstants.TimelineId.WarpOut));
         world.Events.Add(10.1f, ApplySigmaTethers);
-        // Log: both arm units (4000A643 / 4000A644) warp in at 01:23:12.879 (t=10.2)
-        // and tether to the furthest player at 01:23:13.502 (t=10.8). They cast
-        // Hyper Pulse at t=29.2, then warp out at t=31.2 — first of two cycles.
+        world.Events.Add(10.1f, ApplyHelloWorldDebuffs);
         world.Events.Add(10.2f, SpawnArmUnits);
         world.Events.Add(10.8f, ApplyHyperPulseTethers);
-        // Log: AddCombatant for both helpers fires at t=2.2 (preload), but the
-        // visible warp-in (273 0197 1E43) is at 01:23:17.92 / 01:23:20.898 —
-        // i.e. AFTER the boss warps out at t=10.1. Spawn at the warp-in moments.
+        world.Events.Add(11.7f, WarpOmegaToNewNorth);
         world.Events.Add(15.2f, SpawnSpinner);
         world.Events.Add(18.2f, SpawnSigmaHelper);
-        world.Events.Add(20.4f, () => spinner?.Cast(ActionId.WaveCannon, castSeconds: 7.7f));
+        world.Events.Add(20.4f, CastWaveCannon);
         world.Events.Add(24.4f, () => omegaM?.Cast(ActionId.SubjectSimulationF));
         world.Events.Add(25.4f, () => omegaMClone?.Cast(ActionId.Unknown7B14));      // TODO: identify
-        world.Events.Add(25.9f, () => sigmaHelper?.Cast(ActionId.ProgramLoop));
+        world.Events.Add(25.9f, CastProgramLoop);
         world.Events.Add(26.5f, () => omegaM?.Cast(ActionId.Unknown7B16));           // TODO: identify
         world.Events.Add(28.1f, ResolveWaveCannon);
         world.Events.Add(29.2f, FireHyperPulse);
@@ -100,37 +93,42 @@ public sealed class TopP5SigmaScenario : IScenario
         world.Events.Add(34.2f, () => towers?[0]?.Cast(ActionId.Unknown7B15));       // TODO: identify
         world.Events.Add(34.7f, () => omegaM?.Cast(ActionId.Unknown7B20));           // TODO: identify
         world.Events.Add(36.8f, () => omegaM?.Cast(ActionId.Unknown7B43));           // TODO: identify
-        world.Events.Add(37.9f, () => omegaM?.Cast(ActionId.Discharger, castSeconds: 3.1f));
+        world.Events.Add(37.9f, () => omegaM?.Cast(ActionId.Discharger));
         world.Events.Add(41.9f, ResolveStorageViolation);
         world.Events.Add(53.2f, SpawnRearPowerUnit);
-        world.Events.Add(53.2f, () => rearPower?.Cast(ActionId.RearLasersStart, castSeconds: 0.6f));
-        world.Events.Add(53.8f, () => rearPower?.Cast(ActionId.RearLasersTick, castSeconds: 0.6f));
-        world.Events.Add(54.4f, () => rearPower?.Cast(ActionId.RearLasersTick, castSeconds: 0.6f));
-        world.Events.Add(55.0f, () => rearPower?.Cast(ActionId.RearLasersTick, castSeconds: 0.6f));
-        world.Events.Add(55.6f, () => rearPower?.Cast(ActionId.RearLasersTick, castSeconds: 0.6f));
-        world.Events.Add(56.2f, () => rearPower?.Cast(ActionId.RearLasersTick, castSeconds: 0.6f));
+        world.Events.Add(53.2f, () => rearPower?.Cast(ActionId.RearLasersStart, castSeconds: 2.7f));
+        world.Events.Add(56.84f, () => rearPower?.Cast(ActionId.RearLasersTick));
+        world.Events.Add(57.42f, () => rearPower?.Cast(ActionId.RearLasersTick));
         world.Events.Add(57.9f, ResolveSuperliminalSteel);
+        world.Events.Add(58.00f, () => rearPower?.Cast(ActionId.RearLasersTick));
+        world.Events.Add(58.58f, () => rearPower?.Cast(ActionId.RearLasersTick));
+        world.Events.Add(59.16f, () => rearPower?.Cast(ActionId.RearLasersTick));
+        // Log: 4000A63C plays warp-out (273 0197 1E39) at 01:24:05.18 from
+        // NewNorthA before the second teleport back to center.
+        world.Events.Add(62.5f, () => omegaM?.PlayActionTimeline(TopConstants.TimelineId.WarpOut));
         world.Events.Add(66.2f, ResolveHelloWorldInitial);
         world.Events.Add(67.2f, ResolveHelloWorldJump);
+        // Log: second jump fires at 01:24:10.883 (t=68.2).
+        world.Events.Add(68.2f, ResolveHelloWorldJump);
         // Log: 4000A63C plays warp-in (273 0197 1E43) at 01:24:10.348 (t=67.6)
         // and flips targetable=01 at 01:24:13.43 (t=70.7). Warp-in must precede
         // SetTargetable so the model is back before clicks land.
-        world.Events.Add(67.6f, () => omegaM?.PlayActionTimeline(TopConstants.TimelineId.Spawn));
+        world.Events.Add(67.6f, WarpOmegaBackToCenter);
         world.Events.Add(70.7f, () => omegaM?.SetTargetable(true));
     }
-    
+
     public void Tick(float delta, float elapsed)
     {
         List<SimTether> resolved = [];
         foreach (var tether in sigmaTethers)
         {
-            if (tether.Resolved)
+            if (tether.IsActive)
             {
                 tether.A.RemoveStatus(TopConstants.StatusId.VulnerabilityUp);
                 tether.B.RemoveStatus(TopConstants.StatusId.VulnerabilityUp);
                 resolved.Add(tether);
             }
-            if (tether.StretchLt(Geometry.SigmaTetherMinDistance) ||
+            else if (tether.StretchLt(Geometry.SigmaTetherMinDistance) ||
                 tether.StretchGt(Geometry.SigmaTetherMaxDistance))
             {
                 tether.A.AddStatus(TopConstants.StatusId.VulnerabilityUp);
@@ -143,6 +141,11 @@ public sealed class TopP5SigmaScenario : IScenario
             }
         }
         resolved.ForEach(t => sigmaTethers.Remove(t));
+
+        if (tetherUnitA is { Resolved: false })
+           armUnitA?.Face(tetherUnitA.B);
+        if (tetherUnitB is { Resolved: false })
+            armUnitB?.Face(tetherUnitB.B);
     }
 
     private void SpawnOmegaM()
@@ -152,7 +155,7 @@ public sealed class TopP5SigmaScenario : IScenario
             NameId: TopConstants.BNpcNameId.OmegaM,
             Level: TopConstants.Level,
             Targetable: true,
-            Rotation: MathF.PI));
+            Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
 
     private void ApplyQuickeningDynamis()
@@ -161,35 +164,6 @@ public sealed class TopP5SigmaScenario : IScenario
         for (int i = 0; i < members.Length && i < state.QuickenedSlots.Count; i++)
             if (state.QuickenedSlots[i])
                 members[i].AddStatus(TopConstants.StatusId.QuickeningDynamis, 0f, 1);
-    }
-
-    private void SpawnSpinner()
-    {
-        spinner = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.FinalHelper,
-            NameId: TopConstants.BNpcNameId.OmegaFinal,
-            Level: TopConstants.Level,
-            Targetable: false,
-            InEnemyList: true,
-            Offset: new Vector3(0f, 0f, 0f),
-            Rotation: MathF.PI / 4f));
-        spinner?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
-    }
-
-    private void SpawnSigmaHelper()
-    {
-        // NE intercardinal — generated from log pos (114.14, 114.14) - origin (100, 100).
-        // The "new north" RNG (state.NewNorthA) should rotate this around the arena
-        // when the user wires up state-aware spawn placement.
-        sigmaHelper = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.BeetleHelper,
-            NameId: TopConstants.BNpcNameId.OmegaBeetle,
-            Level: TopConstants.Level,
-            Targetable: false,
-            InEnemyList: true,
-            Offset: new Vector3(14.14f, 0f, 14.14f),
-            Rotation: -MathF.PI * 3f / 4f));
-        sigmaHelper?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
     }
 
     private void ApplySigmaTethers()
@@ -205,38 +179,52 @@ public sealed class TopP5SigmaScenario : IScenario
         sigmaTethers.Add(world.Tether(targets[2], targets[3], TetherId.SigmaPair, 18f, StatusId.MidGlitch));
         sigmaTethers.Add(world.Tether(targets[4], targets[5], TetherId.SigmaPair, 18f, StatusId.MidGlitch));
         sigmaTethers.Add(world.Tether(targets[6], targets[7], TetherId.SigmaPair, 18f, StatusId.MidGlitch));
+
+        ReadOnlySpan<uint> pairMarkers =
+        [
+            LockonId.PairTriangle,
+            LockonId.PairCircle,
+            LockonId.PairSquare,
+            LockonId.PairCross,
+        ];
+        for (int p = 0; p < 4; p++)
+        {
+            targets[p * 2]?.AttachLockonVfx(pairMarkers[p], persistent: false);
+            targets[p * 2 + 1]?.AttachLockonVfx(pairMarkers[p], persistent: false);
+        }
     }
 
-
-    private void ResolveWaveCannon()
+    private void ApplyHelloWorldDebuffs()
     {
-        // TODO: spinner sweep — arena-spanning rotating line. Direction comes from
-        // state.SpinnerRotation; final orientation from state.NewNorthA.
-        spinner?.Cast(ActionId.WaveCannon);
+        party.Get(state.NearWorldRole)?.AddStatus(StatusId.HelloNearWorld, Durations.HelloWorldDebuff);
+        party.Get(state.FarWorldRole)?.AddStatus(StatusId.HelloFarWorld, Durations.HelloWorldDebuff);
+    }
+
+    private void CastProgramLoop()
+    {
+        beetleHelper?.Cast(ActionId.ProgramLoop);
+        foreach (var member in party.AllMembers())
+            member.AddStatus(StatusId.Looper, Durations.Looper);
     }
 
     private void SpawnArmUnits()
     {
-        // Log: 4000A643 at (99.92, 88.46) ≈ N (0, 0, -12), 4000A644 at (88.40, 99.93)
-        // ≈ W (-12, 0, 0) at the time of the first Hyper Pulse cast. Both warp in
-        // simultaneously at log 01:23:12.879 (t=10.2). Each plays the warp-in
-        // animation so it doesn't pop in.
         armUnitA = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: TopConstants.BNpcBaseId.RightArmUnit,
+            NameId: TopConstants.BNpcNameId.RightArmUnit,
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: new Vector3(0f, 0f, -12f),
-            Rotation: 0f));
+            Placement: state.NewNorthA.Apply(new Placement(new(-8.5f, 0, 8.5f), MathF.PI / 4))));
         armUnitA?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
 
         armUnitB = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: TopConstants.BNpcBaseId.RightArmUnit,
+            NameId: TopConstants.BNpcNameId.RightArmUnit,
             Level: TopConstants.Level,
             Targetable: false,
-            InEnemyList: false,
-            Offset: new Vector3(-12f, 0f, 0f),
-            Rotation: MathF.PI / 2f));
+            InEnemyList: true,
+            Placement: state.NewNorthA.Apply(new Placement(new (8.5f, 0, 8.5f), - MathF.PI / 4))));
         armUnitB?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
     }
 
@@ -246,21 +234,60 @@ public sealed class TopP5SigmaScenario : IScenario
         // The mechanic targets the furthest player from each arm unit; players move
         // and the tether re-targets dynamically (line 54461 shows 4000A643 retether
         // to a different player at t=13.2). For now, freeze the target at apply-time.
-        if (armUnitA != null) 
+        if (armUnitA != null)
             tetherUnitA = world.TetherFarestPlayer(armUnitA, TetherId.HyperPulseBait, duration: 20f);
         if (armUnitB != null)
             tetherUnitB = world.TetherFarestPlayer(armUnitB, TetherId.HyperPulseBait, duration: 20f);
     }
 
+    private void WarpOmegaToNewNorth()
+    {
+        omegaM?.SetPosition(state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, -20f), 0f)).LocalToGlobal(world.ScenarioOrigin));
+        omegaM?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+    }
+
+    private void SpawnSpinner()
+    {
+        finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
+            BNpcBaseId: TopConstants.BNpcBaseId.FinalHelper,
+            NameId: TopConstants.BNpcNameId.OmegaFinal,
+            Level: TopConstants.Level,
+            Targetable: false,
+            InEnemyList: true,
+            Placement: state.NewNorthA.Apply(new Placement(Vector3.Zero, 0))));
+        finalHelper?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+    }
+
+    private void SpawnSigmaHelper()
+    {
+        beetleHelper = world.SpawnEnemy(new EnemySpawnConfig(
+            BNpcBaseId: TopConstants.BNpcBaseId.BeetleHelper,
+            NameId: TopConstants.BNpcNameId.OmegaBeetle,
+            Level: TopConstants.Level,
+            Targetable: false,
+            InEnemyList: true,
+            Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 20f), MathF.PI))));
+        beetleHelper?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+    }
+
+    private void CastWaveCannon()
+    {
+        finalHelper?.Cast(ActionId.WaveCannon, castSeconds: 7.7f);
+        foreach (var slot in state.WaveCannonTargetSlots)
+            party.Get(state.SigmaOrder[slot])?.AttachLockonVfx(LockonId.WaveCannon, persistent: false);
+    }
+
+    private void ResolveWaveCannon()
+    {
+        // TODO: damage from wave cannon
+        // foreach (var slot in state.WaveCannonTargetSlots)
+        //     finalHelper?.Cast(ActionId.WaveCannonHit, party.Get(state.SigmaOrder[slot])!.Position);
+    }
+
     private void FireHyperPulse()
     {
-        // Log: both arm units cast HyperPulse at 01:23:31.897 (t=29.2), each on
-        // their currently-tethered player.
         if (tetherUnitA != null)
-        {
-            armUnitA?.Face(tetherUnitA.B.Position);
             armUnitA?.Cast(ActionId.HyperPulse, tetherUnitA.B.Position);
-        }
         if (tetherUnitB != null)
             armUnitB?.Cast(ActionId.HyperPulse, tetherUnitB.B.Position);
     }
@@ -285,7 +312,7 @@ public sealed class TopP5SigmaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: false,
-            Offset: offset));
+            Placement: new Placement(offset, 0f)));
 
     private void ResolveTowerWaveCannon()
     {
@@ -308,8 +335,7 @@ public sealed class TopP5SigmaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: mPos,
-            Rotation: mFacing));
+            Placement: new Placement(mPos, mFacing)));
         omegaMClone?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
 
         // Omega-F clone — placeholder at the opposite intercardinal until
@@ -320,8 +346,7 @@ public sealed class TopP5SigmaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: -mPos,
-            Rotation: state.NewNorthA.RadiansFromNorth));
+            Placement: new Placement(-mPos, state.NewNorthA.RadiansFromNorth)));
         omegaFCloneA?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
     }
 
@@ -349,8 +374,7 @@ public sealed class TopP5SigmaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: false,
-            Offset: new Vector3(0f, 0f, 0f),
-            Rotation: state.NewNorthB.RadiansFromNorth));
+            Placement: new Placement(Vector3.Zero, state.NewNorthB.RadiansFromNorth)));
     }
 
     private void ResolveSuperliminalSteel()
@@ -360,28 +384,59 @@ public sealed class TopP5SigmaScenario : IScenario
         omegaM?.Cast(ActionId.SuperliminalSteel, castSeconds: 1.2f);
         if (state.OmegaFForm == OmegaFForm.LegBlades)
         {
-            omegaFCloneA?.Cast(ActionId.SuperliminalSteelLeft);
-            omegaMClone?.Cast(ActionId.SuperliminalSteelRight);
+            omegaFCloneA?.Cast(ActionId.SuperliminalSteelLeft, castSeconds: 1.2f);
+            omegaMClone?.Cast(ActionId.SuperliminalSteelRight, castSeconds: 1.2f);
         }
         else
         {
-            omegaFCloneA?.Cast(ActionId.SuperliminalSteelRight);
-            omegaMClone?.Cast(ActionId.SuperliminalSteelLeft);
+            omegaFCloneA?.Cast(ActionId.SuperliminalSteelRight, castSeconds: 1.2f);
+            omegaMClone?.Cast(ActionId.SuperliminalSteelLeft, castSeconds: 1.2f);
         }
     }
 
     private void ResolveHelloWorldInitial()
     {
-        // Two puddles at the F clone positions — one Near, one Distant.
-        omegaFCloneA?.Cast(TopConstants.ActionId.HelloNearWorld);
-        omegaMClone?.Cast(TopConstants.ActionId.HelloDistantWorld);
+        DropHelloPuddle(state.NearWorldRole, TopConstants.ActionId.HelloNearWorld);
+        DropHelloPuddle(state.FarWorldRole, TopConstants.ActionId.HelloDistantWorld);
+    }
+
+    private void DropHelloPuddle(PartyRole role, uint spellId)
+    {
+        var target = party.Get(role);
+        if (target == null) return;
+        var pos = target.Position;
+        var helper = world.SpawnEnemy(new EnemySpawnConfig(
+            BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
+            Targetable: false,
+            InEnemyList: false,
+            Placement: new Placement(pos - world.ScenarioOrigin, 0f),
+            Lifetime: 5f));
+        helper?.Cast(spellId, targetLocation: pos, targetId: target.GameObjectId);
+        target.AddStatus(TopConstants.StatusId.QuickeningDynamis, 0f, 1);
+        target.AddStatus(TopConstants.StatusId.MagicVulnUp1, 4.96f);
     }
 
     private void ResolveHelloWorldJump()
     {
-        // Jump-to-closest / jump-to-farthest follow-ups via tower helpers.
-        if (towers == null) return;
-        towers[0]?.Cast(TopConstants.ActionId.HelloNearWorldJump);
-        towers[1]?.Cast(TopConstants.ActionId.HelloDistantWorldJump);
+        state.NearWorldRole = HopHelloPuddle(state.NearWorldRole, TopConstants.ActionId.HelloNearWorldJump, useClosest: true);
+        state.FarWorldRole = HopHelloPuddle(state.FarWorldRole, TopConstants.ActionId.HelloDistantWorldJump, useClosest: false);
+    }
+
+    private PartyRole HopHelloPuddle(PartyRole currentRole, uint jumpSpell, bool useClosest)
+    {
+        var current = party.Get(currentRole);
+        if (current == null) return currentRole;
+        var next = useClosest
+            ? party.Find.Closest(current.Position, exclude: current)
+            : party.Find.Farest(current.Position, exclude: current);
+        if (next == null) return currentRole;
+        DropHelloPuddle(next.Role, jumpSpell);
+        return next.Role;
+    }
+
+    private void WarpOmegaBackToCenter()
+    {
+        omegaM?.SetPosition(new Placement(world.ScenarioOrigin, MathF.PI));
+        omegaM?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
     }
 }

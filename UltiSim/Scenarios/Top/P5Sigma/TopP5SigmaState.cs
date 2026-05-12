@@ -7,18 +7,6 @@ namespace UltiSim.Scenarios.Top.P5Sigma;
 
 // Eight cardinal/intercardinal direction with rotation in radians measured
 // from north (clockwise). Index 0..7 maps N, NE, E, SE, S, SW, W, NW.
-public sealed record EightWayDirection(string Name, float RadiansFromNorth, int Index)
-{
-    public static readonly EightWayDirection N  = new("N",  0f,                           0);
-    public static readonly EightWayDirection NE = new("NE", MathF.PI * 1f / 4f,           1);
-    public static readonly EightWayDirection E  = new("E",  MathF.PI * 2f / 4f,           2);
-    public static readonly EightWayDirection SE = new("SE", MathF.PI * 3f / 4f,           3);
-    public static readonly EightWayDirection S  = new("S",  MathF.PI * 4f / 4f,           4);
-    public static readonly EightWayDirection SW = new("SW", MathF.PI * 5f / 4f,           5);
-    public static readonly EightWayDirection W  = new("W",  MathF.PI * 6f / 4f,           6);
-    public static readonly EightWayDirection NW = new("NW", MathF.PI * 7f / 4f,           7);
-    public static readonly EightWayDirection[] All = [N, NE, E, SE, S, SW, W, NW];
-}
 
 public sealed class TopP5SigmaState
 {
@@ -28,6 +16,7 @@ public sealed class TopP5SigmaState
     public IReadOnlyList<bool> QuickenedSlots { get; }              // length 8 — true means starts with QuickeningDynamis
     public IReadOnlyList<bool> PairIsTarget { get; }                // length 4 — true means this pair receives a tower target
     public IReadOnlyList<bool> NonTargetMemberIsFirst { get; }      // length 4 — for non-target pairs, which member of the pair is the actual non-target
+    public IReadOnlyList<int> WaveCannonTargetSlots { get; }        // length 6 — SigmaOrder indices that receive the spinner Wave Cannon marker + tower hit. Derived from PairIsTarget + NonTargetMemberIsFirst.
 
     public EightWayDirection NewNorthA { get; }
     public CloseFar CloseFarTether { get; }
@@ -35,6 +24,13 @@ public sealed class TopP5SigmaState
     public EightWayDirection NewNorthB { get; }
     public Rotation SpinnerRotation { get; }
     public OmegaFForm OmegaFForm { get; }
+
+    // Hello World assignment — two distinct slots (0..7) get the Near/Distant World debuff.
+    // Role copies are mutated by HopHelloPuddle as the puddle chain progresses.
+    public int NearWorldIndex { get; }
+    public int FarWorldIndex { get; }
+    public PartyRole NearWorldRole { get; set; }
+    public PartyRole FarWorldRole { get; set; }
 
     public TopP5SigmaState(TopP5SigmaStateOverrides overrides, PartyRole playerRole)
     {
@@ -58,6 +54,23 @@ public sealed class TopP5SigmaState
         for (int i = 0; i < 4; i++) nonTargetFirst[i] = rng.Next(2) == 0;
         NonTargetMemberIsFirst = nonTargetFirst;
 
+        var waveCannonTargets = new List<int>(6);
+        for (int p = 0; p < 4; p++)
+        {
+            if (PairIsTarget[p])
+            {
+                waveCannonTargets.Add(p * 2);
+                waveCannonTargets.Add(p * 2 + 1);
+            }
+            else
+            {
+                // NonTargetMemberIsFirst[p] picks which pair member is the non-target;
+                // the other one is the wave-cannon target.
+                waveCannonTargets.Add(NonTargetMemberIsFirst[p] ? p * 2 + 1 : p * 2);
+            }
+        }
+        WaveCannonTargetSlots = waveCannonTargets;
+
         NewNorthA = overrides.NewNorthA ?? RandomDirection();
         CloseFarTether = overrides.CloseFarTether ?? (rng.Next(2) == 0 ? CloseFar.Close : CloseFar.Far);
         TowerNorthFlipped = overrides.TowerNorthFlip switch
@@ -69,6 +82,11 @@ public sealed class TopP5SigmaState
         NewNorthB = overrides.NewNorthB ?? RandomDirection();
         SpinnerRotation = overrides.SpinnerRotation ?? (rng.Next(2) == 0 ? Rotation.Clockwise : Rotation.CounterClockwise);
         OmegaFForm = overrides.OmegaFForm ?? (rng.Next(2) == 0 ? OmegaFForm.LegBlades : OmegaFForm.Staff);
+
+        NearWorldIndex = rng.Next(8);
+        FarWorldIndex = (NearWorldIndex + 1 + rng.Next(7)) % 8;
+        NearWorldRole = SigmaOrder[NearWorldIndex];
+        FarWorldRole = SigmaOrder[FarWorldIndex];
     }
 
     private EightWayDirection RandomDirection() => EightWayDirection.All[rng.Next(8)];

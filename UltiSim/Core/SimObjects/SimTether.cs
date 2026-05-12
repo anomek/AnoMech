@@ -39,6 +39,7 @@ public sealed unsafe class SimTether : ISimObject
     // Set by the scenario when this tether has been resolved (broken or failed) to
     // prevent duplicate processing if multiple triggers fire in the same frame.
     public bool Resolved { get; set; }
+    public bool IsActive => active;
 
     public static bool IsAnyDead(SimTether t) => !t.A.IsAlive || !t.B.IsAlive;
     public bool StretchGt(float distance) => Vector3.DistanceSquared(A.Position, B.Position) > distance * distance;

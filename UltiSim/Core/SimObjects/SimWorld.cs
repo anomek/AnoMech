@@ -58,6 +58,17 @@ public sealed class SimWorld : ISimObject, IDisposable
         return enemy;
     }
 
+    // Acquires an existing SharedGroup layout instance baked into the loaded
+    // zone (TOP arena tiles, the 1EA1A1 fixture, the Exit portal, etc.) and
+    // registers it for snapshot-restore teardown. Does NOT allocate.
+    // See SimEventObject / LayoutQuery for the discovery path.
+    public SimEventObject? AcquireEventObject(EventObjectAcquireConfig config)
+    {
+        var eo = SimEventObject.Acquire(config, ScenarioOrigin, Events);
+        if (eo != null) children.Add(eo);
+        return eo;
+    }
+
     // Places the scenario's waymark layout. Coordinates are scenario-relative;
     // resolved against the snapshotted ScenarioOrigin.
     public void PlaceWaymarks(IReadOnlyList<Waymark> waymarks)
@@ -103,6 +114,7 @@ public sealed class SimWorld : ISimObject, IDisposable
         // entities here. Snapshot the count: a child's Tick may register a new
         // child (rare today), so iterating by index against the live count is
         // safe but the snapshot guards against future drift.
+        Map.Tick();
         var count = children.Count;
         for (int i = 0; i < count; i++) children[i].Tick(deltaSeconds);
         enmityHud.Refresh(children.OfType<SimEnemy>());

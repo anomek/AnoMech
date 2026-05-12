@@ -27,4 +27,9 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
     }
 
     public Vector2 Position2 => new(Position.X, Position.Z);
+
+    public Placement LocalToGlobal(Vector3 origin)
+    {
+        return new Placement(Position + origin, Rotation);
+    }
 }

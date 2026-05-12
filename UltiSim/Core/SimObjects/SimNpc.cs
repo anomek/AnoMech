@@ -43,6 +43,99 @@ public unsafe class SimNpc : SimPartySlot
         chara->Timeline.PlayActionTimeline(timelineId);
     }
 
+    // Writes Timeline.ModelState then forces a draw rebuild via DisableDraw +
+    // deferred EnableDraw. UpdateRender (vfunc 4) and NotifyTransformChanged
+    // (dirty-flag) were both tried first and didn't trigger a visual commit;
+    // the proven path is the same DisableDraw + pendingDraw shape that
+    // SetModelCharaId uses — the Tick reconciler at the bottom of this file
+    // re-enables once IsReadyToDraw flips true again. Cost is one Tick of
+    // invisibility on every commit, which is acceptable at well-defined
+    // 003F packet timestamps.
+    public void SetModelState(byte value)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        var obj = (GameObject*)chara;
+        obj->DisableDraw();
+        chara->Timeline.ModelState = value;
+        pendingDraw = true;
+    }
+
+    public void SetAnimationState(byte hi, byte lo)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        chara->Timeline.AnimationState[0] = hi;
+        chara->Timeline.AnimationState[1] = lo;
+    }
+
+    // Server-side boss appearance change arrives as three ActorControlExtra
+    // packets within ~90ms: 0x0031 = SetModeAttributeFlags (writes
+    // ModelContainer.ModeAttributeFlags), 0x003F = SetModelState (writes
+    // Timeline.ModelState), 0x0197 = PlayActionTimeline. Empirically verified
+    // on Omega-M's Synthetic Shield: ModeAttributeFlags 0x10 -> 0x31 and
+    // ModelState 0x00 -> 0x04 are the only fields that change when the shield
+    // becomes visible. Both setters force a draw rebuild via DisableDraw +
+    // pendingDraw -> deferred EnableDraw; the lighter UpdateRender and
+    // NotifyTransformChanged paths were tried first and did not commit the
+    // change visually.
+    public void ApplyPoseChange(byte modelState, byte animStateHi, byte animStateLo, ushort commitTimelineId)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        chara->Timeline.ModelState = modelState;
+        chara->Timeline.AnimationState[0] = animStateHi;
+        chara->Timeline.AnimationState[1] = animStateLo;
+        byte* animState = &chara->Timeline.ModelState + 1;
+        animState[0] = animStateHi;
+        animState[1] = animStateLo;
+        if (chara->Timeline.TimelineSequencer.Parent == null) return;
+        chara->Timeline.PlayActionTimeline(commitTimelineId);
+    }
+
+    public void SetModeAttributeFlags(byte value)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        var obj = (GameObject*)chara;
+        obj->DisableDraw();
+        chara->ModelContainer.ModeAttributeFlags = value;
+        pendingDraw = true;
+    }
+
+    // Disables draw, writes the new ModelCharaId, and defers EnableDraw to the
+    // Tick reconciler — the engine rebuilds the skeleton asynchronously, so
+    // re-enabling in the same frame fires before IsReadyToDraw flips and the
+    // swap is lost. pendingDraw routes us through the same readiness gate the
+    // initial spawn flow uses.
+    public void SetModelCharaId(int modelCharaId)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        var obj = (GameObject*)chara;
+        obj->DisableDraw();
+        chara->ModelContainer.ModelCharaId = modelCharaId;
+        pendingDraw = true;
+    }
+
+    // CharacterData.TransformationId (short at +0x24 of the CharacterData
+    // sub-object, flattened onto BattleChara via Inherits<CharacterData>).
+    // Bosses drive form swaps through this field; the engine normally derives
+    // it from a buff Param (e.g. Superfluid carries Param=493), but our direct
+    // StatusManager writes bypass that derivation, so scenarios set it
+    // explicitly. Same deferred-EnableDraw shape as SetModelCharaId: the
+    // skeleton rebuild is async, so re-enabling inline races IsReadyToDraw.
+    public void SetTransformationId(short transformationId)
+    {
+        var chara = GetBattleChara();
+        if (chara == null) return;
+        var obj = (GameObject*)chara;
+        // obj->DisableDraw();
+        chara->TransformationId = transformationId;
+        // obj->GetDrawObject()->UpdateRender();
+        // pendingDraw = true;
+    }
+
     public uint EntityId
     {
         get
@@ -88,25 +181,26 @@ public unsafe class SimNpc : SimPartySlot
         }
     }
 
-    public override void Move(Vector3 position)
+    // GameObject.SetPosition only updates the logical Position (+0xB0); the engine
+    // catches the DrawObject up to it over multiple frames, which reads as the
+    // model "walking" the gap for big jumps (small per-frame deltas in MoveTo's
+    // tick hide it). Mirroring the write into DrawObject.Position forces the
+    // visible model to snap.
+    public override void SetPosition(Vector3 position)
     {
         var obj = GetGameObject();
         if (obj == null) return;
-        // Direct field writes only update GameObject — the attached DrawObject
-        // keeps its own transform, so the visible model stays put while only the
-        // hitbox/nameplate move. SetPosition propagates to the DrawObject too.
         obj->SetPosition(position.X, position.Y, position.Z);
+        if (obj->DrawObject != null) obj->DrawObject->Object.Position = position;
     }
 
-    public override void Move(Placement placement)
+    public override void SetPosition(Placement placement)
     {
         var obj = GetGameObject();
         if (obj == null) return;
         obj->SetPosition(placement.Position.X, placement.Position.Y, placement.Position.Z);
-        // Direct field write at +0xC0 isn't enough for animated NPCs — the game
-        // re-derives the visible facing each frame from internal state. The
-        // virtual SetRotation(float) propagates the change properly.
         obj->SetRotation(MathUtil.NormalizeRotation(placement.Rotation));
+        if (obj->DrawObject != null) obj->DrawObject->Object.Position = placement.Position;
     }
 
     // Snaps the NPC's facing toward `target` on the XZ plane. No-op when the
@@ -132,6 +226,8 @@ public unsafe class SimNpc : SimPartySlot
         pendingDespawnTimer = MathF.Max(0f, delay);
     }
 
+    // tmp
+    public void MoveTo(Placement p) => MoveTo(p.Position);
     // Sets a destination the Tick loop walks toward at `speed` units/sec, facing
     // the direction of travel. Plays `timelineId` (default normal/run = 22) on the
     // base animation slot for the duration of the motion so the model actually
@@ -198,7 +294,7 @@ public unsafe class SimNpc : SimPartySlot
             {
                 var rot = moveFinalRotation
                           ?? (distSq > 1e-6f ? MathF.Atan2(dx, dz) : Rotation);
-                Move(new Placement(target, rot));
+                SetPosition(new Placement(target, rot));
                 moveTarget = null;
                 moveFinalRotation = null;
                 StopMoveAnim();
@@ -208,7 +304,7 @@ public unsafe class SimNpc : SimPartySlot
                 var dist = MathF.Sqrt(distSq);
                 var nx = current.X + dx / dist * step;
                 var nz = current.Z + dz / dist * step;
-                Move(new Placement(new Vector3(nx, current.Y, nz), MathF.Atan2(dx, dz)));
+                SetPosition(new Placement(new Vector3(nx, current.Y, nz), MathF.Atan2(dx, dz)));
             }
         }
 

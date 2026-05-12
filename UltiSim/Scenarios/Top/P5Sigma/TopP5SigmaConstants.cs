@@ -41,7 +41,7 @@ internal static class TopP5SigmaConstants
         public const uint Unknown7B20 = 31520;              // 0x7B20 — Omega-M instant; TODO
         public const uint Unknown7B43 = 31555;              // 0x7B43 — Omega-M instant; TODO
         public const uint HyperPulse = 31602;               // 0x7B72 — Right Arm Unit rect AOE
-        public const uint Discharger = 31534;               // 0x7B2E — Omega-M, 3.1s cast, knockback raidwide
+        public const uint Discharger = 31534;               // 0x7B2E — Omega-M, instant, knockback raidwide
         public const uint StorageViolationStack = 31493;    // 0x7B05 — 2-target stack
         public const uint StorageViolationSpread = 31492;   // 0x7B04 — 1-target spread
         public const uint RearLasersStart = 31631;          // 0x7B8F — Rear Power Unit, first tick
@@ -54,12 +54,28 @@ internal static class TopP5SigmaConstants
     public static class StatusId
     {
         public const ushort MidGlitch = 3427;         // 0xD63 — Sigma tether per-side debuff, 32s; applied to all 8 players ~0.7s before the type-35 visual
+        public const ushort HelloNearWorld = 3442;    // 0xD72 — applied at t=10.1, 56s; expires → initial near puddle drops on holder
+        public const ushort HelloFarWorld = 3443;     // 0xD73 — applied at t=10.1, 56s; expires → initial distant puddle drops on holder
+        public const ushort Looper = 3456;            // 0xD80 — applied to all 8 players ~0.7s after ProgramLoop cast, 18s
     }
 
     public static class TetherId
     {
         public const ushort SigmaPair = 222;          // 0x00DE — 4 player-to-player pairs at t=10.1
         public const ushort HyperPulseBait = 17;      // 0x0011 — Right Arm Unit bait tether
+    }
+
+    public static class LockonId
+    {
+        // PlayStation head markers — one shape per Sigma tether pair, applied to
+        // both members. Source: TOP_pull_05_clear.log type-27 rows at 01:23:12.791
+        // immediately following the four type-35 (Sigma tether) rows.
+        public const uint PairTriangle = 416;         // 0x01A0 — pair 0
+        public const uint PairCircle   = 417;         // 0x01A1 — pair 1
+        public const uint PairSquare   = 418;         // 0x01A2 — pair 2
+        public const uint PairCross    = 419;         // 0x01A3 — pair 3
+
+        public const uint WaveCannon   = 244;         // 0x00F4 — spinner Wave Cannon target marker (6 of 8 players at 01:23:22.987)
     }
 
     public static class Geometry
@@ -83,6 +99,7 @@ internal static class TopP5SigmaConstants
 
     public static class Durations
     {
-        // TODO: fill in convenience timings
+        public const float HelloWorldDebuff = 56f;    // log: D72/D73 apply 01:23:12.79, remove 01:24:08.787
+        public const float Looper = 18f;              // log: D80 apply 01:23:29.357, sheet duration 18s
     }
 }

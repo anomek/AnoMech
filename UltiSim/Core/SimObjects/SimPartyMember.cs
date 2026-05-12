@@ -7,14 +7,14 @@ public sealed unsafe class SimPartyMember : SimNpc
     public byte ClassJob { get; }
     public string DisplayName { get; }
 
-    private readonly bool registeredInCharacterManager;
+    public bool RegisteredInCharacterManager { get; }
 
     internal SimPartyMember(uint index, PartyRole role, byte classJob, string name, bool registeredInCharacterManager) : base(index)
     {
         Role = role;
         ClassJob = classJob;
         DisplayName = name;
-        this.registeredInCharacterManager = registeredInCharacterManager;
+        RegisteredInCharacterManager = registeredInCharacterManager;
     }
 
     public override void Despawn()
@@ -24,7 +24,7 @@ public sealed unsafe class SimPartyMember : SimNpc
         // necessary but may not be sufficient against the render-cache crash
         // (see EnmityHud.cs comment) — confirmed safe only for the inn/duty
         // contexts gated in PartyCreator.
-        if (registeredInCharacterManager)
+        if (RegisteredInCharacterManager)
         {
             var bc = BattleCharaPtr;
             if (bc != null) BattleCharaSpawn.UnregisterFromCharacterManager(bc);

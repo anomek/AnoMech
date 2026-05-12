@@ -7,8 +7,8 @@ using Lumina.Excel.Sheets;
 
 namespace UltiSim.Core.SimObjects;
 
-// Offset is in scenario-space world axes from SimWorld.ScenarioOrigin: +X = east, +Z = south.
-// Rotation is absolute (radians); 0 = south, π/2 = east, π = north, -π/2 = west.
+// Placement.Position is in scenario-space world axes from SimWorld.ScenarioOrigin: +X = east, +Z = south.
+// Placement.Rotation is absolute (radians); 0 = south, π/2 = east, π = north, -π/2 = west.
 // ModelCharaId, when non-zero, overrides the visual sourced from BNpcBase — handy for
 // reusing one BNpc identity while swapping the rendered body (e.g., no-shield variants).
 // Hitbox radius is derived from BNpcBase.Scale × ModelChara's unscaled radius.
@@ -18,11 +18,12 @@ public record struct EnemySpawnConfig(
     byte Level = 0,
     bool Targetable = false,
     bool InEnemyList = true,
-    Vector3 Offset = default,
-    float Rotation = 0f,
+    bool IsVisible = true,
+    Placement Placement = default,
     uint ModelCharaId = 0,
     float Scale = 0f,    // 0 = use BNpcBase.Scale
-    float Lifetime = 0f); // 0 = persist until explicit Despawn / scenario reset
+    float Lifetime = 0f, // 0 = persist until explicit Despawn / scenario reset
+    byte? InitialModeAttributeFlags = null); // null = leave at engine default (0x00); set when the boss's canonical idle sub-mesh variant differs (e.g. Omega-M = 0x10)
 
 public sealed unsafe class SimEnemy : SimNpc
 {
@@ -34,15 +35,26 @@ public sealed unsafe class SimEnemy : SimNpc
     private float castTotal;
     private Vector3? castTargetLocation;
     private GameObjectId? castTargetId;
+    private byte castAnimationVariation;
     private VfxFunctions.StaticVfxStruct* castOmen;
     private float pendingOmenDelay;
     private float pendingOmenRotate;
     private uint pendingOmenActionId;
     private bool pendingOmenScheduled;
 
+    // Visibility is driven via the DrawObject lifecycle: SetVisible records a
+    // desired state and Tick's reconciler fires EnableDraw / DisableDraw at
+    // most once per state change, gated on IsReadyToDraw so consecutive toggles
+    // can't race the engine's async model load. RenderFlags writes were tried
+    // and don't reliably keep enemies visible — only the DrawObject lifecycle
+    // does. currentVisible starts true because the base SimNpc.Tick fires the
+    // initial EnableDraw on its own (via pendingDraw).
+    private bool desiredVisible = true;
+    private bool currentVisible = true;
+
     public uint BNpcBaseId { get; }
     public string DisplayName { get; }
-    public bool InEnemyList { get; }
+    public bool InEnemyList { get; private set; }
     public bool IsCasting => casting;
     public uint CastActionId { get; private set; }
     public float CastProgress => castTotal <= 0f ? 0f : Math.Clamp(castElapsed / castTotal, 0f, 1f);
@@ -79,16 +91,21 @@ public sealed unsafe class SimEnemy : SimNpc
         if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
 
         var chara = (BattleChara*)obj;
+        // Engine's canonical BNpc initializer — populates ModelContainer fields from
+        // BNpcBase sheet data (including ModeAttributeFlags, which drives body sub-mesh
+        // variants like Omega-M's shield). Must run before our explicit overrides below.
+        chara->CharacterSetup.SetupBNpc(config.BNpcBaseId, config.NameId);
         chara->ObjectKind = ObjectKind.BattleNpc;
         chara->Position = new Vector3(
-            origin.X + config.Offset.X,
-            origin.Y + config.Offset.Y,
-            origin.Z + config.Offset.Z);
-        chara->SetRotation(MathUtil.NormalizeRotation(config.Rotation));
+            origin.X + config.Placement.Position.X,
+            origin.Y + config.Placement.Position.Y,
+            origin.Z + config.Placement.Position.Z);
+        chara->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
         var scale = config.Scale > 0f ? config.Scale : bnpc.Scale;
         chara->Scale = scale;
         var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
         chara->ModelContainer.ModelCharaId = (int)modelCharaId;
+        chara->SEPack = bnpc.SEPack;
         var hitboxRadius = ResolveHitboxRadius(modelCharaId, scale);
 
         var displayName = ResolveBNpcName(config.NameId) ?? $"BNpc {config.BNpcBaseId:X}";
@@ -98,9 +115,6 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->CharacterSetup.CopyFromCharacter((Character*)chara, CharacterSetupContainer.CopyFlags.None);
 
         chara->BattleNpcSubKind = BattleNpcSubKind.Combatant;
-        chara->TargetableStatus = config.Targetable
-            ? (ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1)
-            : 0;
         chara->HitboxRadius = hitboxRadius;
         chara->MaxHealth = 1_000_000;
         chara->Health = 1_000_000;
@@ -111,12 +125,19 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->CombatTaggerId = ((GameObject*)player.Address)->GetGameObjectId();
         chara->Mode = CharacterModes.Normal;
         chara->ModeParam = 0;
+        if (config.InitialModeAttributeFlags is { } maf)
+            chara->ModelContainer.ModeAttributeFlags = maf;
         chara->CastInfo.IsCasting = false;
         if (config.NameId != 0) chara->NameId = config.NameId;
         if (config.Level != 0) chara->Level = config.Level;
+        
+        // BattleCharaSpawn.RegisterInCharacterManager(chara);
 
         Plugin.Log.Info($"SimEnemy: spawned BNpcBase {config.BNpcBaseId} (ModelChara {bnpc.ModelChara.RowId}, scale {bnpc.Scale}) at index {idx}");
-        return new SimEnemy(idx, config.BNpcBaseId, displayName, config.InEnemyList, events, config.Lifetime);
+        var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.InEnemyList, events, config.Lifetime);
+        enemy.SetTargetable(config.Targetable);
+        if (!config.IsVisible) enemy.SetVisible(false);
+        return enemy;
     }
 
     // The game stores each model's unscaled hitbox radius in ModelChara's first numeric
@@ -168,6 +189,7 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Despawn()
     {
+        // BattleCharaSpawn.UnregisterFromCharacterManager(BattleCharaPtr);
         pendingOmenScheduled = false;
         ClearCastOmen();
         base.Despawn();
@@ -181,9 +203,37 @@ public sealed unsafe class SimEnemy : SimNpc
     {
         var chara = GetBattleChara();
         if (chara == null) return;
-        chara->TargetableStatus = targetable
-            ? (ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1)
-            : 0;
+        if (targetable)
+        {
+            chara->TargetableStatus |= ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1;
+            // chara->RenderFlags &= ~VisibilityFlags.Nameplate;
+        }
+        else
+        {
+            chara->TargetableStatus &= ~(ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1);
+            // chara->RenderFlags |= VisibilityFlags.Nameplate;
+        }
+    }
+
+    // EnmityHud.Refresh reads this each frame, so flipping it propagates
+    // to the _EnemyList addon on the next SimWorld.Tick.
+    public void SetInEnemyList(bool inEnemyList) => InEnemyList = inEnemyList;
+
+    // Records the desired render state; the reconciler in Tick fires
+    // EnableDraw / DisableDraw at most once per state change. Targetability is
+    // left untouched — callers that want the standard "warp out + untargetable"
+    // combo should pair this with SetTargetable(false).
+    public void SetVisible(bool visible) => desiredVisible = visible;
+
+    private void ReconcileVisibility()
+    {
+        if (desiredVisible == currentVisible) return;
+        var obj = GetGameObject();
+        if (obj == null) return;
+        if (!obj->IsReadyToDraw()) return;
+        if (desiredVisible) obj->EnableDraw();
+        else                obj->DisableDraw();
+        currentVisible = desiredVisible;
     }
 
     // Single entry point for any action the simulator drives. When castSeconds resolves
@@ -192,15 +242,16 @@ public sealed unsafe class SimEnemy : SimNpc
     // UseActionOnTarget paths. targetLocation drives the AOE landing point and the
     // pre-fire facing snap; targetId, if set, makes the packet carry NumTargets=1
     // (some actions only animate on the caster when an entity target is delivered).
-    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f)
+    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0)
     {
         var chara = GetBattleChara();
         if (chara == null) return false;
 
+        Lumina.Excel.Sheets.Action action;
         if (castSeconds is null)
         {
             var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-            if (!actionSheet.TryGetRow(actionId, out var action))
+            if (!actionSheet.TryGetRow(actionId, out action))
             {
                 Plugin.Log.Warning($"Action row {actionId} not found");
                 return false;
@@ -208,6 +259,7 @@ public sealed unsafe class SimEnemy : SimNpc
             castSeconds = action.Cast100ms / 10f;
         }
 
+        
         var seconds = castSeconds.Value;
         chara->CastInfo.ActionType = 1; // ActionType.Action
         chara->CastInfo.ActionId = actionId;
@@ -221,14 +273,15 @@ public sealed unsafe class SimEnemy : SimNpc
 
         castTargetLocation = targetLocation;
         castTargetId = targetId;
+        castAnimationVariation = animationVariation;
         CastActionId = actionId;
-
         if (seconds <= 0f)
         {
             FaceCastTarget(chara);
-            FireActionEffect(chara, targetLocation, targetId);
+            FireActionEffect(chara, targetLocation, targetId, animationVariation);
             castTargetLocation = null;
             castTargetId = null;
+            castAnimationVariation = 0;
             CastActionId = 0;
             return true;
         }
@@ -325,6 +378,7 @@ public sealed unsafe class SimEnemy : SimNpc
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        ReconcileVisibility();
 
         if (!casting) return;
 
@@ -341,11 +395,12 @@ public sealed unsafe class SimEnemy : SimNpc
         {
             chara->CastInfo.CurrentCastTime = castTotal;
             FaceCastTarget(chara);
-            FireActionEffect(chara, castTargetLocation, castTargetId);
+            FireActionEffect(chara, castTargetLocation, castTargetId, castAnimationVariation);
             chara->CastInfo.IsCasting = false;
             casting = false;
             castTargetLocation = null;
             castTargetId = null;
+            castAnimationVariation = 0;
             CastActionId = 0;
             pendingOmenScheduled = false;
             ClearCastOmen();
@@ -375,7 +430,7 @@ public sealed unsafe class SimEnemy : SimNpc
     // actions only animate on the caster if the engine sees at least one target
     // to deliver to. When null, NumTargets=0 (used for self-targeted UseAction
     // calls and cast releases that don't have an entity target).
-    private static void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null)
+    private static void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
     {
         var actionId = chara->CastInfo.ActionId;
         var rotationInt = (ushort)Math.Clamp(
@@ -390,15 +445,17 @@ public sealed unsafe class SimEnemy : SimNpc
         header.SourceSequence = 0;
         header.RotationInt = rotationInt;
         header.SpellId = (ushort)actionId;
-        header.AnimationVariation = 0;
+        header.AnimationVariation = animationVariation;
         header.ActionType = chara->CastInfo.ActionType;
         header.NumTargets = (byte)(deliverTo.HasValue ? 1 : 0);
         header.ForceAnimationLock = true;
 
         var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
 
+        
         if (deliverTo is { } targetId)
         {
+            Plugin.Log.Info($"ActionEffectHandler.Receive: caster: {chara->EntityId:X}, position: {pos}, targetId: {targetId.Id:X}");
             var effects = default(ActionEffectHandler.TargetEffects);
             ActionEffectHandler.Receive(
                 chara->EntityId,
@@ -410,6 +467,7 @@ public sealed unsafe class SimEnemy : SimNpc
         }
         else
         {
+            Plugin.Log.Info($"ActionEffectHandler.Receive: caster: {chara->EntityId:X}, position: {pos}");
             ActionEffectHandler.Receive(
                 chara->EntityId,
                 (Character*)chara,

@@ -27,6 +27,7 @@ internal static unsafe class BattleCharaSpawn
         }
 
         obj->EntityId = 0xE0000001 + index;
+        // obj->EntityId = 0x4000C001 + index;
         return true;
     }
 

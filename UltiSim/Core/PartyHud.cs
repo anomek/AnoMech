@@ -41,6 +41,13 @@ internal sealed unsafe class PartyHud : IDisposable
     // primitive copy survives.
     private readonly float[,] scratchTimers = new float[MaxSlots, StatusIconCount];
     private readonly int[] scratchIconCounts = new int[MaxSlots];
+    // When doppels are inserted into CharacterManager._battleCharas (inn/duty),
+    // the addon agent resolves them via LookupBattleCharaByEntityId and produces
+    // correct status icons + timer text on its own. The Pre/Post overrides
+    // become redundant and risk drifting from the engine-driven output, so we
+    // skip them in that case. Snapshotted from any SimPartyMember in the party
+    // (all members share the same registration fate).
+    private bool partyRegisteredInCharacterManager;
     private bool listenerRegistered;
 
     public PartyHud()
@@ -67,6 +74,7 @@ internal sealed unsafe class PartyHud : IDisposable
         ref var grp = ref gm->MainGroup;
 
         ClearSnapshots();
+        var registered = false;
         var slot = 1;
         foreach (var member in party.AllMembers())
         {
@@ -75,7 +83,9 @@ internal sealed unsafe class PartyHud : IDisposable
             var index = member is SimNpc ? slot++ : 0;
             WriteSlot(ref grp.PartyMembers[index], bc);
             slotSnapshots[index] = new SlotSnapshot(bc);
+            if (member is SimPartyMember pm && pm.RegisteredInCharacterManager) registered = true;
         }
+        partyRegisteredInCharacterManager = registered;
 
         grp.MemberCount = (byte)slot;
         grp.PartyLeaderIndex = 0;
@@ -98,10 +108,12 @@ internal sealed unsafe class PartyHud : IDisposable
     {
         for (int i = 0; i < slotSnapshots.Length; i++) slotSnapshots[i] = default;
         for (int i = 0; i < scratchIconCounts.Length; i++) scratchIconCounts[i] = 0;
+        partyRegisteredInCharacterManager = false;
     }
 
     private void OnPreRequestedUpdate(AddonEvent type, AddonArgs args)
     {
+        if (partyRegisteredInCharacterManager) return;
         var anyTracked = false;
         for (int i = 0; i < slotSnapshots.Length; i++)
             if (slotSnapshots[i].Bc != null) { anyTracked = true; break; }
@@ -133,6 +145,7 @@ internal sealed unsafe class PartyHud : IDisposable
     // doppel rows show counting-down timers instead of blank text.
     private void OnPostRequestedUpdate(AddonEvent type, AddonArgs args)
     {
+        if (partyRegisteredInCharacterManager) return;
         var anyTracked = false;
         for (int i = 0; i < scratchIconCounts.Length; i++)
             if (scratchIconCounts[i] > 0) { anyTracked = true; break; }
@@ -178,6 +191,19 @@ internal sealed unsafe class PartyHud : IDisposable
             if (!statusSheet.TryGetRow(statusId, out var status)) continue;
             var iconId = (int)status.Icon;
             if (iconId == 0) continue;
+
+            var maxStacks = status.MaxStacks;
+            if (maxStacks > 0)
+            {
+                var param = slots[s].Param;
+                if (param > 0)
+                {
+                    var offset = param - 1;
+                    if (offset >= maxStacks) offset = maxStacks - 1;
+                    iconId += offset;
+                }
+            }
+
             member.StatusIconIds[written] = iconId;
             member.StatusIsDispellable[written] = status.CanDispel;
             scratchTimers[slot, written] = status.IsPermanent ? -1 : slots[s].RemainingTime;

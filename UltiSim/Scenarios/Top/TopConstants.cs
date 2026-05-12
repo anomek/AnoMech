@@ -27,6 +27,7 @@ public static class TopConstants
         public const uint OmegaM = 12257;
         public const uint OmegaBeetle = 7695;
         public const uint OmegaFinal = 7636;
+        public const uint RightArmUnit = 7638;        // 0x1DD6 — log name for BNpc 0x3D67
     }
 
     public static class ActionId

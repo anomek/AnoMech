@@ -51,8 +51,8 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
     // the real local player moves themselves. Scenarios call .MoveTo on a
     // uniform SimCharacter without checking the concrete type; calls that land
     // on SimPlayer are silently dropped. Override in SimNpc.
-    public virtual void Move(Vector3 position) { }
-    public virtual void Move(Placement placement) { }
+    public virtual void SetPosition(Vector3 position) { }
+    public virtual void SetPosition(Placement placement) { }
     public virtual void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null, ushort timelineId = SimNpc.DefaultRunTimelineId) { }
     public virtual void StopMoving() { }
 
@@ -137,7 +137,7 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
     // count / sheet Param the slot should carry (0 if the status doesn't use
     // it). Returned reference lets callers Despawn() it early (e.g. SimTether
     // tearing its tether debuff); otherwise the character ticks and prunes it.
-    public SimStatus AddStatus(ushort statusId, float duration = 0f, ushort stacks = 0)
+    public SimStatus AddStatus(ushort statusId, float duration = 0f, ushort stacks = 1, bool overrideStacks = false)
     {
         var current = statuses
             .FirstOrDefault(status => status.StatusId == statusId);
@@ -149,7 +149,7 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
         }
         else
         {
-            current.Reapply(duration, stacks);
+            current.Reapply(duration, overrideStacks ? (ushort)(stacks - current.Stacks) : stacks);
             return current;
         }
     }

@@ -22,12 +22,23 @@ public unsafe class MainWindow : Window, IDisposable
     private IScenario? _selectedScenario;
 
 #if DEBUG
-    private string debugBNpcBaseIdText = "0x3D69";
+    private string debugBNpcBaseIdText = "15720";
     private string debugSpawnScaleText = "0";
+    private string debugSpawnModeAttrFlagsText = "";
     private string debugTimelineIdText = "0x53C";
+    private string debugModelStateText = "0x00";
+    private string debugAnimStateText = "0x00";
+    private string debugPoseTimelineText = "0x1E43";
+    private string debugModeAttrFlagsText = "0x00";
+    private string debugModelCharaIdText = "0";
+    private string debugTransformationIdText = "493";
+    private string debugCastActionIdText = "0";
+    private string debugCastAnimVariationText = "0";
     private string debugMapEffectIndexText = "0x00";
     private string debugMapEffectStatusText = "0x0000";
     private string debugMapEffectFlagText = "0x00";
+    private string debugDirectorCategoryText = "0x8000001E";
+    private string debugDirectorArg1Text = "0x2AC";
     private string debugBgmIdText = "964";
 #endif
 
@@ -224,6 +235,8 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.InputText("BNpcBaseId", ref debugBNpcBaseIdText, 16);
         ImGui.SetNextItemWidth(80);
         ImGui.InputText("Scale (0 = default)", ref debugSpawnScaleText, 16);
+        ImGui.SetNextItemWidth(80);
+        ImGui.InputText("ModeAttrFlags (blank = none)", ref debugSpawnModeAttrFlagsText, 16);
         if (ImGui.Button("Spawn"))
         {
             if (!TryParseId(debugBNpcBaseIdText, out var baseId))
@@ -236,6 +249,15 @@ public unsafe class MainWindow : Window, IDisposable
                 var trimmed = debugSpawnScaleText.Trim();
                 if (trimmed.Length > 0 && !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out scale))
                     Plugin.Log.Warning($"Spawn: can't parse Scale '{debugSpawnScaleText}', using default");
+                byte? initialModeAttrFlags = null;
+                var mafTrimmed = debugSpawnModeAttrFlagsText.Trim();
+                if (mafTrimmed.Length > 0)
+                {
+                    if (TryParseId(mafTrimmed, out var maf) && maf <= 0xFF)
+                        initialModeAttrFlags = (byte)maf;
+                    else
+                        Plugin.Log.Warning($"Spawn: can't parse ModeAttrFlags '{debugSpawnModeAttrFlagsText}', using default");
+                }
                 // Ad-hoc spawn outside any scenario — anchor to the player so
                 // Offset=0 lands at our feet. Scenario runs overwrite this in
                 // Game.RunScenarioInternal, so the stamp is non-leaking.
@@ -244,7 +266,8 @@ public unsafe class MainWindow : Window, IDisposable
                 plugin.Game.World.SpawnEnemy(new EnemySpawnConfig(
                     BNpcBaseId: baseId,
                     Targetable: true,
-                    Scale: scale));
+                    Scale: scale,
+                    InitialModeAttributeFlags: initialModeAttrFlags));
             }
         }
 
@@ -261,10 +284,108 @@ public unsafe class MainWindow : Window, IDisposable
         }
 
         ImGui.Spacing();
+        ImGui.TextUnformatted("Apply pose change on target");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("ModelState", ref debugModelStateText, 16);
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("AnimState", ref debugAnimStateText, 16);
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("CommitTimelineId", ref debugPoseTimelineText, 16);
+        if (ImGui.Button("Apply pose change"))
+        {
+            if (!TryParseId(debugModelStateText, out var modelState) || modelState > 0xFF)
+                Plugin.Log.Warning($"Pose: can't parse ModelState '{debugModelStateText}'");
+            else if (!TryParseId(debugAnimStateText, out var animState) || animState > 0xFF)
+                Plugin.Log.Warning($"Pose: can't parse AnimState '{debugAnimStateText}'");
+            else if (!TryParseId(debugPoseTimelineText, out var commitTimeline) || commitTimeline > ushort.MaxValue)
+                Plugin.Log.Warning($"Pose: can't parse CommitTimelineId '{debugPoseTimelineText}'");
+            else
+                ApplyPoseChangeOnTarget((byte)modelState, (byte)(animState >> 4), (byte)(animState & 0xF), (ushort)commitTimeline);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Set ModelState only"))
+        {
+            if (!TryParseId(debugModelStateText, out var modelState) || modelState > 0xFF)
+                Plugin.Log.Warning($"ModelState: can't parse '{debugModelStateText}'");
+            else
+                SetModelStateOnTarget((byte)modelState);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Apply ModeAttributeFlags on target");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("ModeAttrFlags", ref debugModeAttrFlagsText, 16);
+        if (ImGui.Button("Apply ModeAttributeFlags"))
+        {
+            if (TryParseId(debugModeAttrFlagsText, out var flags) && flags <= 0xFF)
+                SetModeAttributeFlagsOnTarget((byte)flags);
+            else Plugin.Log.Warning($"ModeAttrFlags: can't parse '{debugModeAttrFlagsText}'");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Apply ModelCharaId on target");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("ModelCharaId", ref debugModelCharaIdText, 16);
+        if (ImGui.Button("Apply ModelCharaId"))
+        {
+            if (TryParseId(debugModelCharaIdText, out var modelCharaId))
+                SetModelCharaIdOnTarget((int)modelCharaId);
+            else Plugin.Log.Warning($"ModelCharaId: can't parse '{debugModelCharaIdText}'");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Apply TransformationId on target");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("TransformationId", ref debugTransformationIdText, 16);
+        if (ImGui.Button("Apply TransformationId"))
+        {
+            if (TryParseId(debugTransformationIdText, out var transformationId) && transformationId <= 0xFFFF)
+                SetTransformationIdOnTarget((short)transformationId);
+            else Plugin.Log.Warning($"TransformationId: can't parse '{debugTransformationIdText}'");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Cast on player");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("ActionId", ref debugCastActionIdText, 16);
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("AnimationVariation", ref debugCastAnimVariationText, 16);
+        if (ImGui.Button("Cast on player"))
+        {
+            if (!TryParseId(debugCastActionIdText, out var actionId))
+                Plugin.Log.Warning($"Cast: can't parse ActionId '{debugCastActionIdText}'");
+            else if (!TryParseId(debugCastAnimVariationText, out var animVar) || animVar > 0xFF)
+                Plugin.Log.Warning($"Cast: can't parse AnimationVariation '{debugCastAnimVariationText}'");
+            else
+                CastOnPlayerFromTarget(actionId, (byte)animVar);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Cast on self"))
+        {
+            if (!TryParseId(debugCastActionIdText, out var actionId))
+                Plugin.Log.Warning($"Cast: can't parse ActionId '{debugCastActionIdText}'");
+            else if (!TryParseId(debugCastAnimVariationText, out var animVar) || animVar > 0xFF)
+                Plugin.Log.Warning($"Cast: can't parse AnimationVariation '{debugCastAnimVariationText}'");
+            else
+                CastOnSelfFromTarget(actionId, (byte)animVar);
+        }
+
+        ImGui.Spacing();
         ImGui.TextUnformatted("Dump objects near player");
         ImGui.Separator();
         if (ImGui.Button("Dump"))
             DumpNearbyObjects();
+        ImGui.SameLine();
+        if (ImGui.Button("Dump target fields"))
+            DumpTargetFields();
+        ImGui.SameLine();
+        if (ImGui.Button("Enumerate SharedGroups"))
+            DumpSharedGroups();
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Map effect");
@@ -286,6 +407,26 @@ public unsafe class MainWindow : Window, IDisposable
             else
                 plugin.Game.World.Map.AddEffect((status << 16) | (flag & 0xFFu), (byte)idx);
         }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Director update (ActorControl replay)");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("Category", ref debugDirectorCategoryText, 16);
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("Arg1", ref debugDirectorArg1Text, 16);
+        if (ImGui.Button("Fire director update"))
+        {
+            if (!TryParseId(debugDirectorCategoryText, out var cat))
+                Plugin.Log.Warning($"Director update: can't parse Category '{debugDirectorCategoryText}'");
+            else if (!TryParseId(debugDirectorArg1Text, out var arg1))
+                Plugin.Log.Warning($"Director update: can't parse Arg1 '{debugDirectorArg1Text}'");
+            else
+                DirectorFunctions.FireDirectorUpdate(cat, arg1);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Fire P5 Sigma transition"))
+            DirectorFunctions.FireP5SigmaTransition();
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Death system");
@@ -348,6 +489,193 @@ public unsafe class MainWindow : Window, IDisposable
         Plugin.Log.Warning($"Play animation: target '{target.Name}' is not a tracked enemy");
     }
 
+    private void ApplyPoseChangeOnTarget(byte modelState, byte animStateHi, byte animStateLo, ushort commitTimelineId)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("Apply pose: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.ApplyPoseChange(modelState, animStateHi, animStateLo, commitTimelineId);
+                Plugin.Log.Info($"Apply pose: ModelState=0x{modelState:X2} AnimState=({animStateHi:X},{animStateLo:X}) CommitTimeline=0x{commitTimelineId:X} on '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"Apply pose: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void SetModelStateOnTarget(byte value)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("ModelState: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.SetModelState(value);
+                Plugin.Log.Info($"ModelState: 0x{value:X2} on '{enemy.DisplayName}' (no commit)");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"ModelState: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void SetModeAttributeFlagsOnTarget(byte value)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("ModeAttrFlags: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.SetModeAttributeFlags(value);
+                Plugin.Log.Info($"ModeAttrFlags: 0x{value:X2} on '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"ModeAttrFlags: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void SetModelCharaIdOnTarget(int modelCharaId)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("ModelCharaId: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.SetModelCharaId(modelCharaId);
+                Plugin.Log.Info($"ModelCharaId: {modelCharaId} on '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"ModelCharaId: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void SetTransformationIdOnTarget(short transformationId)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("TransformationId: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.SetTransformationId(transformationId);
+                Plugin.Log.Info($"TransformationId: {transformationId} on '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"TransformationId: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void CastOnPlayerFromTarget(uint actionId, byte animationVariation)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("Cast: no target selected");
+            return;
+        }
+        var player = plugin.Game.Player;
+        if (player == null)
+        {
+            Plugin.Log.Warning("Cast: no local player");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.Cast(actionId, targetLocation: player.Position, targetId: player.GameObjectId, animationVariation: animationVariation);
+                Plugin.Log.Info($"Cast: action 0x{actionId:X} (anim variation {animationVariation}) on player from '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"Cast: target '{target.Name}' is not a tracked enemy");
+    }
+
+    private void CastOnSelfFromTarget(uint actionId, byte animationVariation)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("Cast: no target selected");
+            return;
+        }
+        var targetId = target.GameObjectId;
+        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
+        {
+            if ((ulong)enemy.GameObjectId == targetId)
+            {
+                enemy.Cast(actionId, targetLocation: enemy.Position, targetId: enemy.GameObjectId, animationVariation: animationVariation);
+                Plugin.Log.Info($"Cast: action 0x{actionId:X} (anim variation {animationVariation}) on self from '{enemy.DisplayName}'");
+                return;
+            }
+        }
+        Plugin.Log.Warning($"Cast: target '{target.Name}' is not a tracked enemy");
+    }
+
+    // Dumps the BattleChara fields we suspect drive Omega-M's shield/weapon variant —
+    // Mode/ModeParam, TransformationId, ModelContainer, DrawData weapon slots, Timeline.ModelState,
+    // plus the DrawObject* address — so before/after snapshots can be diffed to find the field
+    // that actually changes when boss appearance mutates.
+    private static void DumpTargetFields()
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null) { Plugin.Log.Warning("DumpTarget: no target selected"); return; }
+
+        var go = (FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)target.Address;
+        if (go == null) { Plugin.Log.Warning("DumpTarget: target address is null"); return; }
+
+        var name = target.Name.TextValue;
+        if (string.IsNullOrEmpty(name)) name = "<unnamed>";
+
+        var ch = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)go;
+
+        Plugin.Log.Info($"=== DumpTarget '{name}' addr=0x{(nint)go:X} kind={target.ObjectKind} BaseId=0x{target.BaseId:X} ({target.BaseId}) ===");
+        Plugin.Log.Info($"  Pos=({go->Position.X:F2},{go->Position.Y:F2},{go->Position.Z:F2}) Rot={go->Rotation:F3} Scale={go->Scale:F2}");
+        Plugin.Log.Info($"  DrawObject*=0x{(nint)go->DrawObject:X}");
+        Plugin.Log.Info($"  Mode={ch->Mode} ({(byte)ch->Mode}) ModeParam=0x{ch->ModeParam:X2} ({ch->ModeParam})");
+        Plugin.Log.Info($"  TransformationId={ch->TransformationId} StatusLoopVfxId={ch->StatusLoopVfxId} Battalion={ch->Battalion} ShieldValue={ch->ShieldValue}");
+        Plugin.Log.Info($"  ModelContainer: ModelCharaId={ch->ModelContainer.ModelCharaId} ModelSkeletonId={ch->ModelContainer.ModelSkeletonId} ModelCharaId_2={ch->ModelContainer.ModelCharaId_2} ModelSkeletonId_2={ch->ModelContainer.ModelSkeletonId_2}");
+        Plugin.Log.Info($"  ModelContainer: ModelScaleId=0x{ch->ModelContainer.ModelScaleId:X2} ModeAttributeFlags=0x{ch->ModelContainer.ModeAttributeFlags:X2} UnscaledRadius={ch->ModelContainer.UnscaledRadius:F2}");
+        Plugin.Log.Info($"  WeaponFlags=0x{ch->WeaponFlags:X2} ActorControlFlags=0x{ch->ActorControlFlags:X2}");
+        Plugin.Log.Info($"  Timeline.ModelState=0x{ch->Timeline.ModelState:X2} AnimationState=[0x{ch->Timeline.AnimationState[0]:X2},0x{ch->Timeline.AnimationState[1]:X2}]");
+        for (int s = 0; s < 3; s++)
+        {
+            ref var w = ref ch->DrawData.WeaponData[s];
+            Plugin.Log.Info($"  DrawData.Weapon[{s}]: Id={w.ModelId.Id} Type={w.ModelId.Type} Variant={w.ModelId.Variant} Stain=({w.ModelId.Stain0},{w.ModelId.Stain1}) State=0x{w.State:X2} Flags1=0x{w.Flags1:X4} Flags2=0x{w.Flags2:X2} DrawObject*=0x{(nint)w.DrawObject:X}");
+        }
+        Plugin.Log.Info($"  DrawData.Flags1=0x{ch->DrawData.Flags1:X2} Flags2=0x{ch->DrawData.Flags2:X2}");
+    }
+
     // Logs every object in the table sorted by distance from the local player. BaseId is
     // the underlying BNpcBase row for BNpcs (and the equivalent base id for other kinds);
     // Scale is read from the unsafe GameObject struct.
@@ -371,6 +699,32 @@ public unsafe class MainWindow : Window, IDisposable
         rows.Sort((a, b) => a.Dist.CompareTo(b.Dist));
 
         Plugin.Log.Info($"=== ObjectTable: {rows.Count} objects ===");
+        foreach (var (_, line) in rows) Plugin.Log.Info(line);
+    }
+
+    // Lists every SharedGroup ILayoutInstance in the active layout with its
+    // sgb path + world position. Used to verify which EObj scenery (TOP arena
+    // tiles, the 1EA1A1 fixture, the Exit portal, Sigma ring spokes) is
+    // LGB-baked vs. duty-director-runtime-spawned. Match the output against
+    // ACT log positions to identify which acquirable instances exist.
+    private static void DumpSharedGroups()
+    {
+        var rows = new List<(float Dist, string Line)>();
+        var player = Plugin.ObjectTable.LocalPlayer;
+        var origin = player?.Position ?? default;
+        int total = LayoutQuery.EnumerateAll(p =>
+        {
+            var sg = (FFXIVClientStructs.FFXIV.Client.LayoutEngine.Group.SharedGroupLayoutInstance*)p;
+            var pos = sg->Transform.Translation;
+            var path = LayoutQuery.GetSgbPath(sg) ?? "(no resource handle)";
+            var dx = pos.X - origin.X;
+            var dz = pos.Z - origin.Z;
+            var dist = MathF.Sqrt(dx * dx + dz * dz);
+            var inst = (FFXIVClientStructs.FFXIV.Client.LayoutEngine.ILayoutInstance*)sg;
+            rows.Add((dist, $"  dist={dist,7:F2} pos=({pos.X,8:F2},{pos.Y,7:F2},{pos.Z,8:F2}) active={inst->IsActive,-5} key=0x{inst->Id.InstanceKey:X8} sub=0x{inst->SubId:X8}  '{path}'"));
+        });
+        rows.Sort((a, b) => a.Dist.CompareTo(b.Dist));
+        Plugin.Log.Info($"=== SharedGroups in active layout: {total} ===");
         foreach (var (_, line) in rows) Plugin.Log.Info(line);
     }
 #endif

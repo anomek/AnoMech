@@ -55,9 +55,8 @@ internal static unsafe class KoAnimation
         bc->Timeline.ModelState = 0;
         // _animationState (FixedSizeArray2<byte> at 0x2C1) is internal — reach
         // it via pointer arithmetic off the public ModelState (0x2C0).
-        byte* animState = &bc->Timeline.ModelState + 1;
-        animState[0] = 0;
-        animState[1] = 0;
+        bc->Timeline.AnimationState[0] = 0;
+        bc->Timeline.AnimationState[1] = 0;
         bc->Timeline.TimelineSequencer.SetSlotTimeline(0, 0);
         if (bc->Timeline.TimelineSequencer.Parent == null) return;
         bc->Timeline.PlayActionTimeline(ReviveTimelineId);

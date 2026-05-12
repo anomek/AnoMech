@@ -73,10 +73,10 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(26f, EyeStartCharging);
         world.Events.Add(29f, EyeDoneCharging);
         world.Events.Add(44f, EyeDespawn);
-        world.Events.Add(7f, () => omega?.SetTargetable(false));
-        world.Events.Add(10.1f, ApplyDeltaTethers);           // HW debuffs confirmed at t=10.053s
         world.Events.Add(11f, () => omega?.PlayActionTimeline(TopConstants.TimelineId.WarpOut));
+        world.Events.Add(10.1f, ApplyDeltaTethers);           // HW debuffs confirmed at t=10.053s
         world.Events.Add(11f, SpawnDeltaAdds);
+          world.Events.Add(13f, () => omega?.SetTargetable(false));
         world.Events.Add(17.3f, SpawnRocketPunches);          // Peripheral Synthesis fires t=17.31s
         world.Events.Add(20.3f, SpawnArmUnits);               // Archive Peripheral fires t=20.30s
         world.Events.Add(21.3f, MarkArmUnitRotations);        // +1s after arm spawn
@@ -166,7 +166,7 @@ public sealed class TopP5DeltaScenario : IScenario
             NameId: TopConstants.BNpcNameId.OmegaM,
             Level: TopConstants.Level,
             Targetable: true,
-            Rotation: MathF.PI));
+            Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
 
     private void SpawnDeltaAdds()
@@ -177,8 +177,7 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul,
-            Rotation: MathF.PI / 2f * state.EyeSpawn.Mul));
+            Placement: new Placement(new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
         beetle?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
 
         opticalUnit = world.SpawnEnemy(new EnemySpawnConfig(
@@ -187,8 +186,7 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: false,
-            Offset: new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul,
-            Rotation: MathF.PI / 2f * state.EyeSpawn.Mul));
+            Placement: new Placement(new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
 
         finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: TopConstants.BNpcBaseId.FinalHelper,
@@ -196,8 +194,7 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: TopConstants.Level,
             Targetable: false,
             InEnemyList: true,
-            Offset: new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul,
-            Rotation: -MathF.PI / 2f * state.EyeSpawn.Mul));
+            Placement: new Placement(new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul, -MathF.PI / 2f * state.EyeSpawn.Mul)));
         finalHelper?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
     }
 
@@ -227,8 +224,7 @@ public sealed class TopP5DeltaScenario : IScenario
                                              Level: TopConstants.Level,
                                              Targetable: false,
                                              InEnemyList: true,
-                                             Offset: placement.Position - world.ScenarioOrigin,
-                                             Rotation: placement.Rotation));
+                                             Placement: new Placement(placement.Position - world.ScenarioOrigin, placement.Rotation)));
             punch?.AddVfx("vfx/monster/m0114/eff/m0114cbbm_sp_pop_c0i.avfx", persistent: false);
             return punch;
         }).ToList();
@@ -245,8 +241,7 @@ public sealed class TopP5DeltaScenario : IScenario
                 Level: TopConstants.Level,
                 Targetable: false,
                 InEnemyList: true,
-                Offset: Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1),
-                Rotation: Geometry.ArmUnitPlacements[i].Rotation));
+                Placement: new Placement(Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1), Geometry.ArmUnitPlacements[i].Rotation)));
             unit?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
             return unit;
         }).ToList();
@@ -304,7 +299,7 @@ public sealed class TopP5DeltaScenario : IScenario
             BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
             Targetable: false,
             InEnemyList: false,
-            Offset: pos - world.ScenarioOrigin,
+            Placement: new Placement(pos - world.ScenarioOrigin, 0f),
             Lifetime: Duration.MonitorHelperLifetime));
         helper?.Cast(actionId);
         party
@@ -446,7 +441,7 @@ public sealed class TopP5DeltaScenario : IScenario
             .ForEach(t =>
             {
                 var step = state.ArmHandedness[t.i].Mul * Geometry.HyperPulseStep;
-                t.unit!.Move(new Placement(t.unit.Position, t.unit.Rotation + step));
+                t.unit!.SetPosition(new Placement(t.unit.Position, t.unit.Rotation + step));
                 t.unit.Cast(ActionId.DeltaHyperPulseRest);
                 ResolveHyperPulseRect(t.unit);
             });
@@ -510,7 +505,7 @@ public sealed class TopP5DeltaScenario : IScenario
                 BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
                 Targetable: false,
                 InEnemyList: false,
-                Offset: pos - world.ScenarioOrigin,
+                Placement: new Placement(pos - world.ScenarioOrigin, 0f),
                 Lifetime: Duration.MonitorHelperLifetime));
             spawned?.Cast(ActionId.OversampledWaveCannonAOE, targetLocation: pos, targetId: member.GameObjectId);
         }
@@ -582,7 +577,7 @@ public sealed class TopP5DeltaScenario : IScenario
                                           BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
                                           Targetable: false,
                                           InEnemyList: false,
-                                          Offset: pos - world.ScenarioOrigin,
+                                          Placement: new Placement(pos - world.ScenarioOrigin, 0f),
                                           Lifetime: Duration.MonitorHelperLifetime));
         helper?.Cast(spellId, targetLocation: pos, targetId: target.GameObjectId);
 
@@ -627,7 +622,7 @@ public sealed class TopP5DeltaScenario : IScenario
                                           BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
                                           Targetable: false,
                                           InEnemyList: false,
-                                          Offset: pos - world.ScenarioOrigin,
+                                          Placement: new Placement(pos - world.ScenarioOrigin, 0f),
                                           Lifetime: Duration.MonitorHelperLifetime));
         helper?.Cast(ActionId.HelloWorldFail);
         WipeAllPlayers("Hello World Fail");
