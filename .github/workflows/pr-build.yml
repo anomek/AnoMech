@@ -1,4 +1,4 @@
-name: Sample PR Builder for UltiSim
+name: Sample PR Builder for AnoMech
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-2022
 
     env:
-      Solution_Name: UltiSim
+      Solution_Name: AnoMech
 
     steps:
     - name: Checkout
@@ -32,8 +32,8 @@ jobs:
     - name: Store artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: UltiSim
-        path: .\UltiSim\bin\x64\Release\UltiSim\*
+        name: AnoMech
+        path: .\AnoMech\bin\x64\Release\AnoMech\*
         if-no-files-found: error
         retention-days: 1
 

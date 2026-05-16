@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-UltiSim is a Dalamud plugin that **simulates FFXIV ultimate-raid mechanics client-side** — it spawns fake `BattleChara` instances (party doppels and bosses) into the live game, drives their actions, and renders the canonical VFX/cast bars/tethers so players can practice mechanics solo. It is NOT the SamplePlugin template the README still describes; only the project skeleton was inherited.
+AnoMech ("Another FFXIV mechanics simulator") is a Dalamud plugin that **simulates FFXIV raid mechanics client-side** — it spawns fake `BattleChara` instances (party doppels and bosses) into the live game, drives their actions, and renders the canonical VFX/cast bars/tethers so players can practice mechanics solo. Currently focused on ultimate-raid phases (TOP P5 Delta / Sigma) but the engine is general-purpose. It is NOT the SamplePlugin template the README still describes; only the project skeleton was inherited.
 
 The reference scenario is **TOP P5 Delta** (`Scenarios/Top/P5Delta/`). Treat it as the canonical example of how a scenario consumes the engine — when designing new APIs, look at how it would read there. Scenarios are nested by family (e.g. `Scenarios/Top/`); IDs that recur across phases of the same family live in a shared `<Family>Constants.cs` (e.g. `Scenarios/Top/TopConstants.cs`) and are referenced from phase scenarios via the fully-qualified path `TopConstants.<Group>.<Const>`.
 
 ## Build / run
 
-- Build: `dotnet build` from `D:/Projects/ffxiv/UltiSim/UltiSim/`. Output is `bin/Debug/UltiSim.dll`.
+- Build: `dotnet build` from `D:/Projects/ffxiv/AnoMech/`. Output is `bin/Debug/AnoMech.dll`.
 - The csproj uses `Dalamud.NET.Sdk/15.0.0` — Dalamud SDK resolves at build time from `%AppData%/XIVLauncher/addon/Hooks/dev/`. No NuGet restore tweaks are needed.
 - **There are no automated tests.** Verification is "build clean → load DLL via Dalamud Dev Plugins → run a scenario in-game and watch." For UI / behavior changes, ask the user to run the plugin; you cannot.
-- In-game entry point: chat command `/pmycommand` opens the main window. Buttons there run scenarios and despawn/reset.
+- In-game entry point: chat command `/anomech` (alias `/ano`) opens the main window. Subcommands: `config`, `start`, `reset`, `leave`. Buttons in the main window run scenarios and despawn/reset.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ The reference scenario is **TOP P5 Delta** (`Scenarios/Top/P5Delta/`). Treat it 
 - **Use absolute time literals in `world.Events.Add`.** Every entry in a scenario's `Run` should be `world.Events.Add(<absolute t>, ...)` from scenario start (e.g. `55f`, `56.5f`) — not `<base> + offset` arithmetic, named time constants, or chained `Events.Add` calls inside event handlers. The whole scenario timeline should be readable top-to-bottom as a single list of absolute timestamps. If state needs to flow between events, store it on `TopP5DeltaState` (or the equivalent scenario-state object) and have each handler read/mutate it.
 
 ### Heavy native interop
-Most SimObject code is `unsafe` and walks `FFXIVClientStructs` types directly (`BattleChara*`, `GameObject*`, `StatusManager`, `CastInfo`, `Timeline`, `DrawData`, `CharacterManager`, `ClientObjectManager`, `GroupManager.MainGroup`, `UIState.Hate/Hater`, `AgentHUD`, `AtkArrayData`). When you need to know what a field does, prefer the local checkouts (see `~/.claude/projects/D--Projects-ffxiv-UltiSim/memory/MEMORY.md` references) over websearch.
+Most SimObject code is `unsafe` and walks `FFXIVClientStructs` types directly (`BattleChara*`, `GameObject*`, `StatusManager`, `CastInfo`, `Timeline`, `DrawData`, `CharacterManager`, `ClientObjectManager`, `GroupManager.MainGroup`, `UIState.Hate/Hater`, `AgentHUD`, `AtkArrayData`). When you need to know what a field does, prefer the local checkouts (see `~/.claude/projects/D--Projects-ffxiv-AnoMech/memory/MEMORY.md` references) over websearch.
 
 ## Non-obvious things to know before changing engine code
 

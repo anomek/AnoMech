@@ -6,10 +6,10 @@ on:
   workflow_dispatch
 
 env:
-  PUBLIC_NAME: UltiSim
-  SOLUTION_NAME: UltiSim
-  INTERNAL_NAME: UltiSim
-  RELEASE_DIR: UltiSim\bin\x64\Release\UltiSim
+  PUBLIC_NAME: AnoMech
+  SOLUTION_NAME: AnoMech
+  INTERNAL_NAME: AnoMech
+  RELEASE_DIR: AnoMech\bin\x64\Release\AnoMech
   PERSONAL_PLUGIN_REPO: anomek/MyDalamudPlugins
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
