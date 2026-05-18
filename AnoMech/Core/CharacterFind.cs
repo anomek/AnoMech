@@ -86,6 +86,20 @@ public sealed class CharacterFind<T> where T : IPositioned
             .ToList();
     }
 
+    // Members whose XZ position is outside `radius` of `center`. Alive only.
+    public IReadOnlyList<T> OutsideCircle(Vector3 center, float radius)
+    {
+        var rSq = radius * radius;
+        var hits = new List<T>();
+        foreach (var m in source())
+        {
+            var dx = m.Position.X - center.X;
+            var dz = m.Position.Z - center.Z;
+            if (dx * dx + dz * dz > rSq) hits.Add(m);
+        }
+        return hits;
+    }
+
     // Plus-shaped AOE centered on `origin`: union of two perpendicular centered
     // rects. Each arm extends `halfLength` along its axis and `halfWidth`
     // perpendicular.

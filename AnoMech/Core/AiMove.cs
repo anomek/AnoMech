@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 
 namespace AnoMech.Core;
@@ -15,6 +16,14 @@ public sealed class AiMove
     {
         var positions = new Vector2?[8];
         positions[index] = position;
+        return new AiMove(positions);
+    }
+    
+    public static AiMove All(Vector2 position)
+    {
+        var positions = Enumerable.Range(0, 8)
+                                  .Select(i => new Vector2?(position))
+                                  .ToArray();
         return new AiMove(positions);
     }
     

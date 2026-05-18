@@ -55,6 +55,7 @@ public sealed class Game : IDisposable
         {
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
+            new TopP5OmegaScenario(),
         };
     }
 

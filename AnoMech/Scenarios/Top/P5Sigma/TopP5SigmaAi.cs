@@ -199,7 +199,7 @@ public sealed class TopP5SigmaAi
     
     private AiMove AdjustForLegs()
     {
-        return state.OmegaFAttack == OmegaFAttack.Staff ? new AiMove()
+        return state.OmegaFAttack == OmegaAttack.Staff ? new AiMove()
                    : new AiMove(
                        new(2f, -18f),
                        new(2f, -18f),

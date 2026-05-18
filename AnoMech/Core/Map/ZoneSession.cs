@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Numerics;
 using ThreadingTask = System.Threading.Tasks.Task;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -117,6 +118,36 @@ public sealed unsafe class ZoneSession : IDisposable
         var row = Plugin.DataManager.GetExcelSheet<TerritoryType>()
             ?.GetRowOrDefault(Plugin.ClientState.TerritoryType);
         return row?.TerritoryIntendedUse.RowId == InnIntendedUse;
+    }
+
+    // Any state in which the local player can't freely act. Used as a second
+    // gate before starting a scenario from an inn so we don't kick off mid-
+    // cutscene, mid-NPC-event, mid-craft, mid-zone, etc.
+    public static bool IsPlayerBusy()
+    {
+        var c = Plugin.Condition;
+        return c[ConditionFlag.WatchingCutscene]
+            || c[ConditionFlag.WatchingCutscene78]
+            || c[ConditionFlag.OccupiedInCutSceneEvent]
+            || c[ConditionFlag.OccupiedInEvent]
+            || c[ConditionFlag.OccupiedInQuestEvent]
+            || c[ConditionFlag.OccupiedSummoningBell]
+            || c[ConditionFlag.Occupied30]
+            || c[ConditionFlag.Occupied33]
+            || c[ConditionFlag.Occupied38]
+            || c[ConditionFlag.Occupied39]
+            || c[ConditionFlag.Crafting]
+            || c[ConditionFlag.ExecutingCraftingAction]
+            || c[ConditionFlag.PreparingToCraft]
+            || c[ConditionFlag.Gathering]
+            || c[ConditionFlag.ExecutingGatheringAction]
+            || c[ConditionFlag.Fishing]
+            || c[ConditionFlag.TradeOpen]
+            || c[ConditionFlag.BetweenAreas]
+            || c[ConditionFlag.LoggingOut]
+            || c[ConditionFlag.InCombat]
+            || c[ConditionFlag.Mounted]
+            || c[ConditionFlag.Jumping];
     }
 
     // Load the target territory, teleport player to playerSpawn, enable firewall.

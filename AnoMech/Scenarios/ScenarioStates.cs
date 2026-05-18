@@ -17,7 +17,9 @@ public sealed record EightWayDirection(string Name, float RadiansFromNorth, int 
     public static readonly EightWayDirection SW = new("SW", MathF.PI * 5f / 4f, 5);
     public static readonly EightWayDirection W = new("W", MathF.PI * 6f / 4f, 6);
     public static readonly EightWayDirection NW = new("NW", MathF.PI * 7f / 4f, 7);
-    public static readonly EightWayDirection[] All = [N, NE, E, SE, S, SW, W, NW];
+    public static readonly IReadOnlyList<EightWayDirection> All = [N, NE, E, SE, S, SW, W, NW];
+    public static readonly IReadOnlyList<EightWayDirection> Intercardinal = [NE, SE, SW, NW];
+    public static readonly IReadOnlyList<EightWayDirection> Cardinal = [N, E, S, W];
 
     public Placement Apply(Placement placement)
     {
@@ -37,6 +39,12 @@ public sealed record EightWayDirection(string Name, float RadiansFromNorth, int 
     public void Apply(AiMove move)
     {
         move.Rotate(RadiansFromNorth);
+    }
+    
+    public EightWayDirection Rotate(int count)
+    {
+        var max = All.Count;
+        return All[(((Index + count) % max) + max) % max];
     }
     
     public EightWayDirection Flip()
@@ -129,12 +137,18 @@ public class RoleList
         });
     }
 
+    
+    public void ForEach(Action<int, SimPartySlot> action)
+    {
+       for(var i = 0; i < list.Count; i++)
+       {
+          action(i, party.Get(list[i])!); 
+       }
+    }
+    
     public void ForEach(Action<SimPartySlot> action)
     {
-        foreach (var partyRole in list)
-        {
-            action(party.Get(partyRole)!);    
-        }
+        ForEach((_, member) => action(member));
     }
 
     public SimPartySlot? Get(int i)
@@ -145,5 +159,15 @@ public class RoleList
     public void Reorder(AiMove move)
     {
         move.Reorder(list.Select(role => (int)role).ToArray());
+    }
+
+    public bool Contains(PartyRole role)
+    {
+        return list.Contains(role);
+    }
+
+    public static RoleList Empty()
+    {
+        return new RoleList(SimParty.Empty, Array.Empty<PartyRole>());
     }
 }

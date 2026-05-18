@@ -3,7 +3,7 @@ using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.SimObjects;
-using static AnoMech.Scenarios.Top.P5Delta.TopP5DeltaConstants.Geometry;
+using static AnoMech.Scenarios.Top.TopConstants.Geometry;
 
 namespace AnoMech.Scenarios.Top.P5Delta;
 

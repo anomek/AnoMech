@@ -5,8 +5,7 @@ using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios;
-using static AnoMech.Scenarios.Top.P5Delta.TopP5DeltaConstants;
+using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Delta;
 
@@ -24,9 +23,9 @@ public sealed class TopP5DeltaScenario : IScenario
         new(TerritoryId: 801, X: 100f, Z: 100f),
         new(TerritoryId: 1045, X: 0f, Z: 0)
     ];
-    public IReadOnlyList<uint> HiddenBaseIds { get; } = [BNpcBaseId.AlphaShield];
+    public IReadOnlyList<uint> HiddenBaseIds { get; } = [1026757];
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
-    public ushort Bgm => TopConstants.BgmId.TopP5;
+    public ushort Bgm => BgmId.TopP5;
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 
@@ -47,6 +46,8 @@ public sealed class TopP5DeltaScenario : IScenario
     private List<SimTether> tethersShort = [];
     private List<SimTether> tethersLong = [];
     private Vector3? pilePitchPosition;
+    private TopUtils.HelloWorldSolver? nearSolver;
+    private TopUtils.HelloWorldSolver? farSolver;
 
     public void Run(SimWorld worldParam, PartyRole playerRole)
     {
@@ -57,7 +58,7 @@ public sealed class TopP5DeltaScenario : IScenario
         ai.Run(world);
         topUtils = new TopUtils(world);
 
-        world.EnforceArenaBoundary(TopConstants.Geometry.ArenaRadius);
+        world.EnforceArenaBoundary(Geometry.ArenaRadius);
 
         // Replay the server MapEffect IPC that sets up the TOP arena for P5.
         // Only has visible effect when physically inside TOP (ContentDirector must exist
@@ -72,14 +73,14 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(26f, EyeStartCharging);
         world.Events.Add(29f, EyeDoneCharging);
         world.Events.Add(44f, EyeDespawn);
-        world.Events.Add(11f, () => omega?.PlayActionTimeline(TopConstants.TimelineId.WarpOut));
+        world.Events.Add(11f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
         world.Events.Add(10.1f, ApplyDeltaTethers);           // HW debuffs confirmed at t=10.053s
         world.Events.Add(11f, SpawnDeltaAdds);
-          world.Events.Add(13f, () => omega?.SetTargetable(false));
+        world.Events.Add(13f, () => omega?.SetTargetable(false));
         world.Events.Add(17.3f, SpawnRocketPunches);          // Peripheral Synthesis fires t=17.31s
         world.Events.Add(20.3f, SpawnArmUnits);               // Archive Peripheral fires t=20.30s
         world.Events.Add(21.3f, MarkArmUnitRotations);        // +1s after arm spawn
-        world.Events.Add(28.9f, () => omega?.PlayActionTimeline(TopConstants.TimelineId.Spawn));
+        world.Events.Add(28.9f, () => omega?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(28.1f, ApplyDeltaRealTethers); // same window as optical laser
         world.Events.Add(30.2f, ResolveOpticalLaser);   // Optical Laser fires t=30.205s
         world.Events.Add(30.5f, StartMonitors);         // BeyondDefense + OWC casts start t=30.43/30.47s
@@ -98,20 +99,20 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(41.0f, NextHyperPulse);              // last HP step, same tick as pile pitch t=40.999s
         world.Events.Add(41.0f, FirePilePitch);               // Pile Pitch fires t=40.999s
         world.Events.Add(41.1f, ResolvePilePitch);
-        world.Events.Add(41.5f, () => armUnits?.ForEach(unit => unit?.Despawn(TopConstants.TimelineId.WarpOut, 1f)));
+        world.Events.Add(41.5f, () => armUnits?.ForEach(unit => unit?.Despawn(TimelineId.WarpOut, 1f)));
         world.Events.Add(43.5f, StartSwivelCannon);           // Swivel Cannon cast starts t=43.458s
-        world.Events.Add(43.5f, () => omega?.PlayActionTimeline(TopConstants.TimelineId.WarpOut));
-        world.Events.Add(43.5f, () => finalHelper?.Despawn(TopConstants.TimelineId.WarpOut, 2f));  // despawn signal t=43.591s
+        world.Events.Add(43.5f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(43.5f, () => finalHelper?.Despawn(TimelineId.WarpOut, 2f));  // despawn signal t=43.591s
         world.Events.Add(47.5f, () => CheckTethersExpired(tethersShort));             // tethers applied t=30.2, 18s life → expire 48.2
         world.Events.Add(53.2f, ResolveSwivelCannon);         // 43.458 + 9.7s cast = t=53.158s
-        world.Events.Add(53.2f, () => DropHelloPuddle(state.NearWorldRole, TopConstants.ActionId.HelloNearWorld));
-        world.Events.Add(53.2f, () => DropHelloPuddle(state.FarWorldRole, TopConstants.ActionId.HelloDistantWorld));
-        world.Events.Add(53.2f, () => omega?.PlayActionTimeline(TopConstants.TimelineId.Spawn));
-        world.Events.Add(54.2f, () => state.NearWorldRole = HopHelloPuddle(state.NearWorldRole, TopConstants.ActionId.HelloNearWorldJump, useClosest: true));
-        world.Events.Add(54.2f, () => state.FarWorldRole = HopHelloPuddle(state.FarWorldRole, TopConstants.ActionId.HelloDistantWorldJump, useClosest: false));
-        world.Events.Add(55.2f, () => state.NearWorldRole = HopHelloPuddle(state.NearWorldRole, TopConstants.ActionId.HelloNearWorldJump, useClosest: true));
-        world.Events.Add(55.2f, () => state.FarWorldRole = HopHelloPuddle(state.FarWorldRole, TopConstants.ActionId.HelloDistantWorldJump, useClosest: false));
-        world.Events.Add(55.6f, () => beetle?.Despawn(TopConstants.TimelineId.WarpOut, 2f));       // beetle despawn signal t=56.599s
+        world.Events.Add(53.2f, () => DropHelloPuddle(state.NearWorldRole, true));
+        world.Events.Add(53.2f, () => DropHelloPuddle(state.FarWorldRole, false));
+        world.Events.Add(53.2f, () => omega?.PlayActionTimeline(TimelineId.Spawn));
+        world.Events.Add(54.2f, () => HopHelloPuddle(true));
+        world.Events.Add(54.2f, () => HopHelloPuddle(false));
+        world.Events.Add(55.2f, () => HopHelloPuddle(true));
+        world.Events.Add(55.2f, () => HopHelloPuddle(false));
+        world.Events.Add(55.6f, () => beetle?.Despawn(TimelineId.WarpOut, 2f));       // beetle despawn signal t=56.599s
         world.Events.Add(56.5f, () => omega?.SetTargetable(true));
         world.Events.Add(65.1f, () => CheckTethersExpired(tethersLong));             // tethers expire t=30.2+36=66.2
     }
@@ -144,9 +145,9 @@ public sealed class TopP5DeltaScenario : IScenario
     private void SpawnOmega()
     {
         omega = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.StarterOmega,
-            NameId: TopConstants.BNpcNameId.OmegaM,
-            Level: TopConstants.Level,
+            BNpcBaseId: BNpcBaseId.OmegaM,
+            NameId: BNpcNameId.OmegaM,
+            Level: Level,
             Targetable: true,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
@@ -154,30 +155,30 @@ public sealed class TopP5DeltaScenario : IScenario
     private void SpawnDeltaAdds()
     {
         beetle = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.BeetleHelper,
-            NameId: TopConstants.BNpcNameId.OmegaBeetle,
-            Level: TopConstants.Level,
+            BNpcBaseId: BNpcBaseId.BeetleHelper,
+            NameId: BNpcNameId.OmegaBeetle,
+            Level: Level,
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
-        beetle?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+        beetle?.PlayActionTimeline(TimelineId.Spawn);
 
         opticalUnit = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.OpticalUnit,
             NameId: BNpcNameId.OpticalUnit,
-            Level: TopConstants.Level,
+            Level: Level,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
             Placement: new Placement(new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
 
         finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.FinalHelper,
-            NameId: TopConstants.BNpcNameId.OmegaFinal,
-            Level: TopConstants.Level,
+            BNpcBaseId: BNpcBaseId.FinalHelper,
+            NameId: BNpcNameId.OmegaFinal,
+            Level: Level,
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul, -MathF.PI / 2f * state.EyeSpawn.Mul)));
-        finalHelper?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+        finalHelper?.PlayActionTimeline(TimelineId.Spawn);
     }
 
     private void ApplyDeltaTethers()
@@ -190,8 +191,8 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Tether(targets[4], targets[5], TetherId.HWPrepLocal, 18f, StatusId.HWPrepLocalTether);
         world.Tether(targets[6], targets[7], TetherId.HWPrepLocal, 18f, StatusId.HWPrepLocalTether);
 
-        targets[state.NearWorldTetherIndex].AddStatus(TopConstants.StatusId.HelloNearWorld, Duration.HelloWorldDebuff);
-        targets[state.FarWorldTetherIndex].AddStatus(TopConstants.StatusId.HelloFarWorld, Duration.HelloWorldDebuff);
+        targets[state.NearWorldTetherIndex].AddStatus(StatusId.HelloNearWorld, Duration.HelloWorldDebuff);
+        targets[state.FarWorldTetherIndex].AddStatus(StatusId.HelloDistantWorld, Duration.HelloWorldDebuff);
     }
 
     private void SpawnRocketPunches()
@@ -203,7 +204,7 @@ public sealed class TopP5DeltaScenario : IScenario
             var punch = world.SpawnEnemy(new EnemySpawnConfig(
                                              BNpcBaseId: state.FistColors[i],
                                              NameId: BNpcNameId.RocketPunch,
-                                             Level: TopConstants.Level,
+                                             Level: Level,
                                              Targetable: false,
                                              EnemyList: EnemyListMode.Always,
                                              Placement: placement));
@@ -220,11 +221,11 @@ public sealed class TopP5DeltaScenario : IScenario
             var unit = world.SpawnEnemy(new EnemySpawnConfig(
                 BNpcBaseId: state.ArmHandedness[i].ArmUnitId,
                 NameId: state.ArmHandedness[i].ArmUnitNameId,
-                Level: TopConstants.Level,
+                Level: Level,
                 Targetable: false,
                 EnemyList: EnemyListMode.Always,
                 Placement: new Placement(Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1), Geometry.ArmUnitPlacements[i].Rotation)));
-            unit?.PlayActionTimeline(TopConstants.TimelineId.Spawn);
+            unit?.PlayActionTimeline(TimelineId.Spawn);
             return unit;
         }).ToList();
     }
@@ -280,7 +281,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private void SpawnHwTetherHelper(Vector3 pos, uint actionId)
     {
         var helper = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
+            BNpcBaseId: BNpcBaseId.OmegaHelper,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
             Placement: new Placement(pos, 0f),
@@ -295,8 +296,8 @@ public sealed class TopP5DeltaScenario : IScenario
     private void ApplyHwTetherBreakHit(SimCharacter player)
     {
         if (IsDamageLethal(player, magic: true, comeRuin: 3)) { player.Die("HW Tether Break"); return; }
-        player.AddStatus(StatusId.TriceComeRuin, Duration.HwTetherBreakStack, 1);
-        player.AddStatus(StatusId.MagicVulnUp2, Duration.HwTetherBreakStack, 1);
+        player.AddStatus(StatusId.TriceComeRuin, Duration.HwTetherBreakStack);
+        player.AddStatus(StatusId.MagicVulnerabilityUpMini, Duration.HwTetherBreakStack);
     }
 
 
@@ -355,7 +356,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private void FireBeyondDefenseAoe()
     {
         if (omega is null) return;
-        AnoMech.Core.SimObjects.SimPartySlot? target;
+        SimPartySlot? target;
         switch (state.BeyondDefenceForPlayer)
         {
             case TriOption.Yes:
@@ -402,7 +403,7 @@ public sealed class TopP5DeltaScenario : IScenario
         if (mainLethal)
             mainTarget.Die("Beyond Defense");
         else
-            mainTarget.AddStatus(StatusId.TwiceComeRuin, 6.96f, 1);
+            mainTarget.AddStatus(StatusId.TwiceComeRuin, 6.96f);
     }
 
     private void StartHyperPulse()
@@ -414,7 +415,7 @@ public sealed class TopP5DeltaScenario : IScenario
             {
                 if (party.Find.Closest(unit.Position) is { } target)
                     unit.Face(target.Position);
-                unit.Cast(ActionId.DeltaHyperPulseFirst);
+                unit.Cast(ActionId.HyperPulseDeltaCharging);
             });
     }
 
@@ -440,7 +441,7 @@ public sealed class TopP5DeltaScenario : IScenario
             {
                 var step = state.ArmHandedness[t.i].Mul * Geometry.HyperPulseStep;
                 t.unit!.SetPosition(new Placement(t.unit.Position, t.unit.Rotation + step));
-                t.unit.Cast(ActionId.DeltaHyperPulseRest);
+                t.unit.Cast(ActionId.HyperPulseDeltaShoot);
                 ResolveHyperPulseRect(t.unit);
             });
     }
@@ -495,8 +496,8 @@ public sealed class TopP5DeltaScenario : IScenario
                 member.Die("Oversampled Wave Cannon");
             else
             {
-                member.AddStatus(TopConstants.StatusId.MagicVulnUp1, 4.96f);
-                member.AddStatus(StatusId.TwiceComeRuin, 6.96f, 1);
+                member.AddStatus(StatusId.MagicVulnerabilityUp, 4.96f);
+                member.AddStatus(StatusId.TwiceComeRuin, 6.96f);
             }
         }
     }
@@ -508,12 +509,12 @@ public sealed class TopP5DeltaScenario : IScenario
         {
             var pos = member.Position;
             var spawned = world.SpawnEnemy(new EnemySpawnConfig(
-                BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
+                BNpcBaseId: BNpcBaseId.OmegaHelper,
                 Targetable: false,
                 EnemyList: EnemyListMode.Never,
                 Placement: new Placement(pos, 0f),
                 Lifetime: Duration.MonitorHelperLifetime));
-            spawned?.Cast(ActionId.OversampledWaveCannonAOE, targetLocation: pos, targetId: member.GameObjectId);
+            spawned?.Cast(ActionId.OversampledWaveCannonAoe, targetLocation: pos, targetId: member.GameObjectId);
         }
         return targets;
     }
@@ -554,7 +555,7 @@ public sealed class TopP5DeltaScenario : IScenario
             if (lethal)
                 hit.Die("Pile Pitch");
             else
-                hit.AddStatus(StatusId.TwiceComeRuin, 6.96f, 1);
+                hit.AddStatus(StatusId.TwiceComeRuin, 6.96f);
         }
     }
 
@@ -584,51 +585,26 @@ public sealed class TopP5DeltaScenario : IScenario
             if (!t.Resolved) OnTetherFailed(t);
     }
 
-    private void DropHelloPuddle(PartyRole role, uint spellId)
+    private void DropHelloPuddle(PartyRole role, bool near)
     {
-        var target = party.Get(role)!;
-        var pos = target.Position;
-        var helper = world.SpawnEnemy(new EnemySpawnConfig(
-                                          BNpcBaseId: TopConstants.BNpcBaseId.OmegaHelper,
-                                          Targetable: false,
-                                          EnemyList: EnemyListMode.Never,
-                                          Placement: new Placement(pos, 0f),
-                                          Lifetime: Duration.MonitorHelperLifetime));
-        helper?.Cast(spellId, targetLocation: pos, targetId: target.GameObjectId);
-
-        var radius = spellId is TopConstants.ActionId.HelloNearWorldJump or TopConstants.ActionId.HelloDistantWorldJump
-            ? Geometry.HelloWorldJumpAoeRadius
-            : Geometry.HelloWorldInitialAoeRadius;
-
-        if (party.Find.InsideCircle(pos, radius).Count > 1)
-        {
-            topUtils.HelloWorldFail(pos);
-            return;
-        }
-
-        if (IsDamageLethal(target, magic: true, comeRuin: 0))
-        {
-            topUtils.HelloWorldFail(pos);
-            return;
-        }
-
-        target.AddStatus(TopConstants.StatusId.QuickeningDynamis, 0f, 1);
-        target.AddStatus(TopConstants.StatusId.MagicVulnUp1, 4.96f);
+        if (near)
+            nearSolver = topUtils.HelloWorld(role, true);
+        else
+            farSolver = topUtils.HelloWorld(role, false);
+        HopHelloPuddle(near);
     }
 
-    private PartyRole HopHelloPuddle(PartyRole currentRole, uint jumpSpell, bool useClosest)
+    private void HopHelloPuddle(bool near)
     {
-        var current = party.Get(currentRole)!;
-        var next = useClosest
-            ? party.Find.Closest(current.Position, exclude: current)
-            : party.Find.Farest(current.Position, exclude: current);
-        if (next == null)
-        {
-            topUtils.HelloWorldFail(current.Position);
-            return currentRole;
-        }
-        DropHelloPuddle(next.Role, jumpSpell);
-        return next.Role;
+        var solver = near ? nearSolver : farSolver;
+        if ( solver?.Position is not {} position) return;
+        var helper = world.SpawnEnemy(new EnemySpawnConfig(
+                                          BNpcBaseId: BNpcBaseId.OmegaHelper,
+                                          Targetable: false,
+                                          EnemyList: EnemyListMode.Never,
+                                          Placement: new Placement(position, 0f),
+                                          Lifetime: Duration.MonitorHelperLifetime));
+        solver.CastSpell(helper);
     }
 
 
@@ -641,11 +617,11 @@ public sealed class TopP5DeltaScenario : IScenario
         var triceStacks = character.GetStatus(StatusId.TriceComeRuin)?.Stacks ?? 0;
         ruinWeight += triceStacks * 0.4f;
         var ruinLethal = ruinWeight > 1;
-        var magicVuln1 = character.HasStatus(TopConstants.StatusId.MagicVulnUp1);
-        var magicVuln2Stacks = character.GetStatus(StatusId.MagicVulnUp2)?.Stacks ?? 0;
+        var magicVuln1 = character.HasStatus(StatusId.MagicVulnerabilityUp);
+        var magicVuln2Stacks = character.GetStatus(StatusId.MagicVulnerabilityUpMini)?.Stacks ?? 0;
         var magicLethal = magic && (magicVuln1 || magicVuln2Stacks > 1);
         var lethal = ruinLethal || magicLethal;
-        Plugin.Log.Info($"IsDamageLethal: {who} magic={magic} comeRuin={comeRuin} → {lethal} [ruinWeight={ruinWeight:F2} TwiceComeRuin={twiceRuin} TriceComeRuin={triceStacks} MagicVulnUp1={magicVuln1} MagicVulnUp2={magicVuln2Stacks}]");
+        Plugin.Log.Info($"IsDamageLethal: {who} magic={magic} comeRuin={comeRuin} → {lethal} [ruinWeight={ruinWeight:F2} TwiceComeRuin={twiceRuin} TriceComeRuin={triceStacks} MagicVulnerabilityUp={magicVuln1} MagicVulnUp2={magicVuln2Stacks}]");
         return lethal;
     }
 

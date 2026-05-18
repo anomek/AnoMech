@@ -199,6 +199,9 @@ public abstract unsafe class SimCharacter : ISimObject, IPositioned
 
     public bool HasStatus(ushort statusId) => GetStatus(statusId) != null;
 
+    public bool HasTetherInSlot0(ushort tetherId)
+        => BattleCharaPtr != null && VfxFunctions.GetTetherId((Character*)BattleCharaPtr, 0) == tetherId;
+
     public virtual void Tick(float deltaSeconds)
     {
         // Tick statuses; prune ones that auto-expired (or were explicitly

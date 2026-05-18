@@ -62,6 +62,13 @@ public sealed unsafe class SimEnemy : SimNpc
     private uint pendingOmenActionId;
     private bool pendingOmenScheduled;
 
+    // Engine doesn't expose post-action animation-lock duration via EXD — the
+    // real value only ships in the server's ActionEffect packet. 0.6s is a
+    // reasonable approximation for most boss abilities; if a scenario needs
+    // tighter timing we can derive per-action values from captured ACT logs.
+    private const float DefaultAnimationLockSeconds = 0.6f;
+    private float remainingAnimationLock;
+
     // Visibility is driven via the DrawObject lifecycle: SetVisible records a
     // desired state and Tick's reconciler fires EnableDraw / DisableDraw at
     // most once per state change, gated on IsReadyToDraw so consecutive toggles
@@ -71,6 +78,9 @@ public sealed unsafe class SimEnemy : SimNpc
     // initial EnableDraw on its own (via pendingDraw).
     private bool desiredVisible = true;
     private bool currentVisible = true;
+
+    private SimCharacter? followTarget;
+    private float followSpeed;
 
     public uint BNpcBaseId { get; }
 
@@ -216,6 +226,7 @@ public sealed unsafe class SimEnemy : SimNpc
     public override void Despawn()
     {
         // BattleCharaSpawn.UnregisterFromCharacterManager(BattleCharaPtr);
+        followTarget = null;
         pendingOmenScheduled = false;
         ClearCastOmen();
         base.Despawn();
@@ -260,6 +271,24 @@ public sealed unsafe class SimEnemy : SimNpc
     // left untouched — callers that want the standard "warp out + untargetable"
     // combo should pair this with SetTargetable(false).
     public void SetVisible(bool visible) => desiredVisible = visible;
+
+    // Continuously chase `target`: each Tick re-issues MoveTo to the target's
+    // current position at `speed` units/sec. Clears itself (and stops the run
+    // animation) when the target dies. Pass null — or call again with a
+    // different target — to switch or cancel. Does not stop while casting; if
+    // the scenario wants the boss to plant during a cast, call Follow(null)
+    // before Cast and re-issue Follow afterward.
+    public void Follow(SimCharacter? target = null, float speed = 6f)
+    {
+        if (target is null || !target.IsAlive)
+        {
+            followTarget = null;
+            StopMoving();
+            return;
+        }
+        followTarget = target;
+        followSpeed = speed;
+    }
 
     private void ReconcileVisibility()
     {
@@ -332,6 +361,7 @@ public sealed unsafe class SimEnemy : SimNpc
         {
             FaceCastTarget(chara);
             FireActionEffect(chara, worldTargetLocation, targetId, animationVariation);
+            remainingAnimationLock = DefaultAnimationLockSeconds;
             castTargetLocation = null;
             castTargetId = null;
             castAnimationVariation = 0;
@@ -470,6 +500,51 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Tick(float deltaSeconds)
     {
+        if (remainingAnimationLock > 0f)
+            remainingAnimationLock = MathF.Max(0f, remainingAnimationLock - deltaSeconds);
+
+        if (followTarget != null)
+        {
+            if (!followTarget.IsAlive)
+            {
+                followTarget = null;
+                StopMoving();
+            }
+            else if (IsCasting || remainingAnimationLock > 0f)
+            {
+                // Rooted: cast bar up, or release animation still playing.
+                // Don't translate or rotate — let the action animation finish.
+                StopMoving();
+            }
+            else
+            {
+                var dx = followTarget.Position.X - Position.X;
+                var dz = followTarget.Position.Z - Position.Z;
+                var distSq = dx * dx + dz * dz;
+                // Stop when the hitboxes touch — chasing into the target's
+                // center would force-overlap the rigs and look wrong for
+                // boss-on-tank pursuit.
+                var stopDist = HitboxRadius + followTarget.HitboxRadius;
+                if (distSq <= stopDist * stopDist)
+                {
+                    StopMoving();
+                    Face(followTarget.Position);
+                }
+                else
+                {
+                    var dist = MathF.Sqrt(distSq);
+                    var t = (dist - stopDist) / dist;
+                    var dest = new Vector3(
+                        Position.X + dx * t,
+                        Position.Y,
+                        Position.Z + dz * t);
+                    // SimNpc.MoveTo skips the animation restart when already
+                    // running the same timeline, so this stays flicker-free.
+                    MoveTo(dest, followSpeed);
+                }
+            }
+        }
+
         base.Tick(deltaSeconds);
         ReconcileVisibility();
 
@@ -489,6 +564,7 @@ public sealed unsafe class SimEnemy : SimNpc
             chara->CastInfo.CurrentCastTime = castTotal;
             FaceCastTarget(chara);
             FireActionEffect(chara, castTargetLocation, castTargetId, castAnimationVariation);
+            remainingAnimationLock = DefaultAnimationLockSeconds;
             chara->CastInfo.IsCasting = false;
             casting = false;
             castTargetLocation = null;
@@ -526,11 +602,38 @@ public sealed unsafe class SimEnemy : SimNpc
     private static void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
     {
         var actionId = chara->CastInfo.ActionId;
+
+        // Engine ApplyAll dereferences whatever LookupBattleCharaByEntityId returns for each
+        // targetEntityIds[i] without a null check. A captured GameObjectId can outlive the
+        // BC behind it (target killed/despawned mid-cast, scenario reset, lifetime expiry),
+        // and a stale id resolves to null in _battleCharas → ApplyAll+0x45 null-deref. Drop
+        // to the no-target path in that case; release animation still plays off casterEntityId.
+        var safeDeliver = deliverTo;
+        if (safeDeliver is { } probeId)
+        {
+            var cm = CharacterManager.Instance();
+            if (cm == null || cm->LookupBattleCharaByEntityId((uint)probeId.Id) == null)
+            {
+                Plugin.Log.Warning(
+                    $"FireActionEffect: target {probeId.Id:X} for action {actionId:X} on caster {chara->EntityId:X} not in CharacterManager._battleCharas; dropping deliverTo to avoid ApplyAll null-deref");
+                safeDeliver = null;
+            }
+        }
+
         var rotationInt = (ushort)Math.Clamp(
             (int)((chara->Rotation / MathF.PI) * 32767f + 32767f), 0, 65535);
 
+        // Mirror Cast()'s TargetId classification using the sanitized state. CastInfo.TargetId
+        // was snapshotted at Cast() time and may carry a now-stale entity id; reading it here
+        // routes that stale id into AnimationTargetId, which Receive resolves and crashes on
+        // (same null-deref as the deliverTo array). Re-derive from current state instead.
         var header = default(ActionEffectHandler.Header);
-        header.AnimationTargetId = chara->CastInfo.TargetId;
+        if (safeDeliver is { } sd)
+            header.AnimationTargetId = sd;
+        else if (targetLocation.HasValue)
+            header.AnimationTargetId = 0xE0000000;
+        else
+            header.AnimationTargetId = chara->GetGameObjectId();
         header.ActionId = actionId;
         header.GlobalSequence = NextGlobalSequence++;
         header.AnimationLock = 0f;
@@ -540,13 +643,12 @@ public sealed unsafe class SimEnemy : SimNpc
         header.SpellId = (ushort)actionId;
         header.AnimationVariation = animationVariation;
         header.ActionType = chara->CastInfo.ActionType;
-        header.NumTargets = (byte)(deliverTo.HasValue ? 1 : 0);
+        header.NumTargets = (byte)(safeDeliver.HasValue ? 1 : 0);
         header.ForceAnimationLock = true;
 
         var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
 
-        
-        if (deliverTo is { } targetId)
+        if (safeDeliver is { } targetId)
         {
             Plugin.Log.Info($"ActionEffectHandler.Receive: caster: {chara->EntityId:X}, position: {pos}, targetId: {targetId.Id:X}");
             var effects = default(ActionEffectHandler.TargetEffects);

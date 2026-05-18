@@ -12,5 +12,5 @@ public sealed class TopP5SigmaStateOverrides
     public TriOption TowerNorthFlip { get; set; }
     public EightWayDirection? NewNorthB { get; set; }
     public Rotation? SpinnerRotation { get; set; }
-    public OmegaFAttack? OmegaFForm { get; set; }
+    public OmegaAttack? OmegaFForm { get; set; }
 }

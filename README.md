@@ -22,13 +22,10 @@ While simulating:
 * Ready checks will not pop — no toast, no sound, no flash.
 
 ## How to help
-I want to release scenarios for UMAD as soon as possible, within week or two.
-I will need ACT logs to do that. Please share them.
-
-Pull requests welcome. 
-
-I don't know what I'm doing. If you know anything about modding and know how to make things more stable,
-please let me know.
+1. ACT logs from UMAD pulls would be useful for building scenarios for that fight.
+2. Bot AI currently only covers strategies from my region. Adding strategies for other regions requires little code — pull requests welcome.
+3. New scenarios are more involved. `tools/parser.py` generates a baseline scenario from a log, which still needs randomization and mechanic-failure logic added by hand.
+4. Plugin-development or reverse-engineering help, and improvement ideas, are also welcome.
 
 ## Installation
 

@@ -68,6 +68,36 @@ public unsafe class MainWindow : Window, IDisposable
 
     public void Dispose() { }
 
+    private bool _wasInInstance;
+
+    // While the fake-zone instance is loaded, pin the window open and uncollapsible
+    // so the user can always reach Reset/Leave/God-mode without re-opening it.
+    public override void PreOpenCheck()
+    {
+        var inInstance = plugin.Game.World.Map.IsInInstance;
+        if (inInstance)
+        {
+            IsOpen = true;
+            ShowCloseButton = false;
+            RespectCloseHotkey = false;
+            Flags |= ImGuiWindowFlags.NoCollapse;
+            if (!_wasInInstance)
+            {
+                Collapsed = false;
+                CollapsedCondition = ImGuiCond.Always;
+            }
+        }
+        else
+        {
+            ShowCloseButton = true;
+            RespectCloseHotkey = true;
+            Flags &= ~ImGuiWindowFlags.NoCollapse;
+            if (_wasInInstance)
+                CollapsedCondition = ImGuiCond.FirstUseEver;
+        }
+        _wasInInstance = inInstance;
+    }
+
     public override void Draw()
     {
         var leftWidth = _leftPanelOpen ? 180f : 30f;
@@ -126,10 +156,18 @@ public unsafe class MainWindow : Window, IDisposable
 
         DrawRoleSelector();
 
-        var canStart = ZoneSession.IsInInn();
+        var inInn = ZoneSession.IsInInn();
+        var busy = ZoneSession.IsPlayerBusy();
+        var canStart = inInn && !busy;
         ImGui.BeginDisabled(!canStart);
         if (ImGui.Button("Start")) game.RunScenario(_selectedScenario, _roleOverride);
         ImGui.EndDisabled();
+        if (!canStart && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            ImGui.SetTooltip(!inInn
+                ? "Scenarios can only be started from an inn."
+                : "Cannot start while you are busy (cutscene, NPC event, crafting, trading, zoning, etc.).");
+        }
         ImGui.SameLine();
         if (ImGui.Button("Reset")) game.Reset();
         if (game.World.Map.IsInInstance)

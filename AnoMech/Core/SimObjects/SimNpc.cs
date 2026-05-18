@@ -225,8 +225,11 @@ public unsafe class SimNpc : SimPartySlot
         moveTarget = target;
         moveSpeed = MathF.Max(0f, speed);
         moveFinalRotation = finalRotation;
+        // Per-tick re-issue (e.g. SimEnemy.Follow) must not restart the timeline,
+        // otherwise PlayTimeline pegs the run loop at frame 0 every frame.
+        var sameAnim = moveAnimActive && moveTimelineId == timelineId;
         moveTimelineId = timelineId;
-        StartMoveAnim();
+        if (!sameAnim) StartMoveAnim();
     }
 
     public override void StopMoving()

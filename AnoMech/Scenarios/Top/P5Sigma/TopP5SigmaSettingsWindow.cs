@@ -94,8 +94,8 @@ public sealed class TopP5SigmaSettingsWindow
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##form",       v == null))                  Overrides.OmegaFForm = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Leg blades##form", v == OmegaFAttack.Legs))  Overrides.OmegaFForm = OmegaFAttack.Legs;
+        if (ImGui.RadioButton("Leg blades##form", v == OmegaAttack.Legs))  Overrides.OmegaFForm = OmegaAttack.Legs;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Staff##form",      v == OmegaFAttack.Staff))      Overrides.OmegaFForm = OmegaFAttack.Staff;
+        if (ImGui.RadioButton("Staff##form",      v == OmegaAttack.Staff))      Overrides.OmegaFForm = OmegaAttack.Staff;
     }
 }

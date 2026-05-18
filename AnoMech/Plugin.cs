@@ -155,6 +155,11 @@ public sealed class Plugin : IDalamudPlugin
                     Log.Warning("Scenarios can only be started from an inn.");
                     break;
                 }
+                if (ZoneSession.IsPlayerBusy())
+                {
+                    Log.Warning("Cannot start a scenario while you are busy (cutscene, NPC event, crafting, etc.).");
+                    break;
+                }
                 if (MainWindow.SelectedScenario is { } scenario)
                     Game.RunScenario(scenario, MainWindow.SelectedRoleOverride);
                 break;
