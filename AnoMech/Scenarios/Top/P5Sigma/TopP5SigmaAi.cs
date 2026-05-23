@@ -24,10 +24,10 @@ public sealed class TopP5SigmaAi
     {
         var ai = new AiManager(world);
         
-;       var handBait = state.DynamisTargets.Random(2, state.HelloWorldRoles);
-        var hWJumpsOrder = RoleList.AllExcept(world.Party, state.HelloWorldRoles.Concat(handBait.List).ToArray());
+;       var handBait = state.DynamisTargets.Random(2, state.HelloWorldTargets.List);
+        var hWJumpsOrder = RoleList.AllExcept(world.Party, state.HelloWorldTargets.List.Concat(handBait.List).ToArray());
         markingsOrder = new(world.Party, [handBait[0], hWJumpsOrder[0], handBait[1], hWJumpsOrder[1],
-                        hWJumpsOrder[2], hWJumpsOrder[3], state.HelloWorldRoles[0], state.HelloWorldRoles[1]]);
+                        hWJumpsOrder[2], hWJumpsOrder[3], state.HelloWorldTargets[0], state.HelloWorldTargets[1]]);
 
         ai.Move(0.5f, InitialPositions);
         ai.Move(14.1f, LineupNextToOmegaM);

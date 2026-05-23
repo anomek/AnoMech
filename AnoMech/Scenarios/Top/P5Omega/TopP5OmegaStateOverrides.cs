@@ -2,6 +2,10 @@ using AnoMech.Scenarios.Top;
 
 namespace AnoMech.Scenarios;
 
+public enum HelloWorldOrderOption { Auto, Any, First, Second, None }
+
+public enum HelloWorldTypeOption { Auto, Near, Far }
+
 // User-controlled overrides for TopP5OmegaState's randomized fields. Bound by
 // the scenario's settings UI; null values leave the field randomized at
 // scenario start. The state ctor consumes this directly.
@@ -14,4 +18,7 @@ public sealed class TopP5OmegaStateOverrides
     public bool? FirstWaveCannonFront { get; set; }
     public MonitorSide? MonitorSide { get; set; }
     public EightWayDirection? BettleSpawnDirection { get; set; }
+    public bool? ExtraDynamis { get; set; }
+    public HelloWorldOrderOption HelloWorldOrder { get; set; }
+    public HelloWorldTypeOption HelloWorldType { get; set; }
 }

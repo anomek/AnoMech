@@ -34,7 +34,7 @@ public sealed class TopP5DeltaAi
         ai.Move(50f, RescueUnsafe);
         ai.Move(56f, ReturnToMiddle);
         ai.Move(56.5f, TankForward);
-        ai.Move(60.5f, BreakLastTether);
+        ai.Move(59.5f, BreakLastTether);
     }
 
 
@@ -89,9 +89,13 @@ public sealed class TopP5DeltaAi
     {
         move.Swap(0, state.FarWorldTetherIndex);
         move.Swap(state.FarWorldTetherIndex == 1 ? 0 : 1, state.NearWorldTetherIndex);
+        var cannonMul = state.SwivelCannonSide.Mul * state.EyeSpawn.Mul;
         // 4/5 does not to be adjusted by swivel side, so unadjust it
-        move.MultiplyY(4, state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
-        move.MultiplyY(5, state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
+        move.MultiplyY(4, cannonMul);
+        move.MultiplyY(5, cannonMul);
+        // make safe side plant consistent for Swivel Cannon
+        if (cannonMul > 0)
+            move.Swap(6, 7);
     }
 
     private void TetherAssignment(AiMove move)
@@ -278,8 +282,8 @@ public sealed class TopP5DeltaAi
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f),
-            new(7f, 0f),
-            new(-8f, -2f)
+            new(8f, 0f),
+            new(-9f, -3f)
         ).Apply(
             SwivelSafeSide,
             AdjustEyePosition,
@@ -289,7 +293,7 @@ public sealed class TopP5DeltaAi
 
     private AiMove TankForward()
     {
-        return AiMove.Single(1, new(0, -3.5f)
+        return AiMove.Single(1, new(0, -5.5f)
         ).Apply(
             SwivelSafeSide,
             AdjustEyePosition

@@ -34,16 +34,16 @@ public sealed class TopP5DeltaSettingsWindow
         Overrides.EyeSpawn = null;
         Overrides.SwivelCannonSide = null;
         Overrides.TetherAssignment = PlayerTetherAssignment.Auto;
-        Overrides.Monitor = TriOption.Auto;
+        Overrides.Monitor = null;
         Overrides.HelloWorld = HelloWorldOption.Auto;
-        Overrides.BeyondDefence = TriOption.Auto;
+        Overrides.BeyondDefence = null;
     }
 
     private void DrawEyeSpawn()
     {
         var mode = 0;
         if (Overrides.EyeSpawn == NorthSouth.North) mode = 1;
-        if (Overrides.EyeSpawn == NorthSouth.North) mode = 2;
+        if (Overrides.EyeSpawn == NorthSouth.South) mode = 2;
         ImGui.TextUnformatted("Eye spawn:");
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##eye",  mode == 0)) Overrides.EyeSpawn = null;
@@ -92,11 +92,11 @@ public sealed class TopP5DeltaSettingsWindow
         var m = Overrides.Monitor;
         ImGui.TextUnformatted("Monitor:");
         ImGui.SameLine();
-        if (ImGui.RadioButton("Auto##mon", m == TriOption.Auto)) Overrides.Monitor = TriOption.Auto;
+        if (ImGui.RadioButton("Auto##mon", m == null))  Overrides.Monitor = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Yes##mon",  m == TriOption.Yes))  Overrides.Monitor = TriOption.Yes;
+        if (ImGui.RadioButton("Yes##mon",  m == true))  Overrides.Monitor = true;
         ImGui.SameLine();
-        if (ImGui.RadioButton("No##mon",   m == TriOption.No))   Overrides.Monitor = TriOption.No;
+        if (ImGui.RadioButton("No##mon",   m == false)) Overrides.Monitor = false;
     }
 
     private void DrawHelloWorld()
@@ -118,10 +118,10 @@ public sealed class TopP5DeltaSettingsWindow
         var b = Overrides.BeyondDefence;
         ImGui.TextUnformatted("Beyond Defence:");
         ImGui.SameLine();
-        if (ImGui.RadioButton("Auto##bd", b == TriOption.Auto)) Overrides.BeyondDefence = TriOption.Auto;
+        if (ImGui.RadioButton("Auto##bd", b == null))  Overrides.BeyondDefence = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Yes##bd",  b == TriOption.Yes))  Overrides.BeyondDefence = TriOption.Yes;
+        if (ImGui.RadioButton("Yes##bd",  b == true))  Overrides.BeyondDefence = true;
         ImGui.SameLine();
-        if (ImGui.RadioButton("No##bd",   b == TriOption.No))   Overrides.BeyondDefence = TriOption.No;
+        if (ImGui.RadioButton("No##bd",   b == false)) Overrides.BeyondDefence = false;
     }
 }

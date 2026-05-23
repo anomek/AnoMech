@@ -56,7 +56,7 @@ public sealed class TopP5DeltaState
     public int NearWorldTetherIndex { get; } // 0..3, distinct from FarWorldTetherIndex
     public int FarWorldTetherIndex { get; }  // 0..3, distinct from NearWorldTetherIndex
 
-    public TriOption BeyondDefenceForPlayer { get; }
+    public bool? BeyondDefenceForPlayer { get; }
 
     public PartyRole? BeyondDefenseTarget { get; set; }
     public PartyRole NearWorldRole { get; set; }
@@ -83,11 +83,12 @@ public sealed class TopP5DeltaState
         //   BD=Yes → close inner (highest priority)
         //   Monitor=Yes or HelloWorld=Near/Far on a far assignment → close any
         var effectiveTether = overrides.TetherAssignment;
-        if (overrides.BeyondDefence == TriOption.Yes)
+        if (overrides.BeyondDefence == true)
             effectiveTether = PlayerTetherAssignment.CloseInner;
-        else if ((overrides.Monitor == TriOption.Yes ||
+        else if ((overrides.Monitor == true ||
                   overrides.HelloWorld is HelloWorldOption.Near or HelloWorldOption.Far) &&
-                 effectiveTether is PlayerTetherAssignment.FarAny or PlayerTetherAssignment.FarInner or PlayerTetherAssignment.FarOuter)
+                 effectiveTether is PlayerTetherAssignment.FarAny
+                     or PlayerTetherAssignment.FarInner or PlayerTetherAssignment.FarOuter or PlayerTetherAssignment.Auto)
             effectiveTether = PlayerTetherAssignment.CloseAny;
 
         // Slots 0-1 = close inner, 2-3 = close outer, 4-5 = far inner, 6-7 = far outer.
@@ -133,9 +134,9 @@ public sealed class TopP5DeltaState
 
         PlayerMonitorIndex = (overrides.Monitor, playerInClose) switch
         {
-            (TriOption.Yes, true) => playerSlot,
-            (TriOption.No,  true) => RandomExclude(rng, 4, playerSlot),
-            _                     => rng.Next(4),
+            (true,  true) => playerSlot,
+            (false, true) => RandomExclude(rng, 4, playerSlot),
+            _             => rng.Next(4),
         };
 
         // Near/Far world tether index assignment (both are distinct slots from 0-3).

@@ -81,7 +81,7 @@ public sealed class Game : IDisposable
         World.ScenarioOrigin = ResolveScenarioOrigin(scenario, player.Position);
         World.PlaceWaymarks(scenario.Waymarks);
         var party = World.CreateParty(player.ClassJob.RowId, roleOverride);
-        scenario.Run(World, party.PlayerRole);
+        scenario.Run(World);
         activeScenario = scenario;
         scenarioElapsed = 0f;
 

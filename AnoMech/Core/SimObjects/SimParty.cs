@@ -26,19 +26,10 @@ public sealed class SimParty : ISimObject
 
     public SimPartySlot? Get(PartyRole role) => Get((int)role);
 
-    // The role the local player fills — i.e. the slot SimPartyMember spawning
-    // skipped (PartyPresets returns null for the player's own job). After Game
-    // wires SimPlayer in, that slot is the SimPlayer reference. Falls back to
-    // MainTank if no slot is occupied by a SimPlayer (no scenario hits this today).
-    public PartyRole PlayerRole
-    {
-        get
-        {
-            for (int i = 0; i < slots.Length; i++)
-                if (slots[i] is SimPlayer) return (PartyRole)i;
-            return PartyRole.MainTank;
-        }
-    }
+    // The role of the slot currently holding the SimPlayer — set by SetSlot
+    // when it receives one. Falls back to MainTank if no SimPlayer has been
+    // placed (no scenario hits this today).
+    public PartyRole PlayerRole { get; private set; } = PartyRole.MainTank;
 
     public SimPlayer? Player => Get(PlayerRole) as SimPlayer;
 
@@ -46,6 +37,7 @@ public sealed class SimParty : ISimObject
     {
         slot.Role = role;
         slots[(int)role] = slot;
+        if (slot is SimPlayer) PlayerRole = role;
     }
 
     internal void ForEachActive(Action<SimPartySlot> action)

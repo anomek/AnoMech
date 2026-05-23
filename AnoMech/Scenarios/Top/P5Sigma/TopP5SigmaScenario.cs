@@ -37,11 +37,11 @@ public sealed class TopP5SigmaScenario : IScenario
     private SimWorld world = null!;
     private SimParty party = null!;
 
-    public void Run(SimWorld worldParam, PartyRole playerRole)
+    public void Run(SimWorld worldParam)
     {
         world = worldParam;
         party = worldParam.Party;
-        state = new TopP5SigmaState(party, settingsWindow.Overrides, playerRole);
+        state = new TopP5SigmaState(party, settingsWindow.Overrides);
         ai = new TopP5SigmaAi(state);
         ai.Run(world);
         topUtils = new TopUtils(world);
@@ -86,8 +86,8 @@ public sealed class TopP5SigmaScenario : IScenario
     private void Run_OtherDebuffs()
     {
         state.DynamisTargets.ForEach(p => p.AddStatus(StatusId.QuickeningDynamis, stacks: 1));
-        world.Events.Add(11.82f, () => state.HelloWorldTargets[0]?.AddStatus(StatusId.HelloNearWorld, 56.000f));
-        world.Events.Add(11.82f, () => state.HelloWorldTargets[1]?.AddStatus(StatusId.HelloDistantWorld, 56.000f));
+        world.Events.Add(11.82f, () => state.HelloWorldTargets.Get(0)?.AddStatus(StatusId.HelloNearWorld, 56.000f));
+        world.Events.Add(11.82f, () => state.HelloWorldTargets.Get(1)?.AddStatus(StatusId.HelloDistantWorld, 56.000f));
         world.Events.Add(28.39f, () => party.ForEachActive(member => member.AddStatus(StatusId.Looper, 18.000f)));
     }
 
@@ -105,7 +105,7 @@ public sealed class TopP5SigmaScenario : IScenario
     private void Run_Omega_M_4000A63C()
     {
         SimEnemy? omega_M_4000A63C = null;
-        world.Events.Add(0f, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaM, NameId: BNpcNameId.OmegaM, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x10)));
+        world.Events.Add(0f, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaM, NameId: BNpcNameId.OmegaM, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x32)));
         world.Events.Add(0.1f, () => omega_M_4000A63C?.AddStatus(StatusId.OmegaM));
         world.Events.Add(2.46f, () => omega_M_4000A63C?.Cast(ActionId.Teleport7b42, castSeconds: 0f, targetLocation: Vector3.Zero));
         world.Events.Add(3.75f, () => omega_M_4000A63C?.Cast(ActionId.RunMiSigmaVersion, castSeconds: 4.700f));
@@ -136,6 +136,12 @@ public sealed class TopP5SigmaScenario : IScenario
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetModeAttributeFlags(state.OmegaFAttack.AttributeFlags));
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetModelState(0x04));
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetPosition(state.NewNorthB.Apply(new Placement(new Vector3(0f, 0f, -10f), 0))));
+        world.Events.Add(45.88f, () =>
+        {
+            omega_M_4000A63C?.Despawn();
+            var position = state.NewNorthB.Apply(new Placement(new Vector3(0f, 0f, -10f), 0));
+            omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: state.OmegaFAttack.AttributeFlags, BNpcBaseId: BNpcBaseId.OmegaF, NameId: BNpcNameId.OmegaF, Level: 90, Targetable: false, EnemyList: EnemyListMode.Always, IsVisible: false, Placement: position));
+        });
         world.Events.Add(45.97f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(46.93f, () => omega_M_4000A63C?.SetVisible(true));
         world.Events.Add(59.62f, () => omega_M_4000A63C?.Cast(state.OmegaFAttack.ActionId, targetLocation: omega_M_4000A63C.Position, targetId: omega_M_4000A63C.GameObjectId, castSeconds: 1.200f, omenDelay: Duration.OmegaAttackOmenDelay));
@@ -225,8 +231,8 @@ public sealed class TopP5SigmaScenario : IScenario
     private void Run_Omega_4000A408()
     {
         TopUtils.HelloWorldSolver[] solvers = [
-            topUtils.HelloWorld(state.HelloWorldRoles[0], true),
-            topUtils.HelloWorld(state.HelloWorldRoles[1], false)];
+            topUtils.HelloWorld(state.HelloWorldTargets[0], true),
+            topUtils.HelloWorld(state.HelloWorldTargets[1], false)];
         for (int index = 0; index < 6; index++)
         {
             SimEnemy? omega_4000A408 = null;

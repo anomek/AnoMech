@@ -22,6 +22,10 @@ public sealed class TopP5OmegaSettingsWindow
         DrawWaveCannon();
         DrawMonitorSide();
         DrawBeetleSpawn();
+        DrawExtraDynamis();
+        DrawHelloWorldOrder();
+        DrawHelloWorldType();
+        DrawForceButtons();
     }
 
     private void ResetAll()
@@ -33,6 +37,9 @@ public sealed class TopP5OmegaSettingsWindow
         Overrides.FirstWaveCannonFront = null;
         Overrides.MonitorSide = null;
         Overrides.BettleSpawnDirection = null;
+        Overrides.ExtraDynamis = null;
+        Overrides.HelloWorldOrder = HelloWorldOrderOption.Auto;
+        Overrides.HelloWorldType = HelloWorldTypeOption.Auto;
     }
 
     private static void DrawAttack(string label, string suffix,
@@ -83,6 +90,61 @@ public sealed class TopP5OmegaSettingsWindow
         {
             ImGui.SameLine();
             if (ImGui.RadioButton($"{d.Name}##beetle", Overrides.BettleSpawnDirection == d)) Overrides.BettleSpawnDirection = d;
+        }
+    }
+
+    private void DrawExtraDynamis()
+    {
+        var v = Overrides.ExtraDynamis;
+        ImGui.TextUnformatted("Extra dynamis stack:");
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Auto##dyn", v == null))  Overrides.ExtraDynamis = null;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("No##dyn",   v == false)) Overrides.ExtraDynamis = false;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Yes##dyn",  v == true))  Overrides.ExtraDynamis = true;
+    }
+
+    private void DrawHelloWorldOrder()
+    {
+        var v = Overrides.HelloWorldOrder;
+        ImGui.TextUnformatted("Hello World order:");
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Auto##hwo",   v == HelloWorldOrderOption.Auto))   Overrides.HelloWorldOrder = HelloWorldOrderOption.Auto;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Any##hwo",    v == HelloWorldOrderOption.Any))    Overrides.HelloWorldOrder = HelloWorldOrderOption.Any;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("First##hwo",  v == HelloWorldOrderOption.First))  Overrides.HelloWorldOrder = HelloWorldOrderOption.First;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Second##hwo", v == HelloWorldOrderOption.Second)) Overrides.HelloWorldOrder = HelloWorldOrderOption.Second;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("None##hwo",   v == HelloWorldOrderOption.None))   Overrides.HelloWorldOrder = HelloWorldOrderOption.None;
+    }
+
+    private void DrawHelloWorldType()
+    {
+        var v = Overrides.HelloWorldType;
+        ImGui.TextUnformatted("Hello World type:");
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Auto##hwt", v == HelloWorldTypeOption.Auto)) Overrides.HelloWorldType = HelloWorldTypeOption.Auto;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Near##hwt", v == HelloWorldTypeOption.Near)) Overrides.HelloWorldType = HelloWorldTypeOption.Near;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Far##hwt",  v == HelloWorldTypeOption.Far))  Overrides.HelloWorldType = HelloWorldTypeOption.Far;
+    }
+
+    private void DrawForceButtons()
+    {
+        if (ImGui.Button("Force take monitor"))
+        {
+            Overrides.ExtraDynamis = true;
+            Overrides.HelloWorldOrder = HelloWorldOrderOption.Second;
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Force take tether"))
+        {
+            Overrides.ExtraDynamis = true;
+            Overrides.HelloWorldOrder = HelloWorldOrderOption.First;
         }
     }
 }

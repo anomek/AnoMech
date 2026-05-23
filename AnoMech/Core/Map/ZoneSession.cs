@@ -145,6 +145,8 @@ public sealed unsafe class ZoneSession : IDisposable
             || c[ConditionFlag.TradeOpen]
             || c[ConditionFlag.BetweenAreas]
             || c[ConditionFlag.LoggingOut]
+            || c[ConditionFlag.WaitingForDutyFinder]
+            || c[ConditionFlag.InDutyQueue]
             || c[ConditionFlag.InCombat]
             || c[ConditionFlag.Mounted]
             || c[ConditionFlag.Jumping];

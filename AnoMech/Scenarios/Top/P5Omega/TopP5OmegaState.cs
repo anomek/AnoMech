@@ -13,7 +13,7 @@ public sealed record MonitorSide(int Mul, uint ActionId)
 
 public sealed class TopP5OmegaState
 {
-    private readonly Random rng = new();
+    private readonly Rng rng = new();
     
     public RoleList HelloWorldTargets { get; }
     public RoleList DoubleDynamicTargets { get; }
@@ -28,15 +28,38 @@ public sealed class TopP5OmegaState
 
     public TopP5OmegaState(SimParty party, TopP5OmegaStateOverrides overrides)
     {
-        var firstAttackDirection = RandomIntercardinal();
-        var secondAttackDirection = firstAttackDirection.Rotate(rng.Next(2) * 4 - 2);
+        var firstAttackDirection = rng.NextIntercardinal();
+        var secondAttackDirection = firstAttackDirection.Rotate(rng.NextSign() * 2);
         AttackDirections = [firstAttackDirection, firstAttackDirection.Flip(), secondAttackDirection, secondAttackDirection.Flip()];
-        HelloWorldTargets = RoleList.Random(party, 4);
-        DoubleDynamicTargets = RoleList.Random(party, 4);
+        HelloWorldTargets = new RoleListBuilder
+        {
+            Size = 4,
+            ForcePlayerIndex = (overrides.HelloWorldOrder, overrides.HelloWorldType) switch
+            {
+                (HelloWorldOrderOption.Auto,   HelloWorldTypeOption.Near) => [0, 2],
+                (HelloWorldOrderOption.Auto,   HelloWorldTypeOption.Far)  => [1, 3],
+                (HelloWorldOrderOption.Any,    HelloWorldTypeOption.Auto) => [0, 1, 2, 3],
+                (HelloWorldOrderOption.Any,    HelloWorldTypeOption.Near) => [0, 2],
+                (HelloWorldOrderOption.Any,    HelloWorldTypeOption.Far)  => [1, 3],
+                (HelloWorldOrderOption.First,  HelloWorldTypeOption.Auto) => [0, 1],
+                (HelloWorldOrderOption.First,  HelloWorldTypeOption.Near) => [0],
+                (HelloWorldOrderOption.First,  HelloWorldTypeOption.Far)  => [1],
+                (HelloWorldOrderOption.Second, HelloWorldTypeOption.Auto) => [2, 3],
+                (HelloWorldOrderOption.Second, HelloWorldTypeOption.Near) => [2],
+                (HelloWorldOrderOption.Second, HelloWorldTypeOption.Far)  => [3],
+                _ => [],
+            },
+            IncludePlayer = overrides.HelloWorldOrder == HelloWorldOrderOption.None ? false : null,
+        }.Build(party);
+        DoubleDynamicTargets = new RoleListBuilder
+        {
+            Size = 4,
+            IncludePlayer = overrides.ExtraDynamis,
+        }.Build(party);
         InitialTetherTargets = RoleList.Random(party, 2);
-        BettleSpawnDirection = overrides.BettleSpawnDirection ?? RandomCardinal();
-        MonitorSide = overrides.MonitorSide ?? (rng.Next(2) == 0 ? MonitorSide.Left : MonitorSide.Right);
-        FirstWaveCannonFront = overrides.FirstWaveCannonFront ?? (rng.Next(2) == 0);
+        BettleSpawnDirection = overrides.BettleSpawnDirection ?? rng.NextCardinal();
+        MonitorSide = overrides.MonitorSide ?? rng.NextObj(MonitorSide.Left, MonitorSide.Right);
+        FirstWaveCannonFront = overrides.FirstWaveCannonFront ?? rng.NextBool();
         var firstFAttack = overrides.FirstFAttack ?? RandomFAttack();
         var firstMAttack = overrides.FirstMAttack ?? RandomMAttack();
         OmegaAttack secondFAttack;
@@ -47,16 +70,11 @@ public sealed class TopP5OmegaState
             secondMAttack = overrides.SecondMAttack ?? RandomMAttack();
             if ((firstFAttack, firstMAttack) != (secondFAttack, secondMAttack)) break;
             // Both seconds user-set to match firsts: trust the user.
-            if (overrides.SecondFAttack != null && overrides.SecondMAttack != null) break;
+            if (overrides is { SecondFAttack: not null, SecondMAttack: not null }) break;
         }
         OmegaAttacks = [firstFAttack, firstMAttack, secondFAttack, secondMAttack];
     }
 
-    private OmegaAttack RandomFAttack() => rng.Next(2) == 0 ? OmegaAttack.Legs : OmegaAttack.Staff;
-    private OmegaAttack RandomMAttack() => rng.Next(2) == 0 ? OmegaAttack.Shield : OmegaAttack.Sword;
-
-    // EightWayDirection.All indices: 0=N, 2=E, 4=S, 6=W are cardinals;
-    // 1=NE, 3=SE, 5=SW, 7=NW are intercardinals.
-    private EightWayDirection RandomCardinal() => EightWayDirection.Cardinal[rng.Next(4)];
-    private EightWayDirection RandomIntercardinal() => EightWayDirection.Intercardinal[rng.Next(4)];
+    private OmegaAttack RandomFAttack() => rng.NextObj(OmegaAttack.Legs, OmegaAttack.Staff);
+    private OmegaAttack RandomMAttack() => rng.NextObj(OmegaAttack.Shield, OmegaAttack.Sword);
 }

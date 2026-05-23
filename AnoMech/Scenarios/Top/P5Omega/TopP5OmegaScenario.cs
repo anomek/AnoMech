@@ -45,12 +45,11 @@ public sealed class TopP5OmegaScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5OmegaSettingsWindow settingsWindow = new();
 
-    public void Run(SimWorld worldParam, PartyRole playerRole)
+    public void Run(SimWorld worldParam)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5OmegaState(world.Party, settingsWindow.Overrides);
-        _ = playerRole;
         new TopP5OmegaAi(state).Run(world);
 
         topUtils = new TopUtils(world);

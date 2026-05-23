@@ -26,7 +26,7 @@ namespace AnoMech.Scenarios.Top.P5Sigma
 
     public sealed class TopP5SigmaState
     {
-        private readonly Random rng = new();
+        private readonly Rng rng = new();
 
         public RoleList Order { get; }
         public RoleList WaveCannonTargets { get; }
@@ -45,44 +45,42 @@ namespace AnoMech.Scenarios.Top.P5Sigma
         public Rotation SpinnerRotation { get; }
         public OmegaAttack OmegaFAttack { get; }
 
-        public readonly SimPartySlot?[] HelloWorldTargets = new SimPartySlot[2];
-        public readonly PartyRole[] HelloWorldRoles = new PartyRole[2];
+        public RoleList HelloWorldTargets { get; }
 
-        public Tower?[] Towers;
+        public readonly Tower?[] Towers;
     
         public int FirstMissing;
         public int SecondMissing;
-
-
-        public TopP5SigmaState(SimParty party, TopP5SigmaStateOverrides overrides, PartyRole playerRole)
+        
+        public TopP5SigmaState(SimParty party, TopP5SigmaStateOverrides overrides)
         {
             Order = RoleList.Random(party);
-            DynamisTargets = RoleList.Random(party, 6);
+            DynamisTargets = new RoleListBuilder
+            {
+                Size = 6,
+                IncludePlayer = overrides.Dynamis,
+            }.Build(party);
             WaveCannonTargets = SelectWaveCannonTargets(Order);
 
-            NewNorthA = overrides.NewNorthA ?? RandomDirection();
-            GlitchType = overrides.CloseFarTether ?? RandomGlitch();
-            TowerNorthFlipped = overrides.TowerNorthFlip switch
-            {
-                TriOption.Yes => true,
-                TriOption.No => false,
-                _ => rng.Next(2) == 0,
-            };
-            NewNorthB = overrides.NewNorthB ?? RandomDirection();
-            SpinnerRotation = overrides.SpinnerRotation ??
-                              (rng.Next(2) == 0 ? Rotation.Clockwise : Rotation.CounterClockwise);
-            OmegaFAttack = overrides.OmegaFForm ?? (rng.Next(2) == 0 ? OmegaAttack.Legs : OmegaAttack.Staff);
+            NewNorthA = overrides.NewNorthA ?? rng.NextDirection();
+            GlitchType = overrides.CloseFarTether ?? rng.NextObj(GlitchType.Mid, GlitchType.Far);
+            TowerNorthFlipped = overrides.TowerNorthFlip ?? rng.NextBool();
+            NewNorthB = overrides.NewNorthB ?? rng.NextDirection();
+            SpinnerRotation = overrides.SpinnerRotation ?? rng.NextObj(Rotation.Clockwise, Rotation.CounterClockwise);
+            OmegaFAttack = overrides.OmegaFForm ?? rng.NextObj(OmegaAttack.Legs, OmegaAttack.Staff);
 
-            var nearWorld = rng.Next(8);
-            var farWorld = (nearWorld + 1 + rng.Next(7)) % 8;
-            HelloWorldTargets[0] = Order.Get(nearWorld);
-            HelloWorldTargets[1] = Order.Get(farWorld);
-            HelloWorldRoles[0] = Order[nearWorld];
-            HelloWorldRoles[1] = Order[farWorld];
+            HelloWorldTargets = new RoleListBuilder()
+            {
+                Size = 2,
+                ForcePlayerIndex = overrides.HelloWorld switch { HelloWorldOption.Near => [0], HelloWorldOption.Far => [1], _ => [] },
+                IncludePlayer = overrides.HelloWorld switch { HelloWorldOption.No => false, _ => null }
+            }.Build(party);
+            
             Towers = (GlitchType == GlitchType.Mid ? MidGlitchTowers : FarGlitchTowers)
                      .Select(t => t == null ? t : t with {Position = AdjustedNorthA.Apply(t.Position) })
                      .ToArray();
         }
+
 
         // MidGlitch: 6 towers on the 22.5°-offset inner ring at radius 17.
         // Extracted from TOP_pull_05_clear.log (01:23:34.933), rotated so the two
@@ -115,23 +113,11 @@ namespace AnoMech.Scenarios.Top.P5Sigma
             null
         };
 
-        private GlitchType RandomGlitch() => (rng.Next(2) == 0 ? GlitchType.Mid : GlitchType.Far);
-        private EightWayDirection RandomDirection() => EightWayDirection.All[rng.Next(8)];
-
-
         private RoleList SelectWaveCannonTargets(RoleList tethers)
         {
-            var skip1 = rng.Next(8);
-            var skip2 = skip1;
-            while (skip1 / 2 == skip2 / 2)
-            {
-                skip2 = rng.Next(8);
-            }
-
-            if (skip1 > skip2)
-            {
-                (skip1, skip2) = (skip2, skip1);    
-            }
+            var skip1 = rng.NextInt(8);
+            var skip2 = rng.NextInt(6);
+            if (skip2 >= skip1 / 2 * 2) skip2 += 2;
             FirstMissing = skip1;
             SecondMissing = skip2;
             return RoleList.AllExcept(tethers.Party, tethers[skip1], tethers[skip2]);

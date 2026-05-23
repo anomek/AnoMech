@@ -17,7 +17,7 @@ public interface IScenario
     IReadOnlyList<Waymark> Waymarks => Array.Empty<Waymark>();
     // Content-scene BGM row to play when Game starts this scenario. 0 = no music.
     ushort Bgm => 0;
-    void Run(SimWorld world, PartyRole playerRole);
+    void Run(SimWorld world);
     // Per-frame hook driven by Game after World.Tick. `elapsed` is seconds since
     // the scenario's Run was called (real time, not EventTimeScale-scaled).
     void Tick(float delta, float elapsed) { }

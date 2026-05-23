@@ -15,16 +15,20 @@ public sealed class TopP5SigmaSettingsWindow
         DrawNewNorthB();
         DrawSpinnerRotation();
         DrawOmegaFForm();
+        DrawHelloWorld();
+        DrawDynamis();
     }
 
     private void ResetAll()
     {
         Overrides.NewNorthA = null;
         Overrides.CloseFarTether = null;
-        Overrides.TowerNorthFlip = TriOption.Auto;
+        Overrides.TowerNorthFlip = null;
         Overrides.NewNorthB = null;
         Overrides.SpinnerRotation = null;
         Overrides.OmegaFForm = null;
+        Overrides.HelloWorld = HelloWorldOption.Auto;
+        Overrides.Dynamis = null;
     }
 
     private void DrawNewNorthA()
@@ -46,7 +50,7 @@ public sealed class TopP5SigmaSettingsWindow
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##cf",  v == null))            Overrides.CloseFarTether = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Close##cf", v == GlitchType.Mid))  Overrides.CloseFarTether = GlitchType.Mid;
+        if (ImGui.RadioButton("Mid##cf", v == GlitchType.Mid))  Overrides.CloseFarTether = GlitchType.Mid;
         ImGui.SameLine();
         if (ImGui.RadioButton("Far##cf",   v == GlitchType.Far))    Overrides.CloseFarTether = GlitchType.Far;
     }
@@ -56,11 +60,11 @@ public sealed class TopP5SigmaSettingsWindow
         var v = Overrides.TowerNorthFlip;
         ImGui.TextUnformatted("Tower-north flip:");
         ImGui.SameLine();
-        if (ImGui.RadioButton("Auto##flip", v == TriOption.Auto)) Overrides.TowerNorthFlip = TriOption.Auto;
+        if (ImGui.RadioButton("Auto##flip", v == null))  Overrides.TowerNorthFlip = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("Yes##flip",  v == TriOption.Yes))  Overrides.TowerNorthFlip = TriOption.Yes;
+        if (ImGui.RadioButton("Yes##flip",  v == true))  Overrides.TowerNorthFlip = true;
         ImGui.SameLine();
-        if (ImGui.RadioButton("No##flip",   v == TriOption.No))   Overrides.TowerNorthFlip = TriOption.No;
+        if (ImGui.RadioButton("No##flip",   v == false)) Overrides.TowerNorthFlip = false;
     }
 
     private void DrawNewNorthB()
@@ -97,5 +101,31 @@ public sealed class TopP5SigmaSettingsWindow
         if (ImGui.RadioButton("Leg blades##form", v == OmegaAttack.Legs))  Overrides.OmegaFForm = OmegaAttack.Legs;
         ImGui.SameLine();
         if (ImGui.RadioButton("Staff##form",      v == OmegaAttack.Staff))      Overrides.OmegaFForm = OmegaAttack.Staff;
+    }
+
+    private void DrawHelloWorld()
+    {
+        var h = Overrides.HelloWorld;
+        ImGui.TextUnformatted("Hello World:");
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Auto##hw", h == HelloWorldOption.Auto)) Overrides.HelloWorld = HelloWorldOption.Auto;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Near##hw", h == HelloWorldOption.Near)) Overrides.HelloWorld = HelloWorldOption.Near;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Far##hw",  h == HelloWorldOption.Far))  Overrides.HelloWorld = HelloWorldOption.Far;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("None##hw", h == HelloWorldOption.No))   Overrides.HelloWorld = HelloWorldOption.No;
+    }
+
+    private void DrawDynamis()
+    {
+        var d = Overrides.Dynamis;
+        ImGui.TextUnformatted("Start with Dynamis:");
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Auto##dyn", d == null))  Overrides.Dynamis = null;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Yes##dyn",  d == true))  Overrides.Dynamis = true;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("No##dyn",   d == false)) Overrides.Dynamis = false;
     }
 }
