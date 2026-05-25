@@ -1,6 +1,4 @@
-using AnoMech.Scenarios.Top;
-
-namespace AnoMech.Scenarios;
+namespace AnoMech.Scenarios.Top.P5Omega;
 
 public enum HelloWorldOrderOption { Auto, Any, First, Second, None }
 

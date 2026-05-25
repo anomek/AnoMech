@@ -146,8 +146,8 @@ public sealed class TopP5DeltaScenario : IScenario
     private void SpawnOmega()
     {
         omega = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.OmegaM,
-            NameId: BNpcNameId.OmegaM,
+            BNpcBaseId: BNpcBaseId.OmegaMDynamis,
+            NameId: BNpcNameId.OmegaMDynamis,
             Level: Level,
             Targetable: true,
             InitialModeAttributeFlags: 0x10,

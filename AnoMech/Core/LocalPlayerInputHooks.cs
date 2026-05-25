@@ -5,6 +5,7 @@ using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Input;
 
@@ -22,6 +23,17 @@ namespace AnoMech.Core;
 // will need to rev them together.
 public sealed unsafe class LocalPlayerInputHooks : IDisposable
 {
+    // Sprint normally requires a server round-trip: the client press is just an
+    // ActionRequest; the actual MoveSpeed buff arrives via the server's
+    // ActionEffect/StatusEffectList reply. ZoneSession's firewall drops both,
+    // so we re-implement that reply locally — see UseActionDetour.
+    internal const uint SprintActionId = 3;
+    internal const ushort SprintStatusId = 50;
+    // Sprint's OOC +30% MS magnitude. Real server-delivered Sprint ActionEffect
+    // carries Param2 = 0x1E = 30; the engine reads this off Status.Param to
+    // apply the speed modifier. Decoded from a real ACT log packet.
+    internal const ushort SprintStatusParam = 30;
+
     public bool DisableAllActions { get; set; }
     public bool ZeroMovement { get; set; }
 
@@ -112,7 +124,10 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     private bool UseActionDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, uint extraParam, ActionManager.UseActionMode mode, uint comboRouteId, bool* outOptAreaTargeted)
     {
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
-        return useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        if (result && actionType == ActionType.Action && actionId == SprintActionId)
+            ApplySprintLocally();
+        return result;
     }
 
     private bool UseActionLocationDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, Vector3* location, uint extraParam, byte a7)
@@ -127,5 +142,14 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     {
         if (!UIState.Instance()->WeaponState.AutoAttackState.IsAutoAttacking) return false;
         return actionType == ActionType.GeneralAction && actionId == 1;
+    }
+
+    // SimPlayer.StartSprint fires the synthetic ActionEffect; SimPlayer.TickSprint
+    // re-stamps the StatusManager slot each frame so the engine can't prune it.
+    // Both live in SimPlayer so the input hook stays a thin dispatcher.
+    private static void ApplySprintLocally()
+    {
+        Plugin.Log.Info("Applying Sprint locally");
+        Plugin.GameInstance?.Player?.StartSprint();
     }
 }

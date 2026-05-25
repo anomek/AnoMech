@@ -2200,11 +2200,10 @@ def emit_scenario_class(
     out.append("    private SimWorld world = null!;")
     out.append("    private SimParty party = null!;")
     out.append("")
-    out.append("    public void Run(SimWorld worldParam, PartyRole playerRole)")
+    out.append("    public void Run(SimWorld worldParam)")
     out.append("    {")
     out.append("        world = worldParam;")
     out.append("        party = worldParam.Party;")
-    out.append("        _ = playerRole;")
     out.append("")
     for npc in npcs:
         out.append(f"        {_method_name(fields_by_npc[id(npc)])}();")

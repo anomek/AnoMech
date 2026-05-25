@@ -49,6 +49,15 @@ public sealed unsafe class SimPlayer : SimPartySlot
     // "Down for the Count" (896) — IsPermanent + LockControl variant.
     private const ushort StunStatusId = 896;
 
+    // Sprint's sheet MaxDuration is 0 — duration normally comes from the
+    // server's ActionEffect payload, which our synthetic Receive doesn't
+    // preserve into the slot. Without per-frame re-stamping the engine
+    // prunes the row the very next StatusManager tick, dropping the speed
+    // _flags bit with it. 10s matches Sprint's in-combat duration, which
+    // is what the player is treated as inside our fake instance.
+    private const float SprintDuration = 10f;
+    private float sprintRemaining;
+
     private float deadElapsed;
 
     private Vector3? slideTarget;
@@ -150,6 +159,62 @@ public sealed unsafe class SimPlayer : SimPartySlot
         deadElapsed = 0f;
     }
 
+    // Sprint pressed inside a scenario — UseAction's outgoing packet is dropped
+    // by the firewall, so the engine never receives the ActionEffect that would
+    // normally apply status id 50. Synthesize that ActionEffect locally to set
+    // up the slot + speed _flags bit, then arm the timer so TickSprint can
+    // re-stamp it each frame against the engine's same-frame prune.
+    internal void StartSprint()
+    {
+        sprintRemaining = SprintDuration;
+        ActionEffects.FireSelfStatus(
+            BattleCharaPtr,
+            LocalPlayerInputHooks.SprintActionId,
+            LocalPlayerInputHooks.SprintStatusId,
+            (byte)LocalPlayerInputHooks.SprintStatusParam);
+    }
+
+    // Per-frame re-stamp keeps the Sprint slot alive against the engine's
+    // same-frame prune (Sprint's sheet MaxDuration is 0). If the engine has
+    // already pruned the slot by the time we run this frame, fall back to
+    // writing into the first empty slot — SetStatus with refreshFlags: true
+    // then re-asserts the speed bit in _flags. NumValidStatuses is bumped
+    // so the engine's enumerators see the re-allocated row.
+    private void TickSprint(float deltaSeconds)
+    {
+        if (sprintRemaining <= 0f) return;
+        sprintRemaining = MathF.Max(0f, sprintRemaining - deltaSeconds);
+
+        var bc = BattleCharaPtr;
+        if (bc == null) return;
+        var sm = &bc->StatusManager;
+
+        if (sprintRemaining == 0f)
+        {
+            Statuses.Remove((Character*)bc, LocalPlayerInputHooks.SprintStatusId);
+            return;
+        }
+
+        var idx = sm->GetStatusIndex(LocalPlayerInputHooks.SprintStatusId);
+        if (idx < 0)
+        {
+            for (int i = 0; i < sm->Status.Length; i++)
+            {
+                if (sm->Status[i].StatusId == 0) { idx = i; break; }
+            }
+            if (idx < 0) return;
+        }
+
+        sm->SetStatus(
+            idx,
+            LocalPlayerInputHooks.SprintStatusId,
+            sprintRemaining,
+            LocalPlayerInputHooks.SprintStatusParam,
+            bc->GetGameObjectId(),
+            refreshFlags: true);
+        if (sm->NumValidStatuses <= idx) sm->NumValidStatuses = (byte)(idx + 1);
+    }
+
     // Re-stamp BaseOverride after the intro fall so the engine can't pop the
     // player back to standing. Same delayed-pin pattern as SimPartyMember.
     public override void Tick(float deltaSeconds)
@@ -169,6 +234,7 @@ public sealed unsafe class SimPlayer : SimPartySlot
 
         base.Tick(deltaSeconds);
         AdvanceSlide(deltaSeconds);
+        TickSprint(deltaSeconds);
         if (!Dead) return;
         deadElapsed += deltaSeconds;
         if (deadElapsed >= KoAnimation.IntroDurationSeconds) KoAnimation.PinLoop(BattleCharaPtr);
@@ -189,6 +255,16 @@ public sealed unsafe class SimPlayer : SimPartySlot
         // Game.ResetInternal, so don't touch it here.
         slideTarget = null;
         slideOwnsZeroMovement = false;
+        // Clear any synthetic Sprint we applied so a mid-sprint reset doesn't
+        // carry the buff into the next run. Gated on sprintRemaining so we
+        // only touch the slot if we know we wrote one — won't strip a real
+        // server-delivered Sprint if the player resets outside our scenarios.
+        if (sprintRemaining > 0f)
+        {
+            var bc = BattleCharaPtr;
+            if (bc != null) Statuses.Remove((Character*)bc, LocalPlayerInputHooks.SprintStatusId);
+            sprintRemaining = 0f;
+        }
         if (!Dead) return;
         KoAnimation.Revive(BattleCharaPtr);
         Dead = false;

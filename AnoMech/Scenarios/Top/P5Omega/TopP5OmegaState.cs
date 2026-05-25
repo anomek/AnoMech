@@ -1,9 +1,7 @@
-using System;
 using System.Collections.Generic;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios.Top;
 
-namespace AnoMech.Scenarios;
+namespace AnoMech.Scenarios.Top.P5Omega;
 
 public sealed record MonitorSide(int Mul, uint ActionId)
 {

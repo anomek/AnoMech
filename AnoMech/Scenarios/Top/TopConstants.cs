@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.SimObjects;
+using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top;
 
@@ -13,6 +15,17 @@ public sealed record OmegaAttack(byte AttributeFlags, uint ActionId)
     public static readonly OmegaAttack Shield = new(0,  TopConstants.ActionId.BeyondStrength);
 }
 
+public sealed record GlitchType(ushort StatusId, Predicate<SimTether> Condition)
+{
+    public static readonly GlitchType Mid = new(TopConstants.StatusId.MidGlitch,
+                                                tether => tether.StretchGt(Geometry.MidGlitchMaxDistance) ||
+                                                          tether.StretchLt(Geometry.MidGlitchMinDistance));
+
+    public static readonly GlitchType Far = new(TopConstants.StatusId.FarGlitch,
+                                                tether => tether.StretchLt(Geometry.FarGlitchMinDistance));
+}
+
+
 // All IDs and tunables for The Omega Protocol (Ultimate), in one flat class.
 // One name per value. Values in decimal.
 public static class TopConstants
@@ -21,9 +34,13 @@ public static class TopConstants
 
     public static class BNpcBaseId
     {
-        public const uint OmegaM = 15720;             // boss-rank Omega-M (4000A63C)
-        public const uint OmegaF = 15722;             // boss-rank Omega-F
+        public const uint OmegaMDynamis = 15720;             // boss-rank Omega-M (4000A63C)
+        public const uint OmegaFDynamis = 15722;             // boss-rank Omega-F
         public const uint OmegaM_3D69 = 15721;
+        public const uint OmegaM = 15712;         // P2 boss-rank Omega
+        public const uint Omega_3D61 = 15713;         // P2 variant
+        public const uint OmegaM_3D62 = 15714;        // P2 Omega-M
+        public const uint OmegaF_3D63 = 15715;        // P2 Omega-F
         public const uint OmegaHelper = 9020;         // 0x233C — generic invisible helper used by all phases
         public const uint BeetleHelper = 15724;       // 0x3D6C — beetle / sigma helper visual
         public const uint FinalHelper = 14669;        // 0x394D — wave cannon spinner / ultimate visual
@@ -38,8 +55,11 @@ public static class TopConstants
 
     public static class BNpcNameId
     {
-        public const uint OmegaM = 12257;
-        public const uint OmegaF = 12258;
+        public const uint OmegaMDynamis = 12257;
+        public const uint OmegaFDynamis = 12258;
+        public const uint OmegaM = 7633;         // P2 Omega-M
+        public const uint OmegaF = 7634;         // P2 Omega-F
+        public const uint OmegaM_1DD3 = 7635;          // P2 Omega
         public const uint OmegaBeetle = 7695;
         public const uint OmegaFinal = 7636;
         public const uint RightArmUnit = 7638;        // 0x1DD6 — log name for BNpc 0x3D67
@@ -119,6 +139,8 @@ public static class TopConstants
         public const uint SolarRay = 33196;
         public const uint SolarRay_7B01 = 31489;
         public const uint SolarRay_7B02 = 31490;
+        public const uint SolarRay_7E6A = 32362;
+        public const uint SolarRay_7E6B = 32363;
         public const uint SolarRay_81AD = 33197;
 
         // -- Critical bugs --
@@ -128,18 +150,27 @@ public static class TopConstants
         // -- Misc --
         public const uint BallisticImpact = 31500;
         public const uint Blaster = 32374;
+        public const uint Blaster_7B0A = 31498;
         public const uint BlasterEffect = 31641;
         public const uint BlasterAoe = 32373;
         public const uint FlameThrower = 32368;
-        public const uint SubjectSimulationF = 32559;
+        public const uint FlameThrower_7B0D = 31501;
+        public const uint SubjectSimulationFDynamis = 32559;
+        public const uint SubjectSimulationF = 31515;
         public const uint ProgramLoop = 31640;
         public const uint Teleport7b42 = 31554;                     // Omega-M teleport
         public const uint Teleport7b43 = 31555;
         public const uint Unknown7b14 = 31508;
         public const uint Unknown7b15 = 31509;
         public const uint Unknown7b16 = 31510;
+        public const uint Unknown7b17 = 31511;
+        public const uint Unknown7b1d = 31517;
+        public const uint Unknown7b1e = 31518;
+        public const uint Unknown7b1f = 31519;
         public const uint Unknown7b20 = 31520;
         public const uint Unknown7b85 = 31621;
+        public const uint Unknown7bfe = 31742;
+        public const uint Unknown7bff = 31743;
         public const uint Unknown7c01 = 31745;
         public const uint Unknown7c02 = 31746;
         public const uint Unknown7f30 = 32560;
@@ -154,6 +185,17 @@ public static class TopConstants
         public const uint SwivelCannonL = 31637;
         public const uint HwTetherBreak = 31587;                    // Helper->self, no cast, range 100 circle — raidwide hit on tether break
         public const uint HwTetherFail = 32505;                     // Helper->self, no cast, range 100 circle — wipe when a tether expires unbroken
+
+        // -- P2 Party Synergy --
+        public const uint Firewall = 31552;
+        public const uint Firewall_7B41 = 31553;
+        public const uint PartySynergy = 31550;
+        public const uint PartySynergy_7B3F = 31551;
+        public const uint Spotlight = 31536;
+        public const uint SubjectSimulationM = 31516;
+        public const uint CondensedWaveCannonKyrios = 31503;
+        public const uint DiffuseWaveCannonKyrios = 31504;
+        public const uint GuidedMissileKyrios = 31502;
     }
 
     public static class StatusId
@@ -177,6 +219,7 @@ public static class TopConstants
         public const ushort FarGlitch = 3428;
         public const ushort OmegaF = 1675;
         public const ushort OmegaM = 1674;
+        public const ushort OmegaM_D7E = 3454;                      // P2 Omega-M form status
         public const ushort Superfluid = 1676;
         public const ushort FirstInLine = 3004;
         public const ushort SecondInLine = 3005;
@@ -206,6 +249,7 @@ public static class TopConstants
         public const uint RotateCw = 156;                           // vfx/lockon/eff/m0515_turning_right01c.avfx
         public const uint RotateCcw = 157;                          // vfx/lockon/eff/m0515_turning_left01c.avfx
         public const uint X_157 = 343;
+        public const uint Stack = 100;
         public const uint PlaystationX = 419;
         public const uint PlaystationSq = 418;
         public const uint PlaystationO = 416;
@@ -263,7 +307,8 @@ public static class TopConstants
 
     public static class BgmId
     {
-        public const ushort TopP5 = 964;                            // P5 content scene BGM
+        public const ushort TopP5 = 964; 
+        public const ushort TopP2 = 587;
     }
 
     public static class Duration

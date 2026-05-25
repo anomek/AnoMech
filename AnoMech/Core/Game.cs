@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
+using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
+using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
 
 namespace AnoMech.Core;
@@ -53,6 +56,7 @@ public sealed class Game : IDisposable
         opcodeUpdater = new OpcodeUpdater();
         Scenarios = new IScenario[]
         {
+            new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
             new TopP5OmegaScenario(),
@@ -82,6 +86,7 @@ public sealed class Game : IDisposable
         World.PlaceWaymarks(scenario.Waymarks);
         var party = World.CreateParty(player.ClassJob.RowId, roleOverride);
         scenario.Run(World);
+        ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;
 
@@ -93,6 +98,22 @@ public sealed class Game : IDisposable
             Type = XivChatType.SystemMessage,
             Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {scenario.Name}").Build(),
         });
+    }
+
+    // Sprint goes on cooldown when the player presses it inside a scenario
+    // (LocalPlayerInputHooks lets Original run so the recast starts). Clear it
+    // here so each scenario starts with Sprint ready, regardless of whether
+    // the player pressed it just before clicking Start.
+    private static unsafe void ResetSprintCooldown()
+    {
+        var am = ActionManager.Instance();
+        if (am == null) return;
+        var group = am->GetRecastGroup((int)ActionType.Action, LocalPlayerInputHooks.SprintActionId);
+        if (group < 0) return;
+        var detail = am->GetRecastGroupDetail(group);
+        if (detail == null) return;
+        detail->IsActive = false;
+        detail->Elapsed = 0f;
     }
 
     private Vector3 ResolveScenarioOrigin(IScenario scenario, Vector3 playerPosition)

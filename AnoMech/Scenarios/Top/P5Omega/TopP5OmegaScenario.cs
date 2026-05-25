@@ -17,10 +17,9 @@ using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios.Top;
 using static AnoMech.Scenarios.Top.TopConstants;
 
-namespace AnoMech.Scenarios;
+namespace AnoMech.Scenarios.Top.P5Omega;
 
 public sealed class TopP5OmegaScenario : IScenario
 {
@@ -111,7 +110,7 @@ public sealed class TopP5OmegaScenario : IScenario
     private void Run_Omega_M_4000A63C()
     {
         SimEnemy? omega_M_4000A63C = null;
-        world.Events.Add(0, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x10, BNpcBaseId: BNpcBaseId.OmegaF, NameId: BNpcNameId.OmegaF, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(-000f, -0.000f, 0.000f), MathF.PI))));
+        world.Events.Add(0, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x10, BNpcBaseId: BNpcBaseId.OmegaFDynamis, NameId: BNpcNameId.OmegaFDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(-000f, -0.000f, 0.000f), MathF.PI))));
         world.Events.Add(1.15f, () => omega_M_4000A63C?.Cast(ActionId.RunMiOmegaVersion, targetLocation: new Vector3(-0.008f, -0.015f, -0.008f), castSeconds: 4.700f, targetId: omega_M_4000A63C?.GameObjectId));
         world.Events.Add(6f, () => omega_M_4000A63C?.Follow(party.Get(PartyRole.MainTank)));
         world.Events.Add(6.81f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
@@ -134,8 +133,8 @@ public sealed class TopP5OmegaScenario : IScenario
 
     private void Run_Omega_F_4000A72A()
     {
-        uint[] bNpcBaseIds = [BNpcBaseId.OmegaF, BNpcBaseId.OmegaM, BNpcBaseId.OmegaF, BNpcBaseId.OmegaM];
-        uint[] bNpcNameIds = [BNpcNameId.OmegaF, BNpcNameId.OmegaM, BNpcNameId.OmegaF, BNpcNameId.OmegaM];
+        uint[] bNpcBaseIds = [BNpcBaseId.OmegaFDynamis, BNpcBaseId.OmegaMDynamis, BNpcBaseId.OmegaFDynamis, BNpcBaseId.OmegaMDynamis];
+        uint[] bNpcNameIds = [BNpcNameId.OmegaFDynamis, BNpcNameId.OmegaMDynamis, BNpcNameId.OmegaFDynamis, BNpcNameId.OmegaMDynamis];
         float[] timeOffset = [-3.95f, -3.95f, 0f, 0f];
         for (var i = 0; i < 4; i++)
         {
@@ -312,7 +311,7 @@ public sealed class TopP5OmegaScenario : IScenario
             var helper2 = i  % 2 == 0 ? nearHelper2 : farHelper2;
             var dynamisOffset = dynamisOffsets[i];
             
-            world.Events.Add(26.92f + offset, () => omega_F_4000A40B_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaF, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: direction.Apply(Geometry.SuperliminalSteelOmenPlacement))));
+            world.Events.Add(26.92f + offset, () => omega_F_4000A40B_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaFDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: direction.Apply(Geometry.SuperliminalSteelOmenPlacement))));
             if (superliminalSteel[i])
                 world.Events.Add(26.96f + offset, () => omega_F_4000A40B_2?.Cast(omenId, targetLocation: direction.Apply(target), omenDelay: Duration.OmegaAttackOmenDelay, castSeconds: 1.200f, targetId: omega_F_4000A40B_2?.GameObjectId));
             

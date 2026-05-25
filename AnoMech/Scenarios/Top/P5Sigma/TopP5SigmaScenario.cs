@@ -105,7 +105,7 @@ public sealed class TopP5SigmaScenario : IScenario
     private void Run_Omega_M_4000A63C()
     {
         SimEnemy? omega_M_4000A63C = null;
-        world.Events.Add(0f, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaM, NameId: BNpcNameId.OmegaM, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x32)));
+        world.Events.Add(0f, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaMDynamis, NameId: BNpcNameId.OmegaMDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x32)));
         world.Events.Add(0.1f, () => omega_M_4000A63C?.AddStatus(StatusId.OmegaM));
         world.Events.Add(2.46f, () => omega_M_4000A63C?.Cast(ActionId.Teleport7b42, castSeconds: 0f, targetLocation: Vector3.Zero));
         world.Events.Add(3.75f, () => omega_M_4000A63C?.Cast(ActionId.RunMiSigmaVersion, castSeconds: 4.700f));
@@ -113,7 +113,7 @@ public sealed class TopP5SigmaScenario : IScenario
         world.Events.Add(11.87f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.WarpOut));
         world.Events.Add(13f, () => omega_M_4000A63C?.SetPosition(state.NewNorthA.Apply(new Placement(new(0f, 0f, -20f), 0f))));
         world.Events.Add(13.96f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
-        world.Events.Add(26.16f, () => omega_M_4000A63C?.Cast(ActionId.SubjectSimulationF, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
+        world.Events.Add(26.16f, () => omega_M_4000A63C?.Cast(ActionId.SubjectSimulationFDynamis, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
         world.Events.Add(27.25f, () => omega_M_4000A63C?.SetTransformationId(493));
         world.Events.Add(27.23f, () => omega_M_4000A63C?.SetModelState(0x06));
         
@@ -140,7 +140,7 @@ public sealed class TopP5SigmaScenario : IScenario
         {
             omega_M_4000A63C?.Despawn();
             var position = state.NewNorthB.Apply(new Placement(new Vector3(0f, 0f, -10f), 0));
-            omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: state.OmegaFAttack.AttributeFlags, BNpcBaseId: BNpcBaseId.OmegaF, NameId: BNpcNameId.OmegaF, Level: 90, Targetable: false, EnemyList: EnemyListMode.Always, IsVisible: false, Placement: position));
+            omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: state.OmegaFAttack.AttributeFlags, BNpcBaseId: BNpcBaseId.OmegaFDynamis, NameId: BNpcNameId.OmegaFDynamis, Level: 90, Targetable: false, EnemyList: EnemyListMode.Always, IsVisible: false, Placement: position));
         });
         world.Events.Add(45.97f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(46.93f, () => omega_M_4000A63C?.SetVisible(true));
@@ -224,7 +224,7 @@ public sealed class TopP5SigmaScenario : IScenario
     private void Run_Omega_M_4000A40C_0()
     {
         SimEnemy? omega_M_4000A40C_0 = null;
-        world.Events.Add(1f, () => omega_M_4000A40C_0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaM, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 0f), 0f)))));
+        world.Events.Add(1f, () => omega_M_4000A40C_0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaMDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 0f), 0f)))));
         world.Events.Add(27.14f, () => omega_M_4000A40C_0?.Cast(ActionId.Unknown7b14, castSeconds: 0f, targetId: omega_M_4000A40C_0?.GameObjectId));
     }
 
@@ -393,7 +393,7 @@ public sealed class TopP5SigmaScenario : IScenario
         if (state.OmegaFAttack == OmegaAttack.Legs)
         {
             SimEnemy? omega_F_4000A40B_2 = null;
-            world.Events.Add(59.62f, () => omega_F_4000A40B_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaF, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenPlacement))));
+            world.Events.Add(59.62f, () => omega_F_4000A40B_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaFDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenPlacement))));
             world.Events.Add(59.66f, () => omega_F_4000A40B_2?.Cast(ActionId.SuperliminalSteelOmenR, targetLocation: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenTargetR), castSeconds: 1.200f, targetId: omega_F_4000A40B_2?.GameObjectId, omenDelay: Duration.OmegaAttackOmenDelay));
         }
     }
@@ -403,7 +403,7 @@ public sealed class TopP5SigmaScenario : IScenario
         if (state.OmegaFAttack == OmegaAttack.Legs)
         {
             SimEnemy? omega_F_4000A40C_2 = null;
-            world.Events.Add(59.62f, () => omega_F_4000A40C_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaF, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenPlacement))));
+            world.Events.Add(59.62f, () => omega_F_4000A40C_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaFDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenPlacement))));
             world.Events.Add(59.66f, () => omega_F_4000A40C_2?.Cast(ActionId.SuperliminalSteelOmenL, targetLocation: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenTargetL), castSeconds: 1.200f, targetId: omega_F_4000A40C_2?.GameObjectId, omenDelay: Duration.OmegaAttackOmenDelay));
         }
     }

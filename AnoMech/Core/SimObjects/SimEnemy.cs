@@ -46,9 +46,6 @@ public record struct EnemySpawnConfig(
 
 public sealed unsafe class SimEnemy : SimNpc
 {
-    // Monotonically increasing across all enemies; mirrors what the server's GlobalSequence does.
-    private static uint NextGlobalSequence = 1;
-
     private bool casting;
     private float castElapsed;
     private float castTotal;
@@ -635,7 +632,7 @@ public sealed unsafe class SimEnemy : SimNpc
         else
             header.AnimationTargetId = chara->GetGameObjectId();
         header.ActionId = actionId;
-        header.GlobalSequence = NextGlobalSequence++;
+        header.GlobalSequence = ActionEffects.NextGlobalSequence++;
         header.AnimationLock = 0f;
         header.BallistaEntityId = 0xE0000000;
         header.SourceSequence = 0;

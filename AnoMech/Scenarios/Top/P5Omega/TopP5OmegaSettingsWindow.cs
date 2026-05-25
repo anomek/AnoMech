@@ -1,8 +1,7 @@
 using System;
-using AnoMech.Scenarios.Top;
 using Dalamud.Bindings.ImGui;
 
-namespace AnoMech.Scenarios;
+namespace AnoMech.Scenarios.Top.P5Omega;
 
 public sealed class TopP5OmegaSettingsWindow
 {

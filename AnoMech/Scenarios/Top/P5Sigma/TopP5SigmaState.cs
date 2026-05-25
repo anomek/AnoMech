@@ -14,16 +14,6 @@ namespace AnoMech.Scenarios.Top.P5Sigma
         public static readonly Rotation CounterClockwise = new(1,  TopConstants.LockonId.RotateCcw);
     }
 
-    public sealed record GlitchType(ushort StatusId, Predicate<SimTether> Condition)
-    {
-        public static readonly GlitchType Mid = new(TopConstants.StatusId.MidGlitch,
-                                                    tether => tether.StretchGt(Geometry.MidGlitchMaxDistance) ||
-                                                              tether.StretchLt(Geometry.MidGlitchMinDistance));
-
-        public static readonly GlitchType Far = new(TopConstants.StatusId.FarGlitch,
-                                                    tether => tether.StretchLt(Geometry.FarGlitchMinDistance));
-    }
-
     public sealed class TopP5SigmaState
     {
         private readonly Rng rng = new();

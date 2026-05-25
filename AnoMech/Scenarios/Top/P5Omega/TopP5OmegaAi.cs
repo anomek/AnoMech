@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios.Top;
 
-namespace AnoMech.Scenarios;
+namespace AnoMech.Scenarios.Top.P5Omega;
 
 public class TopP5OmegaAi
 {
