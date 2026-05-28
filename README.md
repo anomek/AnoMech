@@ -41,15 +41,18 @@ See: https://github.com/anomek/MyDalamudPlugins
 * Supports client-side zone loading — practice inside the instance without a full party
 
 Currently implemented:
- - The Omega Protocol (Ultimate) — P5 Delta
- - The Omega Protocol (Ultimate) — P5 Sigma
- - The Omega Protocol (Ultimate) — P5 Omega
+ - The Omega Protocol (Ultimate):
+   - P2 Party Synergy
+   - P5 Delta
+   - P5 Sigma
+   - P5 Omega
 
 ## Known issues
 * Crashes ;(
-* Sprint doesn't work
+* Minor visual and timing issues may occur
 * In scenarios for Top Omega Protocol (Ultimate):
   * Tether distance threshold are very rough estimations
+  * Line AOE from Optiocal Unit (eye) doesn't render
 
 ## Acknowledgments
 
