@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
+using AnoMech.Core.Game.Ai;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Top.P5Sigma;
@@ -23,8 +25,8 @@ public sealed class TopP5SigmaAi
     public void Run(SimWorld world)
     {
         var ai = new AiManager(world);
-        
-;       var handBait = state.DynamisTargets.Random(2, state.HelloWorldTargets.List);
+
+        var handBait = state.DynamisTargets.Random(2, state.HelloWorldTargets.List);
         var hWJumpsOrder = RoleList.AllExcept(world.Party, state.HelloWorldTargets.List.Concat(handBait.List).ToArray());
         markingsOrder = new(world.Party, [handBait[0], hWJumpsOrder[0], handBait[1], hWJumpsOrder[1],
                         hWJumpsOrder[2], hWJumpsOrder[3], state.HelloWorldTargets[0], state.HelloWorldTargets[1]]);
@@ -43,9 +45,9 @@ public sealed class TopP5SigmaAi
         ai.Move(73f, InitialPositions);
     }
 
-    private AiMove InitialPositions()
+    private IAiMove InitialPositions()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-2.10f, -5.08f),
             new(2.10f, -5.08f),
             new(-0.7f, 5.7f),
@@ -54,24 +56,24 @@ public sealed class TopP5SigmaAi
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f)
-        );
+        ).NaturalOrder();
     }
 
-    private AiMove LineupNextToOmegaM()
+    private IAiMove LineupNextToOmegaM()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-2, -18), new(2, -18),
             new(-2, -15), new(2, -15),
             new(-2, -13), new(2, -13),
             new(-2, -11), new(2, -11)
-        ).Apply(
-            state.NewNorthA.Apply,
-            state.Order.Reorder);
+        )
+        .Assignments(state.Order.List)
+        .ApplyPositions(state.NewNorthA.Apply);
     }
 
-    private AiMove WaveCannonSpread()
+    private IAiMove WaveCannonSpread()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(0f, -12.5f),  // N
             new(8.8f, -8.8f), // NE
             new(12.5f, 0f),   // E
@@ -80,16 +82,28 @@ public sealed class TopP5SigmaAi
             new(-8.8f, 8.8f), // SW
             new(-12.5f, 0f),  // W
             new(-8.8f, -8.8f) // NW
-        ).Apply(
-            FarGlitchWaveCannonAdjustment,
-            WaveCannonShuffle,
-            state.NewNorthA.Apply,
-            state.Order.Reorder);
+        )
+        .Assignments(WaveCannonAssignments())
+        .ApplyPositions(FarGlitchWaveCannonAdjustment, state.NewNorthA.Apply);
+    }
+    
+    private IReadOnlyList<PartyRole> WaveCannonAssignments()
+    {
+        return [
+            state.FullPair(0).left,
+            state.HalfPair(1).baiting,
+            state.FullPair(1).right,
+            state.HalfPair(0).marked,
+            state.FullPair(0).right,
+            state.HalfPair(1).marked,
+            state.FullPair(1).left,
+            state.HalfPair(0).baiting,
+        ];
     }
 
-    private AiMove KnockbackPrePosition()
+    private IAiMove KnockbackPrePosition()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(0f, -4f),     // N (absolute)
             new(2.8f, -2.8f), // NE
             new(4f, 0f),      // E
@@ -98,16 +112,16 @@ public sealed class TopP5SigmaAi
             new(-2.8f, 2.8f), // SW
             new(-4f, 0f),     // W
             new(-2.8f, -2.8f) // NW
-        ).Apply(
-            AbsoluteToRelativeClockSpot,
-            WaveCannonShuffle,
-            state.Order.Reorder);
+        )
+        .Assignments(WaveCannonAssignments())
+        .ApplySwaps(AbsoluteToRelativeClockSpot);
     }
+    
 
-    private AiMove KnockbackPosition()
+    private IAiMove KnockbackPosition()
     {
         return (state.GlitchType == GlitchType.Mid
-                    ? new AiMove(
+                    ? AiMove.Create(
                         new(-1.5f, 0.7f),  // A
                         new(-0.7f, -1.5f), // 1
                         new(-0.7f, 1.5f),  // B
@@ -117,7 +131,7 @@ public sealed class TopP5SigmaAi
                         new(1.5f, 0.7f),  //D
                         new(1.5f, 0.7f)   //4
                     )
-                    : new AiMove(
+                    : AiMove.Create(
                         new (-1.8f, 0),    // A
                         new (0, -1.8f),    // 1
                         new (-1.2f, 1.2f), // B
@@ -127,17 +141,16 @@ public sealed class TopP5SigmaAi
                         new(1.8f, 0),      // D
                         new (1.2f, 1.2f)   // 4
                     )
-               ).Apply(
-            AbsoluteToRelativeClockSpot,
-            WaveCannonShuffle,
-            state.AdjustedNorthA.Apply,
-            state.Order.Reorder);
+               )
+               .Assignments(WaveCannonAssignments())
+               .ApplySwaps(AbsoluteToRelativeClockSpot)
+               .ApplyPositions(state.AdjustedNorthA.Apply);
     }
-    
-    private AiMove TowerPositions()
+
+    private IAiMove TowerPositions()
     {
         return (state.GlitchType == GlitchType.Mid
-                    ? new AiMove(
+                    ? AiMove.Create(
                         new(-15.7f, 6.5f),  // A
                         new(-6.5f, -15.7f), // 1
                         new(-6.5f, 15.7f),  // B
@@ -147,7 +160,7 @@ public sealed class TopP5SigmaAi
                         new(15.7f, 6.5f),   //D
                         new(15.7f, 6.5f)    //4
                     )
-                    : new AiMove(
+                    : AiMove.Create(
                         new (-19f, -1),    // A
                         new (1, -19f),    // 1
                         new (-13.7f, 13.1f), // B
@@ -157,13 +170,12 @@ public sealed class TopP5SigmaAi
                         new(19f, -1),      // D
                         new (13.7f, 13.1f)   // 4
                     )
-               ).Apply(
-            AbsoluteToRelativeClockSpot,
-            WaveCannonShuffle,
-            state.AdjustedNorthA.Apply,
-            state.Order.Reorder);
+               )
+               .Assignments(WaveCannonAssignments())
+               .ApplySwaps(AbsoluteToRelativeClockSpot)
+               .ApplyPositions(state.AdjustedNorthA.Apply);
     }
-    
+
     private Dictionary<PartyRole, Sign> MarkerMapping()
     {
         return new Dictionary<PartyRole, Sign>()
@@ -178,10 +190,10 @@ public sealed class TopP5SigmaAi
             [markingsOrder[7]] = Sign.Cross,
         };
     }
-    
-    private AiMove RearLasersPrePosition()
+
+    private IAiMove RearLasersPrePosition()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(6.5f, -17),
             new(6.5f, -17),
             new(6.5f, -17),
@@ -190,36 +202,33 @@ public sealed class TopP5SigmaAi
             new(-6.5f, 17),
             new(-6.5f, 17),
             new(-6.5f, 17)
-        ).Apply(
-            SpinnerRotation,
-            state.NewNorthB.Apply,
-            markingsOrder.Reorder
-        );
+        )
+        .Assignments(markingsOrder.List)
+        .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);
     }
-    
-    private AiMove AdjustForLegs()
-    {
-        return state.OmegaFAttack == OmegaAttack.Staff ? new AiMove()
-                   : new AiMove(
-                       new(2f, -18f),
-                       new(2f, -18f),
-                       new(2f, -18f),
-                       new (-2f, 18f),
-                       new (-2f, 18f),
-                       new (-2f, 18f),
-                       new (-2f, 18f),
-                       new (-2f, 18f)
-            ).Apply(
-                SpinnerRotation,
-                state.NewNorthB.Apply,
-                markingsOrder.Reorder
-        );
-    }
-    
 
-    private AiMove HelloWorldPositions()
+    private IAiMove AdjustForLegs()
     {
-        return new AiMove(
+        return state.OmegaFAttack == OmegaAttack.Staff
+            ? AiMove.Create().NaturalOrder()
+            : AiMove.Create(
+                new(2f, -18f),
+                new(2f, -18f),
+                new(2f, -18f),
+                new (-2f, 18f),
+                new (-2f, 18f),
+                new (-2f, 18f),
+                new (-2f, 18f),
+                new (-2f, 18f)
+            )
+            .Assignments(markingsOrder.List)
+            .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);
+    }
+
+
+    private IAiMove HelloWorldPositions()
+    {
+        return AiMove.Create(
             new(-13.5f, -14.2f),
             new(0, -19.5f),
             new(13.5f, -14.2f),
@@ -228,41 +237,25 @@ public sealed class TopP5SigmaAi
             new(0, 19.5f),
             new(10f, 0),
             new(0f, 10f)
-        ).Apply(
-            SpinnerRotation,
-            state.NewNorthB.Apply,
-            markingsOrder.Reorder
-        );
+        )
+        .Assignments(markingsOrder.List)
+        .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);
     }
 
-    private void WaveCannonShuffle(AiMove move)
+    private void AbsoluteToRelativeClockSpot(IAiRoles s)
     {
-        move.Reorder([0, 4, 7, 3, 1, 5, 6, 2]);
-
-        if (state.FirstMissing % 2 == 1) move.Swap(2, 3);
-        if (state.SecondMissing % 2 == 1) move.Swap(4, 5);
-
-        HashSet<int> missingPairs = [state.FirstMissing / 2, state.SecondMissing / 2];
-        var i = 0;
-        while (missingPairs.Contains(i++)) move.SwapPair(i, i - 1);
-        i = 3;
-        while (missingPairs.Contains(i--)) move.SwapPair(i, i + 1);
+        s.Offset(-state.NewNorthA.Index());
     }
 
-    private void AbsoluteToRelativeClockSpot(AiMove move)
-    {
-        move.OffsetOrder(state.NewNorthA.Index);
-    }
-
-    private void FarGlitchWaveCannonAdjustment(AiMove move)
+    private void FarGlitchWaveCannonAdjustment(IAiPositions move)
     {
         if (state.GlitchType == GlitchType.Far)
         {
             move.Multiply(1.5f); // goes to wall
         }
     }
-    
-    private void SpinnerRotation(AiMove move)
+
+    private void SpinnerRotation(IAiPositions move)
     {
         move.MultiplyX(state.SpinnerRotation.Mul);
     }

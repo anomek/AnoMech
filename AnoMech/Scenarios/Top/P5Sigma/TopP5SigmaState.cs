@@ -1,17 +1,14 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using AnoMech.Core;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
-using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Sigma
 {
     public sealed record Rotation(float Mul, uint LockonId)
     {
         public static readonly Rotation Clockwise = new(-1, TopConstants.LockonId.RotateCw);
-        public static readonly Rotation CounterClockwise = new(1,  TopConstants.LockonId.RotateCcw);
+        public static readonly Rotation CounterClockwise = new(1, TopConstants.LockonId.RotateCcw);
     }
 
     public sealed class TopP5SigmaState
@@ -26,11 +23,11 @@ namespace AnoMech.Scenarios.Top.P5Sigma
         public GlitchType GlitchType { get; }
 
 
-        public EightWayDirection NewNorthA { get; }
+        public Direction NewNorthA { get; }
 
-        public EightWayDirection AdjustedNorthA => TowerNorthFlipped ? NewNorthA.Flip() : NewNorthA;
+        public Direction AdjustedNorthA => TowerNorthFlipped ? NewNorthA.Flip() : NewNorthA;
 
-        public EightWayDirection NewNorthB { get; }
+        public Direction NewNorthB { get; }
         public bool TowerNorthFlipped { get; }
         public Rotation SpinnerRotation { get; }
         public OmegaAttack OmegaFAttack { get; }
@@ -38,10 +35,10 @@ namespace AnoMech.Scenarios.Top.P5Sigma
         public RoleList HelloWorldTargets { get; }
 
         public readonly Tower?[] Towers;
-    
+
         public int FirstMissing;
         public int SecondMissing;
-        
+
         public TopP5SigmaState(SimParty party, TopP5SigmaStateOverrides overrides)
         {
             Order = RoleList.Random(party);
@@ -62,12 +59,15 @@ namespace AnoMech.Scenarios.Top.P5Sigma
             HelloWorldTargets = new RoleListBuilder()
             {
                 Size = 2,
-                ForcePlayerIndex = overrides.HelloWorld switch { HelloWorldOption.Near => [0], HelloWorldOption.Far => [1], _ => [] },
+                ForcePlayerIndex = overrides.HelloWorld switch
+                {
+                    HelloWorldOption.Near => [0], HelloWorldOption.Far => [1], _ => []
+                },
                 IncludePlayer = overrides.HelloWorld switch { HelloWorldOption.No => false, _ => null }
             }.Build(party);
-            
+
             Towers = (GlitchType == GlitchType.Mid ? MidGlitchTowers : FarGlitchTowers)
-                     .Select(t => t == null ? t : t with {Position = AdjustedNorthA.Apply(t.Position) })
+                     .Select(t => t == null ? t : t with { Position = AdjustedNorthA.Apply(t.Position) })
                      .ToArray();
         }
 
@@ -111,6 +111,26 @@ namespace AnoMech.Scenarios.Top.P5Sigma
             FirstMissing = skip1;
             SecondMissing = skip2;
             return RoleList.AllExcept(tethers.Party, tethers[skip1], tethers[skip2]);
+        }
+
+        public (PartyRole left, PartyRole right) FullPair(int index)
+        {
+            int i;
+            for (i = 0; i < 4; i++)
+            {
+                if (i == FirstMissing / 2 || i == SecondMissing / 2) continue;
+                else if (index == 0) break;
+                else index--;
+            }
+
+            return (Order[2 * i], Order[2 * i + 1]);
+        }
+
+        public (PartyRole baiting, PartyRole marked) HalfPair(int index)
+        {
+            var missing = (index == 0) ^ (FirstMissing > SecondMissing) ? FirstMissing : SecondMissing;
+            var other = missing % 2 == 0 ? missing + 1 : missing - 1;
+            return (Order[missing], Order[other]);
         }
     }
 }

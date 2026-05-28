@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game.Party;
 using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Delta;
@@ -12,28 +13,24 @@ public sealed class Side
     public uint DeltaOversampledWaveCannonActionId { get; }
     public uint SwivelCannonActionId { get; }
     public ushort MonitorDebuffId { get; }
-    public string MonitorVfxPath { get; }
     public int Mul { get; }
     public uint ArmUnitId { get; }
     public uint ArmUnitNameId { get; }
     public uint RotateLockonId { get; }
 
-    private Side(uint waveCannonActionId, uint swivelCannonActionId, ushort monitorDebuffId, string monitorVfxPath, int mul, uint armUnitId, uint armUnitNameId, uint rotateLockonId)
+    private Side(uint waveCannonActionId, uint swivelCannonActionId, ushort monitorDebuffId, int mul, uint armUnitId, uint armUnitNameId, uint rotateLockonId)
     {
         DeltaOversampledWaveCannonActionId = waveCannonActionId;
         SwivelCannonActionId = swivelCannonActionId;
         MonitorDebuffId = monitorDebuffId;
-        MonitorVfxPath = monitorVfxPath;
         Mul = mul;
         ArmUnitId = armUnitId;
         ArmUnitNameId = armUnitNameId;
         RotateLockonId = rotateLockonId;
     }
 
-    // StatusLoopVFX rows 534/535 → VFX rows 1591/1592 → these files. The m0771
-    // prefix on the filename is just naming convention; the file lives under common/.
-    public static readonly Side Right = new(ActionId.OversampledWaveCannonRight, ActionId.SwivelCannonR, StatusId.PlayerMonitorRight, "vfx/common/eff/m0771stlp3c0c.avfx", -1, TopConstants.BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw);
-    public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, "vfx/common/eff/m0771stlp4c0c.avfx", 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
+    public static readonly Side Right = new(ActionId.OversampledWaveCannonRight, ActionId.SwivelCannonR, StatusId.PlayerMonitorRight,  -1, BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw);
+    public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
 }
 
 public record NorthSouth(float Mul, byte EffectIndex)
@@ -53,12 +50,14 @@ public sealed class TopP5DeltaState
     public Side OmegaMonitorSide { get; }
     public Side PlayerMonitorSide { get; }
     public int PlayerMonitorIndex { get; }   // 0..3
+    
+    public PartyRole PlayerMonitorRole => TetherOrder[PlayerMonitorIndex];
     public int NearWorldTetherIndex { get; } // 0..3, distinct from FarWorldTetherIndex
     public int FarWorldTetherIndex { get; }  // 0..3, distinct from NearWorldTetherIndex
 
     public bool? BeyondDefenceForPlayer { get; }
 
-    public PartyRole? BeyondDefenseTarget { get; set; }
+    public PartyRole BeyondDefenseTarget { get; set; }
     public PartyRole NearWorldRole { get; set; }
     public PartyRole FarWorldRole { get; set; }
     public bool PunchExplosionUnmitigated { get; set; }
@@ -66,9 +65,8 @@ public sealed class TopP5DeltaState
 
     public int BeyondDefenseIndex()
     {
-        if (BeyondDefenseTarget is not { } target) return 0;
         return TetherOrder.Select((role, i) => (role, i))
-                          .Where(t => t.role == target)
+                          .Where(t => t.role == BeyondDefenseTarget)
                           .Select(t => t.i)
                           .FirstOrDefault(0);
     }

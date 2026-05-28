@@ -1,54 +1,79 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using AnoMech.Core;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 
 namespace AnoMech.Scenarios;
 
-public sealed record EightWayDirection(string Name, float RadiansFromNorth, int Index)
+public record Direction
 {
-    public static readonly EightWayDirection N = new("N", 0f, 0);
-    public static readonly EightWayDirection NE = new("NE", MathF.PI * 1f / 4f, 1);
-    public static readonly EightWayDirection E = new("E", MathF.PI * 2f / 4f, 2);
-    public static readonly EightWayDirection SE = new("SE", MathF.PI * 3f / 4f, 3);
-    public static readonly EightWayDirection S = new("S", MathF.PI * 4f / 4f, 4);
-    public static readonly EightWayDirection SW = new("SW", MathF.PI * 5f / 4f, 5);
-    public static readonly EightWayDirection W = new("W", MathF.PI * 6f / 4f, 6);
-    public static readonly EightWayDirection NW = new("NW", MathF.PI * 7f / 4f, 7);
-    public static readonly IReadOnlyList<EightWayDirection> All = [N, NE, E, SE, S, SW, W, NW];
-    public static readonly IReadOnlyList<EightWayDirection> Intercardinal = [NE, SE, SW, NW];
-    public static readonly IReadOnlyList<EightWayDirection> Cardinal = [N, E, S, W];
+    public static readonly Direction N = new(0f);
+    public static readonly Direction NE = new(MathF.PI * 1f / 4f);
+    public static readonly Direction E = new(MathF.PI * 2f / 4f);
+    public static readonly Direction SE = new(MathF.PI * 3f / 4f);
+    public static readonly Direction S = new(MathF.PI * 4f / 4f);
+    public static readonly Direction SW = new(MathF.PI * 5f / 4f);
+    public static readonly Direction W = new(MathF.PI * 6f / 4f);
+    public static readonly Direction NW = new(MathF.PI * 7f / 4f);
+    public static readonly IReadOnlyList<Direction> All = [N, NE, E, SE, S, SW, W, NW];
+    public static readonly IReadOnlyList<Direction> Intercardinal = [NE, SE, SW, NW];
+    public static readonly IReadOnlyList<Direction> Cardinal = [N, E, S, W];
+
+    private static readonly string[] Names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    
+    public float RadiansFromNorth { get; private init; }
+
+    public Direction(float radians)
+    {
+        var tau = 2f * MathF.PI;
+        radians %= tau;
+        RadiansFromNorth = radians < 0 ? radians + tau : radians;
+    }
 
     public Placement Apply(Placement placement)
     {
         return placement.RotateAroundOrigin(RadiansFromNorth);
     }
-    
+
     public Vector3 Apply(Vector3 placement)
     {
         return new Placement(placement, 0).RotateAroundOrigin(RadiansFromNorth).Position;
     }
-    
+
     public Vector3? Apply(Vector3? placement)
     {
         return placement == null ? null : Apply(placement.Value);
     }
-    
-    public void Apply(AiMove move)
+
+    public void Apply(IAiPositions positions)
     {
-        move.Rotate(RadiansFromNorth);
+        positions.Rotate(RadiansFromNorth);
+    }
+
+    // Rotates by `count` eighths (45°) around the compass wheel.
+    public Direction Rotate(int count)
+    {
+        return new Direction(RadiansFromNorth + count * MathF.PI / 4f);
     }
     
-    public EightWayDirection Rotate(int count)
+    public Direction RotateRad(float radians)
     {
-        var max = All.Count;
-        return All[(((Index + count) % max) + max) % max];
+        return new Direction(RadiansFromNorth + radians);
     }
-    
-    public EightWayDirection Flip()
+
+    public Direction Flip()
     {
-        return All[(Index + 4) % 8];
+        return new Direction(RadiansFromNorth + MathF.PI);
     }
+
+    // Octant index 0..7 (N=0, NE=1, …, NW=7), derived from the angle.
+    public int Index()
+    {
+        return ((int)MathF.Round(RadiansFromNorth / (MathF.PI / 4f)) % 8 + 8) % 8;
+    }
+
+    public string Name() => Names[Index()];
 }
 
 public record Tower(Vector3 Position, int MinPlayers);

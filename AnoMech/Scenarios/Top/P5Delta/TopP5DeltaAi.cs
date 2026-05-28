@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game.Ai;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants.Geometry;
 
@@ -34,7 +36,7 @@ public sealed class TopP5DeltaAi
         ai.Move(50f, RescueUnsafe);
         ai.Move(56f, ReturnToMiddle);
         ai.Move(56.5f, TankForward);
-        ai.Move(59.5f, BreakLastTether);
+        ai.Move(60.0f, BreakLastTether);
     }
 
 
@@ -43,35 +45,34 @@ public sealed class TopP5DeltaAi
         this.state = state;
     }
 
-    private void Swap01(AiMove move)
+    private void Swap01(IAiRoles s)
     {
         if (state.FistColors[0] == state.FistColors[2])
-            move.Swap(0, 1);
+            s.ByPosition(0, 1);
     }
 
-    private void Swap45(AiMove move)
+    private void Swap45(IAiRoles s)
     {
         if (state.FistColors[4] == state.FistColors[6])
-            move.Swap(4, 5);
+            s.ByPosition(4, 5);
     }
 
-    private void BeyondDefence(AiMove move)
+    private void BeyondDefence(IAiPositions move)
     {
-        Plugin.Log.Info($"Beyond defense index: {state.BeyondDefenseIndex()}");
-        move.Swap(0, state.BeyondDefenseIndex());
+        move.AddX(state.BeyondDefenseTarget, 13f);
     }
 
-    private void PlayerMonitorOffset(AiMove move)
+    private void PlayerMonitorOffset(IAiPositions move)
     {
-        move.AddY(state.PlayerMonitorIndex, 2);
+        move.AddY(state.PlayerMonitorRole, 2);
     }
 
-    private void PlayerMonitorFacing(AiMove move)
+    private void PlayerMonitorFacing(IAiPositions move)
     {
-        move.AddX(state.PlayerMonitorIndex, 1.2f * state.PlayerMonitorSide.Mul * state.OmegaMonitorSide.Mul);
+        move.AddX(state.PlayerMonitorRole, 1.2f * state.PlayerMonitorSide.Mul * state.OmegaMonitorSide.Mul);
     }
 
-    private void OmegaMonitorSafeSide(AiMove move)
+    private void OmegaMonitorSafeSide(IAiPositions move)
     {
         var mul = -state.OmegaMonitorSide.Mul * state.EyeSpawn.Mul;
         move.MultiplyY(0, mul);
@@ -80,37 +81,36 @@ public sealed class TopP5DeltaAi
         move.MultiplyY(3, mul);
     }
 
-    private void SwivelSafeSide(AiMove move)
+    private void SwivelSafeSide(IAiPositions move)
     {
         move.MultiplyY(state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
     }
 
-    private void SwivelAdjustments(AiMove move)
+    private void SwivelSwaps(IAiRoles s)
     {
-        move.Swap(0, state.FarWorldTetherIndex);
-        move.Swap(state.FarWorldTetherIndex == 1 ? 0 : 1, state.NearWorldTetherIndex);
+        s.ByRole(state.TetherOrder[0], state.FarWorldRole);
+        s.ByRole(state.FarWorldTetherIndex == 1 ? state.TetherOrder[0] : state.TetherOrder[1] , state.NearWorldRole);
+        // make safe side plant consistent for Swivel Cannon
+        if (state.SwivelCannonSide.Mul * state.EyeSpawn.Mul > 0)
+            s.ByPosition(6, 7);
+    }
+
+    private void SwivelCannonAdjust(IAiPositions move)
+    {
         var cannonMul = state.SwivelCannonSide.Mul * state.EyeSpawn.Mul;
-        // 4/5 does not to be adjusted by swivel side, so unadjust it
+        // 4/5 should not be adjusted by swivel side, so pre-unadjust it
         move.MultiplyY(4, cannonMul);
         move.MultiplyY(5, cannonMul);
-        // make safe side plant consistent for Swivel Cannon
-        if (cannonMul > 0)
-            move.Swap(6, 7);
     }
 
-    private void TetherAssignment(AiMove move)
-    {
-        move.Reorder(state.TetherOrder.Select(role => (int)role).ToArray());
-    }
-
-    private void AdjustEyePosition(AiMove move)
+    private void AdjustEyePosition(IAiPositions move)
     {
         move.MultiplyX(state.EyeSpawn.Mul);
     }
 
-    private AiMove InitialPositions()
+    private IAiMove InitialPositions()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-2.10f, -5.08f),
             new(2.10f, -5.08f),
             new(-0.7f, 5.7f),
@@ -119,12 +119,12 @@ public sealed class TopP5DeltaAi
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f)
-        );
+        ).NaturalOrder();
     }
 
-    private AiMove TetherPrePosition()
+    private IAiMove TetherPrePosition()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-6f, -3f),
             new(-6f, 3f),
             new(-10f, -7f),
@@ -133,15 +133,14 @@ public sealed class TopP5DeltaAi
             new(4f, 6f),
             new(9.5f, -10f),
             new(9.5f, 10f)
-        ).Apply(
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplyPositions(AdjustEyePosition);
     }
 
-    private AiMove FistResolveSlots()
+    private IAiMove FistResolveSlots()
     {
-        return new AiMove(
+        return AiMove.Create(
             new Vector2(-10f, -3f),
             new Vector2(-10f, 3f),
             null,
@@ -150,27 +149,27 @@ public sealed class TopP5DeltaAi
             new Vector2(8.5f, 10f),
             null,
             null
-        ).Apply(
-            AdjustEyePosition,
-            Swap01,
-            Swap45,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(Swap01, Swap45)
+        .ApplyPositions(AdjustEyePosition);
     }
 
-    private AiMove TetherResolveStep()
+    private IAiMove TetherResolveStep()
     {
-        return new AiMove(
+        return AiMove.Create(
             null, null,
             new(-10f, -3f),
             new(-10f, 3f),
             null, null, null, null
-        ).Apply(AdjustEyePosition, TetherAssignment);
+        )
+        .Assignments(state.TetherOrder)
+        .ApplyPositions(AdjustEyePosition);
     }
 
-    private AiMove HyperPulseBaitArms()
+    private IAiMove HyperPulseBaitArms()
     {
-        return new AiMove(
+        return AiMove.Create(
             ArmUnitPlacements.Select((placement, i) =>
                                          placement.MoveForward(0.5f)
                                                   .RotateAroundOrigin(
@@ -180,17 +179,16 @@ public sealed class TopP5DeltaAi
                              .Prepend(new Vector2(0f, -6f))
                              .Cast<Vector2?>()
                              .ToArray()
-        ).Apply(
-            AdjustEyePosition,
-            Swap01,
-            Swap45,
-            TetherAssignment);
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(Swap01, Swap45)
+        .ApplyPositions(AdjustEyePosition);
     }
 
-    private AiMove HyperPulseDodge()
+    private IAiMove HyperPulseDodge()
     {
-        return new AiMove(
-            new(13f, 1f), // beyond defense spot
+        return AiMove.Create(
+            new(0, 1f), 
             new(0, 1f),
             new(0, 1f),
             new(0, 1f),
@@ -198,51 +196,41 @@ public sealed class TopP5DeltaAi
             new(0, 12),
             new(9, -10),
             new(9, 10)
-        ).Apply(
-            BeyondDefence,
-            PlayerMonitorOffset,
-            OmegaMonitorSafeSide,
-            Swap45,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(Swap45)
+        .ApplyPositions(BeyondDefence, PlayerMonitorOffset, OmegaMonitorSafeSide, AdjustEyePosition);
     }
 
-    private AiMove MonitorPositions()
+    private IAiMove MonitorPositions()
     {
-        return new AiMove(
+        return AiMove.Create(
             null, null, null, null,
             new(-10, -12),
             new(-10, 12),
             new(10, -12),
             new(10, 12)
-        ).Apply(
-            Swap45,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(Swap45)
+        .ApplyPositions(AdjustEyePosition);
     }
 
-    private AiMove MonitorAdjustment()
+    private IAiMove MonitorAdjustment()
     {
-        return new AiMove(
-            new(13f, 1f), // beyond defense spot
-            new(0, 1f),
-            new(0, 1f),
-            new(0, 1f)
-        ).Apply(
+        return AiMove.Single(state.PlayerMonitorRole, new(0f, 1f))
+        .ApplyPositions(
             BeyondDefence,
             PlayerMonitorOffset,
             PlayerMonitorFacing, // move monitor player a little so they face their monitor properly
             OmegaMonitorSafeSide,
-            AdjustEyePosition,
-            TetherAssignment
+            AdjustEyePosition
         );
     }
 
-    private AiMove SwivelDodge()
+    private IAiMove SwivelDodge()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(0f, 19f), // far
             new(0f, 6f),  // near
             new(9.5f, 17f),
@@ -251,65 +239,55 @@ public sealed class TopP5DeltaAi
             new(-9.5f, 9.5f),
             new(16f, 10f),
             new(-19f, 1f)
-        ).Apply(
-            SwivelAdjustments,
-            Swap45,
-            SwivelSafeSide,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(SwivelSwaps, Swap45)
+        .ApplyPositions(SwivelCannonAdjust, SwivelSafeSide, AdjustEyePosition);
     }
 
-    private AiMove RescueUnsafe()
+    private IAiMove RescueUnsafe()
     {
         return AiMove.Single(
             state.SwivelCannonSide.Mul * state.EyeSpawn.Mul > 0 ? 4 : 5,
             new(-9.5f, 3.5f)
-        ).Apply(
-            Swap45,
-            SwivelSafeSide,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(Swap45)
+        .ApplyPositions(SwivelSafeSide, AdjustEyePosition);
     }
 
-    private AiMove ReturnToMiddle()
+    private IAiMove ReturnToMiddle()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-0.7f, 5.7f),
             new(-0.7f, 6.5f),
             new(-0.7f, 7.3f),
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f),
-            new(8f, 0f),
-            new(-9f, -3f)
-        ).Apply(
-            SwivelSafeSide,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+            new(8f, 4f),
+            new(-9f, 1f)
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(SwivelSwaps)
+        .ApplyPositions(SwivelSafeSide, AdjustEyePosition);
     }
 
-    private AiMove TankForward()
+    private IAiMove TankForward()
     {
-        return AiMove.Single(1, new(0, -5.5f)
-        ).Apply(
-            SwivelSafeSide,
-            AdjustEyePosition
-        );
+        return AiMove.Single(PartyRole.OffTank, new(0, -8f))
+            .ApplyPositions(SwivelSafeSide, AdjustEyePosition);
     }
 
-    private AiMove BreakLastTether()
+    private IAiMove BreakLastTether()
     {
-        return new AiMove(
+        return AiMove.Create(
             null, null, null, null, null, null,
             new(4f, 2.7f),
             new(-4f, 2.5f)
-        ).Apply(
-            SwivelSafeSide,
-            AdjustEyePosition,
-            TetherAssignment
-        );
+        )
+        .Assignments(state.TetherOrder)
+        .ApplySwaps(SwivelSwaps)
+        .ApplyPositions(SwivelSafeSide, AdjustEyePosition);
     }
 }

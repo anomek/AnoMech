@@ -85,10 +85,10 @@ public sealed class TopP5OmegaSettingsWindow
         ImGui.TextUnformatted("Beetle spawn:");
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##beetle", Overrides.BettleSpawnDirection == null)) Overrides.BettleSpawnDirection = null;
-        foreach (var d in EightWayDirection.Cardinal)
+        foreach (var d in Direction.Cardinal)
         {
             ImGui.SameLine();
-            if (ImGui.RadioButton($"{d.Name}##beetle", Overrides.BettleSpawnDirection == d)) Overrides.BettleSpawnDirection = d;
+            if (ImGui.RadioButton($"{d.Name()}##beetle", Overrides.BettleSpawnDirection == d)) Overrides.BettleSpawnDirection = d;
         }
     }
 

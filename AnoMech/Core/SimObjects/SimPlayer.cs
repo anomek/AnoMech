@@ -1,273 +1,65 @@
 using System;
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
 
-// The real local player as a SimCharacter — lets scenarios apply VFX and
-// statuses to the player uniformly with spawned NPCs, and lets SimTether /
-// SimStatus take a single SimCharacter argument either side.
-//
-// Owned by SimWorld as a permanent fixture. Move/MoveTo inherit the no-op
-// defaults from SimCharacter — we can't move the real player. Despawn clears
-// our overlays (attached VFX, pinned statuses) but doesn't touch the real
-// player object.
-public sealed unsafe class SimPlayer : SimPartySlot
+public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coordinates), ISimPartyMember
 {
-    private static GameObject* RawObject => (GameObject*)(Plugin.ObjectTable.LocalPlayer?.Address ?? 0);
+    private const ushort StunStatusId = 896;  // "Down for the Count" (896) — IsPermanent + LockControl variant.
+    
+    public PartyRole Role { get; set; }
+    public bool Dead { get; private set; }
 
-    internal override BattleChara* BattleCharaPtr => (BattleChara*)RawObject;
+    internal override BattleChara* BattleCharaPtr => (BattleChara*)(Plugin.ObjectTable.LocalPlayer?.Address ?? 0);
 
-    public override GameObjectId GameObjectId
-    {
-        get
-        {
-            var obj = RawObject;
-            return obj == null ? default : obj->GetGameObjectId();
-        }
-    }
+    private protected override PlayerMovement Movement => field ??= new PlayerMovement(this);
 
-    public uint EntityId
-    {
-        get
-        {
-            var obj = RawObject;
-            return obj == null ? 0u : obj->EntityId;
-        }
-    }
+    public void Knockback(Vector3 source, float distance, float speed) => Movement.Knockback(source, distance, speed);
 
-    public override float HitboxRadius
-    {
-        get
-        {
-            var chara = BattleCharaPtr;
-            return chara == null ? 0f : chara->HitboxRadius;
-        }
-    }
-
-    // "Down for the Count" (896) — IsPermanent + LockControl variant.
-    private const ushort StunStatusId = 896;
-
-    // Sprint's sheet MaxDuration is 0 — duration normally comes from the
-    // server's ActionEffect payload, which our synthetic Receive doesn't
-    // preserve into the slot. Without per-frame re-stamping the engine
-    // prunes the row the very next StatusManager tick, dropping the speed
-    // _flags bit with it. 10s matches Sprint's in-combat duration, which
-    // is what the player is treated as inside our fake instance.
-    private const float SprintDuration = 10f;
-    private float sprintRemaining;
-
-    private float deadElapsed;
-
-    private Vector3? slideTarget;
-    private float slideSpeed;
-    // True while the slide is what enabled ZeroMovement, so we only clear the
-    // flag on slide-end when we were the one who flipped it on — avoids
-    // stomping OnKilled / external callers that also use the same flag.
-    private bool slideOwnsZeroMovement;
-
-    // Writing directly to the local player's GameObject is only safe while the
-    // simulator owns the zone (our client-side fake instance); doing it in a
-    // real duty would desync against the server. Outside the fake instance
-    // this is a no-op.
-    //
-    // Tick-driven slide rather than snap: stash target + speed and advance the
-    // player's position toward the target each Tick. ZeroMovement is enabled
-    // for the duration so RMI walk input doesn't fight the slide; cleared on
-    // arrival when the slide is what enabled it.
-    public override void Knockback(Vector3 source, float distance, float speed)
-    {
-        if (!Plugin.GameInstance.World.Map.IsInInstance) return;
-        var current = Position;
-        var dx = current.X - source.X;
-        var dz = current.Z - source.Z;
-        var distSq = dx * dx + dz * dz;
-        if (distSq < 1e-6f) return;
-        var scale = distance / MathF.Sqrt(distSq);
-        slideTarget = new Vector3(
-            current.X + dx * scale,
-            current.Y,
-            current.Z + dz * scale);
-        slideSpeed = MathF.Max(0f, speed);
-        var hooks = Plugin.GameInstance?.PlayerInputHooks;
-        if (hooks != null && !hooks.ZeroMovement)
-        {
-            hooks.ZeroMovement = true;
-            slideOwnsZeroMovement = true;
-        }
-    }
-
-    private void AdvanceSlide(float deltaSeconds)
-    {
-        if (slideTarget is not { } target) return;
-        var obj = RawObject;
-        if (obj == null) { ClearSlide(); return; }
-
-        var current = Position;
-        var dx = target.X - current.X;
-        var dz = target.Z - current.Z;
-        var distSq = dx * dx + dz * dz;
-        var step = slideSpeed * deltaSeconds;
-        Vector3 nextLocal;
-        if (distSq <= step * step || step <= 0f)
-        {
-            nextLocal = new Vector3(target.X, current.Y, target.Z);
-            ClearSlide();
-        }
-        else
-        {
-            var dist = MathF.Sqrt(distSq);
-            nextLocal = new Vector3(
-                current.X + dx / dist * step,
-                current.Y,
-                current.Z + dz / dist * step);
-        }
-        Position = nextLocal;
-        var world = Plugin.GameInstance.World.ToWorld(nextLocal);
-        obj->SetPosition(world.X, world.Y, world.Z);
-        if (obj->DrawObject != null) obj->DrawObject->Object.Position = world;
-    }
-
-    private void ClearSlide()
-    {
-        slideTarget = null;
-        if (!slideOwnsZeroMovement) return;
-        var hooks = Plugin.GameInstance?.PlayerInputHooks;
-        if (hooks != null) hooks.ZeroMovement = false;
-        slideOwnsZeroMovement = false;
-    }
-
-    internal override void OnKilled()
-    {
-        // KO takes over ZeroMovement; drop any in-flight slide so AdvanceSlide
-        // doesn't clear the flag we're about to rely on.
-        slideTarget = null;
-        slideOwnsZeroMovement = false;
-
-        var hooks = Plugin.GameInstance?.PlayerInputHooks;
-        if (hooks != null)
-        {
-            hooks.DisableAllActions = true;
-            hooks.ZeroMovement = true;
-        }
-        AddStatus(StunStatusId, 0);
-        // Visual KO pose only — leave HP alone (the server owns it). Input
-        // lockout above is what actually keeps the player still long enough
-        // for the prone pose to read.
-        KoAnimation.Play(BattleCharaPtr);
-        deadElapsed = 0f;
-    }
-
-    // Sprint pressed inside a scenario — UseAction's outgoing packet is dropped
-    // by the firewall, so the engine never receives the ActionEffect that would
-    // normally apply status id 50. Synthesize that ActionEffect locally to set
-    // up the slot + speed _flags bit, then arm the timer so TickSprint can
-    // re-stamp it each frame against the engine's same-frame prune.
-    internal void StartSprint()
-    {
-        sprintRemaining = SprintDuration;
-        ActionEffects.FireSelfStatus(
-            BattleCharaPtr,
-            LocalPlayerInputHooks.SprintActionId,
-            LocalPlayerInputHooks.SprintStatusId,
-            (byte)LocalPlayerInputHooks.SprintStatusParam);
-    }
-
-    // Per-frame re-stamp keeps the Sprint slot alive against the engine's
-    // same-frame prune (Sprint's sheet MaxDuration is 0). If the engine has
-    // already pruned the slot by the time we run this frame, fall back to
-    // writing into the first empty slot — SetStatus with refreshFlags: true
-    // then re-asserts the speed bit in _flags. NumValidStatuses is bumped
-    // so the engine's enumerators see the re-allocated row.
-    private void TickSprint(float deltaSeconds)
-    {
-        if (sprintRemaining <= 0f) return;
-        sprintRemaining = MathF.Max(0f, sprintRemaining - deltaSeconds);
-
-        var bc = BattleCharaPtr;
-        if (bc == null) return;
-        var sm = &bc->StatusManager;
-
-        if (sprintRemaining == 0f)
-        {
-            Statuses.Remove((Character*)bc, LocalPlayerInputHooks.SprintStatusId);
-            return;
-        }
-
-        var idx = sm->GetStatusIndex(LocalPlayerInputHooks.SprintStatusId);
-        if (idx < 0)
-        {
-            for (int i = 0; i < sm->Status.Length; i++)
-            {
-                if (sm->Status[i].StatusId == 0) { idx = i; break; }
-            }
-            if (idx < 0) return;
-        }
-
-        sm->SetStatus(
-            idx,
-            LocalPlayerInputHooks.SprintStatusId,
-            sprintRemaining,
-            LocalPlayerInputHooks.SprintStatusParam,
-            bc->GetGameObjectId(),
-            refreshFlags: true);
-        if (sm->NumValidStatuses <= idx) sm->NumValidStatuses = (byte)(idx + 1);
-    }
-
-    // Re-stamp BaseOverride after the intro fall so the engine can't pop the
-    // player back to standing. Same delayed-pin pattern as SimPartyMember.
+    // The player's input lock is a pure function of its own state, re-derived
+    // every tick: movement is frozen while KO'd or being force-slid by a
+    // knockback; actions are blocked only while KO'd. base.Tick advances Movement
+    // first, so a slide that arrives this frame has already cleared IsMoving.
     public override void Tick(float deltaSeconds)
     {
-        // Re-sync stored Position/Rotation from the real player's GameObject.
-        // The engine moves the local player every frame in response to input;
-        // without this re-sync, anything reading SimPlayer.Position would see
-        // stale data from the last mutator call. SimPlayer doesn't hold a
-        // SimWorld reference (chicken-and-egg at construction), but
-        // GameInstance.World is live by the time Tick runs.
-        var obj = RawObject;
-        if (obj != null)
-        {
-            Position = Plugin.GameInstance.World.ToLocal(obj->Position);
-            Rotation = obj->Rotation;
-        }
-
         base.Tick(deltaSeconds);
-        AdvanceSlide(deltaSeconds);
-        TickSprint(deltaSeconds);
-        if (!Dead) return;
-        deadElapsed += deltaSeconds;
-        if (deadElapsed >= KoAnimation.IntroDurationSeconds) KoAnimation.PinLoop(BattleCharaPtr);
+        SyncInputLock();
     }
 
-    // SimPlayer is a permanent singleton on SimWorld — unlike SimPartyMember
-    // (which is destroyed on reset), the same instance persists across runs.
-    // So Despawn must actively unwind the dead state we wrote: play the
-    // revive animation (clearing BaseOverride alone leaves the prone loop
-    // playing), reset Dead, and zero the elapsed counter so the next kill
-    // replays the intro from the start. Input-hook flags are cleared
-    // separately by Game.ResetInternal.
+    public void OnKilled()
+    {
+        Dead = true;
+        StopMoving();
+        AddStatus(StunStatusId);
+        this.PlayKoActionTimeline();
+        SyncInputLock(); // engage the lock now, not one frame later
+    }
+
     public override void Despawn()
     {
         base.Despawn();
-        // Drop slide state so a reset mid-knockback doesn't leave a stale
-        // target driving the player on the next run. ZeroMovement is reset by
-        // Game.ResetInternal, so don't touch it here.
-        slideTarget = null;
-        slideOwnsZeroMovement = false;
-        // Clear any synthetic Sprint we applied so a mid-sprint reset doesn't
-        // carry the buff into the next run. Gated on sprintRemaining so we
-        // only touch the slot if we know we wrote one — won't strip a real
-        // server-delivered Sprint if the player resets outside our scenarios.
-        if (sprintRemaining > 0f)
+        StopMoving();
+        if (Dead)
         {
-            var bc = BattleCharaPtr;
-            if (bc != null) Statuses.Remove((Character*)bc, LocalPlayerInputHooks.SprintStatusId);
-            sprintRemaining = 0f;
+            ResetActionTimeline();
+            PlayActionTimeline(77); // revive
+            Dead = false;
         }
-        if (!Dead) return;
-        KoAnimation.Revive(BattleCharaPtr);
-        Dead = false;
-        deadElapsed = 0f;
+        // No SimPlayer ticks between a reset and the next scenario, so the lock
+        // must be cleared here — otherwise a die-then-reset leaves the player
+        // input-locked in the inn.
+        SyncInputLock();
+    }
+
+    private void SyncInputLock()
+    {
+        var hooks = Plugin.PlayerInputHooks;
+        hooks.ZeroMovement = Dead || Movement.IsMoving;
+        hooks.DisableAllActions = Dead;
     }
 }

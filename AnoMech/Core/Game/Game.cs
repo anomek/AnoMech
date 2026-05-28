@@ -1,19 +1,20 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
-using Dalamud.Game.Text;
-using Dalamud.Game.Text.SeStringHandling;
-using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.UI;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
+using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game;
 
 // High-level orchestrator: owns the World, holds the scenario catalog, drives
 // the active scenario's lifecycle, and is the single entry point UI talks to.
@@ -27,7 +28,6 @@ public sealed class Game : IDisposable
     public SimWorld World { get; }
     public SimPlayer? Player => World.Party.Player;
     public IReadOnlyList<IScenario> Scenarios { get; }
-    public LocalPlayerInputHooks PlayerInputHooks { get; }
     public Bgm Bgm { get; } = new();
 
     // Multiplier applied only to the EventScheduler's delta. Intentionally does not
@@ -52,7 +52,6 @@ public sealed class Game : IDisposable
     public Game()
     {
         World = new SimWorld(Events);
-        PlayerInputHooks = new LocalPlayerInputHooks(Plugin.GameInterop);
         opcodeUpdater = new OpcodeUpdater();
         Scenarios = new IScenario[]
         {
@@ -70,6 +69,15 @@ public sealed class Game : IDisposable
 
     private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride)
     {
+        // Hard gate: scenarios are only ever run from an inn. Everything
+        // downstream (CharacterManager registration, zone load, doppel spawn)
+        // assumes that invariant.
+        if (!ZoneSession.IsInInn())
+        {
+            Plugin.Log.Warning("Game: scenarios can only run from an inn; aborting.");
+            return;
+        }
+
         ResetInternal();
 
         var player = Plugin.ObjectTable.LocalPlayer;
@@ -80,17 +88,22 @@ public sealed class Game : IDisposable
         }
 
         World.HideObject(ExitObjectBaseId);
-        foreach (var baseId in scenario.HiddenBaseIds) World.HideObject(baseId);
         World.Map.TryLoad(scenario.TargetInstance);
-        World.ScenarioOrigin = ResolveScenarioOrigin(scenario, player.Position);
+        World.ScenarioOrigin = scenario.TargetInstance.Origin;
         World.PlaceWaymarks(scenario.Waymarks);
         var party = World.CreateParty(player.ClassJob.RowId, roleOverride);
+        TeleportPlayerToSpawn(scenario);   // begin every run at the canonical spawn point
         scenario.Run(World);
         ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;
 
-        if (!Plugin.Config.SuppressBgm && scenario.Bgm != 0)
+        // Reconcile BGM to the new scenario. Bgm.Play is idempotent, so switching
+        // between same-track scenarios (e.g. the P5 phases) keeps playing without
+        // restarting the song; a different track swaps; suppressed/no-track reverts.
+        if (Plugin.Config.SuppressBgm || scenario.Bgm == 0)
+            Bgm.Reset();
+        else
             Bgm.Play(scenario.Bgm);
 
         Plugin.ChatGui.Print(new XivChatEntry
@@ -116,17 +129,6 @@ public sealed class Game : IDisposable
         detail->Elapsed = 0f;
     }
 
-    private Vector3 ResolveScenarioOrigin(IScenario scenario, Vector3 playerPosition)
-    {
-        if (World.Map.IsInInstance && scenario.TargetInstance is { } target)
-            return new Vector3(target.Origin.X, target.Origin.Y, target.Origin.Z);
-        var territory = Plugin.ClientState.TerritoryType;
-        foreach (var ovr in scenario.OriginOverrides)
-            if (ovr.TerritoryId == territory)
-                return new Vector3(ovr.X, playerPosition.Y, ovr.Z);
-        return playerPosition;
-    }
-
     public void Tick(float deltaSeconds)
     {
         if (Paused) return;
@@ -142,10 +144,10 @@ public sealed class Game : IDisposable
     // Single entry point for "this character died". Always posts the cause
     // to chat and, on the first call of a run, fires the on-screen overlay
     // — both happen even in godmode so the user can learn what would have
-    // killed them. Gameplay side effects (Dead/OnKilled, 5s freeze) only
-    // run outside godmode; the freeze fires once per run on the first
-    // non-godmode death.
-    public void Kill(SimCharacter target, string cause)
+    // killed them. Gameplay side effects (OnKilled, which flips Dead, plus
+    // the 5s freeze) only run outside godmode; the freeze fires once per run
+    // on the first non-godmode death.
+    public void Kill(ISimPartyMember target, string cause)
     {
         if (target == null) return;
         if (target.Dead) return;
@@ -158,7 +160,6 @@ public sealed class Game : IDisposable
         }
 
         if (GodMode) return;
-        target.Dead = true;
         target.OnKilled();
         if (!firstFreezeScheduled)
         {
@@ -167,7 +168,7 @@ public sealed class Game : IDisposable
         }
     }
 
-    private static void PrintDeath(SimCharacter target, string cause)
+    private static void PrintDeath(ISimPartyMember target, string cause)
     {
         Plugin.ChatGui.Print(new XivChatEntry
         {
@@ -176,22 +177,42 @@ public sealed class Game : IDisposable
         });
     }
 
-    private static string DescribeName(SimCharacter target) => target switch
+    private static string DescribeName(ISimPartyMember target) => target switch
     {
         SimPlayer => "You",
-        SimPartyMember pm => pm.DisplayName,
-        SimEnemy se => se.DisplayName,
+        SimPartyNpc pm => pm.DisplayName,
         _ => "Character",
     };
 
-    private static unsafe void ShowFirstDeathOverlay(SimCharacter target, string cause)
+    private static unsafe void ShowFirstDeathOverlay(ISimPartyMember target, string cause)
     {
         var ui = UIModule.Instance();
         if (ui == null) return;
         ui->ShowErrorText($"{DescribeName(target)} died: {cause}", true);
     }
 
-    public void Reset() => Plugin.Framework.Run(ResetInternal);
+    public void Reset() => Plugin.Framework.Run(() =>
+    {
+        TeleportPlayerToSpawnIfOutsideArena();
+        ResetInternal();
+        Bgm.Reset();
+    });
+
+    // On reset, pull the player back to the scenario's spawn point if they ended up
+    // outside the arena ring (e.g. knocked out of bounds). Must run before
+    // ResetInternal clears activeScenario / Party / ScenarioOrigin.
+    private void TeleportPlayerToSpawnIfOutsideArena()
+    {
+        if (activeScenario is not { } scenario) return;
+        if (Player is not { } player) return;
+        if (!World.IsOutsideArena(player.Position)) return;
+        TeleportPlayerToSpawn(scenario);
+    }
+
+    // Place the local player at the scenario's spawn point. ScenarioOrigin must already
+    // be set so the world<->local conversion resolves correctly.
+    private void TeleportPlayerToSpawn(IScenario scenario)
+        => Player?.SetPosition(World.Coordinates.ToLocal(scenario.TargetInstance.PlayerPosition));
 
     // Leave returns to the inn. Only meaningful when IsInInstance is true.
     // Resets the encounter first, then reverts the zone — Reset stays in-zone.
@@ -200,6 +221,7 @@ public sealed class Game : IDisposable
         Plugin.Framework.Run(() =>
         {
             ResetInternal();
+            Bgm.Reset();
             World.Map.Unload();
         });
     }
@@ -209,14 +231,16 @@ public sealed class Game : IDisposable
         activeScenario = null;
         scenarioElapsed = 0f;
         Events.Clear();
-        World.Reset();
-        Bgm.Reset();
+        World.Despawn();
+        // BGM is owned by the callers: a scenario start reconciles it to the new
+        // track (keeping it playing when unchanged); Reset/Leave stop it. Resetting
+        // here would force a same-track restart on every scenario switch.
 
         Paused = false;
         firstDeathScheduled = false;
         firstFreezeScheduled = false;
-        PlayerInputHooks.DisableAllActions = false;
-        PlayerInputHooks.ZeroMovement = false;
+        // Input-lock flags are owned by SimPlayer (reconciled each tick, cleared on
+        // its Despawn during World.Reset above) — nothing to clear here.
     }
 
     // Plugin.Dispose is invoked on the framework thread during unload — run
@@ -229,7 +253,6 @@ public sealed class Game : IDisposable
         Events.Clear();
         Bgm.Dispose();
         World.Dispose();
-        PlayerInputHooks.Dispose();
         opcodeUpdater.Dispose();
     }
 }

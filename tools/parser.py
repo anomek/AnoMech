@@ -2172,6 +2172,7 @@ def emit_scenario_class(
     out.append("using System.Collections.Generic;")
     out.append("using System.Numerics;")
     out.append("using AnoMech.Core;")
+    out.append("using AnoMech.Core.Game;")
     out.append("using AnoMech.Core.Map;")
     out.append("using AnoMech.Core.SimObjects;")
     out.append("")
@@ -2180,20 +2181,13 @@ def emit_scenario_class(
     out.append(f"public sealed class {class_name} : IScenario")
     out.append("{")
     out.append(f"    public string Name => \"{class_name}\";")
-    out.append("    public TargetInstance? TargetInstance { get; } = new(")
+    out.append("    public TargetInstance TargetInstance { get; } = new(")
     out.append(f"        TerritoryId: {pull.zone_id},")
     sx = spawn_x if spawn_x is not None else center_x
     sy = spawn_y if spawn_y is not None else center_y
     out.append(f"        Origin: new Vector3({center_x:.3f}f, 0f, {center_y:.3f}f),")
     out.append(f"        PlayerPosition: new Vector3({sx:.3f}f, 0f, {sy:.3f}f),")
     out.append("        WeatherId: 0);")
-    # Inn (TerritoryId 801) override so loading the scenario from the inn
-    # places the world origin at the arena center instead of the player's
-    # inn position. Edit this list to add other testing-from territories.
-    out.append("    public IReadOnlyList<ScenarioOriginOverride> OriginOverrides { get; } = [")
-    out.append(f"        new(TerritoryId: 801, X: {center_x:.3f}f, Z: {center_y:.3f}f),")
-    out.append("    ];")
-    out.append("    public IReadOnlyList<uint> HiddenBaseIds { get; } = [];")
     out.append("    public IReadOnlyList<Waymark> Waymarks { get; } = [];")
     out.append("    public ushort Bgm => 0;")
     out.append("")
@@ -2675,7 +2669,17 @@ def main(argv: list[str]) -> int:
              "window that did NOT appear as a `// {raw}` comment in the "
              "generated C# (one event per pair of lines: raw + human-readable).",
     )
+    ap.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Write output to this file as UTF-8 (no BOM) instead of stdout. "
+             "Use this when redirecting on PowerShell, whose `>` writes UTF-16.",
+    )
     args = ap.parse_args(argv)
+
+    if args.output:
+        sys.stdout = open(args.output, "w", encoding="utf-8", newline="\n")
 
     pulls = find_pulls(args.log, args.category)
     if not pulls:

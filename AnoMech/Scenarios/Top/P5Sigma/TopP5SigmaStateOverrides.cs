@@ -7,10 +7,10 @@ public enum HelloWorldOption { Auto, Near, Far, No }
 // scenario start. The state ctor consumes this directly.
 public sealed class TopP5SigmaStateOverrides
 {
-    public EightWayDirection? NewNorthA { get; set; }
+    public Direction? NewNorthA { get; set; }
     public GlitchType? CloseFarTether { get; set; }
     public bool? TowerNorthFlip { get; set; }
-    public EightWayDirection? NewNorthB { get; set; }
+    public Direction? NewNorthB { get; set; }
     public Rotation? SpinnerRotation { get; set; }
     public OmegaAttack? OmegaFForm { get; set; }
     public HelloWorldOption HelloWorld { get; set; }

@@ -36,10 +36,10 @@ public sealed class TopP5SigmaSettingsWindow
         ImGui.TextUnformatted("New north (A — sigma resolve):");
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##northA", Overrides.NewNorthA == null)) Overrides.NewNorthA = null;
-        foreach (var d in EightWayDirection.All)
+        foreach (var d in Direction.All)
         {
             ImGui.SameLine();
-            if (ImGui.RadioButton($"{d.Name}##northA", Overrides.NewNorthA == d)) Overrides.NewNorthA = d;
+            if (ImGui.RadioButton($"{d.Name()}##northA", Overrides.NewNorthA == d)) Overrides.NewNorthA = d;
         }
     }
 
@@ -72,10 +72,10 @@ public sealed class TopP5SigmaSettingsWindow
         ImGui.TextUnformatted("New north (B — second half):");
         ImGui.SameLine();
         if (ImGui.RadioButton("Auto##northB", Overrides.NewNorthB == null)) Overrides.NewNorthB = null;
-        foreach (var d in EightWayDirection.All)
+        foreach (var d in Direction.All)
         {
             ImGui.SameLine();
-            if (ImGui.RadioButton($"{d.Name}##northB", Overrides.NewNorthB == d)) Overrides.NewNorthB = d;
+            if (ImGui.RadioButton($"{d.Name()}##northB", Overrides.NewNorthB == d)) Overrides.NewNorthB = d;
         }
     }
 

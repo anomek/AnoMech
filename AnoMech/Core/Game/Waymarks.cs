@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 
-namespace AnoMech.Core.SimObjects;
+namespace AnoMech.Core.Game;
 
 public enum WaymarkSlot : int
 {
@@ -40,46 +40,40 @@ public static class WaymarkPresets
 // instead of going through PlacePreset / ClearFieldMarkers — those are gated by
 // territory ("No markers allowed in territory" return code 5) and would no-op
 // in the overworld. The renderer reads _fieldMarkers each frame, so direct writes
-// place client-side markers anywhere. Tick is a no-op; the layout sits until
-// Despawn (or scenario reset) clears the slots we set.
-public sealed unsafe class SimWaymarks : ISimObject
+// place client-side markers anywhere. The layout sits until ClearAll (scenario
+// reset) blanks the eight slots. Mirrors Markings (party signs): a writer owned
+// by SimWorld, not a ticking SimObject. Offsets passed to Place are scenario-local;
+// the injected Coordinates resolves them against the live ScenarioOrigin.
+public sealed unsafe class Waymarks(Coordinates coordinates)
 {
-    private readonly List<int> placedSlots = new();
+    private const int SlotCount = 8;
 
-    internal SimWaymarks(IReadOnlyList<Waymark> waymarks, Vector3 origin)
+    public void Place(IReadOnlyList<Waymark> waymarks)
     {
         if (waymarks.Count == 0) return;
         var controller = MarkingController.Instance();
-        if (controller == null) { Plugin.Log.Warning("SimWaymarks: MarkingController unavailable"); return; }
+        if (controller == null) { Plugin.Log.Warning("Waymarks: MarkingController unavailable"); return; }
 
         for (int i = 0; i < waymarks.Count; i++)
         {
             var wm = waymarks[i];
             var idx = (int)wm.Slot;
-            if (idx < 0 || idx > 7) continue;
-            var world = origin + wm.Offset;
+            if (idx < 0 || idx >= SlotCount) continue;
+            var world = coordinates.ToGlobal(wm.Offset);
             ref var slot = ref controller->FieldMarkers[idx];
             slot.Position = world;
             slot.X = (int)MathF.Round(world.X * 1000f);
             slot.Y = (int)MathF.Round(world.Y * 1000f);
             slot.Z = (int)MathF.Round(world.Z * 1000f);
             slot.Active = true;
-            placedSlots.Add(idx);
         }
     }
 
-    public bool IsAlive => placedSlots.Count > 0;
-    public void Tick(float deltaSeconds) { }
-
-    public void Despawn()
+    public void ClearAll()
     {
-        if (placedSlots.Count == 0) return;
         var controller = MarkingController.Instance();
-        if (controller != null)
-        {
-            foreach (var idx in placedSlots)
-                controller->FieldMarkers[idx].Active = false;
-        }
-        placedSlots.Clear();
+        if (controller == null) return;
+        for (int i = 0; i < SlotCount; i++)
+            controller->FieldMarkers[i].Active = false;
     }
 }

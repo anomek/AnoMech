@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using AnoMech.Core;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants;
@@ -14,16 +15,11 @@ public sealed class TopP5DeltaScenario : IScenario
     public string Name => "TOP P5 Delta";
     // TerritoryId 1122 = The Omega Protocol (Ultimate). Origin and PlayerPosition Y
     // values are placeholders — tune after first in-game test once zone loads.
-    public TargetInstance? TargetInstance { get; } = new(
+    public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1122,
         Origin: new Vector3(100f, 0f, 100f),
         PlayerPosition: new Vector3(100f, 0f, 116f),
         WeatherId: 174);
-    public IReadOnlyList<ScenarioOriginOverride> OriginOverrides { get; } = [
-        new(TerritoryId: 801, X: 100f, Z: 100f),
-        new(TerritoryId: 1045, X: 0f, Z: 0)
-    ];
-    public IReadOnlyList<uint> HiddenBaseIds { get; } = [1026757];
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP5;
     public void DrawSettings() => settingsWindow.Draw();
@@ -83,7 +79,7 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(25.3f, MarkArmUnitRotations);        // +1s after arm spawn
         world.Events.Add(28.4f, () => omega?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(28.1f, ApplyDeltaRealTethers); // same window as optical laser
-        world.Events.Add(30.2f, ResolveOpticalLaser);   // Optical Laser fires t=30.205s
+        world.Events.Add(29.5f, () => topUtils.ResolveOpticalLaser(opticalUnit));
         world.Events.Add(30.5f, StartMonitors);         // BeyondDefense + OWC casts start t=30.43/30.47s
         world.Events.Add(30.1f, StartPunchExplosions);  // 3s visual cast, resolves at 33.5f
         world.Events.Add(33.5f, ResolvePunchExplosions);
@@ -100,10 +96,12 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(41.0f, NextHyperPulse);              // last HP step, same tick as pile pitch t=40.999s
         world.Events.Add(41.0f, FirePilePitch);               // Pile Pitch fires t=40.999s
         world.Events.Add(41.1f, ResolvePilePitch);
-        world.Events.Add(44.5f, () => armUnits?.ForEach(unit => unit?.Despawn(TimelineId.WarpOut, 1f)));
+        world.Events.Add(44.5f, () => armUnits?.ForEach(unit => unit?.PlayActionTimeline(TimelineId.WarpOut)));
+        world.Events.Add(45.5f, () => armUnits?.ForEach(unit => unit?.Despawn()));
         world.Events.Add(43.5f, StartSwivelCannon);           // Swivel Cannon cast starts t=43.458s
         world.Events.Add(44.1f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
-        world.Events.Add(43.5f, () => finalHelper?.Despawn(TimelineId.WarpOut, 2f));  // despawn signal t=43.591s
+        world.Events.Add(43.5f, () => finalHelper?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(45.5f, () => finalHelper?.Despawn());  // despawn signal t=43.591s
         world.Events.Add(47.5f, () => CheckTethersExpired(tethersShort));             // tethers applied t=30.2, 18s life → expire 48.2
         world.Events.Add(53.2f, ResolveSwivelCannon);         // 43.458 + 9.7s cast = t=53.158s
         world.Events.Add(53.2f, () => DropHelloPuddle(state.NearWorldRole, true));
@@ -113,7 +111,8 @@ public sealed class TopP5DeltaScenario : IScenario
         world.Events.Add(54.2f, () => HopHelloPuddle(false));
         world.Events.Add(55.2f, () => HopHelloPuddle(true));
         world.Events.Add(55.2f, () => HopHelloPuddle(false));
-        world.Events.Add(56.6f, () => beetle?.Despawn(TimelineId.WarpOut, 2f));       // beetle despawn signal t=56.599s
+        world.Events.Add(56.6f, () => beetle?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(58.6f, () => beetle?.Despawn());
         world.Events.Add(56.5f, () => omega?.SetTargetable(true));
         world.Events.Add(65.1f, () => CheckTethersExpired(tethersLong));             // tethers expire t=30.2+36=66.2
     }
@@ -171,7 +170,7 @@ public sealed class TopP5DeltaScenario : IScenario
             Level: Level,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
-            Placement: new Placement(new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
+            Placement: new Placement(new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul, MathF.PI / 2f - MathF.PI / 2 * state.EyeSpawn.Mul)));
 
         finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.FinalHelper,
@@ -202,7 +201,7 @@ public sealed class TopP5DeltaScenario : IScenario
         beetle?.Cast(ActionId.PeripheralSynthesis);
         rocketPunches = Enumerable.Range(0, 8).Select(i =>
         {
-            var placement = party.Get(state.TetherOrder[i])!.Placement.MoveForward(-Geometry.PunchBackDistance);
+            var placement = party.Get(state.TetherOrder[i])!.Placement().MoveForward(-Geometry.PunchBackDistance);
             var punch = world.SpawnEnemy(new EnemySpawnConfig(
                                              BNpcBaseId: state.FistColors[i],
                                              NameId: BNpcNameId.RocketPunch,
@@ -288,8 +287,8 @@ public sealed class TopP5DeltaScenario : IScenario
             BNpcBaseId: BNpcBaseId.OmegaHelper,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
-            Placement: new Placement(pos, 0f),
-            Lifetime: Duration.MonitorHelperLifetime));
+            Placement: new Placement(pos, 0f)));
+        if (helper != null) world.Events.Add(Duration.MonitorHelperLifetime, helper.Despawn);
         helper?.Cast(actionId);
         party
              .ActiveMembers()
@@ -312,7 +311,6 @@ public sealed class TopP5DeltaScenario : IScenario
 
         var playerMonitor = party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
         playerMonitor.AddStatus(state.PlayerMonitorSide.MonitorDebuffId);
-        playerMonitor.AddVfx(state.PlayerMonitorSide.MonitorVfxPath);
     }
 
     private record RocketPunchTarget(Vector3 Position, float Rotation, uint FistColor) : IPositioned { }
@@ -346,7 +344,7 @@ public sealed class TopP5DeltaScenario : IScenario
              .ToList()
              .ForEach(hit =>
              {
-                 Plugin.Log.Info($"Hit: {hit.Role} by Rocket Punch AOE (lethal)");
+                 Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Rocket Punch AOE (lethal)");
                  hit.Die("Rocket Punch AOE");
              });
         state.PunchTargets = null;
@@ -360,7 +358,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private void FireBeyondDefenseAoe()
     {
         if (omega is null) return;
-        SimPartySlot? target;
+        SimCharacter? target;
         switch (state.BeyondDefenceForPlayer)
         {
             case true:
@@ -381,8 +379,8 @@ public sealed class TopP5DeltaScenario : IScenario
                 break;
         }
         if (target is null) return;
-        state.BeyondDefenseTarget = target.Role;
-        Plugin.Log.Info($"Beyond defense target {target.Role}");
+        state.BeyondDefenseTarget = ((ISimPartyMember)target).Role;
+        Plugin.Log.Info($"Beyond defense target {((ISimPartyMember)target).Role}");
         omega.Cast(
             ActionId.BeyondDefenseAOE,
             targetLocation: target.Position,
@@ -391,19 +389,18 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void ResolveBeyondDefenseAoe()
     {
-        if (state.BeyondDefenseTarget is null) return;
-        var mainTarget = party.Get(state.BeyondDefenseTarget.Value);
+        var mainTarget = party.Get(state.BeyondDefenseTarget);
         if (mainTarget is null) return;
 
         foreach (var hit in party.Find.InsideCircle(mainTarget.Position, Geometry.BeyondDefenseAoeRadius))
             if (hit != mainTarget)
             {
-                Plugin.Log.Info($"Hit: {hit.Role} by Beyond Defense AOE (lethal)");
+                Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Beyond Defense AOE (lethal)");
                 hit.Die("Beyond Defense AOE");
             }
 
         var mainLethal = IsDamageLethal(mainTarget, magic: false, comeRuin: 2);
-        Plugin.Log.Info($"Hit: {mainTarget.Role} by Beyond Defense ({(mainLethal ? "lethal" : "non-lethal")})");
+        Plugin.Log.Info($"Hit: {(mainTarget as ISimPartyMember)?.Role} by Beyond Defense ({(mainLethal ? "lethal" : "non-lethal")})");
         if (mainLethal)
             mainTarget.Die("Beyond Defense");
         else
@@ -413,7 +410,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private void StartHyperPulse()
     {
         armUnits?.OfType<SimEnemy>()
-            .Where(unit => unit.IsAlive)
+            .Where(unit => unit.IsActive)
             .ToList()
             .ForEach(unit =>
             {
@@ -433,13 +430,13 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         if (armUnits is null) return;
         foreach (var arm in armUnits)
-            if (arm is { IsAlive: true }) ResolveHyperPulseRect(arm);
+            if (arm is { IsActive: true }) ResolveHyperPulseRect(arm);
     }
 
     private void NextHyperPulse()
     {
         armUnits?.Select((unit, i) => (unit, i))
-            .Where((t, i) => t.unit is { IsAlive: true })
+            .Where((t, i) => t.unit is { IsActive: true })
             .ToList()
             .ForEach(t =>
             {
@@ -452,23 +449,10 @@ public sealed class TopP5DeltaScenario : IScenario
 
     private void ResolveHyperPulseRect(SimEnemy arm)
     {
-        foreach (var hit in party.Find.InsideRect(arm.Placement, Geometry.HyperPulseHalfWidth, Geometry.HyperPulseLength))
+        foreach (var hit in party.Find.InsideRect(arm.Placement(), Geometry.HyperPulseHalfWidth, Geometry.HyperPulseLength))
         {
-            Plugin.Log.Info($"Hit: {hit.Role} by Delta Hyper Pulse (lethal)");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Delta Hyper Pulse (lethal)");
             hit.Die("Delta Hyper Pulse");
-        }
-    }
-
-    private void ResolveOpticalLaser()
-    {
-        if (opticalUnit is not { IsAlive: true }) return;
-        opticalUnit.Cast(ActionId.OpticalLaser);
-        var rotation = state.EyeSpawn == NorthSouth.North ? 0f : MathF.PI;
-        var placement = new Placement(opticalUnit.Position, rotation);
-        foreach (var hit in party.Find.InsideRect(placement, Geometry.OpticalLaserHalfWidth, Geometry.OpticalLaserLength))
-        {
-            Plugin.Log.Info($"Hit: {hit.Role} by Optical Laser (lethal)");
-            hit.Die("Optical Laser");
         }
     }
 
@@ -476,26 +460,25 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         var aoePositions = new List<Vector3>();
 
-        if (finalHelper is { IsAlive: true } helper)
-            foreach (var m in FireMonitorOnSide(helper.Placement, state.OmegaMonitorSide, exclude: null))
+        if (finalHelper is {} helper)
+            foreach (var m in FireMonitorOnSide(helper.Placement(), state.OmegaMonitorSide, exclude: null))
                 aoePositions.Add(m.Position);
 
         var playerMonitor = party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
-        foreach (var m in FireMonitorOnSide(playerMonitor.Placement, state.PlayerMonitorSide, exclude: playerMonitor))
+        foreach (var m in FireMonitorOnSide(playerMonitor.Placement(), state.PlayerMonitorSide, exclude: playerMonitor))
             aoePositions.Add(m.Position);
         playerMonitor.RemoveStatus(state.PlayerMonitorSide.MonitorDebuffId);
-        playerMonitor.RemoveVfx(state.PlayerMonitorSide.MonitorVfxPath);
 
-        var hit = new HashSet<SimPartySlot>();
+        var hit = new HashSet<SimCharacter>();
         foreach (var pos in aoePositions)
             foreach (var member in party.Find.InsideCircle(pos, Geometry.OversampledWaveCannonAoeRadius))
                 hit.Add(member);
 
         foreach (var member in hit)
         {
-            if (!member.IsAlive) continue;
+            if (!member.IsActive) continue;
             var lethal = IsDamageLethal(member, magic: true, comeRuin: 2);
-            Plugin.Log.Info($"Hit: {member.Role} by Oversampled Wave Cannon ({(lethal ? "lethal" : "non-lethal")})");
+            Plugin.Log.Info($"Hit: {(member as ISimPartyMember)?.Role} by Oversampled Wave Cannon ({(lethal ? "lethal" : "non-lethal")})");
             if (lethal)
                 member.Die("Oversampled Wave Cannon");
             else
@@ -506,7 +489,7 @@ public sealed class TopP5DeltaScenario : IScenario
         }
     }
 
-    private IReadOnlyList<SimPartySlot> FireMonitorOnSide(Placement src, Side side, SimPartySlot? exclude = null)
+    private IReadOnlyList<SimCharacter> FireMonitorOnSide(Placement src, Side side, SimCharacter? exclude = null)
     {
         var targets = party.Find.OnSideN(src, side.Mul, count: 2, exclude: exclude);
         foreach (var member in targets)
@@ -516,8 +499,8 @@ public sealed class TopP5DeltaScenario : IScenario
                 BNpcBaseId: BNpcBaseId.OmegaHelper,
                 Targetable: false,
                 EnemyList: EnemyListMode.Never,
-                Placement: new Placement(pos, 0f),
-                Lifetime: Duration.MonitorHelperLifetime));
+                Placement: new Placement(pos, 0f)));
+            if (spawned != null) world.Events.Add(Duration.MonitorHelperLifetime, spawned.Despawn);
             spawned?.Cast(ActionId.OversampledWaveCannonAoe, targetLocation: pos, targetId: member.GameObjectId);
         }
         return targets;
@@ -545,7 +528,7 @@ public sealed class TopP5DeltaScenario : IScenario
         {
             foreach (var hit in inAoe)
             {
-                Plugin.Log.Info($"Hit: {hit.Role} by Pile Pitch — too few players (lethal)");
+                Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Pile Pitch — too few players (lethal)");
                 hit.Die("Pile Pitch (too few players)");
             }
             return;
@@ -553,9 +536,9 @@ public sealed class TopP5DeltaScenario : IScenario
 
         foreach (var hit in inAoe)
         {
-            if (!hit.IsAlive) continue;
+            if (!hit.IsActive) continue;
             var lethal = IsDamageLethal(hit, magic: true, comeRuin: 2);
-            Plugin.Log.Info($"Hit: {hit.Role} by Pile Pitch ({(lethal ? "lethal" : "non-lethal")})");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Pile Pitch ({(lethal ? "lethal" : "non-lethal")})");
             if (lethal)
                 hit.Die("Pile Pitch");
             else
@@ -575,12 +558,12 @@ public sealed class TopP5DeltaScenario : IScenario
     {
         omega?.SetModeAttributeFlags(0x32);
         omega?.SetModelState(0x00);
-        if (beetle is not { IsAlive: true }) return;
+        if (beetle is null) return;
         var rotation = beetle.Rotation + state.SwivelCannonSide.Mul * MathF.PI / 2;
         var placement = new Placement(beetle.Position, rotation);
         foreach (var hit in party.Find.InsideCone(placement, Geometry.SwivelCannonHalfAngle, Geometry.SwivelCannonRange))
         {
-            Plugin.Log.Info($"Hit: {hit.Role} by Swivel Cannon (lethal)");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Swivel Cannon (lethal)");
             hit.Die("Swivel Cannon");
         }
     }
@@ -608,23 +591,23 @@ public sealed class TopP5DeltaScenario : IScenario
                                           BNpcBaseId: BNpcBaseId.OmegaHelper,
                                           Targetable: false,
                                           EnemyList: EnemyListMode.Never,
-                                          Placement: new Placement(position, 0f),
-                                          Lifetime: Duration.MonitorHelperLifetime));
+                                          Placement: new Placement(position, 0f)));
+        if (helper != null) world.Events.Add(Duration.MonitorHelperLifetime, helper.Despawn);
         solver.CastSpell(helper);
     }
 
 
     private bool IsDamageLethal(SimCharacter character, bool magic, int comeRuin)
     {
-        var who = (character as SimPartySlot)?.Role.ToString() ?? character.GetType().Name;
+        var who = (character as ISimPartyMember)?.Role.ToString() ?? character.GetType().Name;
         var ruinWeight = comeRuin switch { 2 => 0.6f, 3 => 0.4f, _ => 0f };
         var twiceRuin = character.HasStatus(StatusId.TwiceComeRuin);
         if (twiceRuin) ruinWeight += 0.6f;
-        var triceStacks = character.GetStatus(StatusId.TriceComeRuin)?.Stacks ?? 0;
+        var triceStacks = character.FindStatus(StatusId.TriceComeRuin)?.Stacks ?? 0;
         ruinWeight += triceStacks * 0.4f;
         var ruinLethal = ruinWeight > 1;
         var magicVuln1 = character.HasStatus(StatusId.MagicVulnerabilityUp);
-        var magicVuln2Stacks = character.GetStatus(StatusId.MagicVulnerabilityUpMini)?.Stacks ?? 0;
+        var magicVuln2Stacks = character.FindStatus(StatusId.MagicVulnerabilityUpMini)?.Stacks ?? 0;
         var magicLethal = magic && (magicVuln1 || magicVuln2Stacks > 1);
         var lethal = ruinLethal || magicLethal;
         Plugin.Log.Info($"IsDamageLethal: {who} magic={magic} comeRuin={comeRuin} → {lethal} [ruinWeight={ruinWeight:F2} TwiceComeRuin={twiceRuin} TriceComeRuin={triceStacks} MagicVulnerabilityUp={magicVuln1} MagicVulnUp2={magicVuln2Stacks}]");

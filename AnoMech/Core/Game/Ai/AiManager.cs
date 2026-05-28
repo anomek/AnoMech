@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game.Ai;
 
 // Drives slot-ordered party movement from a scenario's position functions.
 // Owns jitter, run speed, and event scheduling. Position functions return an
@@ -29,7 +30,7 @@ public sealed class AiManager
     // the destination at scenario-time `arrivalTime` (running at RunSpeed). If a
     // member is too far to make it in time, it falls back to leaving immediately
     // and arriving late.
-    public void Move(float time, Func<AiMove> positions, float jitter = DefaultJitter, float arrivalTime = 0f)
+    public void Move(float time, Func<IAiMove> positions, float jitter = DefaultJitter, float arrivalTime = 0f)
     {
         world.Events.Add(time, () =>
         {
@@ -38,7 +39,7 @@ public sealed class AiManager
             {
                 if (move[i] is not { } local) continue;
                 var member = world.Party.Get(i);
-                if (member is not { IsAlive: true }) continue;
+                if (member == null || !member.IsAlive()) continue;
                 var target = Jitter(new Vector3(local.X, 0f, local.Y), jitter);
 
                 if (arrivalTime > 0f)
@@ -63,7 +64,7 @@ public sealed class AiManager
         {
             Markings.ClearAll();
             foreach (var (role, sign) in mapping())
-                if (world.Party.Get(role) is { IsAlive: true } member)
+                if (world.Party.Get(role) is { } member && member.IsAlive())
                     Markings.Set(sign, member.GameObjectId);
         });
     }

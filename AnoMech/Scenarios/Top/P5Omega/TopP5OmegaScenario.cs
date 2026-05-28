@@ -15,6 +15,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants;
@@ -24,15 +26,11 @@ namespace AnoMech.Scenarios.Top.P5Omega;
 public sealed class TopP5OmegaScenario : IScenario
 {
     public string Name => "TOP P5 Omega";
-    public TargetInstance? TargetInstance { get; } = new(
+    public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1122,
         Origin: new Vector3(100.000f, 0f, 100.000f),
         PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
         WeatherId: 174);
-    public IReadOnlyList<ScenarioOriginOverride> OriginOverrides { get; } = [
-        new(TerritoryId: 801, X: 100.000f, Z: 100.000f),
-    ];
-    public IReadOnlyList<uint> HiddenBaseIds { get; } = [];
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP5;
 
@@ -191,17 +189,17 @@ public sealed class TopP5OmegaScenario : IScenario
 
     private void ResolveBlaster(SimCharacter tetherA)
     {
-        if (tetherA is not SimPartySlot slot || !slot.IsAlive) return;
-        var lethal = topUtils.IsDamageLethal(slot, ruin: true);
-        Plugin.Log.Info($"Hit: {slot.Role} by Blaster ({(lethal ? "lethal" : "non-lethal")})");
+        if (!tetherA.IsAlive() || tetherA is not ISimPartyMember member) return;
+        var lethal = topUtils.IsDamageLethal(tetherA, ruin: true);
+        Plugin.Log.Info($"Hit: {member.Role} by Blaster ({(lethal ? "lethal" : "non-lethal")})");
         if (lethal)
         {
-            slot.Die("Blaster");
+            tetherA.Die("Blaster");
             return;
         }
-        slot.AddStatus(StatusId.MagicVulnerabilityUp, 4.960f);
-        slot.AddStatus(StatusId.TwiceComeRuin, 10.960f);
-        slot.AddStatus(StatusId.HPPenalty, 3.000f);
+        tetherA.AddStatus(StatusId.MagicVulnerabilityUp, 4.960f);
+        tetherA.AddStatus(StatusId.TwiceComeRuin, 10.960f);
+        tetherA.AddStatus(StatusId.HPPenalty, 3.000f);
     }
 
     private void Run_Omega_4000A72F()
@@ -239,12 +237,12 @@ public sealed class TopP5OmegaScenario : IScenario
 
     private void ResolveDiffuseWaveCannon(SimEnemy? omega4000A40B1)
     {
-        if (omega4000A40B1 is not { IsAlive: true } unit) return;
+        if (omega4000A40B1 is not { IsActive: true } unit) return;
         // 120° cone (60° half-angle) per the OmegaDiffuseWaveCannonAOE comment in
         // TopConstants. The Action sheet doesn't carry cone width, so override.
-        foreach (var hit in party.Find.InsideActionAoe(ActionId.OmegaDiffuseWaveCannonAOE, unit.Placement, coneHalfAngle: MathF.PI / 3f))
+        foreach (var hit in party.Find.InsideActionAoe(ActionId.OmegaDiffuseWaveCannonAOE, unit.Placement(), coneHalfAngle: MathF.PI / 3f))
         {
-            Plugin.Log.Info($"Hit: {hit.Role} by Diffuse Wave Cannon ");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Diffuse Wave Cannon ");
             hit.Die("Diffuse Wave Cannon");
         }
     }
@@ -267,11 +265,11 @@ public sealed class TopP5OmegaScenario : IScenario
         
     }
     
-    private void ResolveMonitors(IReadOnlyList<SimPartySlot> targets)
+    private void ResolveMonitors(IReadOnlyList<SimCharacter> targets)
     {
         foreach (var target in targets)
         {
-            Plugin.Log.Info($"Hit: {target.Role} by Monitor");
+            Plugin.Log.Info($"Hit: {(target as ISimPartyMember)?.Role} by Monitor");
             if (topUtils.IsDamageLethal(target, ruin: true))
             {
                 target.Die("Oversampled Wave Cannon");
@@ -292,7 +290,7 @@ public sealed class TopP5OmegaScenario : IScenario
         bool[] superliminalSteel = [firstLegs, firstLegs, secondLegs, secondLegs, false, false];
         uint[] superliminalActionIds = [ActionId.SuperliminalSteelOmenR, ActionId.SuperliminalSteelOmenL, ActionId.SuperliminalSteelOmenR, ActionId.SuperliminalSteelOmenL, 0, 0];
         Vector3[] superliminalTargets = [Geometry.SuperliminalSteelOmenTargetR, Geometry.SuperliminalSteelOmenTargetL, Geometry.SuperliminalSteelOmenTargetR, Geometry.SuperliminalSteelOmenTargetL, default, default];
-        EightWayDirection[] superliminalDirections = [state.AttackDirections[0], state.AttackDirections[0], state.AttackDirections[3], state.AttackDirections[3], EightWayDirection.N, EightWayDirection.N];
+        Direction[] superliminalDirections = [state.AttackDirections[0], state.AttackDirections[0], state.AttackDirections[3], state.AttackDirections[3], Direction.N, Direction.N];
         float[] superliminalOffset = [-4f, -4f, 0, 0, 0, 0];
         float[] dynamisOffsets = [0, 0, 1, 1, 2, 2, 3, 3];
         var nearHelper1 = topUtils.HelloWorld(state.HelloWorldTargets[0], true);

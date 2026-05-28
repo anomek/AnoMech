@@ -1,3 +1,5 @@
+using AnoMech.Core.Game;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
@@ -36,7 +38,7 @@ public sealed unsafe class SimTower : SimEventObject
         if (!EventObjectSpawn.Create(config.EObjRowId, out var slot, out var obj))
             return null;
 
-        var worldPos = world.ToWorld(config.Placement.Position);
+        var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
         obj->SetPosition(worldPos.X, worldPos.Y, worldPos.Z);
         obj->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
 

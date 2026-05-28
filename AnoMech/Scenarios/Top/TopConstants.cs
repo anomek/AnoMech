@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants;
 
@@ -38,9 +39,9 @@ public static class TopConstants
         public const uint OmegaFDynamis = 15722;             // boss-rank Omega-F
         public const uint OmegaM_3D69 = 15721;
         public const uint OmegaM = 15712;         // P2 boss-rank Omega
-        public const uint Omega_3D61 = 15713;         // P2 variant
-        public const uint OmegaM_3D62 = 15714;        // P2 Omega-M
-        public const uint OmegaF_3D63 = 15715;        // P2 Omega-F
+        public const uint OmegaF = 15713;         // P2 variant
+        public const uint OmegaMClone = 15714;        // P2 Omega-M
+        public const uint OmegaFClone = 15715;        // P2 Omega-F
         public const uint OmegaHelper = 9020;         // 0x233C — generic invisible helper used by all phases
         public const uint BeetleHelper = 15724;       // 0x3D6C — beetle / sigma helper visual
         public const uint FinalHelper = 14669;        // 0x394D — wave cannon spinner / ultimate visual
@@ -50,7 +51,6 @@ public static class TopConstants
         public const uint OpticalUnit = 15716;        // 0x3D64 — invisible marker for the eye
         public const uint RocketPunchYellow = 15709;  // 0x3D5D — RocketPunch1 (color 0)
         public const uint RocketPunchBlue = 15710;    // 0x3D5E — RocketPunch2 (color 1)
-        public const uint AlphaShield = 1026757;
     }
 
     public static class BNpcNameId
@@ -160,12 +160,12 @@ public static class TopConstants
         public const uint ProgramLoop = 31640;
         public const uint Teleport7b42 = 31554;                     // Omega-M teleport
         public const uint Teleport7b43 = 31555;
-        public const uint Unknown7b14 = 31508;
-        public const uint Unknown7b15 = 31509;
-        public const uint Unknown7b16 = 31510;
+        public const uint SuperfluidAnimationM = 31508;
+        public const uint SuperfluidAnimationF = 31509;
+        public const uint SubjectSimulationFWarpDown = 31510;
         public const uint Unknown7b17 = 31511;
         public const uint Unknown7b1d = 31517;
-        public const uint Unknown7b1e = 31518;
+        public const uint SubjectSimulationFWarpUp = 31518;
         public const uint Unknown7b1f = 31519;
         public const uint Unknown7b20 = 31520;
         public const uint Unknown7b85 = 31621;
@@ -189,8 +189,8 @@ public static class TopConstants
         // -- P2 Party Synergy --
         public const uint Firewall = 31552;
         public const uint Firewall_7B41 = 31553;
-        public const uint PartySynergy = 31550;
-        public const uint PartySynergy_7B3F = 31551;
+        public const uint PartySynergyM = 31550;
+        public const uint PartySynergyF = 31551;
         public const uint Spotlight = 31536;
         public const uint SubjectSimulationM = 31516;
         public const uint CondensedWaveCannonKyrios = 31503;
@@ -284,7 +284,7 @@ public static class TopConstants
         public const float SwivelCannonHalfAngle = MathF.PI * 7f / 12f;
         public const float HyperPulseHalfWidth = 4f;
         public const float HyperPulseLength = 100f;
-        public const float OpticalLaserHalfWidth = 5f;
+        public const float OpticalLaserHalfWidth = 8f;   // sheet XAxisModifier=16 -> half-width 8
         public const float OpticalLaserLength = 100f;
         public const float MidGlitchMinDistance = 21f;
         public const float MidGlitchMaxDistance = 26f;

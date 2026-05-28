@@ -17,9 +17,9 @@ public sealed class TopP5OmegaState
     public RoleList DoubleDynamicTargets { get; }
     public RoleList InitialTetherTargets { get; }
 
-    public IReadOnlyList<EightWayDirection> AttackDirections { get; }
+    public IReadOnlyList<Direction> AttackDirections { get; }
     public IReadOnlyList<OmegaAttack> OmegaAttacks { get; } 
-    public EightWayDirection BettleSpawnDirection { get; }
+    public Direction BettleSpawnDirection { get; }
     public bool FirstWaveCannonFront { get; }
 
     public MonitorSide MonitorSide { get; }

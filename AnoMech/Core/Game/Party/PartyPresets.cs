@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game.Party;
 
 // Hardcoded preset for the standard 8-job party of female Lalafell stand-ins
 // dressed in their respective level-50 artifact (AF1) gear.

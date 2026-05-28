@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game;
 
 // Time-based event queue. Owned by Game; scenarios schedule actions via the
 // world.Events passthrough (world.Events.Add(offset, ...)) and SimObjects that

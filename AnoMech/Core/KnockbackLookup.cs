@@ -6,7 +6,7 @@ namespace AnoMech.Core;
 // Resolves a Knockback-sheet row id directly to its Distance/Speed pair.
 // Scenarios get the row id from their parser-emitted timeline (the parser
 // decodes it from the corresponding ACT type-22 effect entry) and pass it
-// straight to SimParty/SimPartySlot — no intermediate action-id table.
+// straight to SimParty/ISimPartyMember — no intermediate action-id table.
 internal static class KnockbackLookup
 {
     private static readonly ExcelSheet<LuminaKnockback> Sheet =

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 
 namespace AnoMech.Core.SimObjects;
@@ -18,6 +20,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     private readonly List<ISimObject> children = new();
     private readonly EnmityHud enmityHud = new();
     private readonly PartyHud partyHud = new();
+    private readonly Waymarks waymarks;
 
     // Zone loading and map effects entry point.
     public MapController Map { get; } = new();
@@ -25,21 +28,22 @@ public sealed class SimWorld : ISimObject, IDisposable
     // Convenience reference — SimParty.Empty until CreateParty is called.
     public SimParty Party { get; private set; } = SimParty.Empty;
     public IEnumerable<ISimObject> Children => children;
+    // Root container — Game owns its lifetime; no parent reaps it.
+    public bool IsActive => true;
     public EventScheduler Events { get; }
     public Vector3 ScenarioOrigin { get; set; }
 
-    // Translates between scenario-local coordinates (the SimXxx public API)
-    // and world coordinates (the engine's BattleChara->Position). Local zero
-    // is the snapshotted ScenarioOrigin; the transform is a pure translation,
-    // no rotation. Y is part of the offset, same as X/Z.
-    public Vector3 ToWorld(Vector3 local) => ScenarioOrigin + local;
-    public Vector3 ToLocal(Vector3 world) => world - ScenarioOrigin;
-    public Placement ToWorld(Placement local) => new(ToWorld(local.Position), local.Rotation);
-    public Placement ToLocal(Placement world) => new(ToLocal(world.Position), world.Rotation);
+    // Converts between scenario-local coordinates (the SimXxx public API) and
+    // world/global coordinates (the engine's GameObject->Position). Shared by
+    // every SimCharacter (injected as a protected field) and used by spawners
+    // for the pre-construction native writes. Reads ScenarioOrigin live.
+    public Coordinates Coordinates { get; }
 
     public SimWorld(EventScheduler events)
     {
         Events = events;
+        Coordinates = new Coordinates(() => ScenarioOrigin);
+        waymarks = new Waymarks(Coordinates);
     }
 
     public SimTether Tether(SimCharacter? a, SimCharacter? b, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
@@ -59,13 +63,13 @@ public sealed class SimWorld : ISimObject, IDisposable
     // already host this tether id at slot 0 are skipped — naturally
     // coordinating parallel passable tethers of the same id without an
     // external shared set.
-    public SimTether TetherPassable(SimPartySlot? source, SimEnemy? target, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
+    public SimTether TetherPassable(SimCharacter? source, SimEnemy? target, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
     {
         SimCharacter? currentSource = source;
         Func<SimCharacter?> sourceResolver = () =>
         {
-            if (currentSource is not { IsAlive: true } cs) return currentSource;
-            if (target is not { IsAlive: true }) return currentSource;
+            if (currentSource is not { } cs || !cs.IsAlive()) return currentSource;
+            if (target is not { IsActive: true }) return currentSource;
             var srcPos = cs.Position;
             var tgtPos = target.Position;
             var dx = tgtPos.X - srcPos.X;
@@ -74,7 +78,7 @@ public sealed class SimWorld : ISimObject, IDisposable
             if (len < 0.01f) return currentSource;
             var placement = new Placement(srcPos, MathF.Atan2(dx, dz));
             var candidates = Party.Find.InsideRect(placement, 0.5f, len);
-            SimPartySlot? best = null;
+            SimCharacter? best = null;
             var bestDistSq = float.MaxValue;
             foreach (var c in candidates)
             {
@@ -103,7 +107,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     
     public SimEnemy? SpawnEnemy(EnemySpawnConfig config)
     {
-        var enemy = SimEnemy.Spawn(config, this, Events);
+        var enemy = SimEnemy.Spawn(config, this);
         if (enemy != null) children.Add(enemy);
         return enemy;
     }
@@ -129,13 +133,11 @@ public sealed class SimWorld : ISimObject, IDisposable
         return tower;
     }
 
-    // Places the scenario's waymark layout. Coordinates are scenario-relative;
-    // resolved against the snapshotted ScenarioOrigin.
-    public void PlaceWaymarks(IReadOnlyList<Waymark> waymarks)
-    {
-        if (waymarks.Count == 0) return;
-        children.Add(new SimWaymarks(waymarks, ScenarioOrigin));
-    }
+    // Places the scenario's waymark layout. Offsets are scenario-relative;
+    // Waymarks resolves them through Coordinates. Cleared in Reset (like
+    // Markings) — Waymarks is a writer owned here, not a tracked child.
+    public void PlaceWaymarks(IReadOnlyList<Waymark> layout)
+        => waymarks.Place(layout);
 
     // Suppress a native GameObject (by BaseId) for the duration of the scenario.
     public void HideObject(uint baseId)
@@ -149,20 +151,25 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
         => children.Add(new SimArenaBoundary(Party, this, radius, cause, showVfx: !Map.IsInInstance));
 
+    // True when `local` (scenario-local) is outside the active arena fence; false
+    // when the current scenario enforces no boundary.
+    public bool IsOutsideArena(Vector3 local)
+        => children.OfType<SimArenaBoundary>().FirstOrDefault()?.IsOutside(local) ?? false;
+
+    // Spawns a standalone AOE telegraph (omen StaticVfx) that auto-expires after
+    // `durationSeconds` and is cleaned up on world reset. `placement` is scenario-local
+    // (like the rest of the SimXxx API); SimOmen lifts it to world coords. `scale`
+    // follows SimOmen's convention: scale.X = halfWidth, scale.Z = length for rect omens.
+    public void SpawnOmen(string path, Placement placement, Vector3 scale, float durationSeconds)
+        => children.Add(new SimOmen(Coordinates, path, placement, scale, durationSeconds));
+
     // Spawns the eight party slots and wires in the local player. Must be called
     // after ScenarioOrigin is set. Party is added first so it despawns last in
     // Reset's reverse-order teardown (tethers and enemies reference slot positions).
     public SimParty CreateParty(uint playerJob, PartyRole? roleOverride = null)
     {
         var party = new SimParty();
-        // PartyHud always drives addon output (icons, timer text, Targetable)
-        // via NumberArray writes + direct text-node stamping. PartyCreator
-        // additionally inserts doppels into CharacterManager._battleCharas
-        // when the player is in an inn or any duty (low BC density, controlled
-        // contexts), enabling row-click targeting and mouseover tooltips
-        // there; in the open world we keep them out to avoid the render-cache
-        // teardown crash documented in EnmityHud.cs.
-        PartyCreator.Populate(party, new SimPlayer(), playerJob, this, roleOverride);
+        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride);
         children.Add(party);
         Party = party;
         return party;
@@ -170,41 +177,27 @@ public sealed class SimWorld : ISimObject, IDisposable
 
     public void Tick(float deltaSeconds)
     {
-        // Game.Tick has already advanced Events for this frame; we just tick
-        // entities here. Snapshot the count: a child's Tick may register a new
-        // child (rare today), so iterating by index against the live count is
-        // safe but the snapshot guards against future drift.
         Map.Tick();
-        var count = children.Count;
-        for (int i = 0; i < count; i++) children[i].Tick(deltaSeconds);
+        children.Update(deltaSeconds);
         enmityHud.Refresh(children.OfType<SimEnemy>(), deltaSeconds);
         partyHud.Refresh(Party);
     }
 
-    public void Reset()
+    public void Despawn()
     {
-        // Events is owned by Game; Game.ResetInternal clears it before calling here.
-        // Reverse-insertion order: tethers and enemies (added during scenario.Run)
-        // despawn before the party they reference; party despawns before hidden
-        // objects, which were added at the start.
-        for (int i = children.Count - 1; i >= 0; i--) children[i].Despawn();
-        children.Clear();
+        children.Despawn();
         Party = SimParty.Empty;
         enmityHud.Clear();
         partyHud.Clear();
         Markings.ClearAll();
+        waymarks.ClearAll();
         ScenarioOrigin = default;
     }
 
-    // ISimObject.Despawn is the contract entry point for teardown; it forwards to
-    // Reset() so a parent driver (e.g. Game) can treat SimWorld uniformly.
-    void ISimObject.Despawn() => Reset();
-
     public void Dispose()
     {
-        Reset();
+        Despawn();
         enmityHud.Dispose();
-        partyHud.Dispose();
         Map.Dispose();
     }
 }

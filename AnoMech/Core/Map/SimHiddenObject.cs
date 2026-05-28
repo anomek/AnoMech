@@ -44,6 +44,7 @@ public sealed unsafe class SimHiddenObject : ISimObject
     }
 
     public bool IsAlive => hidden;
+    public bool IsActive => IsAlive;
     public void Tick(float deltaSeconds) { }
 
     public void Despawn()

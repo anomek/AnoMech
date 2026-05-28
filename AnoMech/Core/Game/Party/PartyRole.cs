@@ -1,4 +1,4 @@
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game.Party;
 
 // Fixed party slot ids. 0,1 = tanks · 2,3 = healers · 4-7 = DPS.
 // Slot order matches PartyPresets.Standard so role index == preset array index.

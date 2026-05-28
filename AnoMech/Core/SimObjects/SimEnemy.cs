@@ -1,28 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel.Sheets;
 
 namespace AnoMech.Core.SimObjects;
 
-// Placement.Position is scenario-local (offset from SimWorld.ScenarioOrigin) on world axes: +X = east, +Z = south.
-// Same coordinate space as everything else in the SimXxx API — reads, writes, Cast targets, etc.
-// Placement.Rotation is absolute (radians); 0 = south, π/2 = east, π = north, -π/2 = west.
-// ModelCharaId, when non-zero, overrides the visual sourced from BNpcBase — handy for
-// reusing one BNpc identity while swapping the rendered body (e.g., no-shield variants).
-// Hitbox radius is derived from BNpcBase.Scale × ModelChara's unscaled radius.
-// Drives whether a SimEnemy appears in the _EnemyList HUD. Read by EnmityHud.Refresh
-// each frame via the computed SimEnemy.InEnemyList property.
-//
-// Always          — stays in the list as long as the enemy is alive.
-// OnlyWhenVisible — mirrors the engine's DrawObject.IsVisible flag. Suitable for
-//                   adds that warp in/out during a phase. Don't combine with
-//                   SetModelState: that briefly DisableDraws during model rebuild
-//                   and would flap the list. Bosses that transform should use Always.
-// Never           — never enters the list (AOE-source dummies, tether endpoints).
-// Manual          — scenario controls via SimEnemy.SetInEnemyList(bool); default false.
+// Placement.Position is scenario-local (offset from SimWorld.ScenarioOrigin), same
+// coordinate space as the rest of the SimXxx API: +X = east, +Z = south.
+// Placement.Rotation is absolute radians: 0 = south, π/2 = east, π = north, -π/2 = west.
+// ModelCharaId (non-zero) overrides the BNpcBase visual, e.g. a no-shield variant.
+// Hitbox radius = BNpcBase.Scale × ModelChara's unscaled radius.
+
+// Whether a SimEnemy shows in the _EnemyList HUD (read each frame by EnmityHud.Refresh).
+// Always          — listed while alive.
+// OnlyWhenVisible — follows the engine's DrawObject.IsVisible; for adds that warp
+//                   in/out. Don't combine with SetModelState (its rebuild briefly
+//                   DisableDraws and flaps the list); transforming bosses use Always.
+// Never           — never listed (AOE-source dummies, tether endpoints).
+// Manual          — scenario drives it via SetInEnemyList(bool); default false.
 public enum EnemyListMode
 {
     Always,
@@ -41,74 +40,55 @@ public record struct EnemySpawnConfig(
     Placement Placement = default,
     uint ModelCharaId = 0,
     float Scale = 0f,    // 0 = use BNpcBase.Scale
-    float Lifetime = 0f, // 0 = persist until explicit Despawn / scenario reset
     byte? InitialModeAttributeFlags = null); // null = leave at engine default (0x00); set when the boss's canonical idle sub-mesh variant differs (e.g. Omega-M = 0x10)
 
 public sealed unsafe class SimEnemy : SimNpc
 {
-    private bool casting;
-    private float castElapsed;
-    private float castTotal;
-    private Vector3? castTargetLocation;
-    private GameObjectId? castTargetId;
-    private byte castAnimationVariation;
-    private VfxFunctions.StaticVfxStruct* castOmen;
-    private VfxFunctions.StaticVfxStruct* castOmenAlt;
-    private float pendingOmenDelay;
-    private float pendingOmenRotate;
-    private uint pendingOmenActionId;
-    private bool pendingOmenScheduled;
+    // Cast bar, action-effect release, omen telegraph, and animation lock live in
+    // SimCast. SimEnemy just converts target coords to world space and reads IsBusy.
+    private readonly SimCast cast;
 
-    // Engine doesn't expose post-action animation-lock duration via EXD — the
-    // real value only ships in the server's ActionEffect packet. 0.6s is a
-    // reasonable approximation for most boss abilities; if a scenario needs
-    // tighter timing we can derive per-action values from captured ACT logs.
-    private const float DefaultAnimationLockSeconds = 0.6f;
-    private float remainingAnimationLock;
-
-    // Visibility is driven via the DrawObject lifecycle: SetVisible records a
-    // desired state and Tick's reconciler fires EnableDraw / DisableDraw at
-    // most once per state change, gated on IsReadyToDraw so consecutive toggles
-    // can't race the engine's async model load. RenderFlags writes were tried
-    // and don't reliably keep enemies visible — only the DrawObject lifecycle
-    // does. currentVisible starts true because the base SimNpc.Tick fires the
-    // initial EnableDraw on its own (via pendingDraw).
+    // Visibility runs through the DrawObject lifecycle: SetVisible records a desired
+    // state; Tick's reconciler fires EnableDraw/DisableDraw once per change, gated on
+    // IsReadyToDraw so toggles can't race the async model load. RenderFlags writes
+    // were tried and don't reliably keep enemies visible — only this path does.
+    // currentVisible starts true because base SimNpc.Tick fires the initial EnableDraw.
+    // FIXME: this is not valid, but good enough i guess
     private bool desiredVisible = true;
     private bool currentVisible = true;
 
-    private SimCharacter? followTarget;
-    private float followSpeed;
-
     public uint BNpcBaseId { get; }
 
-    // Live-read via GameObject::GetName() (vfunc 6) — same path the in-game
-    // target bar uses, so engine-driven renames mid-fight (e.g. TOP P5 Sigma
-    // Omega transitions: 1DD3 -> 1DD4 -> 1E0F -> 2FE2) propagate without
-    // notification. The vfunc resolves NameId -> BNpcName sheet via
-    // RaptureTextModule; reading the GameObject.Name[] byte buffer directly
-    // does NOT work for client-spawned doppels because the engine never
-    // refreshes that buffer on rename. Falls back to the spawn-time name when
-    // the BattleChara is gone (mid-despawn).
+    // CharacterManager._battleCharas registration is kept aligned with visibility:
+    // a registered BC is force-drawn by the engine's per-frame CharacterManager
+    // update, so staying registered while invisible would override our DisableDraw.
+    // We register only while visible (toggled by SyncRegistration). Safe because
+    // scenarios are inn-gated, so the open-world render-cache teardown crash
+    // documented in EnmityHud.cs is unreachable.
+    private bool registeredNow;
+
+
+    // Live-read via GameObject::GetName() (vfunc 6, resolves NameId -> BNpcName) —
+    // same path the target bar uses, so engine-driven renames mid-fight propagate
+    // (e.g. TOP P5 Sigma Omega: 1DD3 -> 1DD4 -> 1E0F -> 2FE2). Reading the
+    // GameObject.Name[] buffer directly does NOT work for doppels — the engine never
+    // refreshes it on rename. Falls back to the spawn-time name mid-despawn.
     public string DisplayName
     {
         get
         {
-            var chara = GetBattleChara();
-            if (chara == null) return initialDisplayName;
+            var chara = BattleCharaPtr;
+            if (chara == null) return field;
             var name = ((GameObject*)chara)->GetName().ToString();
-            return string.IsNullOrEmpty(name) ? initialDisplayName : name;
+            return string.IsNullOrEmpty(name) ? field : name;
         }
     }
 
-    private readonly string initialDisplayName;
     public EnemyListMode EnemyListMode { get; }
     private bool manualInEnemyList;
 
-    // EnmityHud.Refresh reads this each frame. Always/Never are constant;
-    // OnlyWhenVisible reads the engine's DrawObject.IsVisible flag directly so
-    // anything that toggles the draw lifecycle (SetVisible, the WarpOut/Spawn
-    // timelines if they end up flipping it, or any future engine path) is
-    // reflected without extra plumbing. Manual lets the scenario drive it.
+    // OnlyWhenVisible reads the live DrawObject.IsVisible flag, so any draw-lifecycle
+    // toggle is reflected without extra plumbing; Manual lets the scenario drive it.
     public bool InEnemyList => EnemyListMode switch
     {
         EnemyListMode.Always          => true,
@@ -117,20 +97,19 @@ public sealed unsafe class SimEnemy : SimNpc
         EnemyListMode.OnlyWhenVisible => IsEngineVisible(),
         _ => false,
     };
-    public bool IsCasting => casting;
-    public uint CastActionId { get; private set; }
-    public float CastProgress => castTotal <= 0f ? 0f : Math.Clamp(castElapsed / castTotal, 0f, 1f);
+    public bool IsCasting => cast.IsCasting;
+    public uint CastActionId => cast.ActionId;
+    public float CastProgress => cast.Progress;
 
-    internal SimEnemy(uint index, uint bNpcBaseId, string displayName, EnemyListMode enemyListMode, SimWorld world, EventScheduler events, float lifetime) : base(index, world)
+    internal SimEnemy(uint index, uint bNpcBaseId, string displayName, EnemyListMode enemyListMode, Coordinates coordinates, bool initiallyVisible = true) : base(index, coordinates)
     {
         BNpcBaseId = bNpcBaseId;
-        initialDisplayName = displayName;
+        DisplayName = displayName;
         EnemyListMode = enemyListMode;
-        // Auto-despawn schedule for short-lived helpers (e.g. AOE-source dummies).
-        // Lifetime == 0 means persist until explicit Despawn / scenario reset.
-        // Despawn is idempotent (IsAlive guard) so it's safe even if a manual
-        // despawn fires first.
-        if (lifetime > 0f) events.Add(lifetime, Despawn);
+        cast = new SimCast(this, coordinates);
+        // Mirrors the conditional register call in Spawn: registered iff
+        // spawned visible.
+        registeredNow = initiallyVisible;
     }
 
     // Allocates a BattleChara, configures it as a BattleNpc per the supplied
@@ -138,7 +117,7 @@ public sealed unsafe class SimEnemy : SimNpc
     // registering the result in the world's children list (so reset/teardown
     // covers it). Returns null on missing LocalPlayer, BNpcBase miss, or
     // CreateBattleChara failure.
-    internal static SimEnemy? Spawn(EnemySpawnConfig config, SimWorld world, EventScheduler events)
+    internal static SimEnemy? Spawn(EnemySpawnConfig config, SimWorld world)
     {
         var player = Plugin.ObjectTable.LocalPlayer;
         if (player == null) return null;
@@ -153,12 +132,12 @@ public sealed unsafe class SimEnemy : SimNpc
         if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
 
         var chara = (BattleChara*)obj;
-        // Engine's canonical BNpc initializer — populates ModelContainer fields from
-        // BNpcBase sheet data (including ModeAttributeFlags, which drives body sub-mesh
-        // variants like Omega-M's shield). Must run before our explicit overrides below.
+        // Engine's canonical BNpc initializer — populates ModelContainer from BNpcBase,
+        // including ModeAttributeFlags (body sub-mesh, e.g. Omega-M's shield). Must run
+        // before our overrides below.
         chara->CharacterSetup.SetupBNpc(config.BNpcBaseId, config.NameId);
         chara->ObjectKind = ObjectKind.BattleNpc;
-        chara->Position = world.ToWorld(config.Placement.Position);
+        chara->Position = world.Coordinates.ToGlobal(config.Placement.Position);
         chara->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
         var scale = config.Scale > 0f ? config.Scale : bnpc.Scale;
         chara->Scale = scale;
@@ -167,9 +146,8 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->SEPack = bnpc.SEPack;
         var hitboxRadius = ResolveHitboxRadius(modelCharaId, scale);
 
-        // Read the engine-resolved name (NameId -> BNpcName via RaptureTextModule, vfunc 6).
-        // Same source the target bar / nameplate use, so the Name[] buffer we stamp below
-        // stays consistent with what the rest of the UI renders.
+        // Engine-resolved name (vfunc 6), same source as the nameplate, so the Name[]
+        // buffer we stamp below stays consistent with the rest of the UI.
         var displayName = ((GameObject*)chara)->GetName().ToString();
         if (string.IsNullOrEmpty(displayName)) displayName = $"BNpc {config.BNpcBaseId:X}";
         BattleCharaSpawn.WriteName(obj, displayName);
@@ -193,23 +171,22 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->CastInfo.IsCasting = false;
         if (config.NameId != 0) chara->NameId = config.NameId;
         if (config.Level != 0) chara->Level = config.Level;
-        
-        // BattleCharaSpawn.RegisterInCharacterManager(chara);
+
+        // Registration lets the engine resolve the boss by entity id (needed for
+        // ActionEffect delivery and model-state morphs). Register only while visible —
+        // see the registeredNow field for the full rationale.
+        if (config.IsVisible)
+            BattleCharaSpawn.RegisterInCharacterManager(chara);
 
         Plugin.Log.Info($"SimEnemy: spawned BNpcBase {config.BNpcBaseId} (ModelChara {bnpc.ModelChara.RowId}, scale {bnpc.Scale}) at index {idx}");
-        var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.EnemyList, world, events, config.Lifetime);
-        // Seed the stored Position/Rotation. The native struct writes above
-        // are what the engine reads; SetPosition mirrors them into the C#-side
-        // fields (and harmlessly re-pushes to native + DrawObject).
+        var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.EnemyList, world.Coordinates, config.IsVisible);
+        // Mirror the native position/rotation writes above into the C#-side fields.
         enemy.SetPosition(config.Placement);
         enemy.SetTargetable(config.Targetable);
         if (!config.IsVisible) enemy.SetVisible(false);
         return enemy;
     }
 
-    // The game stores each model's unscaled hitbox radius in ModelChara's first numeric
-    // column (CSV header: "Unknown0"). Final hitbox = that × BNpcBase.Scale. Models with
-    // no body (helpers, optical units) have 0 there; the game falls back to ~0.5.
     private static float ResolveHitboxRadius(uint modelCharaId, float scale)
     {
         const float DefaultUnscaledRadius = 0.5f;
@@ -222,20 +199,20 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Despawn()
     {
-        // BattleCharaSpawn.UnregisterFromCharacterManager(BattleCharaPtr);
-        followTarget = null;
-        pendingOmenScheduled = false;
-        ClearCastOmen();
+        if (registeredNow)
+        {
+            var bc = BattleCharaPtr;
+            if (bc != null) BattleCharaSpawn.UnregisterFromCharacterManager(bc);
+            registeredNow = false;
+        }
+        Movement.Follow(null);
+        cast.Despawn();
         base.Despawn();
     }
 
-    // Scenarios rarely call Game.Kill on enemies (boss HP isn't modeled), but
-    // include the override for symmetry — a killed enemy just despawns.
-    internal override void OnKilled() => Despawn();
-
     public void SetTargetable(bool targetable)
     {
-        var chara = GetBattleChara();
+        var chara = BattleCharaPtr;
         if (chara == null) return;
         if (targetable)
         {
@@ -249,10 +226,7 @@ public sealed unsafe class SimEnemy : SimNpc
         }
     }
 
-    // Only meaningful when the spawn config set EnemyListMode.Manual. Other modes
-    // ignore the call and warn — a misplaced toggle on an Always/OnlyWhenVisible
-    // enemy is almost always a scenario bug we'd want to surface, not silently
-    // swallow.
+    // Only meaningful when the spawn config set EnemyListMode.Manual.
     public void SetInEnemyList(bool inEnemyList)
     {
         if (EnemyListMode != EnemyListMode.Manual)
@@ -263,411 +237,64 @@ public sealed unsafe class SimEnemy : SimNpc
         manualInEnemyList = inEnemyList;
     }
 
-    // Records the desired render state; the reconciler in Tick fires
-    // EnableDraw / DisableDraw at most once per state change. Targetability is
-    // left untouched — callers that want the standard "warp out + untargetable"
-    // combo should pair this with SetTargetable(false).
     public void SetVisible(bool visible) => desiredVisible = visible;
 
-    // Continuously chase `target`: each Tick re-issues MoveTo to the target's
-    // current position at `speed` units/sec. Clears itself (and stops the run
-    // animation) when the target dies. Pass null — or call again with a
-    // different target — to switch or cancel. Does not stop while casting; if
-    // the scenario wants the boss to plant during a cast, call Follow(null)
-    // before Cast and re-issue Follow afterward.
-    public void Follow(SimCharacter? target = null, float speed = 6f)
-    {
-        if (target is null || !target.IsAlive)
-        {
-            followTarget = null;
-            StopMoving();
-            return;
-        }
-        followTarget = target;
-        followSpeed = speed;
-    }
+    public void Follow(SimCharacter? target = null, float speed = 6f) => Movement.Follow(target, speed);
 
     private void ReconcileVisibility()
     {
         if (desiredVisible == currentVisible) return;
-        var obj = GetGameObject();
+        var obj = BattleCharaPtr;
         if (obj == null) return;
         if (!obj->IsReadyToDraw()) return;
         if (desiredVisible) obj->EnableDraw();
         else                obj->DisableDraw();
         currentVisible = desiredVisible;
+        SyncRegistration();
     }
 
-    // Reads the engine's authoritative draw-state bits set by EnableDraw/DisableDraw
-    // (DrawObject.Flags bits 0 and 3). Returns false during the async model-load
-    // window where DrawObject is still null. Used by EnemyListMode.OnlyWhenVisible.
+    // Align registration with visibility after each transition (see registeredNow).
+    // The SetModelState morph path doesn't touch currentVisible, so registration
+    // stays stable through a morph.
+    private void SyncRegistration()
+    {
+        var bc = BattleCharaPtr;
+        if (bc == null) return;
+        if (currentVisible && !registeredNow)
+        {
+            BattleCharaSpawn.RegisterInCharacterManager(bc);
+            registeredNow = true;
+        }
+        else if (registeredNow && !currentVisible)
+        {
+            BattleCharaSpawn.UnregisterFromCharacterManager(bc);
+            registeredNow = false;
+        }
+    }
+
+    // Authoritative draw state (DrawObject.Flags bits 0 and 3, set by Enable/DisableDraw).
+    // False during the async model-load window where DrawObject is still null.
     private bool IsEngineVisible()
     {
-        var obj = GetGameObject();
+        var obj = BattleCharaPtr;
         if (obj == null) return false;
         var draw = obj->DrawObject;
         return draw != null && draw->IsVisible;
     }
-
-    // Single entry point for any action the simulator drives. When castSeconds resolves
-    // to <= 0 (either passed explicitly or read as Cast100ms=0 from the sheet), the
-    // action fires immediately with no cast bar — replaces the old UseAction /
-    // UseActionOnTarget paths. targetLocation (scenario-local, like all SimXxx position
-    // APIs) drives the AOE landing point and the pre-fire facing snap; targetId, if
-    // set, makes the packet carry NumTargets=1 (some actions only animate on the
-    // caster when an entity target is delivered).
+    
     public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0)
     {
-        var chara = GetBattleChara();
-        if (chara == null) return false;
-
-        Lumina.Excel.Sheets.Action action;
-        if (castSeconds is null)
-        {
-            var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-            if (!actionSheet.TryGetRow(actionId, out action))
-            {
-                Plugin.Log.Warning($"Action row {actionId} not found");
-                return false;
-            }
-            castSeconds = action.Cast100ms / 10f;
-        }
-
-        // Convert the scenario-local target to world once. CastInfo.TargetLocation,
-        // the omen VFX spawn, and the synthetic ActionEffect packet all need world
-        // coords; storing as world internally keeps those downstream call sites
-        // unchanged.
-        var worldTargetLocation = targetLocation is { } locL ? (Vector3?)world.ToWorld(locL) : null;
-
-        var seconds = castSeconds.Value;
-        chara->CastInfo.ActionType = 1; // ActionType.Action
-        chara->CastInfo.ActionId = actionId;
-        if (targetId is { } tid)
-            chara->CastInfo.TargetId = tid;
-        else if (targetLocation is not null)
-            chara->CastInfo.TargetId = 0xE0000000;
-        else
-            chara->CastInfo.TargetId = chara->GetGameObjectId();
-        if (worldTargetLocation is { } loc) chara->CastInfo.TargetLocation = loc;
-
-        castTargetLocation = worldTargetLocation;
-        castTargetId = targetId;
-        castAnimationVariation = animationVariation;
-        CastActionId = actionId;
-        if (seconds <= 0f)
-        {
-            FaceCastTarget(chara);
-            FireActionEffect(chara, worldTargetLocation, targetId, animationVariation);
-            remainingAnimationLock = DefaultAnimationLockSeconds;
-            castTargetLocation = null;
-            castTargetId = null;
-            castAnimationVariation = 0;
-            CastActionId = 0;
-            return true;
-        }
-
-        chara->CastInfo.IsCasting = true;
-        chara->CastInfo.Interruptible = false;
-        chara->CastInfo.CurrentCastTime = 0f;
-        chara->CastInfo.BaseCastTime = seconds;
-        chara->CastInfo.TotalCastTime = seconds;
-
-        casting = true;
-        castElapsed = 0f;
-        castTotal = seconds;
-        pendingOmenScheduled = false;
-        pendingOmenDelay = MathF.Max(0f, omenDelay);
-        pendingOmenRotate = omenRotate;
-        pendingOmenActionId = actionId;
-        if (pendingOmenDelay <= 0f)
-        {
-            SpawnCastOmen(actionId, chara, worldTargetLocation, omenRotate);
-        }
-        else
-        {
-            pendingOmenScheduled = true;
-        }
-        return true;
+        // targetLocation stays scenario-local; SimCast lifts to world at native boundaries.
+        return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation);
     }
 
-    // Manually spawning the cast bypasses Character::StartCast, so the AOE telegraph
-    // omen is never created. Replicate it by reading the action's Omen sheet entry and
-    // spawning a StaticVfx at the target location. Bad paths cause an async crash on
-    // the file thread, so we validate via DataManager.FileExists before calling create.
-    private void SpawnCastOmen(uint actionId, BattleChara* chara, Vector3? targetLocation, float extraRotation = 0f)
-    {
-        ClearCastOmen();
-
-        var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-        if (!actionSheet.TryGetRow(actionId, out var action))
-        {
-            Plugin.Log.Information($"SpawnCastOmen: action row {actionId:X} ({actionId}) not found in sheet");
-            return;
-        }
-        if (action.Omen.ValueNullable is not { } omen || omen.RowId == 0)
-        {
-            Plugin.Log.Information($"SpawnCastOmen: action {actionId:X} ({actionId}) has no Omen entry (Omen.RowId=0 or null)");
-            return;
-        }
-        var resolvedPath = ResolveActionOmenPath(actionId, omen.Path.ToString());
-        if (resolvedPath == null) return;
-        Plugin.Log.Information($"SpawnCastOmen: action {actionId:X} omen path resolved to '{resolvedPath}' (CastType={action.CastType}, EffectRange={action.EffectRange}, XAxisMod={action.XAxisModifier})");
-
-        var origin = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
-        var range = action.EffectRange;
-        if (range <= 0) range = 1;
-        // CastType 4/11/12 use XAxisModifier as the rectangle's full width along X.
-        var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
-        var scale = action.CastType switch
-        {
-            4 or 11 or 12 => new Vector3(halfWidth, 1f, range),
-            _ => new Vector3(range, 1f, range),
-        };
-        var rotation = MathUtil.NormalizeRotation(chara->Rotation + extraRotation);
-        Plugin.Log.Information($"SpawnCastOmen: action {actionId:X} origin=<{origin.X:F2},{origin.Y:F2},{origin.Z:F2}> charaRot={chara->Rotation:F3} extraRot={extraRotation:F3} finalRot={rotation:F3} scale=<{scale.X:F2},{scale.Y:F2},{scale.Z:F2}>");
-        castOmen = VfxFunctions.SpawnStaticVfx(resolvedPath, new Placement(origin, rotation), scale);
-
-        // CastType 11 is a "+" cross whose Omen sheet entry points at the same single-bar
-        // file (`general_x02f`) as a regular rect; the cross visual is formed by spawning
-        // that bar twice — second copy rotated 90° to make the perpendicular arm.
-        if (action.CastType == 11)
-        {
-            var perpRotation = MathUtil.NormalizeRotation(rotation + MathF.PI / 2f);
-            castOmenAlt = VfxFunctions.SpawnStaticVfx(resolvedPath, new Placement(origin, perpRotation), scale);
-        }
-        else if (action.OmenAlt.ValueNullable is { } omenAlt && omenAlt.RowId != 0)
-        {
-            // Defensive: some non-cross actions populate OmenAlt with a paired shape.
-            var altPath = ResolveActionOmenPath(actionId, omenAlt.Path.ToString());
-            if (altPath != null)
-            {
-                castOmenAlt = VfxFunctions.SpawnStaticVfx(altPath, new Placement(origin, rotation), scale);
-            }
-        }
-    }
-
-    private static string? ResolveActionOmenPath(uint actionId, string rawPath)
-    {
-        var resolved = ResolveOmenPath(rawPath);
-        if (resolved == null)
-        {
-            Plugin.Log.Warning($"SpawnCastOmen: omen file not found for action {actionId} (raw='{rawPath}')");
-        }
-        return resolved;
-    }
-
-    // Lumina's Omen.Path is typically a bare name (`gl_circle_5007_x1`); the on-disk
-    // resource lives at `vfx/omen/eff/{name}.avfx`. Lumina.FileExists throws on paths
-    // without an extension, so we only test candidates that have one.
-    private static string? ResolveOmenPath(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
-        var withExt = raw.EndsWith(".avfx", StringComparison.OrdinalIgnoreCase) ? raw : raw + ".avfx";
-        var fullPath = withExt.Contains('/') ? withExt : $"vfx/omen/eff/{withExt}";
-        try
-        {
-            if (Plugin.DataManager.FileExists(fullPath)) return fullPath;
-            if (fullPath != withExt && Plugin.DataManager.FileExists(withExt)) return withExt;
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Warning($"ResolveOmenPath: FileExists threw for '{fullPath}': {ex.Message}");
-        }
-        return null;
-    }
-
-    private void ClearCastOmen()
-    {
-        if (castOmen != null)
-        {
-            VfxFunctions.RemoveStaticVfx(castOmen);
-            castOmen = null;
-        }
-        if (castOmenAlt != null)
-        {
-            VfxFunctions.RemoveStaticVfx(castOmenAlt);
-            castOmenAlt = null;
-        }
-    }
-
-    // Lets scenarios suppress the default cast telegraph when they want to
-    // render a custom omen (e.g. SwivelCannon's 210° cone covers the whole arena
-    // from the edge; the scenario draws a half-disc at arena center instead).
-    public void HideCastOmen() => ClearCastOmen();
+    public override bool AnimationLock => cast.IsBusy;
 
     public override void Tick(float deltaSeconds)
     {
-        if (remainingAnimationLock > 0f)
-            remainingAnimationLock = MathF.Max(0f, remainingAnimationLock - deltaSeconds);
-
-        if (followTarget != null)
-        {
-            if (!followTarget.IsAlive)
-            {
-                followTarget = null;
-                StopMoving();
-            }
-            else if (IsCasting || remainingAnimationLock > 0f)
-            {
-                // Rooted: cast bar up, or release animation still playing.
-                // Don't translate or rotate — let the action animation finish.
-                StopMoving();
-            }
-            else
-            {
-                var dx = followTarget.Position.X - Position.X;
-                var dz = followTarget.Position.Z - Position.Z;
-                var distSq = dx * dx + dz * dz;
-                // Stop when the hitboxes touch — chasing into the target's
-                // center would force-overlap the rigs and look wrong for
-                // boss-on-tank pursuit.
-                var stopDist = HitboxRadius + followTarget.HitboxRadius;
-                if (distSq <= stopDist * stopDist)
-                {
-                    StopMoving();
-                    Face(followTarget.Position);
-                }
-                else
-                {
-                    var dist = MathF.Sqrt(distSq);
-                    var t = (dist - stopDist) / dist;
-                    var dest = new Vector3(
-                        Position.X + dx * t,
-                        Position.Y,
-                        Position.Z + dz * t);
-                    // SimNpc.MoveTo skips the animation restart when already
-                    // running the same timeline, so this stays flicker-free.
-                    MoveTo(dest, followSpeed);
-                }
-            }
-        }
-
         base.Tick(deltaSeconds);
         ReconcileVisibility();
-
-        if (!casting) return;
-
-        var chara = GetBattleChara();
-        if (chara == null) { casting = false; return; }
-
-        castElapsed += deltaSeconds;
-        if (pendingOmenScheduled && castElapsed >= pendingOmenDelay)
-        {
-            pendingOmenScheduled = false;
-            SpawnCastOmen(pendingOmenActionId, chara, castTargetLocation, pendingOmenRotate);
-        }
-        if (castElapsed >= castTotal)
-        {
-            chara->CastInfo.CurrentCastTime = castTotal;
-            FaceCastTarget(chara);
-            FireActionEffect(chara, castTargetLocation, castTargetId, castAnimationVariation);
-            remainingAnimationLock = DefaultAnimationLockSeconds;
-            chara->CastInfo.IsCasting = false;
-            casting = false;
-            castTargetLocation = null;
-            castTargetId = null;
-            castAnimationVariation = 0;
-            CastActionId = 0;
-            pendingOmenScheduled = false;
-            ClearCastOmen();
-        }
-        else
-        {
-            chara->CastInfo.CurrentCastTime = castElapsed;
-        }
-    }
-
-    // Targeted casts (ground location now; entity targets later) snap to face the target
-    // on the final tick so the release animation plays in the intended direction even if
-    // the target moved during the cast. FireActionEffect snapshots Rotation into the
-    // packet header, so this must run first.
-    private void FaceCastTarget(BattleChara* chara)
-    {
-        if (castTargetLocation is not { } loc) return;
-        var dx = loc.X - chara->Position.X;
-        var dz = loc.Z - chara->Position.Z;
-        if (dx * dx + dz * dz < 1e-6f) return;
-        chara->Rotation = MathUtil.NormalizeRotation(MathF.Atan2(dx, dz));
-    }
-
-    // Mimics the server's ActionEffect packet so the game plays the action's release
-    // animation/VFX on the caster. When deliverTo is set, the packet carries
-    // NumTargets=1 with that GameObjectId and a zeroed (no-op) effect entry; some
-    // actions only animate on the caster if the engine sees at least one target
-    // to deliver to. When null, NumTargets=0 (used for self-targeted UseAction
-    // calls and cast releases that don't have an entity target).
-    private static void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
-    {
-        var actionId = chara->CastInfo.ActionId;
-
-        // Engine ApplyAll dereferences whatever LookupBattleCharaByEntityId returns for each
-        // targetEntityIds[i] without a null check. A captured GameObjectId can outlive the
-        // BC behind it (target killed/despawned mid-cast, scenario reset, lifetime expiry),
-        // and a stale id resolves to null in _battleCharas → ApplyAll+0x45 null-deref. Drop
-        // to the no-target path in that case; release animation still plays off casterEntityId.
-        var safeDeliver = deliverTo;
-        if (safeDeliver is { } probeId)
-        {
-            var cm = CharacterManager.Instance();
-            if (cm == null || cm->LookupBattleCharaByEntityId((uint)probeId.Id) == null)
-            {
-                Plugin.Log.Warning(
-                    $"FireActionEffect: target {probeId.Id:X} for action {actionId:X} on caster {chara->EntityId:X} not in CharacterManager._battleCharas; dropping deliverTo to avoid ApplyAll null-deref");
-                safeDeliver = null;
-            }
-        }
-
-        var rotationInt = (ushort)Math.Clamp(
-            (int)((chara->Rotation / MathF.PI) * 32767f + 32767f), 0, 65535);
-
-        // Mirror Cast()'s TargetId classification using the sanitized state. CastInfo.TargetId
-        // was snapshotted at Cast() time and may carry a now-stale entity id; reading it here
-        // routes that stale id into AnimationTargetId, which Receive resolves and crashes on
-        // (same null-deref as the deliverTo array). Re-derive from current state instead.
-        var header = default(ActionEffectHandler.Header);
-        if (safeDeliver is { } sd)
-            header.AnimationTargetId = sd;
-        else if (targetLocation.HasValue)
-            header.AnimationTargetId = 0xE0000000;
-        else
-            header.AnimationTargetId = chara->GetGameObjectId();
-        header.ActionId = actionId;
-        header.GlobalSequence = ActionEffects.NextGlobalSequence++;
-        header.AnimationLock = 0f;
-        header.BallistaEntityId = 0xE0000000;
-        header.SourceSequence = 0;
-        header.RotationInt = rotationInt;
-        header.SpellId = (ushort)actionId;
-        header.AnimationVariation = animationVariation;
-        header.ActionType = chara->CastInfo.ActionType;
-        header.NumTargets = (byte)(safeDeliver.HasValue ? 1 : 0);
-        header.ForceAnimationLock = true;
-
-        var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
-
-        if (safeDeliver is { } targetId)
-        {
-            Plugin.Log.Info($"ActionEffectHandler.Receive: caster: {chara->EntityId:X}, position: {pos}, targetId: {targetId.Id:X}");
-            var effects = default(ActionEffectHandler.TargetEffects);
-            ActionEffectHandler.Receive(
-                chara->EntityId,
-                (Character*)chara,
-                &pos,
-                &header,
-                &effects,
-                &targetId);
-        }
-        else
-        {
-            Plugin.Log.Info($"ActionEffectHandler.Receive: caster: {chara->EntityId:X}, position: {pos}");
-            ActionEffectHandler.Receive(
-                chara->EntityId,
-                (Character*)chara,
-                &pos,
-                &header,
-                null,
-                null);
-        }
+        cast.Tick(deltaSeconds);
     }
 
     public CharacterFind<T> Find<T>(List<T> targets) where T : IPositioned

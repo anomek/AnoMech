@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
 
 namespace AnoMech.Core.SimObjects;
 
 // Fixed-size 8-slot party indexed by PartyRole. Each slot holds either a
-// SimPartyMember (spawned NPC) or the SimPlayer (the player's own role).
-// Get(role) returns the SimPartySlot at the slot or null when unfilled.
+// SimPartyNpc (spawned doppel) or the SimPlayer (the player's own role) — both
+// ISimPartyMember. Slots are stored/returned as SimCharacter so they thread
+// straight into the character-typed engine APIs (world.Tether, AddStatus, ...);
+// the party-slot facets (Role, Knockback) are reached by casting to
+// ISimPartyMember.
 //
 // HUD mirroring is owned by SimWorld (not SimParty) — see SimWorld.partyHud —
 // so the addon-lifecycle listener has the same lifespan as the plugin and the
@@ -15,16 +20,16 @@ public sealed class SimParty : ISimObject
 {
     public static readonly SimParty Empty = new();
 
-    private readonly SimPartySlot?[] slots = new SimPartySlot?[8];
+    private readonly SimCharacter?[] slots = new SimCharacter?[8];
 
-    public SimParty() { Find = new CharacterFind<SimPartySlot>(ActiveMembers); }
+    public SimParty() { Find = new CharacterFind<SimCharacter>(ActiveMembers); }
 
-    public CharacterFind<SimPartySlot> Find { get; }
+    public CharacterFind<SimCharacter> Find { get; }
 
-    public SimPartySlot? Get(int roleId)
+    public SimCharacter? Get(int roleId)
         => roleId >= 0 && roleId < slots.Length ? slots[roleId] : null;
 
-    public SimPartySlot? Get(PartyRole role) => Get((int)role);
+    public SimCharacter? Get(PartyRole role) => Get((int)role);
 
     // The role of the slot currently holding the SimPlayer — set by SetSlot
     // when it receives one. Falls back to MainTank if no SimPlayer has been
@@ -33,28 +38,28 @@ public sealed class SimParty : ISimObject
 
     public SimPlayer? Player => Get(PlayerRole) as SimPlayer;
 
-    internal void SetSlot(PartyRole role, SimPartySlot slot)
+    internal void SetSlot(PartyRole role, ISimPartyMember slot)
     {
         slot.Role = role;
-        slots[(int)role] = slot;
+        slots[(int)role] = (SimCharacter)slot;
         if (slot is SimPlayer) PlayerRole = role;
     }
 
-    internal void ForEachActive(Action<SimPartySlot> action)
+    internal void ForEachActive(Action<SimCharacter> action)
     {
         for (int i = 0; i < slots.Length; i++)
-            if (slots[i] is { IsAlive: true } m) action(m);
+            if (slots[i] is { } m && m.IsAlive()) action(m);
     }
 
     // Kills every alive member with the given cause. Raidwide wipe primitive
     // used by mechanics whose failure is unsurvivable.
     public void WipeAllPlayers(string cause)
-        => ForEachActive(m => { if (m.IsAlive) m.Die(cause); });
+        => ForEachActive(m => { if (m.IsAlive()) m.Die(cause); });
 
     // Raidwide knockback: pushes every active slot `distance` units away from
     // `source`. Each slot resolves its own direction from its current position.
     public void Knockback(Vector3 source, float distance)
-        => ForEachActive(m => m.Knockback(source, distance));
+        => ForEachActive(m => (m as ISimPartyMember)?.Knockback(source, distance));
 
     // Raidwide knockback resolved from KnockbackTable + Lumina Knockback sheet.
     // Resolves once at the party level so an unmapped action logs a single
@@ -63,19 +68,19 @@ public sealed class SimParty : ISimObject
     {
         if (!KnockbackLookup.TryGet(knockbackId, out var distance, out var speed))
             return;
-        ForEachActive(m => m.Knockback(source, distance, speed));
+        ForEachActive(m => (m as ISimPartyMember)?.Knockback(source, distance, speed));
     }
-    
-    internal IEnumerable<SimPartySlot> ActiveMembers()
+
+    internal IEnumerable<SimCharacter> ActiveMembers()
     {
         for (int i = 0; i < slots.Length; i++)
-            if (slots[i] is { IsAlive: true } m) yield return m;
+            if (slots[i] is { } m && m.IsAlive()) yield return m;
     }
 
     // All filled slots with their role index, alive or dead. Used by PartyFinder
     // proximity queries (which follow the same no-alive-filter contract the old
     // FindClosest* methods had).
-    internal IEnumerable<(PartyRole role, SimPartySlot member)> FilledSlots()
+    internal IEnumerable<(PartyRole role, SimCharacter member)> FilledSlots()
     {
         for (int i = 0; i < slots.Length; i++)
             if (slots[i] is { } m) yield return ((PartyRole)i, m);
@@ -85,7 +90,7 @@ public sealed class SimParty : ISimObject
     // keep their slot (HP=0 is the visible "dead" state) instead of being
     // silently dropped — and so other members don't shift up the list when
     // someone dies. Mechanic resolvers should keep using ActiveMembers.
-    internal IEnumerable<SimPartySlot> AllMembers()
+    internal IEnumerable<SimCharacter> AllMembers()
     {
         for (int i = 0; i < slots.Length; i++)
             if (slots[i] is { } m) yield return m;
@@ -96,10 +101,15 @@ public sealed class SimParty : ISimObject
         get
         {
             for (int i = 0; i < slots.Length; i++)
-                if (slots[i] is { IsAlive: true }) return true;
+                if (slots[i] is { } m && m.IsAlive()) return true;
             return false;
         }
     }
+
+    // The party persists for the whole scenario and is torn down only by Reset /
+    // Despawn — a wipe (every member dead) must NOT reap it, so this is not wired
+    // to IsAlive.
+    public bool IsActive => true;
 
     public void Tick(float deltaSeconds)
     {
@@ -107,6 +117,14 @@ public sealed class SimParty : ISimObject
         {
             if (slots[i] is null) continue;
             slots[i]!.Tick(deltaSeconds);
+            // Reap a slot only if its member is fully gone (handle released).
+            // A KO'd doppel keeps IsActive == true, so this is a safety net,
+            // not the normal-path death behaviour.
+            if (!slots[i]!.IsActive)
+            {
+                slots[i]!.Despawn();
+                slots[i] = null;
+            }
         }
     }
 

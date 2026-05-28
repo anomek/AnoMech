@@ -1,3 +1,4 @@
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
 namespace AnoMech.Core.SimObjects;
@@ -19,7 +20,7 @@ public sealed unsafe class SimStatus : ISimObject
         StatusId = statusId;
         IsActive = true;
         Stacks = stacks;
-        Statuses.Apply((Character*)target.BattleCharaPtr, statusId, duration, stacks);
+        Statuses.AddStatusInit((Character*)target.BattleCharaPtr, statusId, stacks);
     }
 
     public void Reapply(float duration, ushort stacks)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants;
@@ -12,16 +13,11 @@ public sealed class TopP5SigmaScenario : IScenario
 {
     public string Name => "TOP P5 Sigma";
 
-    public TargetInstance? TargetInstance { get; } = new(
+    public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1122,
         Origin: new Vector3(100f, 0f, 100f),
         PlayerPosition: new Vector3(100f, 0f, 116f),
         WeatherId: 174);
-
-    public IReadOnlyList<ScenarioOriginOverride> OriginOverrides { get; } = [
-        new(TerritoryId: 801, X: 100f, Z: 100f),
-        new(TerritoryId: 1045, X: 0f, Z: 0)
-    ];
 
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
 
@@ -114,15 +110,12 @@ public sealed class TopP5SigmaScenario : IScenario
         world.Events.Add(13f, () => omega_M_4000A63C?.SetPosition(state.NewNorthA.Apply(new Placement(new(0f, 0f, -20f), 0f))));
         world.Events.Add(13.96f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(26.16f, () => omega_M_4000A63C?.Cast(ActionId.SubjectSimulationFDynamis, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
-        world.Events.Add(27.25f, () => omega_M_4000A63C?.SetTransformationId(493));
         world.Events.Add(27.23f, () => omega_M_4000A63C?.SetModelState(0x06));
-        
         world.Events.Add(27.23f, () => omega_M_4000A63C?.RemoveStatus(StatusId.OmegaM));
         world.Events.Add(27.23f, () => omega_M_4000A63C?.AddStatus(StatusId.Superfluid, stacks: 493, overrideStacks: true));
-        world.Events.Add(28.25f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7b16, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
+        world.Events.Add(28.25f, () => omega_M_4000A63C?.Cast(ActionId.SubjectSimulationFWarpDown, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
         world.Events.Add(28.79f, () => omega_M_4000A63C?.SetModelState(0x0B));
         world.Events.Add(32.36f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7f30, castSeconds: 0f, targetId: omega_M_4000A63C?.GameObjectId));
-        world.Events.Add(36.05f, () => omega_M_4000A63C?.SetTransformationId(492));
         world.Events.Add(36.02f, () => omega_M_4000A63C?.SetModelState(0x05));
         world.Events.Add(36.02f, () => omega_M_4000A63C?.RemoveStatus(StatusId.Superfluid));
         world.Events.Add(36.02f, () => omega_M_4000A63C?.AddStatus(StatusId.OmegaF, stacks: 492, overrideStacks: true));
@@ -210,10 +203,10 @@ public sealed class TopP5SigmaScenario : IScenario
     private void ResolveHyperpulse(SimTether? tether)
     {
         if (tether?.A is not { } caster) return;
-        foreach (var hit in party.Find.InsideActionAoe(ActionId.HyperPulseSigma, caster.Placement))
+        foreach (var hit in party.Find.InsideActionAoe(ActionId.HyperPulseSigma, caster.Placement()))
         {
             var lethal = topUtils.IsDamageLethal(hit, ruin: false);
-            Plugin.Log.Info($"Hit: {hit.Role} by Hyper Pulse ({(lethal ? "lethal" : "non-lethal")})");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Hyper Pulse ({(lethal ? "lethal" : "non-lethal")})");
             if (lethal)
                 hit.Die("Hyper Pulse");
             else
@@ -225,7 +218,7 @@ public sealed class TopP5SigmaScenario : IScenario
     {
         SimEnemy? omega_M_4000A40C_0 = null;
         world.Events.Add(1f, () => omega_M_4000A40C_0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaMDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 0f), 0f)))));
-        world.Events.Add(27.14f, () => omega_M_4000A40C_0?.Cast(ActionId.Unknown7b14, castSeconds: 0f, targetId: omega_M_4000A40C_0?.GameObjectId));
+        world.Events.Add(27.14f, () => omega_M_4000A40C_0?.Cast(ActionId.SuperfluidAnimationM, castSeconds: 0f, targetId: omega_M_4000A40C_0?.GameObjectId));
     }
 
     private void Run_Omega_4000A408()
@@ -276,11 +269,11 @@ public sealed class TopP5SigmaScenario : IScenario
 
     private void ResolveWaveCannon(SimEnemy? caster)
     {
-        if (caster is not { IsAlive: true } unit) return;
-        foreach (var hit in party.Find.InsideActionAoe(ActionId.WaveCannonAoe, unit.Placement))
+        if (caster is not { IsActive: true } unit) return;
+        foreach (var hit in party.Find.InsideActionAoe(ActionId.WaveCannonAoe, unit.Placement()))
         {
             var lethal = topUtils.IsDamageLethal(hit, ruin: false);
-            Plugin.Log.Info($"Hit: {hit.Role} by Wave Cannon ({(lethal ? "lethal" : "non-lethal")})");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Wave Cannon ({(lethal ? "lethal" : "non-lethal")})");
             if (lethal)
                 hit.Die("Wave Cannon");
             else
@@ -288,12 +281,12 @@ public sealed class TopP5SigmaScenario : IScenario
         }
     }
 
-    private void ResolveStorageViolation(SimPartySlot player)
+    private void ResolveStorageViolation(SimCharacter player)
     {
-        if (!player.IsAlive) return;
+        if (!player.IsAlive()) return;
         player.RemoveStatus(StatusId.Looper);
         var lethal = topUtils.IsDamageLethal(player, ruin: true);
-        Plugin.Log.Info($"Hit: {player.Role} by Storage Violation ({(lethal ? "lethal" : "non-lethal")})");
+        Plugin.Log.Info($"Hit: {(player as ISimPartyMember)?.Role} by Storage Violation ({(lethal ? "lethal" : "non-lethal")})");
         if (lethal)
         {
             player.Die("Storage Violation");
@@ -305,28 +298,6 @@ public sealed class TopP5SigmaScenario : IScenario
         Plugin.Log.Info("Hit: ALL PARTY by Storage Violation — tower unfilled (lethal raidwide)");
         omega4000A408?.Cast(ActionId.StorageViolationFail);
         party.WipeAllPlayers("Storage Violation — tower unfilled");
-    }
-
-    private void ResolveHelloWorld(Vector3? position, uint actionId)
-    {
-        if (position is not { } pos) return;
-        var inAoe = party.Find.InsideActionAoe(actionId, new Placement(pos, 0f), targetLocation: pos);
-        if (inAoe.Count != 1)
-        {
-            Plugin.Log.Info($"Hit: ALL PARTY by Hello World fail (lethal raidwide, soakers={inAoe.Count})");
-            topUtils.HelloWorldFail(pos);
-            return;
-        }
-        var soaker = inAoe[0];
-        if (topUtils.IsDamageLethal(soaker, ruin: false))
-        {
-            Plugin.Log.Info($"Hit: {soaker.Role} by Hello World (lethal) → raidwide fail");
-            topUtils.HelloWorldFail(pos);
-            return;
-        }
-        Plugin.Log.Info($"Hit: {soaker.Role} by Hello World (non-lethal soak)");
-        soaker.AddStatus(StatusId.QuickeningDynamis, stacks: 1);
-        soaker.AddStatus(StatusId.MagicVulnerabilityUp, 4.96f);
     }
 
     private void Run_EventObj_1EB83C_4000A6E7()
@@ -380,10 +351,10 @@ public sealed class TopP5SigmaScenario : IScenario
 
     private void ResolveRearLasers(SimEnemy? rearPowerUnit4000A641)
     {
-        if (rearPowerUnit4000A641 is not { IsAlive: true } unit) return;
-        foreach (var hit in party.Find.InsideActionAoe(ActionId.RearLasersShoot, unit.Placement))
+        if (rearPowerUnit4000A641 is not { IsActive: true } unit) return;
+        foreach (var hit in party.Find.InsideActionAoe(ActionId.RearLasersShoot, unit.Placement()))
         {
-            Plugin.Log.Info($"Hit: {hit.Role} by Rear Lasers (lethal)");
+            Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Rear Lasers (lethal)");
             hit.Die("Rear Lasers");
         }
     }

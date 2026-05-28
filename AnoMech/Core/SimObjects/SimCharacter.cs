@@ -2,233 +2,191 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel.Sheets;
 
 namespace AnoMech.Core.SimObjects;
 
-// Common base for anything in the simulated world that has a BattleChara behind
-// it — spawned NPCs (SimNpc) and the real local player (SimPlayer). Owns the
-// shared overlay state (attached VFX, statuses) and Move/MoveTo as virtual
-// no-ops so callers can treat all characters uniformly. Subclasses expose the
-// pointer + identity via the abstract properties below; everything else is
-// concrete here.
-public abstract unsafe class SimCharacter : ISimObject, IPositioned
+// Common base for anything in the simulated world that has a BattleChara behind it
+public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject, IPositioned
 {
-    private readonly Dictionary<string, IntPtr> attachedVfx = new();
-    private readonly Dictionary<string, float> attachedVfxExpiry = new();
-    private readonly List<SimStatus> statuses = new();
-
+    private readonly List<SimVfx> vfx = [];
+    private readonly List<SimStatus> statusList = [];
+    
     internal abstract BattleChara* BattleCharaPtr { get; }
-    public abstract GameObjectId GameObjectId { get; }
-    // Authoritative store for the character's scenario-local pose. Mutators
-    // (SetPosition / SetPosition(Placement) / Face) write here; subclasses
-    // that back a native BattleChara push the same values to the native struct
-    // and re-sync these fields from native at the start of each Tick so
-    // engine-driven drift (player input, server corrections) lands here too.
-    public Vector3 Position { get; protected set; }
-    public float Rotation { get; protected set; }
-    public abstract float HitboxRadius { get; }
-    public Placement Placement => new(Position, Rotation);
+    
+    private protected abstract Movement Movement { get; }
+    
+    protected readonly Coordinates Coordinates = coordinates;
+    
+    public virtual bool IsActive => BattleCharaPtr != null;
 
-    // Set by Game.Kill() — the character is corpse-on-floor / stunned / despawned
-    // depending on subclass. Subclass IsAlive overrides AND with this so engine
-    // checks (party.Tick, AI movement, scenario lookups) all see them as gone.
-    public bool Dead { get; internal set; }
+    // True while the character is rooted by an in-progress action (cast bar up or
+    // release animation still playing). The Movement subsystem reads this to hold
+    // an active follow in place until the animation finishes. Default false; types
+    // that simulate casts (SimEnemy) override it.
+    public virtual bool AnimationLock => false;
 
-    // Default IsAlive: a character is alive if its BattleChara handle resolves
-    // and Game.Kill hasn't been called on it. SimNpc overrides to also check
-    // Index validity; SimPlayer can rely on this.
-    public virtual bool IsAlive => !Dead && BattleCharaPtr != null;
-
-    // Per-subclass effects of dying. Game.Kill() flips Dead and routes here so
-    // subclasses do the right thing — SimPartyMember sets HP=0 + plays the KO
-    // timeline, SimPlayer kicks the input-lockout hooks, SimEnemy despawns.
-    internal virtual void OnKilled() { }
-
-    // Scenario-facing facade for Game.Kill — same global side effects (chat
-    // line, freeze timer, godmode short-circuit), just shorter at the call
-    // site than reaching for Plugin.GameInstance.
-    public void Die(string cause) => Plugin.GameInstance.Kill(this, cause);
-
-    // Default mutators write the stored Position/Rotation fields. Subclasses
-    // backed by a native BattleChara (SimNpc, SimEventObject-like) call base
-    // first to update the stored state, then push the same values to the
-    // native struct so the in-world entity moves visibly. MoveTo / StopMoving
-    // are state-machine entry points and stay virtual no-ops on the base —
-    // only SimNpc has the per-Tick stepping that needs them.
-    public virtual void SetPosition(Vector3 position) { Position = position; }
-    public virtual void SetPosition(Placement placement)
+    public GameObjectId GameObjectId => BattleCharaPtr == null ? default : BattleCharaPtr->GetGameObjectId();
+    public float HitboxRadius => BattleCharaPtr == null ? 0f : BattleCharaPtr->HitboxRadius;
+    
+    
+    public virtual void Tick(float deltaSeconds)
     {
-        Position = placement.Position;
-        Rotation = MathUtil.NormalizeRotation(placement.Rotation);
+        var native = BattleCharaPtr;
+        if (native != null)
+        {
+            Position = Coordinates.ToLocal(native->Position);
+            Rotation = native->Rotation;
+        }
+        statusList.Update(deltaSeconds);
+        vfx.Update(deltaSeconds);
+        Movement.Tick(deltaSeconds);
     }
-    public virtual void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null, ushort timelineId = SimNpc.DefaultRunTimelineId) { }
-    public virtual void StopMoving() { }
 
-    // Snaps facing toward `target` on the XZ plane. No-op when the target is
-    // at the same XZ position. Writes the stored Rotation; subclasses override
-    // to also push to the native struct.
-    public virtual void Face(Vector3 target)
+    public virtual void Despawn()
     {
-        var dx = target.X - Position.X;
-        var dz = target.Z - Position.Z;
-        if (dx * dx + dz * dz < 1e-6f) return;
-        Rotation = MathUtil.NormalizeRotation(MathF.Atan2(dx, dz));
+        statusList.Despawn();
+        vfx.Despawn();
     }
+    
+    // -------------------------
+    // Location Subsystem
+    // -------------------------
+    
+    // Character position in local coordinates. Updated every frame to be always in sync with game
+    public Vector3 Position { get; private set; }
+    public float Rotation { get; private set; }
+    
+    public void SetPosition(Vector3 position)
+    {
+        var obj = BattleCharaPtr;
+        if (obj == null) return;
+        var w = Coordinates.ToGlobal(position);
+        obj->SetPosition(w.X, w.Y, w.Z);
+        if (obj->DrawObject != null) obj->DrawObject->Object.Position = w;
+        Position = position; // early update, will be updated on next tick anyway
+    }
+    
+    public void SetRotation(float rotation)
+    {
+        var obj = BattleCharaPtr;
+        if (obj == null) return;
+        obj->SetRotation(MathUtil.NormalizeRotation(rotation));
+        Rotation = rotation; // early update, will be updated on next tick anyway
+    }
+    
+    public void SetPosition(Placement placement)
+    {
+        SetPosition(placement.Position);
+        SetRotation(placement.Rotation);
+    }
+    
+    public void Face(Vector3 target) => Movement.Face(target);
     public void Face(IPositioned target) => Face(target.Position);
+    public void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null)
+        => Movement.MoveTo(target, speed, finalRotation);
+    public void MoveTo(Placement p) => MoveTo(p.Position);
+    protected void StopMoving() => Movement.Stop();
 
-    // Self-attached actor VFX keyed by path. Path is validated via FileExists before
-    // spawning to avoid the file-thread crash StaticVfxCreate has on bad paths.
-    //
-    // persistent: true  → tracked in attachedVfx; cleaned up on RemoveVfx or by
-    //                     ClearAttachedVfx at Despawn / Reset. Re-adding the same
-    //                     path is a no-op so callers can be lazy. With duration > 0
-    //                     also auto-removed on its own counter via attachedVfxExpiry.
-    // persistent: false → fire-and-forget. The AVFX self-completes and the game
-    //                     frees the VfxData internally; we must NOT call
-    //                     ActorVfxRemove on it later (that's the VfxData::Dtor
-    //                     crash). duration is ignored in this mode.
-    public IntPtr AddVfx(string path, float duration = 0f, bool persistent = true)
+
+    // -------------------------
+    // VFX Subsystem
+    // -------------------------
+    
+    // Self-attached actor VFX keyed by path.
+    // persistent: true  → tracked by sim (might crash if we try to remove vfx after game already did that)
+    // persistent: false → fire-and-forget (game is responsible for duration and cleaning of vfx)
+    public void AddVfx(string path, float duration = 0f, bool persistent = true)
     {
-        if (string.IsNullOrEmpty(path)) return IntPtr.Zero;
-        var chara = BattleCharaPtr;
-        if (chara == null) return IntPtr.Zero;
-
-        if (persistent && attachedVfx.TryGetValue(path, out var existing))
+        if (!VfxFunctions.VfxPathExists(path) || !IsActive) return;
+        if (persistent && FindVfx(path) is {} existing)
         {
-            if (duration > 0f) attachedVfxExpiry[path] = duration;
-            return existing;
+            existing.Refresh(duration);
+            return;
         }
+        var spawned = new SimVfx(this, path, duration);
+        if (persistent && spawned.IsActive)
+            vfx.Add(spawned);
+    }
+    
+    public void AttachLockonVfx(uint lockonId, float duration = 0f, bool persistent = true)
+    {
+        if (VfxFunctions.LockonVfxIconName(lockonId) is {} iconName)
+            AddVfx($"vfx/lockon/eff/{iconName}.avfx", duration, persistent);
+    }
 
-        try
-        {
-            if (!Plugin.DataManager.FileExists(path))
-            {
-                Plugin.Log.Warning($"AddVfx: path not found '{path}'");
-                return IntPtr.Zero;
-            }
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Warning($"AddVfx: FileExists threw for '{path}': {ex.Message}");
-            return IntPtr.Zero;
-        }
-
-        var vfx = VfxFunctions.SpawnActorVfx(path, (Character*)chara, (Character*)chara);
-        if (vfx == IntPtr.Zero) return IntPtr.Zero;
-
-        if (persistent)
-        {
-            attachedVfx[path] = vfx;
-            if (duration > 0f) attachedVfxExpiry[path] = duration;
-        }
-        return vfx;
+    public SimVfx? FindVfx(string path)
+    {
+        return vfx.Find(v => v.IsActive && v.Path == path);
     }
 
     public void RemoveVfx(string path)
     {
-        attachedVfxExpiry.Remove(path);
-        if (!attachedVfx.Remove(path, out var vfx)) return;
-        VfxFunctions.RemoveActorVfx(vfx);
+        FindVfx(path)?.Despawn();
     }
+    
+    // FIXME: minor, keep track of tethers and slots attached to character
+    public bool HasTetherInSlot0(ushort tetherId)
+        => BattleCharaPtr != null && VfxFunctions.GetTetherId((Character*)BattleCharaPtr, 0) == tetherId;
+    
+    // -------------------------
+    // Status Subsystem
+    // -------------------------
 
-    // Raid head-marker style attachment (e.g. arm-unit rotation arrows). lockonId maps
-    // to the Lockon excel sheet's IconName, which resolves to vfx/lockon/eff/{IconName}.avfx.
-    // See AddVfx for the persistent / duration semantics.
-    public void AttachLockonVfx(uint lockonId, float duration = 0f, bool persistent = true)
-    {
-        if (!IsAlive) return;
-        var sheet = Plugin.DataManager.GetExcelSheet<Lockon>();
-        if (!sheet.TryGetRow(lockonId, out var row)) return;
-        var iconName = row.IconName.ExtractText();
-        if (string.IsNullOrEmpty(iconName)) return;
-        AddVfx($"vfx/lockon/eff/{iconName}.avfx", duration, persistent);
-    }
-
-    public void ClearAttachedVfx()
-    {
-        foreach (var vfx in attachedVfx.Values) VfxFunctions.RemoveActorVfx(vfx);
-        attachedVfx.Clear();
-        attachedVfxExpiry.Clear();
-    }
-
-    // Status on this character. Default duration of 0 means apply once and
-    // leave alone (no auto-remove from our side); pass a positive duration for
-    // a visible countdown that auto-removes on expiry. Param is the stack
-    // count / sheet Param the slot should carry (0 if the status doesn't use
-    // it). Returned reference lets callers Despawn() it early (e.g. SimTether
-    // tearing its tether debuff); otherwise the character ticks and prunes it.
     public SimStatus AddStatus(ushort statusId, float duration = 0f, ushort stacks = 1, bool overrideStacks = false)
     {
-        var current = statuses
-            .FirstOrDefault(status => status.StatusId == statusId);
-        if (current == null)
+        if (FindStatus(statusId) is {} status)
         {
-            var s = new SimStatus(this, statusId, duration, stacks);
-            statuses.Add(s);
-            return s;
+            status.Reapply(duration, overrideStacks ? (ushort)(stacks - status.Stacks) : stacks);
+            return status;
         }
         else
         {
-            current.Reapply(duration, overrideStacks ? (ushort)(stacks - current.Stacks) : stacks);
-            return current;
+            var s = new SimStatus(this, statusId, duration, stacks);
+            statusList.Add(s);
+            return s;
         }
     }
 
     public void RemoveStatus(ushort statusId)
     {
-        for (int i = statuses.Count - 1; i >= 0; i--)
-        {
-            if (statuses[i].StatusId != statusId) continue;
-            statuses[i].Despawn();
-            statuses.RemoveAt(i);
-        }
+        FindStatus(statusId)?.Despawn();
     }
 
-    // Returns the most recently added active SimStatus for this id, or null if
-    // there isn't one. Used by mechanic resolvers (stack increment) to read
-    // the current Param without re-walking the BattleChara slot array.
-    public SimStatus? GetStatus(ushort statusId)
+    public SimStatus? FindStatus(ushort statusId)
     {
-        for (int i = statuses.Count - 1; i >= 0; i--)
-            if (statuses[i].IsActive && statuses[i].StatusId == statusId) return statuses[i];
-        return null;
+        return statusList.Find(status => status.IsActive && status.StatusId == statusId);
     }
 
-    public bool HasStatus(ushort statusId) => GetStatus(statusId) != null;
-
-    public bool HasTetherInSlot0(ushort tetherId)
-        => BattleCharaPtr != null && VfxFunctions.GetTetherId((Character*)BattleCharaPtr, 0) == tetherId;
-
-    public virtual void Tick(float deltaSeconds)
+    public bool HasStatus(ushort statusId) => FindStatus(statusId) != null;
+    
+    
+    // -------------------------
+    // Other Subsystem
+    // -------------------------
+    
+    public void PlayActionTimeline(ushort timelineId, ushort loopId = 0, ushort baseOverride = 0)
     {
-        // Tick statuses; prune ones that auto-expired (or were explicitly
-        // Despawn'd) so the list doesn't grow unbounded across a long scenario.
-        for (int i = statuses.Count - 1; i >= 0; i--)
-        {
-            statuses[i].Tick(deltaSeconds);
-            if (!statuses[i].IsActive) statuses.RemoveAt(i);
-        }
-
-        if (attachedVfxExpiry.Count > 0)
-        {
-            List<string>? expired = null;
-            foreach (var (path, remaining) in attachedVfxExpiry)
-            {
-                var next = remaining - deltaSeconds;
-                if (next <= 0f) (expired ??= new List<string>()).Add(path);
-                else attachedVfxExpiry[path] = next;
-            }
-            if (expired != null) foreach (var path in expired) RemoveVfx(path);
-        }
+        var chara = BattleCharaPtr;
+        if (chara == null) return;
+        if (chara->Timeline.TimelineSequencer.Parent == null) return;
+        chara->Timeline.BaseOverride = baseOverride;
+        chara->Timeline.PlayActionTimeline(timelineId, loopId);
     }
-
-    public virtual void Despawn()
+    
+    public void ResetActionTimeline()
     {
-        ClearAttachedVfx();
-        foreach (var s in statuses) s.Despawn();
-        statuses.Clear();
+        var bc = BattleCharaPtr;
+        if (bc == null) return;
+        bc->Timeline.BaseOverride = 0;
+        bc->Timeline.ModelState = 0;
+        bc->Timeline.AnimationState[0] = 0;
+        bc->Timeline.AnimationState[1] = 0;
+        bc->Timeline.TimelineSequencer.SetSlotTimeline(0, 0);
+        if (bc->Timeline.TimelineSequencer.Parent == null) return;
     }
 }

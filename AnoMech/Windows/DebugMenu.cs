@@ -6,6 +6,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using AnoMech.Core;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 
@@ -31,11 +32,7 @@ internal sealed unsafe class DebugMenu
     private string debugSpawnModeAttrFlagsText = "";
     private string debugTimelineIdText = "0x53C";
     private string debugModelStateText = "0x00";
-    private string debugAnimStateText = "0x00";
-    private string debugPoseTimelineText = "0x1E43";
     private string debugModeAttrFlagsText = "0x00";
-    private string debugModelCharaIdText = "0";
-    private string debugTransformationIdText = "493";
     private string debugCastActionIdText = "0";
     private string debugCastAnimVariationText = "0";
     private string debugStatusIdText = "0";
@@ -151,27 +148,11 @@ internal sealed unsafe class DebugMenu
         }
 
         ImGui.Spacing();
-        ImGui.TextUnformatted("Apply pose change on target");
+        ImGui.TextUnformatted("Set ModelState on target");
         ImGui.Separator();
         ImGui.SetNextItemWidth(120);
         ImGui.InputText("ModelState", ref debugModelStateText, 16);
-        ImGui.SetNextItemWidth(120);
-        ImGui.InputText("AnimState", ref debugAnimStateText, 16);
-        ImGui.SetNextItemWidth(120);
-        ImGui.InputText("CommitTimelineId", ref debugPoseTimelineText, 16);
-        if (ImGui.Button("Apply pose change"))
-        {
-            if (!TryParseId(debugModelStateText, out var modelState) || modelState > 0xFF)
-                Plugin.Log.Warning($"Pose: can't parse ModelState '{debugModelStateText}'");
-            else if (!TryParseId(debugAnimStateText, out var animState) || animState > 0xFF)
-                Plugin.Log.Warning($"Pose: can't parse AnimState '{debugAnimStateText}'");
-            else if (!TryParseId(debugPoseTimelineText, out var commitTimeline) || commitTimeline > ushort.MaxValue)
-                Plugin.Log.Warning($"Pose: can't parse CommitTimelineId '{debugPoseTimelineText}'");
-            else
-                ApplyPoseChangeOnTarget((byte)modelState, (byte)(animState >> 4), (byte)(animState & 0xF), (ushort)commitTimeline);
-        }
-        ImGui.SameLine();
-        if (ImGui.Button("Set ModelState only"))
+        if (ImGui.Button("Set ModelState"))
         {
             if (!TryParseId(debugModelStateText, out var modelState) || modelState > 0xFF)
                 Plugin.Log.Warning($"ModelState: can't parse '{debugModelStateText}'");
@@ -189,30 +170,6 @@ internal sealed unsafe class DebugMenu
             if (TryParseId(debugModeAttrFlagsText, out var flags) && flags <= 0xFF)
                 SetModeAttributeFlagsOnTarget((byte)flags);
             else Plugin.Log.Warning($"ModeAttrFlags: can't parse '{debugModeAttrFlagsText}'");
-        }
-
-        ImGui.Spacing();
-        ImGui.TextUnformatted("Apply ModelCharaId on target");
-        ImGui.Separator();
-        ImGui.SetNextItemWidth(120);
-        ImGui.InputText("ModelCharaId", ref debugModelCharaIdText, 16);
-        if (ImGui.Button("Apply ModelCharaId"))
-        {
-            if (TryParseId(debugModelCharaIdText, out var modelCharaId))
-                SetModelCharaIdOnTarget((int)modelCharaId);
-            else Plugin.Log.Warning($"ModelCharaId: can't parse '{debugModelCharaIdText}'");
-        }
-
-        ImGui.Spacing();
-        ImGui.TextUnformatted("Apply TransformationId on target");
-        ImGui.Separator();
-        ImGui.SetNextItemWidth(120);
-        ImGui.InputText("TransformationId", ref debugTransformationIdText, 16);
-        if (ImGui.Button("Apply TransformationId"))
-        {
-            if (TryParseId(debugTransformationIdText, out var transformationId) && transformationId <= 0xFFFF)
-                SetTransformationIdOnTarget((short)transformationId);
-            else Plugin.Log.Warning($"TransformationId: can't parse '{debugTransformationIdText}'");
         }
 
         ImGui.Spacing();
@@ -319,10 +276,10 @@ internal sealed unsafe class DebugMenu
         if (ImGui.Button("Kill MT"))
         {
             var mt = plugin.Game.World.Party.Get(PartyRole.MainTank);
-            if (mt != null) plugin.Game.Kill(mt, "Debug kill");
+            mt?.Die("Debug kill");
         }
         ImGui.SameLine();
-        if (ImGui.Button("Kill player") && plugin.Game.Player is { } p) plugin.Game.Kill(p, "Debug kill");
+        if (ImGui.Button("Kill player") && plugin.Game.Player is { } p) p.Die("Debug kill");
 
         ImGui.Spacing();
         ImGui.TextUnformatted("BGM test");
@@ -374,27 +331,6 @@ internal sealed unsafe class DebugMenu
         Plugin.Log.Warning($"Play animation: target '{target.Name}' is not a tracked enemy");
     }
 
-    private void ApplyPoseChangeOnTarget(byte modelState, byte animStateHi, byte animStateLo, ushort commitTimelineId)
-    {
-        var target = Plugin.TargetManager.Target;
-        if (target == null)
-        {
-            Plugin.Log.Warning("Apply pose: no target selected");
-            return;
-        }
-        var targetId = target.GameObjectId;
-        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
-        {
-            if ((ulong)enemy.GameObjectId == targetId)
-            {
-                enemy.ApplyPoseChange(modelState, animStateHi, animStateLo, commitTimelineId);
-                Plugin.Log.Info($"Apply pose: ModelState=0x{modelState:X2} AnimState=({animStateHi:X},{animStateLo:X}) CommitTimeline=0x{commitTimelineId:X} on '{enemy.DisplayName}'");
-                return;
-            }
-        }
-        Plugin.Log.Warning($"Apply pose: target '{target.Name}' is not a tracked enemy");
-    }
-
     private void SetModelStateOnTarget(byte value)
     {
         var target = Plugin.TargetManager.Target;
@@ -435,48 +371,6 @@ internal sealed unsafe class DebugMenu
             }
         }
         Plugin.Log.Warning($"ModeAttrFlags: target '{target.Name}' is not a tracked enemy");
-    }
-
-    private void SetModelCharaIdOnTarget(int modelCharaId)
-    {
-        var target = Plugin.TargetManager.Target;
-        if (target == null)
-        {
-            Plugin.Log.Warning("ModelCharaId: no target selected");
-            return;
-        }
-        var targetId = target.GameObjectId;
-        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
-        {
-            if ((ulong)enemy.GameObjectId == targetId)
-            {
-                enemy.SetModelCharaId(modelCharaId);
-                Plugin.Log.Info($"ModelCharaId: {modelCharaId} on '{enemy.DisplayName}'");
-                return;
-            }
-        }
-        Plugin.Log.Warning($"ModelCharaId: target '{target.Name}' is not a tracked enemy");
-    }
-
-    private void SetTransformationIdOnTarget(short transformationId)
-    {
-        var target = Plugin.TargetManager.Target;
-        if (target == null)
-        {
-            Plugin.Log.Warning("TransformationId: no target selected");
-            return;
-        }
-        var targetId = target.GameObjectId;
-        foreach (var enemy in plugin.Game.World.Children.OfType<SimEnemy>())
-        {
-            if ((ulong)enemy.GameObjectId == targetId)
-            {
-                enemy.SetTransformationId(transformationId);
-                Plugin.Log.Info($"TransformationId: {transformationId} on '{enemy.DisplayName}'");
-                return;
-            }
-        }
-        Plugin.Log.Warning($"TransformationId: target '{target.Name}' is not a tracked enemy");
     }
 
     private void CastOnPlayerFromTarget(uint actionId, byte animationVariation)

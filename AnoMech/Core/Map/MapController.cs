@@ -59,16 +59,14 @@ public sealed class MapController : IDisposable
     public void TryLoad(TargetInstance? target)
     {
         if (target == null) return;
-        if (IsZoneLoaded)
+        // Fresh load only when no zone is active yet (must be in the Inn). When a
+        // zone is already loaded we're switching scenarios within the same
+        // territory — skip the reload but still fall through to re-apply weather.
+        if (!IsZoneLoaded)
         {
-            IsInInstance = true;
-            effects.Loaded = true;
-            DirectorFunctions.Commence();
-            ArmBarrierDrop(target.PlayerPosition, 10f);
-            return;
+            if (!IsInInn()) return;
+            Load(target.TerritoryId, target.PlayerPosition);
         }
-        if (!IsInInn()) return;
-        Load(target.TerritoryId, target.PlayerPosition);
         if (target.WeatherId is { } wid) ApplyWeather(wid);
         IsInInstance = true;
         effects.Loaded = true;

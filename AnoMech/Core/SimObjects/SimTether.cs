@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
 namespace AnoMech.Core.SimObjects;
@@ -45,7 +46,7 @@ public sealed unsafe class SimTether : ISimObject
     public bool IsActive => active;
 
     public static bool IsAnyDead(SimTether t) =>
-        t.A is not { IsAlive: true } || t.B is not { IsAlive: true };
+        !t.A.IsAlive() || !t.B.IsAlive();
     public bool StretchGt(float distance) =>
         A is { } a && B is { } b && Vector3.DistanceSquared(a.Position, b.Position) > distance * distance;
     public bool StretchLt(float distance) =>

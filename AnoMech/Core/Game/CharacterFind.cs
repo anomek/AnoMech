@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using AnoMech.Core.SimObjects;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game;
 
 // Geometry and proximity queries over the active party. Accessed via SimParty.Find
 // so scenarios can write world.Party.Find.InsideRect(...) etc. without pulling in
@@ -267,3 +267,4 @@ public sealed class CharacterFind<T> where T : IPositioned
         }
     }
 }
+

@@ -2,7 +2,7 @@ using System;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Native;
 
 // Low-level BattleChara allocation primitives shared by SimEnemy.Spawn and
 // PartyCreator. Both need to allocate via ClientObjectManager and stamp a
@@ -39,8 +39,10 @@ internal static unsafe class BattleCharaSpawn
     }
 
     // Inserts a spawned BC into the first free CharacterManager._battleCharas
-    // slot. Caller decides when this is safe — see PartyCreator's inn/duty gate.
-    // No-op if already registered or if no free slot exists.
+    // slot. Scenarios are inn-gated upstream (Game.RunScenarioInternal), so we
+    // can register unconditionally; the open-world render-cache teardown crash
+    // (see EnmityHud.cs) can't be hit from a scenario start. No-op if already
+    // registered or if no free slot exists.
     public static void RegisterInCharacterManager(BattleChara* chara)
     {
         var cm = CharacterManager.Instance();

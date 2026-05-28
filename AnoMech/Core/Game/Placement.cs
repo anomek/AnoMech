@@ -1,7 +1,8 @@
 using System;
 using System.Numerics;
+using AnoMech.Core.SimObjects;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Game;
 
 public readonly record struct Placement(Vector3 Position, float Rotation)
 {
@@ -28,13 +29,24 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
 
     public Vector2 Position2 => new(Position.X, Position.Z);
 
-    public Placement LocalToGlobal(Vector3 origin)
+    // Returns a copy rotated to look toward `source` in the XZ plane
+    // (Rotation 0 → +Z, matching MoveForward). Position is unchanged.
+    // Returns unchanged when `source` coincides with Position.
+    public Placement Face(Vector3 source)
     {
-        return new Placement(Position + origin, Rotation);
+        var dx = source.X - Position.X;
+        var dz = source.Z - Position.Z;
+        if (dx * dx + dz * dz < 1e-6f) return this;
+        return this with { Rotation = MathF.Atan2(dx, dz) };
     }
 
-    public Placement GlobalToLocal(Vector3 origin)
+    // Squared distance to `other` in the XZ plane (height ignored), matching the
+    // horizontal convention of Face / MoveForward. Squared so callers can compare
+    // against a threshold without the sqrt.
+    public float DistanceSq(IPositioned other)
     {
-        return new Placement(Position - origin, Rotation);
+        var dx = other.Position.X - Position.X;
+        var dz = other.Position.Z - Position.Z;
+        return dx * dx + dz * dz;
     }
 }

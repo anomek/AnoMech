@@ -1,4 +1,6 @@
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
@@ -35,7 +37,7 @@ public record struct EventObjectSpawnConfig(
 // Why not packets: the canonical spawn path is HandleSpawnObjectPacket, which
 // brings zone-state guards, housing/MJI branches, and forwards to SetEventId/
 // SetFateId/SetEventState that don't apply to simulated scenery. We use the
-// same internals-only pattern BattleCharaSpawn uses for SimEnemy/SimPartyMember.
+// same internals-only pattern BattleCharaSpawn uses for SimEnemy/SimPartyNpc.
 public unsafe class SimEventObject : ISimObject, IPositioned
 {
     private int slot = -1;
@@ -49,6 +51,8 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     public nint Address => (nint)obj;
 
     public bool IsAlive => slot >= 0 && obj != null;
+    // No death-vs-presence distinction for event objects: kept while the slot is live.
+    public virtual bool IsActive => IsAlive;
 
     // Stored Position/Rotation mirror the native GameObject — mutators write
     // both, and Tick re-syncs from native to catch any direct-struct writes.
@@ -69,7 +73,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         if (!EventObjectSpawn.Create(config.EObjRowId, out var slot, out var obj))
             return null;
 
-        var worldPos = world.ToWorld(config.Placement.Position);
+        var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
         obj->SetPosition(worldPos.X, worldPos.Y, worldPos.Z);
         obj->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
 
@@ -91,7 +95,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     {
         Position = position;
         if (obj == null) return;
-        var w = world.ToWorld(position);
+        var w = world.Coordinates.ToGlobal(position);
         obj->SetPosition(w.X, w.Y, w.Z);
     }
 
@@ -100,7 +104,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         Position = placement.Position;
         Rotation = MathUtil.NormalizeRotation(placement.Rotation);
         if (obj == null) return;
-        var w = world.ToWorld(placement.Position);
+        var w = world.Coordinates.ToGlobal(placement.Position);
         obj->SetPosition(w.X, w.Y, w.Z);
         obj->SetRotation(Rotation);
     }
@@ -129,7 +133,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         // its own, but the parallel pattern with SimNpc keeps the contract
         // uniform across IPositioned implementers).
         if (obj == null) return;
-        Position = world.ToLocal(obj->Position);
+        Position = world.Coordinates.ToLocal(obj->Position);
         Rotation = obj->Rotation;
     }
 

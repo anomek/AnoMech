@@ -15,7 +15,7 @@ public sealed class TopP5OmegaStateOverrides
     public OmegaAttack? SecondMAttack { get; set; }
     public bool? FirstWaveCannonFront { get; set; }
     public MonitorSide? MonitorSide { get; set; }
-    public EightWayDirection? BettleSpawnDirection { get; set; }
+    public Direction? BettleSpawnDirection { get; set; }
     public bool? ExtraDynamis { get; set; }
     public HelloWorldOrderOption HelloWorldOrder { get; set; }
     public HelloWorldTypeOption HelloWorldType { get; set; }

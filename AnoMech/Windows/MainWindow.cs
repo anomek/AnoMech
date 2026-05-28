@@ -1,10 +1,12 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
 using AnoMech.Core.Map;
 using AnoMech.Core;
+using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
 
 namespace AnoMech.Windows;
@@ -41,6 +43,15 @@ public unsafe class MainWindow : Window, IDisposable
 
         this.plugin = plugin;
         IsOpen = false;
+
+        // Small gear in the title bar opens the settings window (same toggle as /anomech config).
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Cog,
+            IconOffset = new Vector2(2f, 1f),
+            Click = _ => plugin.ToggleConfigUi(),
+            ShowTooltip = () => ImGui.SetTooltip("Settings"),
+        });
 #if DEBUG
         debugMenu = new DebugMenu(plugin);
 #endif
@@ -80,7 +91,7 @@ public unsafe class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        var leftWidth = _leftPanelOpen ? 180f : 30f;
+        var leftWidth = _leftPanelOpen ? ScenarioPanelWidth() : 30f;
 
         if (ImGui.BeginTable("##layout", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingFixedFit))
         {
@@ -93,6 +104,17 @@ public unsafe class MainWindow : Window, IDisposable
             DrawMainContent();
             ImGui.EndTable();
         }
+    }
+
+    // Size the left panel to the widest scenario label so names never clip as scenarios are added.
+    private float ScenarioPanelWidth()
+    {
+        var style = ImGui.GetStyle();
+        var widest = 0f;
+        foreach (var scenario in plugin.Game.Scenarios)
+            widest = Math.Max(widest, ImGui.CalcTextSize(scenario.Name).X);
+        var measured = widest + style.FramePadding.X * 2 + style.CellPadding.X * 2;
+        return Math.Max(180f, measured);
     }
 
     private void DrawScenariosPanel()

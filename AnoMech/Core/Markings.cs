@@ -34,7 +34,7 @@ public enum Sign
 //
 // Lemegeton drives signs by sig-scanning the same member function; for a
 // single-player simulator we don't need network broadcast, so direct writes
-// (mirroring SimWaymarks) are simpler and have no side effects.
+// (mirroring Waymarks) are simpler and have no side effects.
 internal static unsafe class Markings
 {
     private const int SlotCount = 17;

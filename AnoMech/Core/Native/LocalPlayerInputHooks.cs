@@ -5,17 +5,18 @@ using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Input;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Native;
 
 // Hooks the native action and movement input paths so the simulator can stun
 // the local player when a mechanic kills them. Status-row writes don't enforce
 // anything (the server overwrites StatusManager._status[] on every packet); the
 // real lockout is two booleans this class exposes — the detours read them every
-// frame and short-circuit the original calls.
+// frame and short-circuit the original calls. Owned by Plugin (session-lifetime);
+// SimPlayer is the sole writer of the two flags, reconciling them each tick from
+// its own Dead / Movement.IsMoving state.
 //
 // Signatures and detour shapes lifted from FFXIV-RaidsRewritten's
 // PlayerMovementOverride.cs / ActionManagerEx.cs (which themselves credit
@@ -23,15 +24,9 @@ namespace AnoMech.Core;
 // will need to rev them together.
 public sealed unsafe class LocalPlayerInputHooks : IDisposable
 {
-    // Sprint normally requires a server round-trip: the client press is just an
-    // ActionRequest; the actual MoveSpeed buff arrives via the server's
-    // ActionEffect/StatusEffectList reply. ZoneSession's firewall drops both,
-    // so we re-implement that reply locally — see UseActionDetour.
     internal const uint SprintActionId = 3;
-    internal const ushort SprintStatusId = 50;
-    // Sprint's OOC +30% MS magnitude. Real server-delivered Sprint ActionEffect
-    // carries Param2 = 0x1E = 30; the engine reads this off Status.Param to
-    // apply the speed modifier. Decoded from a real ACT log packet.
+    private const ushort SprintStatusId = 50;
+    private const float SprintDuration = 10f; 
     internal const ushort SprintStatusParam = 30;
 
     public bool DisableAllActions { get; set; }
@@ -126,7 +121,7 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
         var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
         if (result && actionType == ActionType.Action && actionId == SprintActionId)
-            ApplySprintLocally();
+            Plugin.GameInstance?.Player?.AddStatus(SprintStatusId, SprintDuration, SprintStatusParam);
         return result;
     }
 
@@ -142,14 +137,5 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     {
         if (!UIState.Instance()->WeaponState.AutoAttackState.IsAutoAttacking) return false;
         return actionType == ActionType.GeneralAction && actionId == 1;
-    }
-
-    // SimPlayer.StartSprint fires the synthetic ActionEffect; SimPlayer.TickSprint
-    // re-stamps the StatusManager slot each frame so the engine can't prune it.
-    // Both live in SimPlayer so the input hook stays a thin dispatcher.
-    private static void ApplySprintLocally()
-    {
-        Plugin.Log.Info("Applying Sprint locally");
-        Plugin.GameInstance?.Player?.StartSprint();
     }
 }

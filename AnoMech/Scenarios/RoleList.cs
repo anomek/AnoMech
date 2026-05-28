@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
@@ -102,19 +103,19 @@ public class RoleList
     }
     
     
-    public List<TResult> ForEachPair<TResult>(Func<int, SimPartySlot, SimPartySlot, TResult> func)
+    public List<TResult> ForEachPair<TResult>(Func<int, SimCharacter, SimCharacter, TResult> func)
     {
         return Enumerable.Range(0, list.Count / 2)
                          .Select(i => func(i, party.Get(list[2 * i])!, party.Get(list[2 * i + 1])!))
                          .ToList();
     }
 
-    public List<TResult> ForEachPair<TResult>(Func<SimPartySlot, SimPartySlot, TResult> func)
+    public List<TResult> ForEachPair<TResult>(Func<SimCharacter, SimCharacter, TResult> func)
     {
         return ForEachPair((i, p1, p2) => func(p1, p2));
     }
     
-    public void ForEachPair(Action<int, SimPartySlot, SimPartySlot> action)
+    public void ForEachPair(Action<int, SimCharacter, SimCharacter> action)
     {
         ForEachPair((i, p1, p2) =>
         {
@@ -124,7 +125,7 @@ public class RoleList
     }
 
     
-    public void ForEach(Action<int, SimPartySlot> action)
+    public void ForEach(Action<int, SimCharacter> action)
     {
         for(var i = 0; i < list.Count; i++)
         {
@@ -132,21 +133,16 @@ public class RoleList
         }
     }
     
-    public void ForEach(Action<SimPartySlot> action)
+    public void ForEach(Action<SimCharacter> action)
     {
         ForEach((_, member) => action(member));
     }
 
-    public SimPartySlot? Get(int i)
+    public SimCharacter? Get(int i)
     {
         return party.Get(list[i]);
     }
     
-    public void Reorder(AiMove move)
-    {
-        move.Reorder(list.Select(role => (int)role).ToArray());
-    }
-
     public bool Contains(PartyRole role)
     {
         return list.Contains(role);

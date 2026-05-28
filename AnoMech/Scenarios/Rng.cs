@@ -16,9 +16,9 @@ public class Rng
         return values[rng.Next(values.Length)];
     }
 
-    public EightWayDirection NextDirection()
+    public Direction NextDirection()
     {
-        return EightWayDirection.All[rng.Next(8)];
+        return Direction.All[rng.Next(8)];
     }
 
     public int NextSign()
@@ -31,13 +31,13 @@ public class Rng
         return rng.Next(i);
     }
 
-    public EightWayDirection NextIntercardinal()
+    public Direction NextIntercardinal()
     {
-        return EightWayDirection.Intercardinal[rng.Next(4)];
+        return Direction.Intercardinal[rng.Next(4)];
     }
 
-    public EightWayDirection NextCardinal()
+    public Direction NextCardinal()
     {
-        return EightWayDirection.Cardinal[rng.Next(4)];
+        return Direction.Cardinal[rng.Next(4)];
     }
 }

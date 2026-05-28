@@ -1,7 +1,7 @@
 using System;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Native;
 
 // Low-level EventObject allocation primitives, mirror of BattleCharaSpawn for
 // the EventObjectManager 40-slot pool (GameObjectManager indices 449-488).

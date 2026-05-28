@@ -6,7 +6,9 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
 using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.Map;
+using AnoMech.Core.Native;
 using AnoMech.Windows;
 
 namespace AnoMech;
@@ -39,9 +41,13 @@ public sealed class Plugin : IDalamudPlugin
 
     public readonly WindowSystem WindowSystem = new("AnoMech");
     public Game Game { get; }
-    // SimObjects need the Game (e.g. SimPlayer reads Game.PlayerInputHooks for
-    // stun on death). Mirror the pattern of the other Plugin.* statics.
+    // SimObjects reach engine singletons through these statics (mirrors the
+    // Plugin.* PluginService pattern).
     internal static Game GameInstance { get; private set; } = null!;
+    // Session-lifetime input hooks, owned here (not Game) so they're hooked once
+    // per load rather than per scenario. SimPlayer is the sole writer of their
+    // flags — it reconciles them from its own state each tick.
+    internal static LocalPlayerInputHooks PlayerInputHooks { get; private set; } = null!;
     internal static LogManager LogManager { get; private set; } = null!;
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
@@ -54,6 +60,7 @@ public sealed class Plugin : IDalamudPlugin
         LogManager = new LogManager();
         if (Config.EnableEventLogging) LogManager.Open();
 
+        PlayerInputHooks = new LocalPlayerInputHooks(GameInterop);
         Game = new Game();
         GameInstance = Game;
         ConfigWindow = new ConfigWindow(this);
@@ -101,6 +108,9 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.RemoveAllWindows();
 
         Game.Dispose();
+        // After Game.Dispose so World.Dispose → SimPlayer.Despawn can still clear
+        // the lock flags through the hooks before they're torn down.
+        PlayerInputHooks.Dispose();
         LogManager.Dispose();
         ConfigWindow.Dispose();
         MainWindow.Dispose();

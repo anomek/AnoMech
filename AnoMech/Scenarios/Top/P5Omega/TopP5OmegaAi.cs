@@ -1,7 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
+using AnoMech.Core.Game.Ai;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Top.P5Omega;
@@ -10,7 +12,7 @@ public class TopP5OmegaAi
 {
     private readonly TopP5OmegaState state;
     private readonly Random rng = new Random();
-    
+
     private RoleList? helloWorld1;
     private RoleList? helloWorld2;
 
@@ -36,9 +38,9 @@ public class TopP5OmegaAi
     }
 
 
-    private AiMove InitialPositions()
+    private IAiMove InitialPositions()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(-2.10f, -5.08f),
             new(2.10f, -5.08f),
             new(-0.7f, 5.7f),
@@ -47,18 +49,19 @@ public class TopP5OmegaAi
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f)
-        );
+        ).NaturalOrder();
     }
 
-    private Func<AiMove> Dodge(int attack)
+    private Func<IAiMove> Dodge(int attack)
     {
         return () => AiMove.All(new(0, -1f))
-                           .Apply(
+                           .NaturalOrder()
+                           .ApplyPositions(
                                AdjustSafeCardinal(attack),
                                AdjustSafeSpot(attack)
                            );
     }
-    
+
     private Dictionary<PartyRole, Sign> HelloWorldMarkers(RoleList? list)
     {
         if (list == null) return [];
@@ -74,9 +77,9 @@ public class TopP5OmegaAi
         };
     }
 
-    private AiMove HelloWorld1Pos()
+    private IAiMove HelloWorld1Pos()
     {
-        return new AiMove(
+        return AiMove.Create(
             new(10f, 0),
             new(.2f,-10),
             new(-10, -10),
@@ -85,15 +88,14 @@ public class TopP5OmegaAi
             new(19, -4),
             new(19, 4),
             new (0.2f, 19)
-        ).Apply(
-            AdjustForSafeMonitorSide,
-            Reorder(helloWorld1)
-        );
+        )
+        .Assignments(helloWorld1?.List)
+        .ApplyPositions(AdjustForSafeMonitorSide);
     }
-    
-    private AiMove GatherMiddle()
+
+    private IAiMove GatherMiddle()
     {
-        return new AiMove(
+        return AiMove.Create(
             new (0, 0),
             new (0, 0),
             new(0, -3f),
@@ -102,15 +104,14 @@ public class TopP5OmegaAi
             new (0, 0),
             new (0, 0),
             new (0, 0)
-        ).Apply(
-            state.BettleSpawnDirection.Apply,
-            Reorder(helloWorld2)
-        );
+        )
+        .Assignments(helloWorld2?.List)
+        .ApplyPositions(state.BettleSpawnDirection.Apply);
     }
 
-    private AiMove HelloWorld2Pos()
+    private IAiMove HelloWorld2Pos()
     {
-        return new AiMove(
+        return AiMove.Create(
             new (0, 10),
             new (10, 0),
             new (-9.5f, -16.5f),
@@ -119,35 +120,26 @@ public class TopP5OmegaAi
             new (-4, 19f),
             new (4, 19f),
             new (19f, 0)
-            ).Apply(
-                state.BettleSpawnDirection.Apply,
-                Reorder(helloWorld2)
-            );
+        )
+        .Assignments(helloWorld2?.List)
+        .ApplyPositions(state.BettleSpawnDirection.Apply);
     }
-    
-    private Action<AiMove> Reorder(RoleList? list)
-    {
-        if (list != null) 
-            return list.Reorder;
-        else 
-            return _ => {};
-    }
-    
-    Action<AiMove> AdjustSafeCardinal(int attack)
+
+    Action<IAiPositions> AdjustSafeCardinal(int attack)
     {
         var startDirection = state.AttackDirections[attack * 2];
-        var adjustmentToSafeVertical = startDirection.Index % 4 == 1 ? -1 : +1;
+        var adjustmentToSafeVertical = startDirection.Index() % 4 == 1 ? -1 : +1;
         var safeAdjustment = state.FirstWaveCannonFront ? -1 : +1;
         var doubleAdjustment = attack == 0 ? 1 : -1;
         var safe = startDirection.Rotate(adjustmentToSafeVertical * safeAdjustment * doubleAdjustment);
         return safe.Apply;
     }
 
-    Action<AiMove> AdjustSafeSpot(int attack)
+    Action<IAiPositions> AdjustSafeSpot(int attack)
     {
         var attackf = state.OmegaAttacks[attack * 2];
         var attackm = state.OmegaAttacks[attack * 2 + 1];
-        var mul = 1f;
+        float mul;
         if (attackf == OmegaAttack.Legs)
             mul = attackm == OmegaAttack.Sword ? 2.5f : -2.5f;
         else
@@ -155,11 +147,11 @@ public class TopP5OmegaAi
         return move => move.Multiply(mul);
     }
 
-    private void AdjustForSafeMonitorSide(AiMove move)
+    private void AdjustForSafeMonitorSide(IAiPositions move)
     {
         move.MultiplyX(state.MonitorSide.Mul);
     }
-    
+
     private RoleList solveHelloWorld1(SimParty party)
     {
         var monitorTarget = monitorTargets();
@@ -172,7 +164,7 @@ public class TopP5OmegaAi
             ]
         );
     }
-    
+
     private RoleList solveHelloWorld2(SimParty party)
     {
         List<PartyRole> freeAgents = [];
@@ -181,9 +173,9 @@ public class TopP5OmegaAi
         {
            if  (role == state.HelloWorldTargets[2] || role == state.HelloWorldTargets[3])
                continue;
-           if (party.Get(role)?.GetStatus(TopConstants.StatusId.QuickeningDynamis) is { Stacks: 3 })
+           if (party.Get(role)?.FindStatus(TopConstants.StatusId.QuickeningDynamis) is { Stacks: 3 })
                tethers.Add(role);
-           else 
+           else
                freeAgents.Add(role);
         }
         freeAgents = freeAgents.Shuffle().ToList();
@@ -195,7 +187,7 @@ public class TopP5OmegaAi
             ]);
     }
 
-    
+
     private List<PartyRole> monitorTargets()
     {
         List<PartyRole> mustTakeMonitor = [];

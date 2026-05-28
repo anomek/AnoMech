@@ -2,10 +2,12 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
+using AnoMech.Core.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using Lumina.Excel.Sheets;
 
-namespace AnoMech.Core;
+namespace AnoMech.Core.Native;
 
 // Wrappers around native VfxContainer functions FFXIVClientStructs doesn't bind.
 // SetTether allocates/releases the VFX pointer at Tether+0x08 — writing the
@@ -190,9 +192,7 @@ internal static unsafe class VfxFunctions
     public static void RemoveStaticVfx(StaticVfxStruct* vfx)
     {
         if (vfx == null) return;
-        var fn = ResolveStaticVfxRemove();
-        if (fn == null) return;
-        fn((IntPtr)vfx);
+        ResolveStaticVfxRemove()?.Invoke((IntPtr)vfx);
     }
 
     // Spawns an entity-attached VFX (follows caster/target, used for head markers and
@@ -213,8 +213,29 @@ internal static unsafe class VfxFunctions
     public static void RemoveActorVfx(IntPtr vfx)
     {
         if (vfx == IntPtr.Zero) return;
-        var fn = ResolveActorVfxRemove();
-        if (fn == null) return;
-        fn(vfx, 0);
+        ResolveActorVfxRemove()?.Invoke(vfx, 0);
+    }
+
+    public static bool VfxPathExists(string path)
+    {
+        try
+        {
+            if (Plugin.DataManager.FileExists(path)) return true;
+            Plugin.Log.Warning($"AddVfx: path not found '{path}'");
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning($"AddVfx: FileExists threw for '{path}': {ex.Message}");
+        }
+        return false;
+    }
+    
+    public static string? LockonVfxIconName(uint lockonId)
+    {
+        var sheet = Plugin.DataManager.GetExcelSheet<Lockon>();
+        if (!sheet.TryGetRow(lockonId, out var row)) return null;
+        var iconName = row.IconName.ExtractText();
+        if (string.IsNullOrEmpty(iconName)) return null;
+        return iconName;
     }
 }

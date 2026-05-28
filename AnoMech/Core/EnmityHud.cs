@@ -12,17 +12,19 @@ namespace AnoMech.Core;
 // Drives the in-game _EnemyList addon by writing rows directly into its
 // NumberArray / StringArray during PreRequestedUpdate. We deliberately don't go
 // through UIState.Hate/Hater + HudManager copier — that path requires the BC to
-// be findable via CharacterManager.LookupBattleCharaByEntityId, which means
-// inserting the BC into CharacterManager._battleCharas, which triggers a per-frame
-// CharacterManager update that attaches the BC into render-side caches (Skeleton,
-// CharacterLookAtController). Those attachments aren't drained by
-// DeleteObjectByIndex, so freeing the BC produces a ghost render that crashes the
-// next render task on a freed Skeleton vtable.
-//
-// Writing the addon arrays directly avoids the resolver lookup entirely. The
-// addon doesn't care that the EntityId doesn't resolve to a real BC — it just
-// renders whatever we put in the slots. Layout comes from the typed
-// EnemyListNumberArray / EnemyListStringArray wrappers in FFXIVClientStructs.
+// resolve via CharacterManager.LookupBattleCharaByEntityId and exposes the BC to
+// the engine's per-frame CharacterManager update, which attaches it into
+// render-side caches (Skeleton, CharacterLookAtController). Those attachments
+// aren't drained by DeleteObjectByIndex; in zones with significant other BC
+// traffic (e.g. open-world overworld), freeing the BC can produce a ghost render
+// that crashes the next render task on a freed Skeleton vtable. We sidestep that
+// hazard category by writing the addon arrays directly — the addon doesn't care
+// that the EntityId doesn't resolve to a real BC, it renders whatever we put in
+// the slots. Layout comes from the typed EnemyListNumberArray /
+// EnemyListStringArray wrappers in FFXIVClientStructs. Scenarios are inn-gated
+// upstream (Game.RunScenarioInternal), which keeps us in a low-BC-density
+// environment where the resolver path is theoretically safe — but the direct
+// write is still cheaper and avoids a dependency on inn-specific BC density.
 internal sealed unsafe class EnmityHud : IDisposable
 {
     private const int EnemyListSize = 8;
@@ -79,7 +81,7 @@ internal sealed unsafe class EnmityHud : IDisposable
 
             // Despawned: drop the row immediately. The EntityId / cast info / HP
             // we'd otherwise show during a HideDelay would all be stale.
-            if (!e.IsAlive)
+            if (!e.IsActive)
             {
                 states.Remove(e);
                 continue;
@@ -171,7 +173,7 @@ internal sealed unsafe class EnmityHud : IDisposable
         for (int i = 0; i < EnemyListSize; i++)
         {
             var e = slotEnemies[i];
-            if (e is null || !e.IsAlive)
+            if (e is null || !e.IsActive)
             {
                 WriteEmptyRow(ref enemyArr->Enemies[i], strArr, i);
                 continue;

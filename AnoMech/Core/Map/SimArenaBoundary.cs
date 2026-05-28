@@ -1,4 +1,6 @@
 using System.Numerics;
+using AnoMech.Core.Game;
+using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.Map;
@@ -24,6 +26,7 @@ internal sealed unsafe class SimArenaBoundary : ISimObject
     private readonly VfxFunctions.StaticVfxStruct* ringVfx;
 
     public bool IsAlive => true;
+    public bool IsActive => true;
 
     internal SimArenaBoundary(SimParty party, SimWorld world, float radius, string cause, bool showVfx = true)
     {
@@ -35,13 +38,16 @@ internal sealed unsafe class SimArenaBoundary : ISimObject
             ringVfx = VfxFunctions.SpawnStaticVfx(RingVfxPath, new Placement(world.ScenarioOrigin, 0f), new Vector3(radius / 0.82f, 1f, radius / 0.82f));
     }
 
+    // XZ distance test against the kill radius; shared by the per-frame fence and
+    // external callers (teleport-to-spawn on reset) so they always agree.
+    internal bool IsOutside(Vector3 local) => local.X * local.X + local.Z * local.Z > radiusSq;
+
     public void Tick(float deltaSeconds)
     {
         // Member positions are scenario-local; the boundary is centered on local zero.
         foreach (var member in party.ActiveMembers())
         {
-            var p = member.Position;
-            if (p.X * p.X + p.Z * p.Z > radiusSq) member.Die(cause);
+            if (IsOutside(member.Position)) member.Die(cause);
         }
     }
 
