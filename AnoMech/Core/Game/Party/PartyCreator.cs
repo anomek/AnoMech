@@ -40,7 +40,7 @@ internal static unsafe class PartyCreator
 
     private static readonly Random Rng = new();
 
-    public static void Populate(SimParty party, SimPlayer player, uint playerJob, SimWorld world, PartyRole? roleOverride = null)
+    public static void Populate(SimParty party, SimPlayer player, uint playerJob, SimWorld world, PartyRole? roleOverride = null, bool solo = false)
     {
         var presets = roleOverride is { } skip
             ? PartyPresets.ForRole(skip)
@@ -57,6 +57,9 @@ internal static unsafe class PartyCreator
                 party.SetSlot((PartyRole)i, player);
                 continue;
             }
+
+            // Solo mode: only the player's own slot is filled — skip every doppel.
+            if (solo) continue;
 
             var angle = (i / (float)presets.Count) * MathF.Tau
                         + ((float)Rng.NextDouble() - 0.5f) * AngleJitter;

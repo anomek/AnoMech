@@ -85,8 +85,8 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
         SetRotation(placement.Rotation);
     }
     
-    public void Face(Vector3 target) => Movement.Face(target);
-    public void Face(IPositioned target) => Face(target.Position);
+    public void Face(Vector3? target) => Movement.Face(target);
+    public void Face(IPositioned? target) => Face(target?.Position);
     public void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null)
         => Movement.MoveTo(target, speed, finalRotation);
     public void MoveTo(Placement p) => MoveTo(p.Position);

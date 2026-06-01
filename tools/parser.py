@@ -1141,6 +1141,79 @@ def _player_role_expr(obj_id: str, roles: dict[str, tuple[str, str]]) -> str | N
     return f"party.Get(PartyRole.{role[0]})"
 
 
+def collect_player_names(path: str, pull: Pull, end_rel: float) -> set[str]:
+    """Every distinct player display name referenced by a whitelisted event from
+    the log up through `end_rel`. Feeds player-name redaction in the generated
+    C# — the `--code` output must never embed a real player name. Players are id
+    range `1xxxxxxx` (`PLAYER_ID_RE`); NPCs are `4xxxxxxx`, so this never picks
+    up boss/add names. Over-collecting (no lower time bound) is harmless — extra
+    names only make redaction more thorough."""
+    names: set[str] = set()
+    for parts in iter_records(path):
+        if len(parts) < 2:
+            continue
+        try:
+            ts = parse_timestamp(parts[1])
+        except ValueError:
+            continue
+        if (ts - pull.start).total_seconds() > end_rel:
+            continue
+        opcode = parts[0]
+        for id_idx, name_idx in EVENT_ID_FIELDS.get(opcode, ()):
+            if id_idx < len(parts) and 0 <= name_idx < len(parts):
+                if PLAYER_ID_RE.match(parts[id_idx]) and parts[name_idx]:
+                    names.add(parts[name_idx])
+        # 268|Countdown / 269|CountdownCancel carry the initiating player's name
+        # at a fixed offset and aren't in EVENT_ID_FIELDS — handle them inline.
+        if opcode in ("268", "269"):
+            src = _safe(parts, 2)
+            nm = _safe(parts, 6 if opcode == "268" else 4)
+            if PLAYER_ID_RE.match(src) and nm:
+                names.add(nm)
+    return names
+
+
+def build_player_name_redactor(
+    path: str, pull: Pull, end_rel: float,
+    roles: dict[str, tuple[str, str]],
+) -> dict[str, str]:
+    """`player name -> replacement token` for scrubbing names out of generated
+    C# comments. In-window players map to their assigned PartyRole (e.g.
+    `MainTank`, matching the emitted `party.Get(PartyRole.X)` calls and the
+    header map); any other player name falls back to `Player`."""
+    role_by_name = {name: role for _, (role, name) in roles.items() if name}
+    return {
+        name: role_by_name.get(name, "Player")
+        for name in collect_player_names(path, pull, end_rel)
+    }
+
+
+def _redact_raw_player_names(raw: str, name_to_repl: dict[str, str]) -> str:
+    """Replace any pipe-delimited field of `raw` whose exact value is a known
+    player name with its redaction token. Value-based (not position-based), so
+    it is opcode-agnostic. No-op when there are no players."""
+    if not name_to_repl:
+        return raw
+    return "|".join(name_to_repl.get(f, f) for f in raw.split("|"))
+
+
+def _redact_text_player_names(text: str, name_to_repl: dict[str, str]) -> str:
+    """Substring-replace every known player name in a free-text line with its
+    token. Used for the `--dropped` companion file, whose lines include both
+    human-readable prose (`Name[id]`) and raw `00|` GameLog messages that embed
+    the name mid-field (`Pri EonGilgamesh uses ...`) — neither of which the
+    field-exact `_redact_raw_player_names` can catch. Longest names first so one
+    name can't partially clobber another. (The C# emitter deliberately keeps the
+    field-exact variant: every player name there is its own whitelisted field,
+    and substring matching in committed code would risk false positives.)"""
+    if not name_to_repl:
+        return text
+    for name in sorted(name_to_repl, key=len, reverse=True):
+        if name:
+            text = text.replace(name, name_to_repl[name])
+    return text
+
+
 def collect_player_status_applies(
     path: str, pull: Pull, begin_rel: float, end_rel: float
 ) -> list[tuple[float, list[str], str]]:
@@ -1831,6 +1904,7 @@ def emit_scenario_class(
         # instance is gone.
         npc_fields_by_id[npc.obj_id] = fields_by_npc[id(npc)]
     roles = collect_player_role_map(path, pull, begin_rel, end_rel)
+    name_to_repl = build_player_name_redactor(path, pull, end_rel, roles)
     per_npc = collect_extended_logs(path, pull, npcs, end_rel, center_x, center_y)
     instance = collect_instance_events(path, pull, begin_rel, end_rel)
     consts = ConstantsBuilder()
@@ -1911,7 +1985,7 @@ def emit_scenario_class(
                 if _canonical_owner_for(opcode, parts, npc_fields_by_id) != npc.obj_id:
                     continue
                 t_scenario = t - begin_rel
-                body.append(f"        // [{t_scenario:.2f}s] {raw}")
+                body.append(f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(raw, name_to_repl)}")
                 if printed_raws is not None:
                     printed_raws.add(raw)
                 if i not in resolved_idx:
@@ -1974,7 +2048,7 @@ def emit_scenario_class(
             parts = _reparse_raw(raw)
             t_scenario = t - begin_rel
             call = emit_csharp_instance_action(parts[0], parts, roles, consts)
-            body.append(f"        // [{t_scenario:.2f}s] {raw}")
+            body.append(f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(raw, name_to_repl)}")
             if printed_raws is not None:
                 printed_raws.add(raw)
             if call is not None:
@@ -2030,7 +2104,7 @@ def emit_scenario_class(
             chosen = chosen_pair[0] if chosen_pair is not None else None
             chosen_raw = chosen_pair[1] if chosen_pair is not None else None
 
-            player_tether_body.append(f"        // [{t_scenario:.2f}s] {raw}")
+            player_tether_body.append(f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(raw, name_to_repl)}")
             if printed_raws is not None:
                 printed_raws.add(raw)
             # Echo every bundled apply that shares the chosen status_id — a
@@ -2045,7 +2119,7 @@ def emit_scenario_class(
                     if _safe(sa_parts, 2) != chosen_sid:
                         continue
                     player_tether_body.append(
-                        f"        // [{t_scenario:.2f}s] {sa_raw}")
+                        f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(sa_raw, name_to_repl)}")
                     if printed_raws is not None:
                         printed_raws.add(sa_raw)
                     consumed_apply_raws.add(sa_raw)
@@ -2083,7 +2157,7 @@ def emit_scenario_class(
         other_debuffs_body.append("    {")
         for t, opcode, parts, raw in other_debuffs:
             t_scenario = t - begin_rel
-            other_debuffs_body.append(f"        // [{t_scenario:.2f}s] {raw}")
+            other_debuffs_body.append(f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(raw, name_to_repl)}")
             if printed_raws is not None:
                 printed_raws.add(raw)
             status_id = _safe(parts, 2)
@@ -2136,7 +2210,7 @@ def emit_scenario_class(
         player_lockons_body.append("    {")
         for t, parts, raw in player_lockons:
             t_scenario = t - begin_rel
-            player_lockons_body.append(f"        // [{t_scenario:.2f}s] {raw}")
+            player_lockons_body.append(f"        // [{t_scenario:.2f}s] {_redact_raw_player_names(raw, name_to_repl)}")
             if printed_raws is not None:
                 printed_raws.add(raw)
             tgt_id = _safe(parts, 2)
@@ -2158,10 +2232,10 @@ def emit_scenario_class(
     # Now assemble the file.
     out: list[str] = []
     out.append("// Generated by tools/parser.py --code. Edit freely.")
-    out.append("// Player -> role mapping (first-seen order inside the window):")
+    out.append("// Player id -> role mapping (first-seen order inside the window):")
     if roles:
-        for pid, (role, name) in roles.items():
-            out.append(f"//   {pid}  {name or '?':<24}  -> PartyRole.{role}")
+        for pid, (role, _name) in roles.items():
+            out.append(f"//   {pid}  -> PartyRole.{role}")
     else:
         out.append("//   (no players observed in the window)")
     dropped = get_dropped_change_keys()
@@ -2173,6 +2247,7 @@ def emit_scenario_class(
     out.append("using System.Numerics;")
     out.append("using AnoMech.Core;")
     out.append("using AnoMech.Core.Game;")
+    out.append("using AnoMech.Core.Game.Party;")
     out.append("using AnoMech.Core.Map;")
     out.append("using AnoMech.Core.SimObjects;")
     out.append("")
@@ -2317,6 +2392,11 @@ def write_dropped_events(
     window-relative timestamp + raw, then the human-readable interpretation.
     Returns the number of records written."""
     written = 0
+    # Scrub player names from this companion dump too — `raw` (for the
+    # `printed_raws` membership check) stays un-redacted; only the written
+    # lines are redacted.
+    roles = collect_player_role_map(path, pull, begin_rel, end_rel)
+    name_to_repl = build_player_name_redactor(path, pull, end_rel, roles)
     with open(out_path, "w", encoding="utf-8") as fh:
         for parts in iter_records(path):
             if len(parts) < 2:
@@ -2333,8 +2413,8 @@ def write_dropped_events(
             if raw in printed_raws:
                 continue
             interp = _human_readable_event(opcode, parts, center_x, center_y)
-            fh.write(f"{format_win(t_rel, begin_rel):>9}  {raw}\n")
-            fh.write(f"           {interp}\n")
+            fh.write(f"{format_win(t_rel, begin_rel):>9}  {_redact_text_player_names(raw, name_to_repl)}\n")
+            fh.write(f"           {_redact_text_player_names(interp, name_to_repl)}\n")
             written += 1
     return written
 

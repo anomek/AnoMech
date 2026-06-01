@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using AnoMech.Core;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
-
 
 public class RoleListBuilder
 {
@@ -25,9 +23,9 @@ public class RoleListBuilder
 
         return IncludePlayer switch
         {
-            true  => WithPlayerAt(party, player, Size - 1),
+            true => WithPlayerAt(party, player, Size - 1),
             false => RoleList.AllExcept(party, player).Random(Size),
-            _     => RoleList.Random(party, Size),
+            _ => RoleList.Random(party, Size),
         };
     }
 
@@ -48,7 +46,7 @@ public class RoleList
 
     private readonly IReadOnlyList<PartyRole> list;
     private readonly SimParty party;
-    
+
     public SimParty Party => party;
     public PartyRole[] List => list.ToArray();
 
@@ -64,7 +62,7 @@ public class RoleList
     {
         return Random(party, 8);
     }
-    
+
     public static RoleList Random(SimParty party, int count)
     {
         HashSet<int> set = [];
@@ -75,6 +73,7 @@ public class RoleList
             if (set.Add(next))
                 list.Add((PartyRole)next);
         }
+
         return new RoleList(party, list);
     }
 
@@ -87,7 +86,7 @@ public class RoleList
                        .ToList();
         return new RoleList(party, list);
     }
-    
+
     public RoleList Random(int count, params PartyRole[] except)
     {
         var exceptSet = new HashSet<PartyRole>(except);
@@ -99,22 +98,29 @@ public class RoleList
             picked.Add(pool[idx]);
             pool.RemoveAt(idx);
         }
+
         return new RoleList(party, picked);
     }
-    
-    
-    public List<TResult> ForEachPair<TResult>(Func<int, SimCharacter, SimCharacter, TResult> func)
+
+
+    public List<TResult?> ForEachPair<TResult>(Func<int, SimCharacter, SimCharacter, TResult> func)
     {
         return Enumerable.Range(0, list.Count / 2)
-                         .Select(i => func(i, party.Get(list[2 * i])!, party.Get(list[2 * i + 1])!))
+                         .Select(i =>
+                         {
+                             if (party.Get(list[2 * i]) is { } chara1 && party.Get(list[2 * i + 1]) is { } chara2)
+                                 return func(i, chara1, chara2);
+                             else
+                                 return default;
+                         })
                          .ToList();
     }
 
-    public List<TResult> ForEachPair<TResult>(Func<SimCharacter, SimCharacter, TResult> func)
+    public List<TResult?> ForEachPair<TResult>(Func<SimCharacter, SimCharacter, TResult> func)
     {
         return ForEachPair((i, p1, p2) => func(p1, p2));
     }
-    
+
     public void ForEachPair(Action<int, SimCharacter, SimCharacter> action)
     {
         ForEachPair((i, p1, p2) =>
@@ -124,15 +130,14 @@ public class RoleList
         });
     }
 
-    
+
     public void ForEach(Action<int, SimCharacter> action)
     {
-        for(var i = 0; i < list.Count; i++)
-        {
-            action(i, party.Get(list[i])!); 
-        }
+        for (var i = 0; i < list.Count; i++)
+            if (party.Get(list[i]) is { } chara)
+                action(i, chara);
     }
-    
+
     public void ForEach(Action<SimCharacter> action)
     {
         ForEach((_, member) => action(member));
@@ -142,7 +147,7 @@ public class RoleList
     {
         return party.Get(list[i]);
     }
-    
+
     public bool Contains(PartyRole role)
     {
         return list.Contains(role);

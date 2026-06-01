@@ -206,7 +206,7 @@ public sealed class CharacterFind<T> where T : IPositioned
         if (range <= 0f) return Array.Empty<T>();
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
         var forward = new Placement(source.Position, source.Rotation + omenRotate);
-        return action.CastType switch
+        var hits = action.CastType switch
         {
             2     => InsideCircle(targetLocation ?? source.Position, range),
             3 or 8 or 13
@@ -223,6 +223,24 @@ public sealed class CharacterFind<T> where T : IPositioned
             _ =>
                 LogUnknownCastType(actionId, action.CastType),
         };
+        return SortByDistanceTo(hits, source.Position);
+    }
+
+    // Orders hits by ascending XZ distance to `from` (closest first), so callers that
+    // prioritize the nearest target don't have to re-sort. Same XZ-distance math as
+    // ClosestN.
+    private static IReadOnlyList<T> SortByDistanceTo(IReadOnlyList<T> hits, Vector3 from)
+    {
+        var sorted = hits.ToList();
+        sorted.Sort((a, b) =>
+        {
+            var da = (a.Position.X - from.X) * (a.Position.X - from.X)
+                   + (a.Position.Z - from.Z) * (a.Position.Z - from.Z);
+            var db = (b.Position.X - from.X) * (b.Position.X - from.X)
+                   + (b.Position.Z - from.Z) * (b.Position.Z - from.Z);
+            return da.CompareTo(db);
+        });
+        return sorted;
     }
 
     private static IReadOnlyList<T> LogUnknownCastType(uint actionId, byte castType)

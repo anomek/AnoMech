@@ -9,32 +9,42 @@ public sealed class TopP5SigmaSettingsWindow
     public void Draw()
     {
         if (ImGui.Button("Auto")) ResetAll();
-        DrawNewNorthA();
-        DrawCloseFar();
-        DrawTowerNorthFlip();
-        DrawNewNorthB();
-        DrawSpinnerRotation();
-        DrawOmegaFForm();
-        DrawHelloWorld();
-        DrawDynamis();
+        if (SettingsGrid.Begin("##p5sigma"))
+        {
+#if DEBUG
+            DrawNewNorthA();
+#endif
+            DrawCloseFar();
+            DrawTowerNorthFlip();
+#if DEBUG
+            DrawNewNorthB();
+#endif
+            DrawSpinnerRotation();
+            DrawOmegaFForm();
+            DrawHelloWorld();
+            DrawDynamis();
+            SettingsGrid.End();
+        }
     }
 
     private void ResetAll()
     {
+#if DEBUG
         Overrides.NewNorthA = null;
+        Overrides.NewNorthB = null;
+#endif
         Overrides.CloseFarTether = null;
         Overrides.TowerNorthFlip = null;
-        Overrides.NewNorthB = null;
         Overrides.SpinnerRotation = null;
         Overrides.OmegaFForm = null;
         Overrides.HelloWorld = HelloWorldOption.Auto;
         Overrides.Dynamis = null;
     }
 
+#if DEBUG
     private void DrawNewNorthA()
     {
-        ImGui.TextUnformatted("New north (A — sigma resolve):");
-        ImGui.SameLine();
+        SettingsGrid.Row("New north (A — sigma resolve):");
         if (ImGui.RadioButton("Auto##northA", Overrides.NewNorthA == null)) Overrides.NewNorthA = null;
         foreach (var d in Direction.All)
         {
@@ -42,12 +52,12 @@ public sealed class TopP5SigmaSettingsWindow
             if (ImGui.RadioButton($"{d.Name()}##northA", Overrides.NewNorthA == d)) Overrides.NewNorthA = d;
         }
     }
+#endif
 
     private void DrawCloseFar()
     {
         var v = Overrides.CloseFarTether;
-        ImGui.TextUnformatted("Tether range:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Tether range:");
         if (ImGui.RadioButton("Auto##cf",  v == null))            Overrides.CloseFarTether = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Mid##cf", v == GlitchType.Mid))  Overrides.CloseFarTether = GlitchType.Mid;
@@ -58,8 +68,7 @@ public sealed class TopP5SigmaSettingsWindow
     private void DrawTowerNorthFlip()
     {
         var v = Overrides.TowerNorthFlip;
-        ImGui.TextUnformatted("Tower-north flip:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Tower-north flip:");
         if (ImGui.RadioButton("Auto##flip", v == null))  Overrides.TowerNorthFlip = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##flip",  v == true))  Overrides.TowerNorthFlip = true;
@@ -67,10 +76,10 @@ public sealed class TopP5SigmaSettingsWindow
         if (ImGui.RadioButton("No##flip",   v == false)) Overrides.TowerNorthFlip = false;
     }
 
+#if DEBUG
     private void DrawNewNorthB()
     {
-        ImGui.TextUnformatted("New north (B — second half):");
-        ImGui.SameLine();
+        SettingsGrid.Row("New north (B — second half):");
         if (ImGui.RadioButton("Auto##northB", Overrides.NewNorthB == null)) Overrides.NewNorthB = null;
         foreach (var d in Direction.All)
         {
@@ -78,12 +87,12 @@ public sealed class TopP5SigmaSettingsWindow
             if (ImGui.RadioButton($"{d.Name()}##northB", Overrides.NewNorthB == d)) Overrides.NewNorthB = d;
         }
     }
+#endif
 
     private void DrawSpinnerRotation()
     {
         var v = Overrides.SpinnerRotation;
-        ImGui.TextUnformatted("Spinner rotation:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Spinner rotation:");
         if (ImGui.RadioButton("Auto##spin", v == null))                       Overrides.SpinnerRotation = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("CW##spin",   v == Rotation.Clockwise))         Overrides.SpinnerRotation = Rotation.Clockwise;
@@ -94,8 +103,7 @@ public sealed class TopP5SigmaSettingsWindow
     private void DrawOmegaFForm()
     {
         var v = Overrides.OmegaFForm;
-        ImGui.TextUnformatted("Omega-F form:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Omega-F form:");
         if (ImGui.RadioButton("Auto##form",       v == null))                  Overrides.OmegaFForm = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Leg blades##form", v == OmegaAttack.Legs))  Overrides.OmegaFForm = OmegaAttack.Legs;
@@ -106,8 +114,7 @@ public sealed class TopP5SigmaSettingsWindow
     private void DrawHelloWorld()
     {
         var h = Overrides.HelloWorld;
-        ImGui.TextUnformatted("Hello World:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Hello World:");
         if (ImGui.RadioButton("Auto##hw", h == HelloWorldOption.Auto)) Overrides.HelloWorld = HelloWorldOption.Auto;
         ImGui.SameLine();
         if (ImGui.RadioButton("Near##hw", h == HelloWorldOption.Near)) Overrides.HelloWorld = HelloWorldOption.Near;
@@ -120,8 +127,7 @@ public sealed class TopP5SigmaSettingsWindow
     private void DrawDynamis()
     {
         var d = Overrides.Dynamis;
-        ImGui.TextUnformatted("Start with Dynamis:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Start with Dynamis:");
         if (ImGui.RadioButton("Auto##dyn", d == null))  Overrides.Dynamis = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##dyn",  d == true))  Overrides.Dynamis = true;

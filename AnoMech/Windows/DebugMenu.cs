@@ -68,6 +68,9 @@ internal sealed unsafe class DebugMenu
     {
         ImGui.TextUnformatted($"TerritoryId: {Plugin.ClientState.TerritoryType}");
 
+        if (ImGui.Button("Damage debug window"))
+            DamageDebugWindow.Instance!.Toggle();
+
         ImGui.Spacing();
         ImGui.TextUnformatted("Manual spawn");
         ImGui.Separator();

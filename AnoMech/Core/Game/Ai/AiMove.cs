@@ -111,8 +111,12 @@ public sealed class AiMove : IAssignStep, ISwapStep, IAiRoles, IAiPositions
 
     void IAiPositions.AddX(int i, float add) => AddXAt(i, add);
     void IAiPositions.AddY(int i, float add) => AddYAt(i, add);
+
     void IAiPositions.MultiplyX(int i, float mul) => MultiplyXAt(i, mul);
     void IAiPositions.MultiplyY(int i, float mul) => MultiplyYAt(i, mul);
+    void IAiPositions.Multiply(int i, float mul) => MultiplyAt(i, mul);
+
+
     void IAiPositions.Rotate(int i, float radians) => RotateAt(i, radians);
 
     void IAiPositions.AddX(PartyRole role, float add) => AddXAt(assignment.PositionOf(role), add);
@@ -153,6 +157,11 @@ public sealed class AiMove : IAssignStep, ISwapStep, IAiRoles, IAiPositions
     private void AddYAt(int i, float add)
     {
         if (coords[i] is { } v) coords[i] = v with { Y = v.Y + add };
+    }
+    
+    private void MultiplyAt(int i, float mul)
+    {
+        if (coords[i] is { } v) coords[i] = new(v.X * mul, v.Y * mul);
     }
 
     private void MultiplyXAt(int i, float mul)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Top;
@@ -19,33 +20,57 @@ public class DamageSolver
     
     
     public void Resolve(
-        IPositioned source, uint actionId, DamageType[] damageType, (ushort statusId, float duration)[] statusesToApply,
-        int stackMinTargets = 0)
+        IPositioned? source, uint actionId, DamageType[] damageType, (ushort statusId, float duration)[] statusesToApply,
+        int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null)
     {
+        if (source == null) return;
+#if DEBUG
+        AnoMech.Windows.DamageDebugWindow.Instance?.Record(actionId, source.Placement());
+#endif
         var targets = party.Find.InsideActionAoe(actionId, source.Placement());
-        HashSet<DamageType> damageTypes = [DamageType.Any];
-        Array.ForEach(damageType, d => damageTypes.Add(d));
+        HashSet<DamageType> damageTypeBase = [DamageType.Any];
+        Array.ForEach(damageType, d => damageTypeBase.Add(d));
+        HashSet<DamageType> damageTypeWildCharge = new(damageTypeBase);
+        if (wildChargeDamageType != null) Array.ForEach(wildChargeDamageType, d => damageTypeWildCharge.Add(d));
+        
+        var i = 0;
         foreach (var target in targets)
         {
+            bool wildCharge = i++ < wildChargeTargets;
             if (targets.Count < stackMinTargets)
             {
                 target.Die($"Died to {actionId} ({targets.Count}/{stackMinTargets} players in stack)");
             }
-            else if (damageTypes.Contains(DamageType.Lethal))
-            {
-                target.Die($"Died to {actionId}");
-            }
-            else if (IsLethal(target, damageTypes))
-            {
-                target.Die($"Died to {actionId} (had vuln up debuff)");
-            }
-            else
+            else if (!CheckLethal(actionId, target, wildCharge ? damageTypeWildCharge : damageTypeBase))
             {
                 foreach (var status in statusesToApply)
                 {
                     target.AddStatus(status.statusId, status.duration);       
                 }
             }
+        }
+    }
+    
+    private bool CheckLethal(uint actionId, SimCharacter target, HashSet<DamageType> damageTypes)
+    {
+        if (damageTypes.Contains(DamageType.Lethal))
+        {
+            target.Die($"Died to {actionId}");
+            return true;
+        }
+        else if (IsLethal(target, damageTypes))
+        {
+            target.Die($"Died to {actionId} (had vuln up debuff)");
+            return true;
+        }
+        else if (damageTypes.Contains(DamageType.TankBuster) && target is not ISimPartyMember { Role: PartyRole.OffTank or PartyRole.MainTank })
+        {
+            target.Die($"Died to {actionId} (tank buster)");
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
     
@@ -84,5 +109,6 @@ public enum DamageType
 {
     Lethal,
     Any,
-    Magic
+    Magic,
+    TankBuster
 }

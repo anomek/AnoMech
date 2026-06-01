@@ -44,7 +44,7 @@ public interface ISwapStep : IPositionStep
 
 // The mandatory first choice: pin the base role->coordinate ordering. Not itself
 // consumable — an AiMove is unusable until one of these is called.
-public interface IAssignStep
+public interface IAssignStep : IAiMove
 {
     // position i is taken by roles[i]; `null` keeps natural order. Must be a full
     // 8-role permutation.

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
@@ -18,6 +19,7 @@ public sealed class TopP2PartySynergyScenario : IScenario
         WeatherId: 78);
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP2;
+    public bool SupportsSolo => true;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP2PartySynergySettingsWindow settingsWindow = new();
@@ -28,7 +30,7 @@ public sealed class TopP2PartySynergyScenario : IScenario
     private TopUtils topUtils = null!;
     private DamageSolver damage = null!;
 
-    public void Run(SimWorld worldParam)
+    public void Run(SimWorld worldParam, bool solo)
     {
         world = worldParam;
         party = worldParam.Party;
@@ -37,7 +39,7 @@ public sealed class TopP2PartySynergyScenario : IScenario
         damage = new DamageSolver(world.Party);
         damage.SetStatuses(DamageType.Any, StatusId.VulnerabilityUp);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
-        new TopP2PartySynergyAi(state).Run(world);
+        if(!solo) new TopP2PartySynergyAi(state).Run(world);
 
         world.EnforceArenaBoundary(Geometry.ArenaRadius);
         world.Events.Add(1f, () => topUtils.InitTopArena());
@@ -55,8 +57,8 @@ public sealed class TopP2PartySynergyScenario : IScenario
         Run_Omega_4000A405();
         Run_Omega_M_4000A40B_3();
         Run_InstanceEvents();
-        Run_PlayerTethers();
-        Run_PlayerLockons();
+        Run_PlayerTethers(solo);
+        Run_PlayerLockons(solo);
     }
 
     private void Run_InstanceEvents()
@@ -68,8 +70,13 @@ public sealed class TopP2PartySynergyScenario : IScenario
         world.Events.Add(26.82f, () => world.Map.AddEffect(packetFlags: 0x00080008U, index: index));
     }
 
-    private void Run_PlayerTethers()
+    private void Run_PlayerTethers(bool solo)
     {
+        if (solo)
+        {
+            world.Events.Add(7.93f, () => state.Order.ForEach(p => p.AddStatus(state.Glitch.StatusId, duration: 27f)));
+            return;
+        }
         world.Events.Add(7.93f, () =>
         {
             state.Order.ForEachPair((p1, p2) => world.Tether(
@@ -80,12 +87,16 @@ public sealed class TopP2PartySynergyScenario : IScenario
         });
     }
 
-    private void Run_PlayerLockons()
+    private void Run_PlayerLockons(bool solo)
     {
-        world.Events.Add(7.93f, () => state.Order.ForEachPair((i, p1, p2) =>
+        if(solo)
         {
-            p1.AttachLockonVfx(LockonId.Playstation[i], persistent: false); 
-            p2.AttachLockonVfx(LockonId.Playstation[i], persistent: false); 
+            world.Events.Add(7.93f, () => state.Order.ForEach(p => p.AttachLockonVfx(LockonId.Playstation[new Random().Next(4)], persistent: false)));
+            return;
+        }
+        world.Events.Add(7.93f, () => state.Order.ForEach((i, p) =>
+        {
+            p.AttachLockonVfx(LockonId.Playstation[i/2], persistent: false); 
         }));
         world.Events.Add(22.63f, () => state.Stacks.ForEach(p => p.AttachLockonVfx(LockonId.Stack, persistent: false)));
     }

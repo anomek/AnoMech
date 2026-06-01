@@ -45,7 +45,7 @@ public sealed class TopP5DeltaScenario : IScenario
     private TopUtils.HelloWorldSolver? nearSolver;
     private TopUtils.HelloWorldSolver? farSolver;
 
-    public void Run(SimWorld worldParam)
+    public void Run(SimWorld worldParam, bool solo)
     {
         world = worldParam;
         party = worldParam.Party;

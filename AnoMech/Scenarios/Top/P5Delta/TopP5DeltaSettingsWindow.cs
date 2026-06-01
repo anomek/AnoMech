@@ -9,43 +9,52 @@ public sealed class TopP5DeltaSettingsWindow
     public void Draw()
     {
         if (ImGui.Button("Auto")) ResetAll();
-        DrawEyeSpawn();
-        DrawSwivelCannon();
-        DrawTetherAssignment();
+        if (SettingsGrid.Begin("##p5delta"))
+        {
+#if DEBUG
+            DrawEyeSpawn();
+            DrawSwivelCannon();
+#endif
+            DrawTetherAssignment();
 
-        var closeOnly = Overrides.TetherAssignment is
-            PlayerTetherAssignment.FarAny or
-            PlayerTetherAssignment.FarInner or
-            PlayerTetherAssignment.FarOuter;
-        var bdOnly = closeOnly || Overrides.TetherAssignment == PlayerTetherAssignment.CloseOuter;
+            var closeOnly = Overrides.TetherAssignment is
+                PlayerTetherAssignment.FarAny or
+                PlayerTetherAssignment.FarInner or
+                PlayerTetherAssignment.FarOuter;
+            var bdOnly = closeOnly || Overrides.TetherAssignment == PlayerTetherAssignment.CloseOuter;
 
-        if (closeOnly) ImGui.BeginDisabled();
-        DrawMonitor();
-        DrawHelloWorld();
-        if (closeOnly) ImGui.EndDisabled();
+            if (closeOnly) ImGui.BeginDisabled();
+            DrawMonitor();
+            DrawHelloWorld();
+            if (closeOnly) ImGui.EndDisabled();
 
-        if (bdOnly) ImGui.BeginDisabled();
-        DrawBeyondDefence();
-        if (bdOnly) ImGui.EndDisabled();
+            if (bdOnly) ImGui.BeginDisabled();
+            DrawBeyondDefence();
+            if (bdOnly) ImGui.EndDisabled();
+
+            SettingsGrid.End();
+        }
     }
 
     private void ResetAll()
     {
+#if DEBUG
         Overrides.EyeSpawn = null;
         Overrides.SwivelCannonSide = null;
+#endif
         Overrides.TetherAssignment = PlayerTetherAssignment.Auto;
         Overrides.Monitor = null;
         Overrides.HelloWorld = HelloWorldOption.Auto;
         Overrides.BeyondDefence = null;
     }
 
+#if DEBUG
     private void DrawEyeSpawn()
     {
         var mode = 0;
         if (Overrides.EyeSpawn == NorthSouth.North) mode = 1;
         if (Overrides.EyeSpawn == NorthSouth.South) mode = 2;
-        ImGui.TextUnformatted("Eye spawn:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Eye spawn:");
         if (ImGui.RadioButton("Auto##eye",  mode == 0)) Overrides.EyeSpawn = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("North##eye", mode == 1)) Overrides.EyeSpawn = NorthSouth.North;
@@ -58,20 +67,19 @@ public sealed class TopP5DeltaSettingsWindow
         var mode = Overrides.SwivelCannonSide == null ? 0
             : Overrides.SwivelCannonSide == Side.Left ? 1
             : 2;
-        ImGui.TextUnformatted("Swivel Cannon:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Swivel Cannon:");
         if (ImGui.RadioButton("Auto##swivel",  mode == 0)) Overrides.SwivelCannonSide = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Left##swivel",  mode == 1)) Overrides.SwivelCannonSide = Side.Left;
         ImGui.SameLine();
         if (ImGui.RadioButton("Right##swivel", mode == 2)) Overrides.SwivelCannonSide = Side.Right;
     }
+#endif
 
     private void DrawTetherAssignment()
     {
         var t = Overrides.TetherAssignment;
-        ImGui.TextUnformatted("Tether:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Tether:");
         if (ImGui.RadioButton("Auto##tether",        t == PlayerTetherAssignment.Auto))       Overrides.TetherAssignment = PlayerTetherAssignment.Auto;
         ImGui.SameLine();
         if (ImGui.RadioButton("Close any##tether",   t == PlayerTetherAssignment.CloseAny))   Overrides.TetherAssignment = PlayerTetherAssignment.CloseAny;
@@ -79,7 +87,7 @@ public sealed class TopP5DeltaSettingsWindow
         if (ImGui.RadioButton("Close inner##tether", t == PlayerTetherAssignment.CloseInner)) Overrides.TetherAssignment = PlayerTetherAssignment.CloseInner;
         ImGui.SameLine();
         if (ImGui.RadioButton("Close outer##tether", t == PlayerTetherAssignment.CloseOuter)) Overrides.TetherAssignment = PlayerTetherAssignment.CloseOuter;
-        ImGui.SameLine();
+        // Second row: drop the leading SameLine so the Far options wrap within the cell.
         if (ImGui.RadioButton("Far any##tether",     t == PlayerTetherAssignment.FarAny))     Overrides.TetherAssignment = PlayerTetherAssignment.FarAny;
         ImGui.SameLine();
         if (ImGui.RadioButton("Far inner##tether",   t == PlayerTetherAssignment.FarInner))   Overrides.TetherAssignment = PlayerTetherAssignment.FarInner;
@@ -90,8 +98,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawMonitor()
     {
         var m = Overrides.Monitor;
-        ImGui.TextUnformatted("Monitor:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Monitor:");
         if (ImGui.RadioButton("Auto##mon", m == null))  Overrides.Monitor = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##mon",  m == true))  Overrides.Monitor = true;
@@ -102,8 +109,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawHelloWorld()
     {
         var h = Overrides.HelloWorld;
-        ImGui.TextUnformatted("Hello World:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Hello World:");
         if (ImGui.RadioButton("Auto##hw", h == HelloWorldOption.Auto)) Overrides.HelloWorld = HelloWorldOption.Auto;
         ImGui.SameLine();
         if (ImGui.RadioButton("Near##hw", h == HelloWorldOption.Near)) Overrides.HelloWorld = HelloWorldOption.Near;
@@ -116,8 +122,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawBeyondDefence()
     {
         var b = Overrides.BeyondDefence;
-        ImGui.TextUnformatted("Beyond Defence:");
-        ImGui.SameLine();
+        SettingsGrid.Row("Beyond Defence:");
         if (ImGui.RadioButton("Auto##bd", b == null))  Overrides.BeyondDefence = null;
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##bd",  b == true))  Overrides.BeyondDefence = true;

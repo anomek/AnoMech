@@ -166,13 +166,12 @@ public sealed class SimWorld : ISimObject, IDisposable
     // Spawns the eight party slots and wires in the local player. Must be called
     // after ScenarioOrigin is set. Party is added first so it despawns last in
     // Reset's reverse-order teardown (tethers and enemies reference slot positions).
-    public SimParty CreateParty(uint playerJob, PartyRole? roleOverride = null)
+    public void CreateParty(uint playerJob, PartyRole? roleOverride = null, bool solo = false)
     {
         var party = new SimParty();
-        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride);
+        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride, solo);
         children.Add(party);
         Party = party;
-        return party;
     }
 
     public void Tick(float deltaSeconds)

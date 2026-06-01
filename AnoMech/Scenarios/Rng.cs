@@ -1,4 +1,5 @@
 ﻿using System;
+using AnoMech.Core.Game.Party;
 
 namespace AnoMech.Scenarios;
 
@@ -39,5 +40,10 @@ public class Rng
     public Direction NextCardinal()
     {
         return Direction.Cardinal[rng.Next(4)];
+    }
+
+    public PartyRole NextRole()
+    {
+        return (PartyRole)rng.Next(8);
     }
 }

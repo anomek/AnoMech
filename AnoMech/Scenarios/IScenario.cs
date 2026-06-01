@@ -12,7 +12,8 @@ public interface IScenario
     TargetInstance TargetInstance { get; }
     IReadOnlyList<Waymark> Waymarks => Array.Empty<Waymark>();
     ushort Bgm => 0;
-    void Run(SimWorld world);
+    bool SupportsSolo => false;
+    void Run(SimWorld world, bool solo);
     void Tick(float delta, float elapsed) { }
     void DrawSettings() { }
 }

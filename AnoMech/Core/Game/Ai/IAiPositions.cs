@@ -13,6 +13,7 @@ public interface IAiPositions
     // --- by authoring index ---
     void AddX(int i, float add);
     void AddY(int i, float add);
+    void Multiply(int i, float mul);
     void MultiplyX(int i, float mul);
     void MultiplyY(int i, float mul);
     void Rotate(int i, float radiansFromNorth);

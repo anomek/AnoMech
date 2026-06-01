@@ -20,6 +20,7 @@ public sealed class TopP5OmegaScenario : IScenario
         WeatherId: 174);
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP5;
+    public bool SupportsSolo => true;
 
     private SimWorld world = null!;
     private SimParty party = null!;
@@ -29,12 +30,12 @@ public sealed class TopP5OmegaScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5OmegaSettingsWindow settingsWindow = new();
 
-    public void Run(SimWorld worldParam)
+    public void Run(SimWorld worldParam, bool solo)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5OmegaState(world.Party, settingsWindow.Overrides);
-        new TopP5OmegaAi(state).Run(world);
+        if (!solo) new TopP5OmegaAi(state).Run(world);
 
         topUtils = new TopUtils(world);
 
@@ -43,13 +44,13 @@ public sealed class TopP5OmegaScenario : IScenario
         
         Run_Omega_M_4000A63C();
         Run_Omega_F_4000A72A();
-        Run_Omega_4000A72E();
-        Run_Omega_4000A72F();
+        if(!solo) Run_Omega_4000A72E();
+        Run_Omega_4000A72F(solo);
         Run_Omega_4000A40B_1();
-        Run_Omega_F_4000A40B_2();
-        Run_Omega_4000A409_1();
+        Run_Omega_F_4000A40B_2(solo);
+        if(!solo) Run_Omega_4000A409_1();
         Run_InstanceEvents();
-        Run_OtherDebuffs();
+        if (!solo) Run_OtherDebuffs();
     }
 
     private void Run_InstanceEvents()
@@ -97,16 +98,17 @@ public sealed class TopP5OmegaScenario : IScenario
         SimEnemy? omega_M_4000A63C = null;
         world.Events.Add(0, () => omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x10, BNpcBaseId: BNpcBaseId.OmegaFDynamis, NameId: BNpcNameId.OmegaFDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(-000f, -0.000f, 0.000f), MathF.PI))));
         world.Events.Add(1.15f, () => omega_M_4000A63C?.Cast(ActionId.RunMiOmegaVersion, targetLocation: new Vector3(-0.008f, -0.015f, -0.008f), castSeconds: 4.700f, targetId: omega_M_4000A63C?.GameObjectId));
-        world.Events.Add(6f, () => omega_M_4000A63C?.Follow(party.Get(PartyRole.MainTank)));
-        world.Events.Add(6.81f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(9.83f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(12.85f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(15.88f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(18.90f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(21.93f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(24.96f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(27.98f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(31.01f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        var target = party.Get(PartyRole.MainTank) ?? party.Get(party.PlayerRole);
+        world.Events.Add(6f, () => omega_M_4000A63C?.Follow(target));
+        world.Events.Add(6.81f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(9.83f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(12.85f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(15.88f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(18.90f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(21.93f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(24.96f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(27.98f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
+        world.Events.Add(31.01f, () => omega_M_4000A63C?.Cast(ActionId.Unknown7c02, castSeconds: 0f, targetId: target?.GameObjectId));
         world.Events.Add(31.54f, () => omega_M_4000A63C?.Follow());
         world.Events.Add(31.54f, () => omega_M_4000A63C?.SetTargetable(false));
         world.Events.Add(31.63f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.WarpOut));
@@ -189,7 +191,7 @@ public sealed class TopP5OmegaScenario : IScenario
         tetherA.AddStatus(StatusId.HPPenalty, 3.000f);
     }
 
-    private void Run_Omega_4000A72F()
+    private void Run_Omega_4000A72F(bool solo)
     {
         SimEnemy? omega_4000A72F = null;
         var waveCannonId = state.FirstWaveCannonFront ? ActionId.OmegaDiffuseWaveCannonFront : ActionId.OmegaDiffuseWaveCannonSides;
@@ -199,6 +201,7 @@ public sealed class TopP5OmegaScenario : IScenario
         world.Events.Add(11.44f, () => omega_4000A72F?.SetVisible(true));
         world.Events.Add(15.48f, () => omega_4000A72F?.Cast(waveCannonId));
         world.Events.Add(27.54f, () => omega_4000A72F?.Cast(repCannonId));
+        if (solo) return;
         world.Events.Add(31.68f, () => omega_4000A72F?.Cast(state.MonitorSide.ActionId));
         world.Events.Add(44.81f, () => omega_4000A72F?.PlayActionTimeline(TimelineId.WarpOut));
         world.Events.Add(47.13f, () => omega_4000A72F?.Despawn());
@@ -270,7 +273,7 @@ public sealed class TopP5OmegaScenario : IScenario
     }
 
 
-    private void Run_Omega_F_4000A40B_2()
+    private void Run_Omega_F_4000A40B_2(bool solo)
     {
         var firstLegs = state.OmegaAttacks[0] == OmegaAttack.Legs;
         var secondLegs = state.OmegaAttacks[2] == OmegaAttack.Legs;
@@ -300,6 +303,7 @@ public sealed class TopP5OmegaScenario : IScenario
             if (superliminalSteel[i])
                 world.Events.Add(26.96f + offset, () => omega_F_4000A40B_2?.Cast(omenId, targetLocation: direction.Apply(target), omenDelay: Duration.OmegaAttackOmenDelay, castSeconds: 1.200f, targetId: omega_F_4000A40B_2?.GameObjectId));
             
+            if(solo) continue;
             world.Events.Add(41.16f + dynamisOffset, () => helper1.SetPosition(omega_F_4000A40B_2));
             world.Events.Add(41.25f + dynamisOffset, () => helper1.CastSpell(omega_F_4000A40B_2));
             

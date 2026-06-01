@@ -51,6 +51,7 @@ public static class TopConstants
         public const uint OpticalUnit = 15716;        // 0x3D64 — invisible marker for the eye
         public const uint RocketPunchYellow = 15709;  // 0x3D5D — RocketPunch1 (color 0)
         public const uint RocketPunchBlue = 15710;    // 0x3D5E — RocketPunch2 (color 1)
+        public const uint AlphaOmega = 15725;         // 0x3D6D — P6 Alpha Omega boss
     }
 
     public static class BNpcNameId
@@ -67,6 +68,7 @@ public static class TopConstants
         public const uint OpticalUnit = 7640;
         public const uint RocketPunch = 7696;
         public const uint RearPowerUnit = 7639;
+        public const uint AlphaOmega = 12256;
     }
 
     public static class EObjId
@@ -196,6 +198,25 @@ public static class TopConstants
         public const uint CondensedWaveCannonKyrios = 31503;
         public const uint DiffuseWaveCannonKyrios = 31504;
         public const uint GuidedMissileKyrios = 31502;
+
+        // -- P6 Wave Cannon 2 / Cosmo (Alpha Omega) --
+        public const uint CosmoMemory = 31649;                      // 0x7BA1
+        public const uint CosmoArrow = 31650;                       // 0x7BA2
+        public const uint CosmoArrowOmen = 31651;                   // 0x7BA3
+        public const uint CosmoArrowDamage = 31652;                 // 0x7BA4
+        public const uint CosmoDive = 31654;                        // 0x7BA6
+        public const uint CosmoDive_7BA7 = 31655;                   // 0x7BA7
+        public const uint CosmoDive_7BA8 = 31656;                   // 0x7BA8
+        public const uint WaveCannon_7BA9 = 31657;                  // 0x7BA9 — P6 Alpha Omega wave cannon
+        public const uint WaveCannonWildCharge = 31658;            // 0x7BAA
+        public const uint WaveCannonProtean = 31659;               // 0x7BAB
+        public const uint UnlimitedWaveCannon = 31660;             // 0x7BAC
+        public const uint WaveCannon_7BAD = 31661;                  // 0x7BAD
+        public const uint WaveCannon_7BAE = 31662;                  // 0x7BAE
+        public const uint WaveCannon_7BAF = 31663;                  // 0x7BAF
+        public const uint AlphaOmegaAutoAttack = 31747;            // 0x7C03
+        public const uint Unknown7ddf = 32223;                      // 0x7DDF
+        public const uint Inhale = 32337;                           // 0x7E51
     }
 
     public static class StatusId
@@ -224,6 +245,8 @@ public static class TopConstants
         public const ushort FirstInLine = 3004;
         public const ushort SecondInLine = 3005;
         public const ushort HPPenalty = 3401;
+        public const ushort CodeMi = 3447;                          // 0xD77 — P6 Alpha Omega 'Code M/i' form
+        public const ushort BrilliantDynamis = 3446;
     }
 
     public static class TetherId
@@ -307,8 +330,9 @@ public static class TopConstants
 
     public static class BgmId
     {
-        public const ushort TopP5 = 964; 
         public const ushort TopP2 = 587;
+        public const ushort TopP5 = 964; 
+        public const ushort TopP6 = 951;
     }
 
     public static class Duration

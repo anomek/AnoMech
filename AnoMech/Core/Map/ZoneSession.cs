@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Numerics;
 using ThreadingTask = System.Threading.Tasks.Task;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -12,6 +14,8 @@ using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Environment;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
 using static FFXIVClientStructs.FFXIV.Client.Network.PacketDispatcher.Delegates;
 
@@ -52,6 +56,11 @@ public sealed unsafe class ZoneSession : IDisposable
 
     private readonly ushort heartbeatOpcode;
     private uint? instanceContentWasLoaded;
+
+    // Set true right before we open the Social window for a party resync; the Social
+    // PostSetup listener closes it again and clears this. Distinguishes our open from
+    // a manual one so manual opens aren't auto-closed.
+    private bool autoCloseSocial;
 
     public bool IsActive { get; private set; }
 
@@ -107,6 +116,8 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information($"[ZoneSession] OnReceivePacket: {receiveAddr:X}");
         receivePacketHook = Plugin.GameInterop.HookFromAddress<OnReceivePacket>(
             receiveAddr, ReceivePacketDetour);
+
+        Plugin.AddonLifecycle.RegisterListener(AddonEvent.PostSetup, "Social", OnSocialPostSetup);
 
         Plugin.Log.Information("[ZoneSession] Initialized.");
     }
@@ -185,6 +196,39 @@ public sealed unsafe class ZoneSession : IDisposable
         savedTerritoryId = 0;
         IsActive = false;
         Plugin.Log.Information("[ZoneSession] Reverted to inn.");
+
+        // Resync the real party HUD once the inn reload has settled. A bare
+        // InfoProxyPartyMember.RequestData() sends the same request the Social window
+        // does but doesn't sync MainGroup — the HUD update is client-side work the
+        // Social agent does on the reply (proven via packet trace). So open the Social
+        // agent and let it do that work itself. (Closing it again is a follow-up step.)
+        ThreadingTask.Delay(1500).ContinueWith(_ => Plugin.Framework.Run(OpenSocialForPartyResync));
+    }
+
+    // Opens the Social agent, which issues its own (callback-routed) party-member
+    // request and processes the reply into the party HUD — the step a bare RequestData
+    // can't trigger. Firing this from the settled inn state mirrors a manual open.
+    private void OpenSocialForPartyResync()
+    {
+        var am = AgentModule.Instance();
+        var social = am != null ? am->GetAgentByInternalId(AgentId.Social) : null;
+        if (social == null) return;
+        autoCloseSocial = true;
+        social->Show();
+        Plugin.Log.Information("[ZoneSession] Opened Social for party resync.");
+    }
+
+    // Closes the Social window again as soon as it finishes opening — but only when
+    // we opened it (autoCloseSocial), so a manual open is left alone.
+    private void OnSocialPostSetup(AddonEvent type, AddonArgs args)
+    {
+        if (!autoCloseSocial) return;
+        autoCloseSocial = false;
+
+        var am = AgentModule.Instance();
+        var s = am != null ? am->GetAgentByInternalId(AgentId.Social) : null;
+        if (s != null) s->Hide();
+        Plugin.Log.Information("[ZoneSession] Auto-closed Social after party resync.");
     }
 
     public void EnableFirewall()
@@ -329,6 +373,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public void Dispose()
     {
+        Plugin.AddonLifecycle.UnregisterListener(AddonEvent.PostSetup, "Social", OnSocialPostSetup);
         Revert();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();

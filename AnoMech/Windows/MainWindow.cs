@@ -178,6 +178,19 @@ public unsafe class MainWindow : Window, IDisposable
             if (ImGui.Button("Leave")) game.Leave();
         }
 
+        if (_selectedScenario.SupportsSolo)
+        {
+            ImGui.BeginDisabled(!canStart);
+            if (ImGui.Button("Start Solo")) game.RunScenario(_selectedScenario, _roleOverride, solo: true);
+            ImGui.EndDisabled();
+            if (!canStart && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            {
+                ImGui.SetTooltip(!inInn
+                    ? "Scenarios can only be started from an inn."
+                    : "Cannot start while you are busy (cutscene, NPC event, crafting, trading, zoning, etc.).");
+            }
+        }
+
         var god = game.GodMode;
         if (ImGui.Checkbox("God mode", ref god)) game.GodMode = god;
 

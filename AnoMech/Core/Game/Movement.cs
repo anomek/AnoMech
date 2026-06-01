@@ -152,8 +152,9 @@ internal class Movement(SimCharacter parent)
         animActive = false;
     }
 
-    public void Face(Vector3 target)
+    public void Face(Vector3? t)
     {
+        if(t is not {} target) return;
         var dx = target.X - parent.Position.X;
         var dz = target.Z - parent.Position.Z;
         if (dx * dx + dz * dz < 1e-6f) return;

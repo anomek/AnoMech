@@ -9,6 +9,7 @@ using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
+using AnoMech.Scenarios.Top.P6WaveCannon2;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -59,15 +60,16 @@ public sealed class Game : IDisposable
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
             new TopP5OmegaScenario(),
+            new TopP6WaveCannon2Scenario(),
         };
     }
 
-    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null)
+    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, bool solo = false)
     {
-        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride));
+        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, solo));
     }
 
-    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride)
+    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, bool solo)
     {
         // Hard gate: scenarios are only ever run from an inn. Everything
         // downstream (CharacterManager registration, zone load, doppel spawn)
@@ -91,9 +93,9 @@ public sealed class Game : IDisposable
         World.Map.TryLoad(scenario.TargetInstance);
         World.ScenarioOrigin = scenario.TargetInstance.Origin;
         World.PlaceWaymarks(scenario.Waymarks);
-        var party = World.CreateParty(player.ClassJob.RowId, roleOverride);
+        World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
         TeleportPlayerToSpawn(scenario);   // begin every run at the canonical spawn point
-        scenario.Run(World);
+        scenario.Run(World, solo);
         ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;
@@ -109,7 +111,7 @@ public sealed class Game : IDisposable
         Plugin.ChatGui.Print(new XivChatEntry
         {
             Type = XivChatType.SystemMessage,
-            Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {scenario.Name}").Build(),
+            Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {scenario.Name}{(solo ? " (Solo)" : "")}").Build(),
         });
     }
 

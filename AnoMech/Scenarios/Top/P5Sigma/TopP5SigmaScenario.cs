@@ -33,7 +33,7 @@ public sealed class TopP5SigmaScenario : IScenario
     private SimWorld world = null!;
     private SimParty party = null!;
 
-    public void Run(SimWorld worldParam)
+    public void Run(SimWorld worldParam, bool solo)
     {
         world = worldParam;
         party = worldParam.Party;

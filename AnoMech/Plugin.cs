@@ -51,6 +51,9 @@ public sealed class Plugin : IDalamudPlugin
     internal static LogManager LogManager { get; private set; } = null!;
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
+#if DEBUG
+    private DamageDebugWindow DamageDebugWindow { get; init; }
+#endif
 
     public Plugin()
     {
@@ -68,6 +71,10 @@ public sealed class Plugin : IDalamudPlugin
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
+#if DEBUG
+        DamageDebugWindow = new DamageDebugWindow(this);
+        WindowSystem.AddWindow(DamageDebugWindow);
+#endif
 
         if (Config.OpenSimMenuOnInn && ZoneSession.IsInInn())
             MainWindow.IsOpen = true;
@@ -114,6 +121,9 @@ public sealed class Plugin : IDalamudPlugin
         LogManager.Dispose();
         ConfigWindow.Dispose();
         MainWindow.Dispose();
+#if DEBUG
+        DamageDebugWindow.Dispose();
+#endif
 
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(CommandAlias);
@@ -160,18 +170,10 @@ public sealed class Plugin : IDalamudPlugin
                 ConfigWindow.Toggle();
                 break;
             case "start":
-                if (!ZoneSession.IsInInn())
-                {
-                    Log.Warning("Scenarios can only be started from an inn.");
-                    break;
-                }
-                if (ZoneSession.IsPlayerBusy())
-                {
-                    Log.Warning("Cannot start a scenario while you are busy (cutscene, NPC event, crafting, etc.).");
-                    break;
-                }
-                if (MainWindow.SelectedScenario is { } scenario)
-                    Game.RunScenario(scenario, MainWindow.SelectedRoleOverride);
+                StartSelectedScenario(solo: false);
+                break;
+            case "start solo":
+                StartSelectedScenario(solo: true);
                 break;
             case "reset":
                 Game.Reset();
@@ -183,6 +185,28 @@ public sealed class Plugin : IDalamudPlugin
                 MainWindow.Toggle();
                 break;
         }
+    }
+
+    private void StartSelectedScenario(bool solo)
+    {
+        if (!ZoneSession.IsInInn())
+        {
+            Log.Warning("Scenarios can only be started from an inn.");
+            return;
+        }
+        if (ZoneSession.IsPlayerBusy())
+        {
+            Log.Warning("Cannot start a scenario while you are busy (cutscene, NPC event, crafting, etc.).");
+            return;
+        }
+        if (MainWindow.SelectedScenario is not { } scenario)
+            return;
+        if (solo && !scenario.SupportsSolo)
+        {
+            Log.Warning($"{scenario.Name} does not support Solo mode.");
+            return;
+        }
+        Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo);
     }
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();

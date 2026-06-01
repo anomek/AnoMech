@@ -92,8 +92,6 @@ public sealed unsafe class SimCast : ISimObject
         chara->CastInfo.ActionId = actionId;
         if (targetId is { } tid)
             chara->CastInfo.TargetId = tid;
-        else if (localTargetLocation is not null)
-            chara->CastInfo.TargetId = 0xE0000000;
         else
             chara->CastInfo.TargetId = chara->GetGameObjectId();
         if (localTargetLocation is { } loc) chara->CastInfo.TargetLocation = coordinates.ToGlobal(loc);
@@ -180,10 +178,21 @@ public sealed unsafe class SimCast : ISimObject
         omen = null;
     }
 
-    // Teardown for caster despawn: drop the telegraph and stop any pending
-    // delayed spawn. Leaves CastInfo alone — the BattleChara is going away.
+    // Teardown for caster despawn: drop the telegraph, stop any pending delayed
+    // spawn, and clear CastInfo. Clearing CastInfo matters because despawn deletes
+    // the BattleChara via DeleteObjectByIndex -> Character::Terminate, whose
+    // scheduler teardown reads a still-live cast/action timeline and crashes on
+    // freed state (C0000005 at TimelineGroup.PlayAction; see crash dump
+    // 20260529_193455).
     public void Despawn()
     {
+        var chara = parent.BattleCharaPtr;
+        if (chara != null)
+        {
+            chara->CastInfo.IsCasting = false;
+            chara->CastInfo.ActionId = 0;
+            chara->CastInfo.ActionType = 0;
+        }
         casting = false;
         omenScheduled = false;
         omen?.Despawn();
@@ -259,17 +268,19 @@ public sealed unsafe class SimCast : ISimObject
         var rotationInt = (ushort)Math.Clamp(
             (int)((chara->Rotation / MathF.PI) * 32767f + 32767f), 0, 65535);
 
-        // Mirror Start()'s TargetId classification using the sanitized state. CastInfo.TargetId
-        // was snapshotted at Start() time and may carry a now-stale entity id; reading it here
-        // routes that stale id into AnimationTargetId, which Receive resolves and crashes on
-        // (same null-deref as the deliverTo array). Re-derive from current state instead.
+        // Derive AnimationTargetId from the sanitized delivery state, not from CastInfo.TargetId
+        // (snapshotted at Start() and possibly stale). When there's no valid entity target, use
+        // the benign 0xE0000000 "no target" sentinel — never the caster's own spawned id. Our
+        // spawned BattleCharas get ids in the reserved 0xE0000001+ pronoun range (BattleCharaSpawn),
+        // and Receive/ApplyAll resolves AnimationTargetId through the placeholder resolver with no
+        // accompanying pointer, null-derefing on a reserved id (crash dump 20260529_210128). In solo
+        // mode the boss is the first spawned BC (index 0 -> 0xE0000001), so a self-cast with no
+        // target reliably hit that path. The release animation still plays off casterEntityId.
         var header = default(ActionEffectHandler.Header);
         if (safeDeliver is { } sd)
             header.AnimationTargetId = sd;
-        else if (targetLocation.HasValue)
-            header.AnimationTargetId = 0xE0000000;
         else
-            header.AnimationTargetId = chara->GetGameObjectId();
+            header.AnimationTargetId = 0xE0000000;
         header.ActionId = actionId;
         header.GlobalSequence = 0;
         header.AnimationLock = 0f;

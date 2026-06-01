@@ -103,6 +103,12 @@ public unsafe class SimNpc : SimCharacter
         var obj = BattleCharaPtr;
         if (obj != null)
         {
+            // Quiesce the action timeline before deletion: DeleteObjectByIndex runs the native
+            // Character::Terminate, whose scheduler teardown walks the ActionTimelineSequencer
+            // and calls TimelineGroup::PlayAction. A still-live timeline there crashes on freed
+            // scheduler state (C0000005 at TimelineGroup.PlayAction). DisableDraw alone does not
+            // close this window. See crash dump 20260529_193455.
+            ResetActionTimeline();
             obj->DisableDraw();
             ClientObjectManager.Instance()->DeleteObjectByIndex((ushort)index, 0);
         }
