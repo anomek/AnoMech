@@ -41,7 +41,6 @@ public class TopP2PartySynergyAi
     private IAiMove AttackDodge()
     {
         return AiMove.All(new(0, -1f))
-                     .NaturalOrder()
                      .ApplyPositions(
                          AttackSafeCardinal,
                          AttackSafeSpot

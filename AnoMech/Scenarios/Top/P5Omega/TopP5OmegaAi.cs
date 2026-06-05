@@ -55,7 +55,6 @@ public class TopP5OmegaAi
     private Func<IAiMove> Dodge(int attack)
     {
         return () => AiMove.All(new(0, -1f))
-                           .NaturalOrder()
                            .ApplyPositions(
                                AdjustSafeCardinal(attack),
                                AdjustSafeSpot(attack)

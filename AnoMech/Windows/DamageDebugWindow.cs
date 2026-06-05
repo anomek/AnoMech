@@ -27,7 +27,7 @@ internal sealed class DamageDebugWindow : Window, IDisposable
 {
     internal static DamageDebugWindow? Instance;
 
-    private const int Res = 300;            // grid + texture resolution (px)
+    private const int Res = 510;            // grid + texture resolution (px)
     private const float HalfExtent = 25f;   // half-width of mapped region (yalms); > arena so edge AOEs show
     private const float FadeSeconds = 3f;
     private const float HeatCap = 4f;       // max stacked intensity per cell
@@ -45,6 +45,8 @@ internal sealed class DamageDebugWindow : Window, IDisposable
     private byte[]? pixels;      // RGBA upload buffer
 
     private bool frozen;
+    private bool freezeRebuildPending;        // one-shot: bake the final hit into the frozen tex
+    private List<Vector3>? frozenPositions;   // party-dot snapshot held while frozen
     private Vector3? lastSource;
     private float sourceRemaining;
     private IDalamudTextureWrap? tex;
@@ -65,14 +67,15 @@ internal sealed class DamageDebugWindow : Window, IDisposable
         if (Instance == this) Instance = null;
     }
 
-    // Called from DamageSolver.Resolve with the same (actionId, source) that drives
-    // the real party query, so the picture matches the resolved AOE exactly. Runs on
-    // the framework thread; `events` is read back in Draw on the same (main) thread.
-    internal void Record(uint actionId, Placement source)
+    // Called from DamageSolver.Resolve with the SAME AoeQuery that drives the real
+    // party query, so the picture matches the resolved AOE exactly (it's literally
+    // re-run against the grid). Runs on the framework thread; `events` is read back in
+    // Draw on the same (main) thread.
+    internal void Record(AoeQuery query)
     {
         if (!IsOpen || frozen) return;
         EnsureGrid();
-        var hits = gridFind!.InsideActionAoe(actionId, source);
+        var hits = query.Run(gridFind!);
         if (hits.Count > 0)
         {
             // Within one query a cell appears at most once (single-pass shapes don't
@@ -81,7 +84,7 @@ internal sealed class DamageDebugWindow : Window, IDisposable
             for (var i = 0; i < hits.Count; i++) cells[i] = hits[i].Iz * Res + hits[i].Ix;
             events.Add(new HitEvent(cells));
         }
-        lastSource = source.Position;
+        lastSource = query.Source.Position;
         sourceRemaining = FadeSeconds;
     }
 
@@ -109,6 +112,15 @@ internal sealed class DamageDebugWindow : Window, IDisposable
             if (events.Count > 0 || changed) RebuildTexture();
         }
 
+        // The lethal AOE is appended to `events` in the same frame Freeze() fires, but the
+        // fade/rebuild block above is gated on !frozen — so the snapshot would otherwise
+        // omit the very hit that caused death. Rebuild once on the freeze transition.
+        if (freezeRebuildPending && gridFind != null)
+        {
+            freezeRebuildPending = false;
+            RebuildTexture();
+        }
+
         var origin = ImGui.GetCursorScreenPos();
         if (tex != null) ImGui.Image(tex.Handle, new Vector2(Res, Res));
         else ImGui.Dummy(new Vector2(Res, Res));
@@ -122,14 +134,41 @@ internal sealed class DamageDebugWindow : Window, IDisposable
         var ring = ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.35f));
         dl.AddCircle(ToCanvas(Vector3.Zero), TopConstants.Geometry.ArenaRadius / HalfExtent * (Res / 2f), ring);
 
-        // Live party members (reuse Find to enumerate without a new public API).
+        // Party members: while frozen, show positions snapshotted at the freeze so the
+        // dots stay put with the frozen heatmap; live otherwise.
         var dot = ImGui.GetColorU32(new Vector4(0.2f, 0.8f, 1f, 1f));
-        foreach (var m in plugin.Game.World.Party.Find.InsideCircle(Vector3.Zero, 1000f))
-            dl.AddCircleFilled(ToCanvas(m.Position), 3f, dot);
+        if (frozen)
+        {
+            frozenPositions ??= CapturePartyPositions();
+            foreach (var p in frozenPositions) dl.AddCircleFilled(ToCanvas(p), 3f, dot);
+        }
+        else
+        {
+            frozenPositions = null;
+            foreach (var m in plugin.Game.World.Party.AllMembers())
+                dl.AddCircleFilled(ToCanvas(m.Position), 3f, dot);
+        }
 
         // Most-recent AOE source.
         if (sourceRemaining > 0f && lastSource is { } s)
             dl.AddCircleFilled(ToCanvas(s), 4f, ImGui.GetColorU32(new Vector4(1f, 1f, 0f, 1f)));
+    }
+
+    // Auto-freeze hook for the wipe sequence (Game.Kill). Snapshots the heatmap as-is
+    // so the killing AOE — recorded moments earlier in the same Resolve — stays visible.
+    internal void Freeze() { frozen = true; freezeRebuildPending = true; }
+
+    // Cleared at the start of each run so a new scenario records from a blank, live map.
+    internal void ResetFreeze() { frozen = false; freezeRebuildPending = false; Clear(); }
+
+    // Snapshot of every party dot's position (alive or dead), taken on the first
+    // frozen frame — AllMembers, not Find, so the just-killed member is included.
+    private List<Vector3> CapturePartyPositions()
+    {
+        var list = new List<Vector3>();
+        foreach (var m in plugin.Game.World.Party.AllMembers())
+            list.Add(m.Position);
+        return list;
     }
 
     private void Clear()

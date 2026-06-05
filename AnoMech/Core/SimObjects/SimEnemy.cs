@@ -13,7 +13,8 @@ namespace AnoMech.Core.SimObjects;
 // coordinate space as the rest of the SimXxx API: +X = east, +Z = south.
 // Placement.Rotation is absolute radians: 0 = south, π/2 = east, π = north, -π/2 = west.
 // ModelCharaId (non-zero) overrides the BNpcBase visual, e.g. a no-shield variant.
-// Hitbox radius = BNpcBase.Scale × ModelChara's unscaled radius.
+// Hitbox radius = BNpcBase.Scale × ModelChara's unscaled radius, unless HitboxRadius
+// (non-zero) overrides it — decoupling the clickable/targetable hitbox from Scale.
 
 // Whether a SimEnemy shows in the _EnemyList HUD (read each frame by EnmityHud.Refresh).
 // Always          — listed while alive.
@@ -40,6 +41,7 @@ public record struct EnemySpawnConfig(
     Placement Placement = default,
     uint ModelCharaId = 0,
     float Scale = 0f,    // 0 = use BNpcBase.Scale
+    float HitboxRadius = 0f,    // 0 = ModelChara unscaled radius × Scale
     byte? InitialModeAttributeFlags = null); // null = leave at engine default (0x00); set when the boss's canonical idle sub-mesh variant differs (e.g. Omega-M = 0x10)
 
 public sealed unsafe class SimEnemy : SimNpc
@@ -144,7 +146,7 @@ public sealed unsafe class SimEnemy : SimNpc
         var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
         chara->ModelContainer.ModelCharaId = (int)modelCharaId;
         chara->SEPack = bnpc.SEPack;
-        var hitboxRadius = ResolveHitboxRadius(modelCharaId, scale);
+        var hitboxRadius = config.HitboxRadius > 0f ? config.HitboxRadius : ResolveHitboxRadius(modelCharaId, scale);
 
         // Engine-resolved name (vfunc 6), same source as the nameplate, so the Name[]
         // buffer we stamp below stays consistent with the rest of the UI.

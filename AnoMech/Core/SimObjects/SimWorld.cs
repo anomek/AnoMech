@@ -163,6 +163,13 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void SpawnOmen(string path, Placement placement, Vector3 scale, float durationSeconds)
         => children.Add(new SimOmen(Coordinates, path, placement, scale, durationSeconds));
 
+    // Change the active weather mid-scenario. weatherId is a Weather-sheet row;
+    // transition is the fade-in time in seconds. A scenario's default weather
+    // (TargetInstance.WeatherId) is re-applied automatically on restart, so any
+    // mid-run change made here is reset whenever the scenario is run again.
+    public void SetWeather(byte weatherId, float transition = 0.5f)
+        => Map.SetWeather(weatherId, transition);
+
     // Spawns the eight party slots and wires in the local player. Must be called
     // after ScenarioOrigin is set. Party is added first so it despawns last in
     // Reset's reverse-order teardown (tethers and enemies reference slot positions).

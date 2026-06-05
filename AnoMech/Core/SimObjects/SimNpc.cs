@@ -104,11 +104,13 @@ public unsafe class SimNpc : SimCharacter
         if (obj != null)
         {
             // Quiesce the action timeline before deletion: DeleteObjectByIndex runs the native
-            // Character::Terminate, whose scheduler teardown walks the ActionTimelineSequencer
-            // and calls TimelineGroup::PlayAction. A still-live timeline there crashes on freed
-            // scheduler state (C0000005 at TimelineGroup.PlayAction). DisableDraw alone does not
-            // close this window. See crash dump 20260529_193455.
-            ResetActionTimeline();
+            // Character::Terminate, whose scheduler teardown walks all 14 ActionTimelineSequencer
+            // slots and calls TimelineGroup::PlayAction on each. A still-live timeline there crashes
+            // on freed scheduler state (C0000005 at TimelineGroup.PlayAction). Clearing only slot 0
+            // is not enough for a mid-cast / mid-release-animation boss (the release animation
+            // occupies UpperBody/Facial/Lips slots), so quiesce every slot here. DisableDraw alone
+            // does not close this window either. See crash dumps 20260529_193455 and 20260603_221355.
+            QuiesceActionTimeline();
             obj->DisableDraw();
             ClientObjectManager.Instance()->DeleteObjectByIndex((ushort)index, 0);
         }

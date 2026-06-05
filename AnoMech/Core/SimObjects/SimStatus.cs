@@ -1,3 +1,4 @@
+using System;
 using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
@@ -23,11 +24,17 @@ public sealed unsafe class SimStatus : ISimObject
         Statuses.AddStatusInit((Character*)target.BattleCharaPtr, statusId, stacks);
     }
 
-    public void Reapply(float duration, ushort stacks)
+    public void Reapply(float duration, int stacks)
     {
-        this.duration = duration;
-        elapsed = 0f;
-        Stacks += stacks;
+        // Only a positive duration refreshes the timer; a bare stack change
+        // (default duration 0) preserves the existing countdown.
+        if (duration > 0f)
+        {
+            this.duration = duration;
+            elapsed = 0f;
+        }
+        // Negative stacks decrement; clamp to 0 (callers handle removal at 0).
+        Stacks = (ushort)Math.Max(0, Stacks + stacks);
     }
     
     public void Tick(float deltaSeconds)

@@ -27,20 +27,22 @@ While simulating:
 
 See: https://github.com/anomek/MyDalamudPlugins
 
+## Currently implemented:
+- Dancing Mad (Ultimate)
+    - P2 Forsaken _[Kroxy-Rinon 3/4/1 (Center/N Stacks)](https://raidplan.io/plan/UATE__aDcw1-bgVv#5)_
+- The Omega Protocol (Ultimate): _NA pf strats_
+    - P2 Party Synergy
+    - P5 Delta
+    - P5 Sigma
+    - P5 Omega
+    - P6 Exasquares / Wave Cannon 2
+
 ## Details
 
 * Spawns fake party members and boss NPCs into the live game client
 * Drives their positions, cast bars, tethers, and VFX so mechanics play out visually
 * Your fake party members are full fledged bots that will do mechanics.  
   Some scanarios also have solo mode where you can practice without disctractions.
-
-Currently implemented:
- - The Omega Protocol (Ultimate):
-   - P2 Party Synergy
-   - P5 Delta
-   - P5 Sigma
-   - P5 Omega
-   - P6 Exasquares / Wave Cannon 2
 
 
 ## How to help

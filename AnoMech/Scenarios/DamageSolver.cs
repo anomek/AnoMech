@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
-namespace AnoMech.Scenarios.Top;
+namespace AnoMech.Scenarios;
 
 public class DamageSolver
 {
@@ -19,15 +21,24 @@ public class DamageSolver
     }
     
     
-    public void Resolve(
+    public IReadOnlyList<SimCharacter> Resolve(
         IPositioned? source, uint actionId, DamageType[] damageType, (ushort statusId, float duration)[] statusesToApply,
-        int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null)
+        int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null,
+        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null)
     {
-        if (source == null) return;
+        if (source == null) return [];
+        var placement = source.Placement();
+        // Additive facing offset (radians) applied on top of the caster's rotation;
+        // lets a scenario aim the resolved cone without turning the model. null = caster's facing.
+        if (coneRotationOverride is { } delta)
+            placement = placement with { Rotation = placement.Rotation + delta };
+        var query = new AoeQuery(actionId, placement, coneHalfAngle: coneAngleOverride);
 #if DEBUG
-        AnoMech.Windows.DamageDebugWindow.Instance?.Record(actionId, source.Placement());
+        AnoMech.Windows.DamageDebugWindow.Instance?.Record(query);
 #endif
-        var targets = party.Find.InsideActionAoe(actionId, source.Placement());
+        var targets = query.Run(party.Find);
+        if (excludeTargets is { Length: > 0 })
+            targets = targets.Where(t => !excludeTargets.Contains(t)).ToList();
         HashSet<DamageType> damageTypeBase = [DamageType.Any];
         Array.ForEach(damageType, d => damageTypeBase.Add(d));
         HashSet<DamageType> damageTypeWildCharge = new(damageTypeBase);
@@ -39,7 +50,7 @@ public class DamageSolver
             bool wildCharge = i++ < wildChargeTargets;
             if (targets.Count < stackMinTargets)
             {
-                target.Die($"Died to {actionId} ({targets.Count}/{stackMinTargets} players in stack)");
+                target.Die($"Died to {ActionLookup.Name(actionId)} ({targets.Count}/{stackMinTargets} players in stack)");
             }
             else if (!CheckLethal(actionId, target, wildCharge ? damageTypeWildCharge : damageTypeBase))
             {
@@ -49,23 +60,24 @@ public class DamageSolver
                 }
             }
         }
+        return targets;
     }
     
     private bool CheckLethal(uint actionId, SimCharacter target, HashSet<DamageType> damageTypes)
     {
         if (damageTypes.Contains(DamageType.Lethal))
         {
-            target.Die($"Died to {actionId}");
+            target.Die($"Died to {ActionLookup.Name(actionId)}");
             return true;
         }
         else if (IsLethal(target, damageTypes))
         {
-            target.Die($"Died to {actionId} (had vuln up debuff)");
+            target.Die($"Died to {ActionLookup.Name(actionId)} (had vuln up debuff)");
             return true;
         }
         else if (damageTypes.Contains(DamageType.TankBuster) && target is not ISimPartyMember { Role: PartyRole.OffTank or PartyRole.MainTank })
         {
-            target.Die($"Died to {actionId} (tank buster)");
+            target.Die($"Died to {ActionLookup.Name(actionId)} (tank buster)");
             return true;
         }
         else

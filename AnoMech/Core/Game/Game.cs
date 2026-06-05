@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.Native;
@@ -10,6 +11,7 @@ using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
 using AnoMech.Scenarios.Top.P6WaveCannon2;
+using AnoMech.Scenarios.Umad.P2Forsaken;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -56,6 +58,7 @@ public sealed class Game : IDisposable
         opcodeUpdater = new OpcodeUpdater();
         Scenarios = new IScenario[]
         {
+            new UmadP2ForsakenScenario(),
             new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
@@ -92,6 +95,7 @@ public sealed class Game : IDisposable
         World.HideObject(ExitObjectBaseId);
         World.Map.TryLoad(scenario.TargetInstance);
         World.ScenarioOrigin = scenario.TargetInstance.Origin;
+        World.Map.ArmColliderDrops(scenario.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
         World.PlaceWaymarks(scenario.Waymarks);
         World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
         TeleportPlayerToSpawn(scenario);   // begin every run at the canonical spawn point
@@ -166,6 +170,9 @@ public sealed class Game : IDisposable
         if (!firstFreezeScheduled)
         {
             firstFreezeScheduled = true;
+#if DEBUG
+            AnoMech.Windows.DamageDebugWindow.Instance?.Freeze();
+#endif
             Events.Add(5f, () => Paused = true);
         }
     }
@@ -241,6 +248,9 @@ public sealed class Game : IDisposable
         Paused = false;
         firstDeathScheduled = false;
         firstFreezeScheduled = false;
+#if DEBUG
+        AnoMech.Windows.DamageDebugWindow.Instance?.ResetFreeze();
+#endif
         // Input-lock flags are owned by SimPlayer (reconciled each tick, cleared on
         // its Despawn during World.Reset above) — nothing to clear here.
     }

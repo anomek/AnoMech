@@ -3,20 +3,33 @@
 WARNING: parser is 100% vibe-coded, code is bad but it works
 
 Usage:
-    python parser.py <log_path> <territory_id_decimal>
+    python parser.py <log_path> [<territory_id_decimal>]
 
 Example:
     python parser.py ..\\logs\\Network_30108_20260504_TOP.log 1122
+
+Run with just the log path (no territory id) to list every encounter — i.e.
+each distinct territory that saw combat — so you can pick a territory id to
+drill into.
 
 Territory IDs are decimal (1122 = TOP = 0x462). The log stores them in hex
 on `01|` (ChangeZone) lines.
 
 A "pull" is a combat segment that occurred while the local player was in the
 selected territory. Combat boundaries come from `260|` (InCombat) lines: the
-first state flag going 0->1 marks combat start, 1->0 marks combat end. A pull
+game-combat flag (field 3, inGameCombat) going 0->1 marks combat start, 1->0
+marks combat end. (We deliberately ignore field 2, inACTCombat — ACT bridges a
+quick wipe-and-repull with its out-of-combat grace timeout, which would merge
+two real pulls into one and count the dead time between them.) A pull
 is treated as a clear iff director subcommand 0x40000003 appears inside the
 combat window (it fires once per duty completion, just before combat-end);
 every other pull is a wipe.
+
+Some FFXIV_ACT_Plugin captures emit no `260|` lines at all. When the log has
+none, pull detection falls back to the duty director's `33|` ActorControl
+codes: 0x40000001 (commence) starts a pull, 0x40000005/0x40000006 (wipe
+fadeout) or 0x40000003 (clear) ends it, and the first hostile NPC ability
+re-opens combat after a wipe (the reset is not commence-marked).
 """
 
 from __future__ import annotations
@@ -125,15 +138,50 @@ def iter_records(path: str) -> Iterator[list[str]]:
             yield line.split("|")
 
 
-def find_pulls(path: str, target_zone: int) -> list[Pull]:
+# Duty-director ActorControl (`33|`) codes used by the no-`260|` fallback path.
+# Matched by code only — the source actor id (a director instance, e.g. 800375D2)
+# is intentionally ignored, mirroring the clear-detection logic that already keys
+# off 0x40000003 regardless of source. A wipe is a *pair*: 0x40000005 (combat
+# ended / fadeout begins) ~10s before 0x40000006 (fadeout complete).
+_DIRECTOR_COMMENCE = 0x40000001                              # duty commence — opens pull 1
+_DIRECTOR_COMBAT_END = frozenset({0x40000003, 0x40000005})   # clear / wipe — combat ended
+_DIRECTOR_RESET_DONE = 0x40000006                            # wipe fadeout complete
+
+
+def find_pulls(path: str, target_zone: int | None) -> list[Pull]:
+    """Combat segments in `target_zone`, or — when `target_zone is None` — across
+    every territory in the log (each Pull carries its own zone_id/zone_name).
+
+    Prefers the `260|` (InCombat) flag. Some FFXIV_ACT_Plugin captures emit no
+    `260|` lines at all; when the log has none, fall back to deriving boundaries
+    from duty-director `33|` ActorControl codes."""
+    pulls, saw_incombat = _find_pulls_incombat(path, target_zone)
+    if not pulls and not saw_incombat:
+        return _find_pulls_director(path, target_zone)
+    return pulls
+
+
+def _find_pulls_incombat(
+    path: str, target_zone: int | None
+) -> tuple[list[Pull], bool]:
+    """Canonical pull detection from `260|` (InCombat) transitions. Returns the
+    pulls and a flag recording whether ANY `260|` line was seen in the log (in
+    any zone) — the flag lets `find_pulls` decide whether the director-code
+    fallback is needed."""
     pulls: list[Pull] = []
     current_zone: int | None = None
     current_zone_name: str = ""
     in_combat: bool = False
     open_pull: Pull | None = None
+    saw_incombat: bool = False
 
     for parts in iter_records(path):
         opcode = parts[0]
+
+        # Count InCombat lines before the zone filter so the fallback decision
+        # reflects the whole log, not just the target zone.
+        if opcode == "260":
+            saw_incombat = True
 
         if opcode == "01" and len(parts) >= 4:
             try:
@@ -149,12 +197,20 @@ def find_pulls(path: str, target_zone: int) -> list[Pull]:
                 in_combat = False
             continue
 
-        if current_zone != target_zone:
+        if target_zone is not None and current_zone != target_zone:
             continue
 
-        if opcode == "260" and len(parts) >= 3:
+        if opcode == "260" and len(parts) >= 4:
+            # Use the game-combat flag (field 3, inGameCombat), NOT the
+            # ACT-combat flag (field 2). ACT keeps its own combat state alive
+            # through a short out-of-combat grace timeout, so on a quick
+            # wipe-and-repull field 2 never drops to 0 and two real pulls get
+            # merged into one (with the dead time between them counted). The
+            # game flag toggles per actual pull. It stays continuously 1 across
+            # multi-phase pulls (verified on an 18-min TOP clear), so it does
+            # not over-split downtime phases.
             try:
-                flag = int(parts[2])
+                flag = int(parts[3])
             except ValueError:
                 continue
             ts = parse_timestamp(parts[1])
@@ -180,6 +236,107 @@ def find_pulls(path: str, target_zone: int) -> list[Pull]:
             except ValueError:
                 continue
             open_pull.director_codes.append(code)
+
+    if open_pull is not None:
+        pulls.append(open_pull)
+    return pulls, saw_incombat
+
+
+def _find_pulls_director(path: str, target_zone: int | None) -> list[Pull]:
+    """Fallback pull detection for logs with no `260|` lines (some
+    FFXIV_ACT_Plugin captures). Combat boundaries come from the duty director's
+    `33|` ActorControl codes:
+
+      * a pull OPENS on `0x40000001` (duty commence), or, when none is open and
+        we are not mid-reset, on the first hostile NPC ability (`21`/`22` whose
+        source is a `4xxxxxxx` id). The latter is the only signal for a re-pull
+        after a wipe, since the reset is not commence-marked; it also covers the
+        first pull if a commence code is ever absent.
+      * a pull CLOSES on a combat-end code (`0x40000003` clear / `0x40000005`
+        wipe). The close starts a "resetting" quiet period lasting until the
+        paired `0x40000006` (fadeout complete) or, if the player left mid-
+        fadeout, the next zone change. During it, lingering ability resolutions
+        (DoT ticks, in-flight hits) cannot open a bogus ~10s pull.
+
+    Every `33|` code seen while a pull is open is recorded so `Pull.outcome`
+    still reports `clear` iff `0x40000003` landed inside the window."""
+    pulls: list[Pull] = []
+    current_zone: int | None = None
+    current_zone_name: str = ""
+    open_pull: Pull | None = None
+    resetting: bool = False  # in a wipe fadeout — suppress re-open from stray abilities
+
+    def open_at(ts: datetime) -> Pull:
+        return Pull(
+            index=len(pulls) + 1,
+            zone_id=current_zone,
+            zone_name=current_zone_name,
+            start=ts,
+        )
+
+    for parts in iter_records(path):
+        opcode = parts[0]
+
+        if opcode == "01" and len(parts) >= 4:
+            try:
+                current_zone = int(parts[2], 16)
+            except ValueError:
+                continue
+            current_zone_name = parts[3]
+            # Zone change while a pull is open closes it defensively, and always
+            # ends a pending reset (covers leaving mid-fadeout: a 0x40000005 with
+            # no paired 0x40000006).
+            if open_pull is not None:
+                open_pull.end = parse_timestamp(parts[1])
+                pulls.append(open_pull)
+                open_pull = None
+            resetting = False
+            continue
+
+        if target_zone is not None and current_zone != target_zone:
+            continue
+
+        if opcode == "33" and len(parts) >= 5:
+            try:
+                code = int(parts[3], 16)
+            except ValueError:
+                continue
+            ts = parse_timestamp(parts[1])
+            if code == _DIRECTOR_RESET_DONE:
+                # Fadeout complete: end the quiet period. Close any still-open
+                # pull defensively (normally the combat-end code already did).
+                if open_pull is not None:
+                    open_pull.director_codes.append(code)
+                    open_pull.end = ts
+                    pulls.append(open_pull)
+                    open_pull = None
+                resetting = False
+                continue
+            if open_pull is None:
+                if code == _DIRECTOR_COMMENCE and current_zone is not None:
+                    resetting = False
+                    open_pull = open_at(ts)
+                continue
+            open_pull.director_codes.append(code)
+            if code in _DIRECTOR_COMBAT_END:
+                open_pull.end = ts
+                pulls.append(open_pull)
+                open_pull = None
+                resetting = True
+            continue
+
+        # First hostile NPC ability re-opens combat after a wipe (no `260|`
+        # and no commence code marks the re-pull). Suppressed during the reset
+        # quiet period so fadeout-tail resolutions don't open a phantom pull.
+        if (
+            opcode in ("21", "22")
+            and open_pull is None
+            and not resetting
+            and current_zone is not None
+            and len(parts) >= 3
+            and NPC_ID_RE.match(parts[2])
+        ):
+            open_pull = open_at(parse_timestamp(parts[1]))
 
     if open_pull is not None:
         pulls.append(open_pull)
@@ -2615,6 +2772,32 @@ def print_pull_table(pulls: list[Pull], category: int) -> None:
         print(f"{p.index:>3}  {start}  {format_duration(p.duration_s)}  {p.outcome}")
 
 
+def print_encounter_table(pulls: list[Pull]) -> None:
+    """No territory id given — summarise every encounter (distinct territory that
+    saw combat) in the log, in first-seen order, so the user can pick a territory
+    id to drill into. One row per territory: id (decimal + hex), pull count,
+    clears, wipes, zone name."""
+    order: list[tuple[int, str]] = []
+    by_zone: dict[int, list[Pull]] = {}
+    for p in pulls:
+        if p.zone_id not in by_zone:
+            order.append((p.zone_id, p.zone_name))
+            by_zone[p.zone_id] = []
+        by_zone[p.zone_id].append(p)
+
+    noun = "territory" if len(order) == 1 else "territories"
+    print(f"Encounters in log ({len(order)} {noun}, {len(pulls)} pulls)")
+    print(f"  {'id':>6}  {'hex':>7}  {'pulls':>5}  {'clears':>6}  {'wipes':>5}  name")
+    for zone_id, zone_name in order:
+        zps = by_zone[zone_id]
+        clears = sum(1 for p in zps if p.outcome == "clear")
+        wipes = sum(1 for p in zps if p.outcome == "wipe")
+        print(
+            f"  {zone_id:>6}  {('0x%X' % zone_id):>7}  {len(zps):>5}  "
+            f"{clears:>6}  {wipes:>5}  {zone_name}"
+        )
+
+
 def print_pull_details(path: str, pulls: list[Pull], idx: int) -> None:
     pull = pulls[idx]
     if idx + 1 < len(pulls):
@@ -2668,7 +2851,14 @@ def print_pull_details(path: str, pulls: list[Pull], idx: int) -> None:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="List pulls in a given territory from an ACT/IINACT network log.")
     ap.add_argument("log", help="Path to the network log file")
-    ap.add_argument("category", type=lambda v: int(v, 0), help="Territory id in decimal (or 0x... for hex)")
+    ap.add_argument(
+        "category",
+        type=lambda v: int(v, 0),
+        nargs="?",
+        default=None,
+        help="Territory id in decimal (or 0x... for hex). Omit to list every "
+             "encounter (territory with pulls) in the log.",
+    )
     ap.add_argument(
         "pull",
         type=int,
@@ -2762,6 +2952,14 @@ def main(argv: list[str]) -> int:
         sys.stdout = open(args.output, "w", encoding="utf-8", newline="\n")
 
     pulls = find_pulls(args.log, args.category)
+
+    if args.category is None:
+        if not pulls:
+            print("No encounters found in the log.")
+            return 0
+        print_encounter_table(pulls)
+        return 0
+
     if not pulls:
         print(f"No pulls found in territory {args.category} (0x{args.category:X}).")
         return 0

@@ -11,5 +11,6 @@ public enum PartyRole
     MeleeDpsA = 4,      // Dragoon slot
     MeleeDpsB = 5,      // Monk slot
     PhysRangedDps = 6,  // Bard slot
-    CasterDps = 7,      // Black Mage slot
+    CasterDps = 7      // Black Mage slot
+    
 }

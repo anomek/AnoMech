@@ -137,19 +137,27 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     // Status Subsystem
     // -------------------------
 
-    public SimStatus AddStatus(ushort statusId, float duration = 0f, ushort stacks = 1, bool overrideStacks = false)
+    public SimStatus? AddStatus(ushort statusId, float duration = 0f, int stacks = 1, bool overrideStacks = false)
     {
         if (FindStatus(statusId) is {} status)
         {
-            status.Reapply(duration, overrideStacks ? (ushort)(stacks - status.Stacks) : stacks);
+            // overrideStacks: stacks is the absolute target; otherwise it's a
+            // relative delta (negative consumes stacks).
+            int delta = overrideStacks ? stacks - status.Stacks : stacks;
+            status.Reapply(duration, delta);
+            if (status.Stacks == 0)
+            {
+                status.Despawn();   // last stack consumed → remove the status
+                return null;
+            }
             return status;
         }
-        else
-        {
-            var s = new SimStatus(this, statusId, duration, stacks);
-            statusList.Add(s);
-            return s;
-        }
+
+        // No existing status: a non-positive request has nothing to remove.
+        if (stacks <= 0) return null;
+        var s = new SimStatus(this, statusId, duration, (ushort)stacks);
+        statusList.Add(s);
+        return s;
     }
 
     public void RemoveStatus(ushort statusId)
@@ -186,7 +194,28 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
         bc->Timeline.ModelState = 0;
         bc->Timeline.AnimationState[0] = 0;
         bc->Timeline.AnimationState[1] = 0;
-        bc->Timeline.TimelineSequencer.SetSlotTimeline(0, 0);
+        // Sequencer ops need a live skeleton (Parent); guard before touching it.
         if (bc->Timeline.TimelineSequencer.Parent == null) return;
+        bc->Timeline.TimelineSequencer.SetSlotTimeline(0, 0);
+    }
+
+    // Despawn-only: fully stop the action-timeline sequencer before the BattleChara is
+    // deleted. DeleteObjectByIndex -> Character::Terminate walks all 14 sequencer slots and
+    // calls TimelineGroup::PlayAction on each; a still-live slot (mid-cast / release
+    // animation) crashes on freed scheduler state (C0000005 at TimelineGroup.PlayAction;
+    // dumps 20260529_193455, 20260603_221355). ResetActionTimeline only clears slot 0 (Base),
+    // which is insufficient for a casting boss whose release animation occupies the
+    // UpperBody/Facial/Lips slots. Sequencer ops need a live skeleton, so guard on Parent first.
+    public void QuiesceActionTimeline()
+    {
+        var bc = BattleCharaPtr;
+        if (bc == null) return;
+        bc->Timeline.BaseOverride = 0;
+        bc->Timeline.ModelState = 0;
+        bc->Timeline.AnimationState[0] = 0;
+        bc->Timeline.AnimationState[1] = 0;
+        if (bc->Timeline.TimelineSequencer.Parent == null) return;
+        for (uint slot = 0; slot < 14; slot++)
+            bc->Timeline.TimelineSequencer.SetSlotTimeline(slot, 0);
     }
 }

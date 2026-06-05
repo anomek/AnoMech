@@ -176,16 +176,19 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information($"[ZoneSession] Entered territory {territoryId}.");
     }
 
-    // Apply weather after zone loads. Delayed 1 second so the engine finishes setup.
-    public void ApplyWeather(byte weatherId)
+    // Immediately set the active weather. Must be called on the framework thread.
+    // weatherId is a Weather-sheet row; transition is the fade time in seconds.
+    public void SetWeather(byte weatherId, float transition = 0.5f)
     {
-        ThreadingTask.Delay(1000).ContinueWith(_ => Plugin.Framework.Run(() =>
-        {
-            var env = EnvManager.Instance();
-            env->ActiveWeather = weatherId;
-            env->TransitionTime = 0.5f;
-        }));
+        var env = EnvManager.Instance();
+        if (env == null) return;
+        env->ActiveWeather = weatherId;
+        env->TransitionTime = transition;
     }
+
+    // Apply weather after a fresh zone load. Delayed 1 second so the engine finishes setup.
+    public void ApplyWeather(byte weatherId)
+        => ThreadingTask.Delay(1000).ContinueWith(_ => Plugin.Framework.Run(() => SetWeather(weatherId)));
 
     // Reload the saved inn territory and restore position; disable firewall.
     public void Revert()

@@ -190,11 +190,11 @@ public sealed class CharacterFind<T> where T : IPositioned
     // is the caster facing; for rects/cones the effective forward is
     // source.Rotation + omenRotate (matches SpawnCastOmen). targetLocation is
     // used for CastType 2 (circle-on-ground) as the AOE center; ignored for
-    // source-anchored shapes. Cone half-angle isn't carried by the sheet — defaults
-    // to 30° (60° wide cone); override per-action if a specific cone needs tighter
-    // bounds.
+    // source-anchored shapes. Cone half-angle isn't carried by the sheet — pass null
+    // (the default) for 30° (60° wide cone); override per-action if a specific cone
+    // needs tighter bounds.
     public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement source,
-        Vector3? targetLocation = null, float omenRotate = 0f, float coneHalfAngle = MathF.PI / 6f)
+        Vector3? targetLocation = null, float omenRotate = 0f, float? coneHalfAngle = null)
     {
         var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
         if (!actionSheet.TryGetRow(actionId, out var action))
@@ -205,12 +205,13 @@ public sealed class CharacterFind<T> where T : IPositioned
         var range = (float)action.EffectRange;
         if (range <= 0f) return Array.Empty<T>();
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
+        var cone = coneHalfAngle ?? MathF.PI / 6f;
         var forward = new Placement(source.Position, source.Rotation + omenRotate);
         var hits = action.CastType switch
         {
             2     => InsideCircle(targetLocation ?? source.Position, range),
             3 or 8 or 13
-                  => InsideCone(forward, coneHalfAngle, range),
+                  => InsideCone(forward, cone, range),
             4 or 12
                   => InsideRect(forward, halfWidth, range),
             5     => InsideCircle(source.Position, range),
@@ -284,5 +285,19 @@ public sealed class CharacterFind<T> where T : IPositioned
             (list[i], list[j]) = (list[j], list[i]);
         }
     }
+}
+
+// A pre-bound InsideActionAoe call, replayable against any CharacterFind<T>.
+// DamageSolver.Resolve runs it against the live party; the DEBUG damage window
+// replays the SAME query against its virtual grid. InsideActionAoe is invoked from
+// exactly one place (Run), so any parameter it grows is carried to both callers
+// automatically — the debug picture can't drift from the resolved AOE.
+public readonly struct AoeQuery(uint actionId, Placement source,
+    Vector3? targetLocation = null, float omenRotate = 0f, float? coneHalfAngle = null)
+{
+    public Placement Source { get; } = source;
+
+    public IReadOnlyList<T> Run<T>(CharacterFind<T> find) where T : IPositioned =>
+        find.InsideActionAoe(actionId, Source, targetLocation, omenRotate, coneHalfAngle);
 }
 

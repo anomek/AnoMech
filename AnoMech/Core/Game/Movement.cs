@@ -51,6 +51,7 @@ internal class Movement(SimCharacter parent)
         Vector3 moveDestination, float sp = 6f, float? finalRot = null, ushort tl = RunTimelineId, bool baseOverride = true,
         bool faceTravel = true)
     {
+        if (!parent.IsAlive()) return;   // dead characters don't move
         destination = moveDestination;
         speed = MathF.Max(0f, sp);
         finalRotation = finalRot;

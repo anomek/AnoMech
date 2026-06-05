@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace AnoMech.Core.Map;
@@ -11,13 +12,21 @@ public sealed class MapController : IDisposable
     private readonly MapEffects effects = new();
     private readonly ZoneSession zone = new();
 
-    // Spawn-barrier deactivation state. Zone-load is async (resources stream in
-    // over several frames), so we re-try DisableSpawnAreaColliders each frame
-    // until at least one SharedGroup is found near the spawn point, or we time out.
-    private Vector3 barrierDropCenter;
-    private float barrierDropRadius;
-    private int barrierDropFramesLeft;
+    // Collider-deactivation state. Zone-load is async (resources stream in over
+    // several frames), so each pending drop re-tries DisableSpawnAreaColliders
+    // each frame until at least one SharedGroup is found near its center, or it
+    // times out. Holds the spawn-ring barrier (armed by TryLoad) plus any arena
+    // points a scenario requested via ArmColliderDrops.
+    private readonly List<PendingColliderDrop> pendingColliderDrops = new();
     private const int BarrierDropMaxFrames = 300; // ~5s at 60fps
+    private const float ColliderDropRadius = 10f; // per-point radius (matches spawn barrier)
+
+    private struct PendingColliderDrop
+    {
+        public Vector3 Center;
+        public float Radius;
+        public int FramesLeft;
+    }
 
     // ── Zone ─────────────────────────────────────────────────────────────────
 
@@ -34,23 +43,36 @@ public sealed class MapController : IDisposable
     // Apply weather after a zone load (1-second delayed to let the engine settle).
     public void ApplyWeather(byte weatherId) => zone.ApplyWeather(weatherId);
 
+    // Immediately change the active weather (mid-scenario). transition = fade seconds.
+    public void SetWeather(byte weatherId, float transition = 0.5f) => zone.SetWeather(weatherId, transition);
+
     // Revert to the saved inn territory and restore position.
     public void Unload()
     {
         zone.Revert();
         IsInInstance = false;
-        barrierDropFramesLeft = 0;
+        pendingColliderDrops.Clear();
     }
 
     // Per-frame poll. Called from SimWorld.Tick.
     internal void Tick()
     {
-        if (barrierDropFramesLeft <= 0) return;
-        var disabled = DirectorFunctions.DisableSpawnAreaColliders(barrierDropCenter, barrierDropRadius);
-        if (disabled > 0) { barrierDropFramesLeft = 0; return; }
-        barrierDropFramesLeft--;
-        if (barrierDropFramesLeft == 0)
-            Plugin.Log.Warning($"[BarrierDrop] Gave up after {BarrierDropMaxFrames} frames — no SGs found near ({barrierDropCenter.X:F2},{barrierDropCenter.Y:F2},{barrierDropCenter.Z:F2})");
+        for (int i = pendingColliderDrops.Count - 1; i >= 0; i--)
+        {
+            var drop = pendingColliderDrops[i];
+            var disabled = DirectorFunctions.DisableSpawnAreaColliders(drop.Center, drop.Radius);
+            if (disabled > 0) { pendingColliderDrops.RemoveAt(i); continue; }
+            drop.FramesLeft--;
+            if (drop.FramesLeft <= 0)
+            {
+                Plugin.Log.Warning($"[BarrierDrop] Gave up after {BarrierDropMaxFrames} frames — no SGs found near ({drop.Center.X:F2},{drop.Center.Y:F2},{drop.Center.Z:F2})");
+                pendingColliderDrops.RemoveAt(i);
+            }
+            else
+            {
+                pendingColliderDrops[i] = drop;
+            }
+        }
     }
 
     // Enter the scenario's target instance if conditions are met.
@@ -62,12 +84,18 @@ public sealed class MapController : IDisposable
         // Fresh load only when no zone is active yet (must be in the Inn). When a
         // zone is already loaded we're switching scenarios within the same
         // territory — skip the reload but still fall through to re-apply weather.
+        bool freshLoad = false;
         if (!IsZoneLoaded)
         {
             if (!IsInInn()) return;
             Load(target.TerritoryId, target.PlayerPosition);
+            freshLoad = true;
         }
-        if (target.WeatherId is { } wid) ApplyWeather(wid);
+        if (target.WeatherId is { } wid)
+        {
+            if (freshLoad) ApplyWeather(wid);   // fresh load: delay so the engine settles
+            else SetWeather(wid);               // restart/switch in a loaded zone: apply now
+        }
         IsInInstance = true;
         effects.Loaded = true;
         DirectorFunctions.Commence();
@@ -76,9 +104,20 @@ public sealed class MapController : IDisposable
 
     private void ArmBarrierDrop(Vector3 center, float radius)
     {
-        barrierDropCenter = center;
-        barrierDropRadius = radius;
-        barrierDropFramesLeft = BarrierDropMaxFrames;
+        pendingColliderDrops.Add(new PendingColliderDrop
+        {
+            Center = center,
+            Radius = radius,
+            FramesLeft = BarrierDropMaxFrames,
+        });
+    }
+
+    // Arm collider drops at scenario-provided arena points (already converted to
+    // world coordinates). Same async-load retry as the spawn-ring barrier.
+    public void ArmColliderDrops(IEnumerable<Vector3> worldCenters)
+    {
+        foreach (var center in worldCenters)
+            ArmBarrierDrop(center, ColliderDropRadius);
     }
 
     // ── Map effects ───────────────────────────────────────────────────────────
