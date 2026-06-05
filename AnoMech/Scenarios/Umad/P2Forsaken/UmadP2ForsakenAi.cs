@@ -29,20 +29,26 @@ public sealed class UmadP2ForsakenAi
         Init();
 
         ai.Move(1f, InitialLineup);
-        ai.Move(10.16f, TowerPositions(0), jitter: .1f, arrivalTime: 22.16f);
-        ai.Move(25.17f, TowerPositions(1), jitter: .1f, arrivalTime: 32.16f);
+        ai.Move(10.16f, TowerPositions(0), jitter: .0f, arrivalTime: 22.16f);
+        ai.Move(25.17f, TowerPositions(1), jitter: .0f, arrivalTime: 32.16f);
         ai.Move(33f, AllThingsEndsBait(0), arrivalTime: 37f);
-        ai.Move(39.21f, TowerPositions(2), jitter: .1f, arrivalTime: 43.21f);
-        ai.Move(47.22f, TowerPositions(3), jitter: .1f, arrivalTime: 53.22f);
+        ai.Move(39.21f, TowerPositions(2), jitter: .0f, arrivalTime: 43.21f);
+        ai.Move(47.22f, TowerPositions(3), jitter: .0f, arrivalTime: 53.22f);
         ai.Move(54f, AllThingsEndsBait(1), arrivalTime: 57f);
-        ai.Move(59.26f, TowerPositions(4), jitter: .1f, arrivalTime: 63.86f);
-        ai.Move(69.27f, TowerPositions(5), jitter: .1f, arrivalTime: 74.27f);
+        ai.Move(59.26f, TowerPositions(4), jitter: .0f, arrivalTime: 63.86f);
+        ai.Move(69.27f, TowerPositions(5), jitter: .0f, arrivalTime: 74.27f);
         ai.Move(75f, AllThingsEndsBait(2), arrivalTime: 78f);
-        ai.Move(80.31f, TowerPositions(6), jitter: .1f, arrivalTime: 85.31f);
-        ai.Move(90.32f, TowerPositions(7), jitter: .1f, arrivalTime: 95.32f);
+        ai.Move(80.31f, TowerPositions(6), jitter: .0f, arrivalTime: 85.31f);
+        ai.Move(90.32f, TowerPositions(7), jitter: .0f, arrivalTime: 94.32f);
         ai.Move(97f, AllThingsEndsBait(3), arrivalTime: 99f);
+        ai.Move(101f, FinalPositions);
     }
 
+    private IAiMove FinalPositions()
+    {
+        return AiMove.All(new (0, 8)).ApplyPositions(state.NewNorthAt(8).Apply);
+    }
+    
     private Func<IAiMove> AllThingsEndsBait(int i)
     {
         return () => AiMove.All(new(0, 0)) // they actually dont bait anything, leave it for player to bait
