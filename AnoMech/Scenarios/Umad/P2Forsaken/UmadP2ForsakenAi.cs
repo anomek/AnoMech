@@ -154,10 +154,10 @@ public sealed class UmadP2ForsakenAi
                          new(-3.2f, -3.2f), // cone2
                          new(-8, -8),       // chariot2
                          // passive group
-                         new(8.2f, -2.1f),    // cone bait1
+                         new(8.8f, -2.4f),    // cone bait1
                          new(3.8f, 4.2f),  // clone bait1
                          new(-3.8f, 4.2f), // clone bait2
-                         new(-8.2f, -2.1f)    // cone bait2 
+                         new(-8.8f, -2.4f)    // cone bait2 
                      ).Assignments([
                          ActiveRole(LockonId.ForsakenCone, i, 0),
                          ActiveRole(LockonId.ForsakenChariot, i, 0),
