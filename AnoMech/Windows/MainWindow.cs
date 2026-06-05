@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
@@ -31,8 +32,17 @@ public unsafe class MainWindow : Window, IDisposable
     private readonly DebugMenu debugMenu;
 #endif
 
+    // <Version> from AnoMech.csproj flows into the assembly version; surface it in the
+    // title bar. Use a ### id so the window identity stays "MainWindow" across versions.
+    private static string TitleWithVersion()
+    {
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        var version = v is null ? "" : $" v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+        return $"AnoMech{version}###MainWindow";
+    }
+
     public MainWindow(Plugin plugin)
-        : base("AnoMech##MainWindow")
+        : base(TitleWithVersion())
     {
         SizeConstraints = new WindowSizeConstraints
         {

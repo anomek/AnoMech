@@ -36,19 +36,12 @@ public sealed class UmadP2ForsakenAi
         ai.Move(47.22f, TowerPositions(3), jitter: .0f, arrivalTime: 53.22f);
         ai.Move(54f, AllThingsEndsBait(1), arrivalTime: 57f);
         ai.Move(59.26f, TowerPositions(4), jitter: .0f, arrivalTime: 63.86f);
-        ai.Move(69.27f, TowerPositions(5), jitter: .0f, arrivalTime: 74.27f);
+        ai.Move(65.27f, TowerPositions(5), jitter: .0f, arrivalTime: 73.27f);
         ai.Move(75f, AllThingsEndsBait(2), arrivalTime: 78f);
-        ai.Move(80.31f, TowerPositions(6), jitter: .0f, arrivalTime: 85.31f);
+        ai.Move(79.31f, TowerPositions(6), jitter: .0f, arrivalTime: 83.8f);
         ai.Move(90.32f, TowerPositions(7), jitter: .0f, arrivalTime: 94.32f);
-        ai.Move(97f, AllThingsEndsBait(3), arrivalTime: 99f);
-        ai.Move(101f, FinalPositions);
     }
 
-    private IAiMove FinalPositions()
-    {
-        return AiMove.All(new (0, 8)).ApplyPositions(state.NewNorthAt(8).Apply);
-    }
-    
     private Func<IAiMove> AllThingsEndsBait(int i)
     {
         return () => AiMove.All(new(0, 0)) // they actually dont bait anything, leave it for player to bait
@@ -156,15 +149,15 @@ public sealed class UmadP2ForsakenAi
     {
         return AiMove.Create(
                          // active group
-                         new(3.5f, -3.5f),  // cone1
+                         new(3.2f, -3.2f),  // cone1
                          new(8, -8),        // chariot1
-                         new(-3.5f, -3.5f), // cone2
+                         new(-3.2f, -3.2f), // cone2
                          new(-8, -8),       // chariot2
                          // passive group
-                         new(9.5f, -3),    // cone bait1
-                         new(4.5f, 4.5f),  // clone bait1
-                         new(-4.5f, 4.5f), // clone bait2
-                         new(-9.5f, -3)    // cone bait2 
+                         new(8.2f, -2.1f),    // cone bait1
+                         new(3.8f, 4.2f),  // clone bait1
+                         new(-3.8f, 4.2f), // clone bait2
+                         new(-8.2f, -2.1f)    // cone bait2 
                      ).Assignments([
                          ActiveRole(LockonId.ForsakenCone, i, 0),
                          ActiveRole(LockonId.ForsakenChariot, i, 0),

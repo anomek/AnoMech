@@ -57,6 +57,9 @@ See: https://github.com/anomek/MyDalamudPlugins
 ## Known issues
 * Crashes ;(
 * Minor visual and timing issues may occur
+* In UMAD P2 Forsaken scanario
+  * The way clones bait and cleaves might not be exact
+  * Bot movement timing might be off
 * In scenarios for Top Omega Protocol (Ultimate):
   * Tether distance threshold are very rough estimations
   * Line AOE from Optiocal Unit (eye) doesn't render
