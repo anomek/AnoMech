@@ -20,12 +20,20 @@ internal static unsafe class DirectorFunctions
 
     private static readonly ProcessDirectorUpdateDelegate processDirectorUpdate;
 
+    private delegate void DirectorUnknownUpdateDelegate(EventFramework* eventFramework, uint eventId, byte sequence, byte unk, byte* unionData, ulong size);
+    private static readonly DirectorUnknownUpdateDelegate DirectorUnknownUpdateFunction;
+
     static DirectorFunctions()
     {
         var addr = Plugin.SigScanner.ScanText(
             "40 53 57 48 83 EC 58 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 44 24 ?? 41 8B F9");
         processDirectorUpdate =
             Marshal.GetDelegateForFunctionPointer<ProcessDirectorUpdateDelegate>(addr);
+
+        var unknownUpdateAddr = Plugin.SigScanner.ScanText(
+            "89 54 24 10 48 89 4C 24 ?? 53 56 57 41 55 41 57 48 83 EC 30 48 8B 99");
+        DirectorUnknownUpdateFunction = Marshal.GetDelegateForFunctionPointer<DirectorUnknownUpdateDelegate>(unknownUpdateAddr);
+
         Plugin.Log.Information("[DirectorFunctions] Initialized.");
     }
 
@@ -129,5 +137,19 @@ internal static unsafe class DirectorFunctions
         if (disabled > 0)
             Plugin.Log.Information($"[BarrierDrop] disabled {disabled} SharedGroups within r{radius} of ({center.X:F2},{center.Y:F2},{center.Z:F2})");
         return disabled;
+    }
+
+    internal static void DirectorUnknownUpdate(byte sequence, byte unk, byte* unionData)
+    {
+        var eventFramework = EventFramework.Instance();
+        var instanceDirector = eventFramework->GetInstanceContentDirector();
+
+        if (instanceDirector == null)
+        {
+            Plugin.Log.Debug("[DirectorFunctions] DirectorUnknownUpdate: no InstanceContentDirector, skipping.");
+            return;
+        }
+
+        DirectorUnknownUpdateFunction(eventFramework, instanceDirector->Info.EventId.Id, sequence, unk, unionData, 12); // Size 12 is hard-coded in the game .exe
     }
 }
