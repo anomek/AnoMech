@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
@@ -25,10 +26,11 @@ public sealed class TopP5DeltaScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5DeltaAi()];
+
     private TopUtils topUtils = null!;
-    
+
     private TopP5DeltaState state = null!;
-    private TopP5DeltaAi ai = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
     private readonly Random rng = new();
@@ -45,13 +47,13 @@ public sealed class TopP5DeltaScenario : IScenario
     private TopUtils.HelloWorldSolver? nearSolver;
     private TopUtils.HelloWorldSolver? farSolver;
 
-    public void Run(SimWorld worldParam, bool solo)
+    public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5DeltaState(settingsWindow.Overrides, party.PlayerRole);
-        ai = new TopP5DeltaAi(state);
-        ai.Run(world);
+        if (selectedAi is { } idx && idx < AiStrats.Count)
+            ((IScenarioAi<TopP5DeltaState>)AiStrats[idx]).Run(state, world);
         topUtils = new TopUtils(world);
 
         world.EnforceArenaBoundary(Geometry.ArenaRadius);

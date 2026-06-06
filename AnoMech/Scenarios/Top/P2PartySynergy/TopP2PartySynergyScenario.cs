@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
@@ -24,13 +25,15 @@ public sealed class TopP2PartySynergyScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP2PartySynergySettingsWindow settingsWindow = new();
 
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP2PartySynergyAi()];
+
     private SimWorld world = null!;
     private SimParty party = null!;
     private TopP2PartySynergyState state = null!;
     private TopUtils topUtils = null!;
     private DamageSolver damage = null!;
 
-    public void Run(SimWorld worldParam, bool solo)
+    public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
@@ -39,7 +42,9 @@ public sealed class TopP2PartySynergyScenario : IScenario
         damage = new DamageSolver(world.Party);
         damage.SetStatuses(DamageType.Any, StatusId.VulnerabilityUp);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
-        if(!solo) new TopP2PartySynergyAi(state).Run(world);
+        var solo = selectedAi is null;
+        if (selectedAi is { } idx && idx < AiStrats.Count)
+            ((IScenarioAi<TopP2PartySynergyState>)AiStrats[idx]).Run(state, world);
 
         world.EnforceArenaBoundary(Geometry.ArenaRadius);
         world.Events.Add(1f, () => topUtils.InitTopArena());

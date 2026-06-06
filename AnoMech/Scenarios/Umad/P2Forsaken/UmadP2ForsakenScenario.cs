@@ -17,6 +17,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
@@ -26,7 +27,7 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken;
 
 public sealed class UmadP2ForsakenScenario : IScenario
 {
-    public string Name => "UMAD P2 Forsaken (early beta!)";
+    public string Name => "UMAD P2 Forsaken";
     public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1363,
         Origin: new Vector3(100.000f, 0f, 100.000f),
@@ -40,23 +41,21 @@ public sealed class UmadP2ForsakenScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly UmadP2ForsakenSettingsWindow settingsWindow = new();
 
+    public IReadOnlyList<IScenarioAi> AiStrats => [new UmadP2ForsakenSouthFlex341Ai(), new UmadP2ForsakenKroxyRinonAi()];
+
     private UmadP2ForsakenState state = null!;
-    private UmadP2ForsakenAi ai = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
     private DamageSolver damage = null!;
-    
 
-    public void Run(SimWorld worldParam, bool solo)
+
+    public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);
-        if (!solo)
-        {
-            ai = new UmadP2ForsakenAi(state);
-            ai.Run(world);
-        }
+        if (selectedAi is { } idx && idx < AiStrats.Count)
+            ((IScenarioAi<UmadP2ForsakenState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
         

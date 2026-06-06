@@ -12,18 +12,16 @@ namespace AnoMech.Scenarios.Top.P5Sigma;
 // positions with state-aware ones (NewNorthA / SpinnerRotation / etc.) as
 // they harden the choreography. See TopP5DeltaAi for the canonical shape
 // once choreography matures (named methods, Apply-chained transforms).
-public sealed class TopP5SigmaAi
+public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
 {
-    private readonly TopP5SigmaState state;
+    public string Name => "Standard";
+
+    private TopP5SigmaState state = null!;
     private RoleList markingsOrder = null!;
 
-    public TopP5SigmaAi(TopP5SigmaState state)
+    public void Run(TopP5SigmaState s, SimWorld world)
     {
-        this.state = state;
-    }
-
-    public void Run(SimWorld world)
-    {
+        state = s;
         var ai = new AiManager(world);
 
         var handBait = state.DynamisTargets.Random(2, state.HelloWorldTargets.List);

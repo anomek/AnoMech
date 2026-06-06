@@ -12,17 +12,20 @@ namespace AnoMech.Scenarios.Top.P5Delta;
 // First AI strategy for TOP P5 Delta. Reads the shared TopP5DeltaState so its
 // movement decisions stay in sync with the scenario's randomized layout, and
 // schedules movement through World.Events so it can react to fight timestamps.
-public sealed class TopP5DeltaAi
+public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
 {
     // Tether-resolve positions in scenario-local coords (origin (0,0) = world (100,100)).
     // Even slots are caller-specified, odd slots are mirrored across the east-west axis
     // (same X, negated Z) so each pair lands on opposite sides. EyeSpawn==South flips
     // the entire layout 180° (negate both X and Z).
 
-    private readonly TopP5DeltaState state;
+    public string Name => "Standard";
 
-    public void Run(SimWorld world)
+    private TopP5DeltaState state = null!;
+
+    public void Run(TopP5DeltaState s, SimWorld world)
     {
+        state = s;
         var ai = new AiManager(world);
         ai.Move(0.5f, InitialPositions);
         ai.Move(13f, TetherPrePosition);
@@ -37,12 +40,6 @@ public sealed class TopP5DeltaAi
         ai.Move(56f, ReturnToMiddle);
         ai.Move(56.5f, TankForward);
         ai.Move(60.0f, BreakLastTether);
-    }
-
-
-    public TopP5DeltaAi(TopP5DeltaState state)
-    {
-        this.state = state;
     }
 
     private void Swap01(IAiRoles s)

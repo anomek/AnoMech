@@ -206,7 +206,7 @@ public sealed class Plugin : IDalamudPlugin
             Log.Warning($"{scenario.Name} does not support Solo mode.");
             return;
         }
-        Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo);
+        Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo ? null : MainWindow.SelectedStrat);
     }
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();

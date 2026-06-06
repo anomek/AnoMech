@@ -8,21 +8,19 @@ using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Top.P5Omega;
 
-public class TopP5OmegaAi
+public class TopP5OmegaAi : IScenarioAi<TopP5OmegaState>
 {
-    private readonly TopP5OmegaState state;
+    public string Name => "Standard";
+
+    private TopP5OmegaState state = null!;
     private readonly Random rng = new Random();
 
     private RoleList? helloWorld1;
     private RoleList? helloWorld2;
 
-    public TopP5OmegaAi(TopP5OmegaState state)
+    public void Run(TopP5OmegaState s, SimWorld world)
     {
-        this.state = state;
-    }
-
-    public void Run(SimWorld world)
-    {
+        state = s;
         helloWorld1 = solveHelloWorld1(world.Party);
         var ai = new AiManager(world);
         ai.Move(0f, InitialPositions);

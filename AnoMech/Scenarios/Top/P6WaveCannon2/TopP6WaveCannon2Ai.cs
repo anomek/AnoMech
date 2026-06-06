@@ -7,17 +7,15 @@ namespace AnoMech.Scenarios.Top.P6WaveCannon2;
 // Party-member movement choreography for TOP P6 Wave Cannon 2. Reads the shared
 // TopP6WaveCannon2State so movement stays in sync with the randomized layout, and
 // schedules moves through the AiManager. See TopP5DeltaAi for the canonical shape.
-public sealed class TopP6WaveCannon2Ai
+public sealed class TopP6WaveCannon2Ai : IScenarioAi<TopP6WaveCannon2State>
 {
-    private readonly TopP6WaveCannon2State state;
+    public string Name => "Standard";
 
-    public TopP6WaveCannon2Ai(TopP6WaveCannon2State state)
-    {
-        this.state = state;
-    }
+    private TopP6WaveCannon2State state = null!;
 
-    public void Run(SimWorld world)
+    public void Run(TopP6WaveCannon2State s, SimWorld world)
     {
+        state = s;
         var ai = new AiManager(world);
 
         ai.Move(2f, Corners(6, 9));

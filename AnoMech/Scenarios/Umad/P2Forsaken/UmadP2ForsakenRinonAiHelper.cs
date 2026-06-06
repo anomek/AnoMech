@@ -11,20 +11,32 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken;
 // Party-member movement choreography for UMAD P2 Forsaken. Reads the shared
 // UmadP2ForsakenState so movement stays in sync with the randomized layout, and
 // schedules moves through the AiManager. See TopP5DeltaAi for the canonical shape.
-public sealed class UmadP2ForsakenAi
+//
+// This is NOT a selectable strat (it does not implement IScenarioAi). It is a
+// reusable helper composed by strat classes such as UmadP2ForsakenKroxyRinonAi.
+// The single plug point is `reorderActive`: after each Odd/EvenTower the active
+// 4-role group (alpha or beta) is handed to the strat for an optional in-place
+// reorder, so consecutive towers of the same group can rotate assignments. The
+// default no-op keeps standalone use behaviour-identical to the old strat.
+public sealed class UmadP2ForsakenRinonAiHelper
 {
-    private readonly UmadP2ForsakenState state;
+    private readonly Action<int, IList<PartyRole>> reorderActive;
 
-    public UmadP2ForsakenAi(UmadP2ForsakenState state)
+    private UmadP2ForsakenState state = null!;
+
+    private IReadOnlyList<PartyRole> alphaInitial = [];
+    private IReadOnlyList<PartyRole> betaInitial = [];
+    private List<PartyRole> alpha = [];
+    private List<PartyRole> beta = [];
+
+    public UmadP2ForsakenRinonAiHelper(Action<int, IList<PartyRole>> reorderActive)
     {
-        this.state = state;
+        this.reorderActive = reorderActive;
     }
 
-    private IReadOnlyList<PartyRole> alpha = [];
-    private IReadOnlyList<PartyRole> beta = [];
-
-    public void Run(SimWorld world)
+    public void Run(UmadP2ForsakenState s, SimWorld world)
     {
+        state = s;
         var ai = new AiManager(world);
         Init();
 
@@ -66,16 +78,18 @@ public sealed class UmadP2ForsakenAi
         var list = new List<PartyRole>([stacks[0], stacks[1], supportPair, dpsPair]);
         list.Sort();
         (list[0], list[1]) = (list[1], list[0]); // swap tank and healer
-        alpha = list.AsReadOnly();
+        alpha = list;
+        alphaInitial = alpha;
         list = Enum.GetValues<PartyRole>()
                    .Where(role => !list.Contains(role))
                    .ToList();
         (list[0], list[1]) = (list[1], list[0]); // swap tank and healer
-        beta = list.AsReadOnly();
+        beta = list;
+        betaInitial = beta;
     }
 
 
-    private PartyRole ActiveRole(uint mechanic, int towerId, int order)
+    public PartyRole ActiveRole(uint mechanic, int towerId, int order)
     {
         var array = towerId is < 3 or 7 ? alpha : beta;
         try
@@ -95,7 +109,7 @@ public sealed class UmadP2ForsakenAi
 
     private PartyRole PassiveRole(int towerId, int order)
     {
-        var array = towerId is < 3 or 7 ? beta : alpha;
+        var array = towerId is < 3 or 7 ? betaInitial : alphaInitial;
         return array[order];
     }
 
@@ -115,7 +129,12 @@ public sealed class UmadP2ForsakenAi
 
     private Func<IAiMove> TowerPositions(int i)
     {
-        return () => i % 2 == 1 ? EvenTower(i) : OddTower(i); // odd/even flipped because 0 indexing teehee
+        return () =>
+        {
+            var move = i % 2 == 1 ? EvenTower(i) : OddTower(i); // odd/even flipped because 0 indexing teehee
+            reorderActive(i, i is < 3 or 7 ? alpha : beta);        // plug point: same active-group rule as ActiveRole
+            return move;
+        };
     }
 
     private IAiMove OddTower(int i)

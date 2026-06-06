@@ -29,7 +29,9 @@ See: https://github.com/anomek/MyDalamudPlugins
 
 ## Currently implemented:
 - Dancing Mad (Ultimate)
-    - P2 Forsaken _[Kroxy-Rinon 3/4/1 (Center/N Stacks)](https://raidplan.io/plan/UATE__aDcw1-bgVv#5)_
+    - P2 Forsaken 
+      - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
+      - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
 - The Omega Protocol (Ultimate): _NA pf strats_
     - P2 Party Synergy
     - P5 Delta

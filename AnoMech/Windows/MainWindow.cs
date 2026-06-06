@@ -22,6 +22,11 @@ public unsafe class MainWindow : Window, IDisposable
     internal PartyRole? SelectedRoleOverride => _roleOverride;
     private PartyRole? _roleOverride;
 
+    // Index into the selected scenario's AiStrats; reset to the first strat whenever the
+    // selected scenario changes. Passed to RunScenario as selectedAi on a (non-solo) Start.
+    internal int SelectedStrat => _selectedStrat;
+    private int _selectedStrat;
+
     // Index 0 = Auto (null override); indices 1..8 map to (PartyRole)(idx - 1).
     // Labels are the canonical raid role abbreviations: MT/OT tanks, H1/H2 healers
     // (H1 = regen), M1/M2 melee DPS, R1/R2 ranged DPS (R1 = phys).
@@ -141,7 +146,11 @@ public unsafe class MainWindow : Window, IDisposable
                 var selected = _selectedScenario == scenario;
                 if (selected) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
                 ImGui.PushID(scenario.Name);
-                if (ImGui.Button(scenario.Name, new Vector2(-1, 0))) _selectedScenario = scenario;
+                if (ImGui.Button(scenario.Name, new Vector2(-1, 0)))
+                {
+                    _selectedScenario = scenario;
+                    _selectedStrat = 0;
+                }
                 ImGui.PopID();
                 if (selected) ImGui.PopStyleColor();
             }
@@ -167,12 +176,13 @@ public unsafe class MainWindow : Window, IDisposable
         DrawLocationHint();
 
         DrawRoleSelector();
+        DrawStratSelector();
 
         var inInn = ZoneSession.IsInInn();
         var busy = ZoneSession.IsPlayerBusy();
         var canStart = inInn && !busy;
         ImGui.BeginDisabled(!canStart);
-        if (ImGui.Button("Start")) game.RunScenario(_selectedScenario, _roleOverride);
+        if (ImGui.Button("Start")) game.RunScenario(_selectedScenario, _roleOverride, _selectedStrat);
         ImGui.EndDisabled();
         if (!canStart && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
         {
@@ -191,7 +201,7 @@ public unsafe class MainWindow : Window, IDisposable
         if (_selectedScenario.SupportsSolo)
         {
             ImGui.BeginDisabled(!canStart);
-            if (ImGui.Button("Start Solo")) game.RunScenario(_selectedScenario, _roleOverride, solo: true);
+            if (ImGui.Button("Start Solo")) game.RunScenario(_selectedScenario, _roleOverride, selectedAi: null);
             ImGui.EndDisabled();
             if (!canStart && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
@@ -235,6 +245,21 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.SetNextItemWidth(120);
         if (ImGui.Combo("##role", ref idx, RoleLabels, RoleLabels.Length))
             _roleOverride = idx == 0 ? null : (PartyRole)(idx - 1);
+    }
+
+    // Only meaningful when a scenario offers more than one strat; hidden otherwise.
+    private void DrawStratSelector()
+    {
+        if (_selectedScenario is null) return;
+        var strats = _selectedScenario.AiStrats;
+        if (strats.Count <= 1) return;
+        _selectedStrat = Math.Clamp(_selectedStrat, 0, strats.Count - 1);
+        var labels = new string[strats.Count];
+        for (var i = 0; i < strats.Count; i++) labels[i] = strats[i].Name;
+        ImGui.TextUnformatted("Select Strat:");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(160);
+        ImGui.Combo("##strat", ref _selectedStrat, labels, labels.Length);
     }
 
     private void DrawLocationHint()

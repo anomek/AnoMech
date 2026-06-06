@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Top.TopConstants;
@@ -26,20 +27,21 @@ public sealed class TopP5SigmaScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5SigmaSettingsWindow settingsWindow = new();
 
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5SigmaAi()];
+
     private TopUtils topUtils = null!;
-    
+
     private TopP5SigmaState state = null!;
-    private TopP5SigmaAi ai = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
 
-    public void Run(SimWorld worldParam, bool solo)
+    public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5SigmaState(party, settingsWindow.Overrides);
-        ai = new TopP5SigmaAi(state);
-        ai.Run(world);
+        if (selectedAi is { } idx && idx < AiStrats.Count)
+            ((IScenarioAi<TopP5SigmaState>)AiStrats[idx]).Run(state, world);
         topUtils = new TopUtils(world);
 
         world.EnforceArenaBoundary(Geometry.ArenaRadius);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
@@ -30,12 +31,16 @@ public sealed class TopP5OmegaScenario : IScenario
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5OmegaSettingsWindow settingsWindow = new();
 
-    public void Run(SimWorld worldParam, bool solo)
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5OmegaAi()];
+
+    public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5OmegaState(world.Party, settingsWindow.Overrides);
-        if (!solo) new TopP5OmegaAi(state).Run(world);
+        var solo = selectedAi is null;
+        if (selectedAi is { } idx && idx < AiStrats.Count)
+            ((IScenarioAi<TopP5OmegaState>)AiStrats[idx]).Run(state, world);
 
         topUtils = new TopUtils(world);
 

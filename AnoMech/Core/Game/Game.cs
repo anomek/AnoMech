@@ -67,13 +67,16 @@ public sealed class Game : IDisposable
         };
     }
 
-    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, bool solo = false)
+    // selectedAi: index into the scenario's AiStrats of the strat to run, or null for
+    // solo (no doppels, no AI). Defaults to 0 = run the first strat with a full party.
+    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, int? selectedAi = 0)
     {
-        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, solo));
+        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, selectedAi));
     }
 
-    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, bool solo)
+    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, int? selectedAi)
     {
+        var solo = selectedAi is null;
         // Hard gate: scenarios are only ever run from an inn. Everything
         // downstream (CharacterManager registration, zone load, doppel spawn)
         // assumes that invariant.
@@ -99,7 +102,7 @@ public sealed class Game : IDisposable
         World.PlaceWaymarks(scenario.Waymarks);
         World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
         TeleportPlayerToSpawn(scenario);   // begin every run at the canonical spawn point
-        scenario.Run(World, solo);
+        scenario.Run(World, selectedAi);
         ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;

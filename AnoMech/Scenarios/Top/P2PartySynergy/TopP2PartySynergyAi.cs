@@ -5,17 +5,15 @@ using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Top.P2PartySynergy;
 
-public class TopP2PartySynergyAi
+public class TopP2PartySynergyAi : IScenarioAi<TopP2PartySynergyState>
 {
-    private readonly TopP2PartySynergyState state;
+    public string Name => "Standard";
 
-    public TopP2PartySynergyAi(TopP2PartySynergyState state)
-    {
-        this.state = state;
-    }
+    private TopP2PartySynergyState state = null!;
 
-    public void Run(SimWorld world)
+    public void Run(TopP2PartySynergyState s, SimWorld world)
     {
+        state = s;
         var ai = new AiManager(world);
         ai.Move(1f, CongaLine, jitter: 0.7f);
         ai.Move(11f, AttackDodge, arrivalTime: 14.8f);
