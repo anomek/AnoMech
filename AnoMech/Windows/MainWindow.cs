@@ -258,7 +258,7 @@ public unsafe class MainWindow : Window, IDisposable
         for (var i = 0; i < strats.Count; i++) labels[i] = strats[i].Name;
         ImGui.TextUnformatted("Select Strat:");
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(160);
+        ImGui.SetNextItemWidth(280);
         ImGui.Combo("##strat", ref _selectedStrat, labels, labels.Length);
     }
 
