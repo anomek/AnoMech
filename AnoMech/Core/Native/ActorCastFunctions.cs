@@ -34,7 +34,7 @@ internal static unsafe class ActorCastFunctions
         HandleActorCastPacketFunction =
             Marshal.GetDelegateForFunctionPointer<HandleActorCastPacketDelegate>(addr);
 
-        Plugin.Log.Information("[DirectorFunctions] Initialized.");
+        Plugin.Log.Information("[ActorCastFunctions] Initialized.");
     }
 
     internal static void HandleActorCastPacket(uint entityId, ActorCastPacket* packet)

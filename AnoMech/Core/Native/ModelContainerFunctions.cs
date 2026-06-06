@@ -16,6 +16,8 @@ internal static unsafe class ModelContainerFunctions
 
         CalculateUnscaledRadiusFunction =
             Marshal.GetDelegateForFunctionPointer<CalculateUnscaledRadiusDelegate>(addr);
+
+        Plugin.Log.Information("[ModelContainerFunctions] Initialized.");
     }
 
     internal static float CalculateUnscaledRadius(ModelContainer* modelContainer)
