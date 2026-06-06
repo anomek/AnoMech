@@ -79,13 +79,13 @@ public sealed class UmadP2ForsakenRinonAiHelper
         list.Sort();
         (list[0], list[1]) = (list[1], list[0]); // swap tank and healer
         alpha = list;
-        alphaInitial = alpha;
+        alphaInitial = new List<PartyRole>(alpha);
         list = Enum.GetValues<PartyRole>()
                    .Where(role => !list.Contains(role))
                    .ToList();
         (list[0], list[1]) = (list[1], list[0]); // swap tank and healer
         beta = list;
-        betaInitial = beta;
+        betaInitial = new List<PartyRole>(beta);
     }
 
 
