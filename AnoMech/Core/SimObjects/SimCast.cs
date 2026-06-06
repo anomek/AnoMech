@@ -1,8 +1,10 @@
-using System;
-using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Native;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using System;
+using System.Numerics;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -129,6 +131,92 @@ public sealed unsafe class SimCast : ISimObject
         return true;
     }
 
+    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)
+    {
+        var omenDelayByte = (byte)(omenDelay * 10);
+
+        var rot = rotation ?? parent.Rotation;
+        var qRotation = MathUtil.QuantizeRotation(rot);
+
+        var animationTargetId = targetId == null ? 0xE0000000 : targetId.Value.ObjectId;
+        var ballistaTargetId = ballistaId == null ? 0xE0000000 : ballistaId.Value.ObjectId;
+
+        var localPos = position ?? parent.Position;
+        var globalPos = coordinates.ToGlobal(localPos);
+
+        var qPosX = MathUtil.QuantizePosition(globalPos.X);
+        var qPosY = MathUtil.QuantizePosition(globalPos.Y);
+        var qPosZ = MathUtil.QuantizePosition(globalPos.Z);
+
+        var actorCastPacket = new ActorCastPacket
+        {
+            ActionId = (ushort)actionId,
+            ActionType = (byte)actionType,
+            OmenDelay = omenDelayByte,
+            ActionId_2 = actionId,
+            CastTime = castTime,
+            TargetEntityId = animationTargetId,
+            RotationInt = qRotation,
+            BallistaEntityId = ballistaTargetId,
+            PositionX = qPosX,
+            PositionY = qPosY,
+            PositionZ = qPosZ,
+        };
+
+        ActorCastFunctions.HandleActorCastPacket(parent.GameObjectId.ObjectId, &actorCastPacket);
+    }
+
+    public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)
+    {
+        const uint NullObjectId = 0xE0000000;
+
+        var chara = parent.BattleCharaPtr;
+
+        if (chara == null)
+        {
+            return;
+        }
+
+        var nullActionTarget = actionTargetId == null;
+
+        var animationTarget = animationTargetId == null ? new GameObjectId { ObjectId = NullObjectId, Type = 0 } : animationTargetId!.Value;
+        var actionTarget = nullActionTarget ? new GameObjectId { ObjectId = NullObjectId, Type = 0 } : actionTargetId!.Value;
+        var ballistaTarget = ballistaId == null ? NullObjectId : ballistaId.Value.ObjectId;
+
+        var rot = rotation ?? parent.Rotation;
+        var qRotation = MathUtil.QuantizeRotation(rot);
+
+        var localPos = position ?? Vector3.Zero;
+        var globalPos = coordinates.ToGlobal(localPos);
+
+        var header = new ActionEffectHandler.Header
+        {
+            AnimationTargetId = animationTarget,
+            ActionId = actionId,
+            GlobalSequence = 0,
+            AnimationLock = animationLock,
+            BallistaEntityId = ballistaTarget,
+            SourceSequence = 0,
+            RotationInt = qRotation,
+            SpellId = spellId,
+            AnimationVariation = animationVariaton,
+            ActionType = (byte)actionType,
+            Flags = flags,
+            NumTargets = (byte)(nullActionTarget ? 0 : 1)
+        };
+
+        var targetEffects = new ActionEffectHandler.TargetEffects();
+
+        ActionEffectHandler.Receive(
+            parent.GameObjectId.ObjectId,
+            (Character*)chara,
+            &globalPos,
+            &header,
+            &targetEffects,
+            &actionTarget
+            );
+    }
+
     public void Tick(float deltaSeconds)
     {
         omen?.Tick(deltaSeconds);
@@ -244,77 +332,26 @@ public sealed unsafe class SimCast : ISimObject
     // deliver to. When deliverTo is null, NumTargets=0 (used for self-targeted
     // casts and cast releases without an entity target) — the release animation
     // still plays.
-    private static void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
+    private void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
     {
         var actionId = chara->CastInfo.ActionId;
 
-        // Engine ApplyAll dereferences whatever LookupBattleCharaByEntityId returns for each
-        // targetEntityIds[i] without a null check. A captured GameObjectId can outlive the
-        // BC behind it (target killed/despawned mid-cast, scenario reset, lifetime expiry),
-        // and a stale id resolves to null in _battleCharas → ApplyAll+0x45 null-deref. Drop
-        // to the no-target path in that case; release animation still plays off casterEntityId.
-        var safeDeliver = deliverTo;
-        if (safeDeliver is { } probeId)
+        if (deliverTo != null)
         {
-            var cm = CharacterManager.Instance();
-            if (cm == null || cm->LookupBattleCharaByEntityId((uint)probeId.Id) == null)
+            var characterManager = CharacterManager.Instance();
+            var deliverToId = deliverTo.Value.ObjectId;
+
+            if (characterManager == null || characterManager->LookupBattleCharaByEntityId(deliverToId) == null)
             {
                 Plugin.Log.Warning(
-                    $"FireActionEffect: target {probeId.Id:X} for action {actionId:X} on caster {chara->EntityId:X} not in CharacterManager._battleCharas; dropping deliverTo to avoid ApplyAll null-deref");
-                safeDeliver = null;
+                    $"FireActionEffect: target {deliverToId:X} for action {actionId:X} on caster {chara->EntityId:X} not in CharacterManager._battleCharas; dropping deliverTo to avoid ApplyAll null-deref");
             }
+
+            deliverTo = null;
         }
-
-        var rotationInt = (ushort)Math.Clamp(
-            (int)((chara->Rotation / MathF.PI) * 32767f + 32767f), 0, 65535);
-
-        // Derive AnimationTargetId from the sanitized delivery state, not from CastInfo.TargetId
-        // (snapshotted at Start() and possibly stale). When there's no valid entity target, use
-        // the benign 0xE0000000 "no target" sentinel — never the caster's own spawned id. Our
-        // spawned BattleCharas get ids in the reserved 0xE0000001+ pronoun range (BattleCharaSpawn),
-        // and Receive/ApplyAll resolves AnimationTargetId through the placeholder resolver with no
-        // accompanying pointer, null-derefing on a reserved id (crash dump 20260529_210128). In solo
-        // mode the boss is the first spawned BC (index 0 -> 0xE0000001), so a self-cast with no
-        // target reliably hit that path. The release animation still plays off casterEntityId.
-        var header = default(ActionEffectHandler.Header);
-        if (safeDeliver is { } sd)
-            header.AnimationTargetId = sd;
-        else
-            header.AnimationTargetId = 0xE0000000;
-        header.ActionId = actionId;
-        header.GlobalSequence = 0;
-        header.AnimationLock = 0f;
-        header.BallistaEntityId = 0xE0000000;
-        header.SourceSequence = 0;
-        header.RotationInt = rotationInt;
-        header.SpellId = (ushort)actionId;
-        header.AnimationVariation = animationVariation;
-        header.ActionType = chara->CastInfo.ActionType;
-        header.NumTargets = (byte)(safeDeliver.HasValue ? 1 : 0);
-        header.ForceAnimationLock = true;
 
         var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
 
-        if (safeDeliver is { } targetId)
-        {
-            var effectsBlock = default(ActionEffectHandler.TargetEffects);
-            ActionEffectHandler.Receive(
-                chara->EntityId,
-                (Character*)chara,
-                &pos,
-                &header,
-                &effectsBlock,
-                &targetId);
-        }
-        else
-        {
-            ActionEffectHandler.Receive(
-                chara->EntityId,
-                (Character*)chara,
-                &pos,
-                &header,
-                null,
-                null);
-        }
+        NativeActionEffect(actionId, 0f, (ushort)actionId, animationVariation, (ActionType)chara->CastInfo.ActionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
     }
 }

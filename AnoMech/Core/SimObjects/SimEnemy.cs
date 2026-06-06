@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel.Sheets;
+using System.Collections.Generic;
+using System.Numerics;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -288,6 +288,16 @@ public sealed unsafe class SimEnemy : SimNpc
     {
         // targetLocation stays scenario-local; SimCast lifts to world at native boundaries.
         return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation);
+    }
+
+    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)
+    {
+        cast.NativeCast(actionId, actionType, omenDelay, castTime, interruptible, rotation, position, targetId, ballistaId);
+    }
+
+    public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)
+    {
+        cast.NativeActionEffect(actionId, animationLock, spellId, animationVariaton, actionType, flags, rotation, position, animationTargetId, actionTargetId, ballistaId);
     }
 
     public override bool AnimationLock => cast.IsBusy;
