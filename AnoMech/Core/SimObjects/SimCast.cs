@@ -137,6 +137,7 @@ public sealed unsafe class SimCast : ISimObject
             CastTime = castTime,
             TargetEntityId = animationTargetId,
             RotationInt = qRotation,
+            Interruptible = interruptible,
             BallistaEntityId = ballistaTargetId,
             PositionX = qPosX,
             PositionY = qPosY,
