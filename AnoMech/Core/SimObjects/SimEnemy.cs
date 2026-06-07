@@ -313,11 +313,15 @@ public sealed unsafe class SimEnemy : SimNpc
         var draw = obj->DrawObject;
         return draw != null && draw->IsVisible;
     }
-    
-    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0)
+
+    // Engine doesn't expose post-action animation-lock duration via EXD — the
+    // real value only ships in the server's ActionEffect packet. 0.6s is a
+    // reasonable approximation for most boss abilities; if a scenario needs
+    // tighter timing we can derive per-action values from captured ACT logs.
+    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0, float animationLock = 0.6f, float? fireDelay = null)
     {
         // targetLocation stays scenario-local; SimCast lifts to world at native boundaries.
-        return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation);
+        return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation, animationLock, fireDelay);
     }
 
     public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)

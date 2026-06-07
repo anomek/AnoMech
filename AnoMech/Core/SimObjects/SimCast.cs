@@ -13,11 +13,10 @@ namespace AnoMech.Core.SimObjects;
 // Character::StartCast) is what lets the simulator replay arbitrary boss
 // abilities; on completion SimCast fires a synthetic ActionEffectHandler.Receive
 // with a server-shaped header so the release animation/VFX play. It owns the
-// cast's SimOmen telegraph and the post-release animation lock that roots the
-// caster.
+// post-release animation lock that roots the caster.
 //
 // One SimCast per caster, constructed once and reused. Start() begins a cast (or
-// fires instantly when the cast time resolves to <= 0); Tick() advances it. The
+// fires instantly when the cast time resolves to <= 0). The
 // owning SimEnemy reads IsCasting/Progress/ActionId for the cast-bar HUD and
 // IsBusy to decide when to root a following boss. All target coordinates handled
 // here are world-space — the SimEnemy adapter converts from scenario-local.
@@ -25,25 +24,17 @@ public sealed unsafe class SimCast : ISimObject
 {
     private readonly SimCharacter parent;
     private readonly Coordinates coordinates;
-    private SimOmen? omen;
 
     private bool casting;
     private float elapsed;
     private float total;
+    private float fireDelay;
+    private float fireDelayElapsed;
     private Vector3? targetLocation;   // scenario-local coords
     private GameObjectId? targetId;
     private byte animationVariation;
 
-    private bool omenScheduled;
-    private float omenDelay;
-    private float omenRotate;
-    private uint omenActionId;
-
-    // Engine doesn't expose post-action animation-lock duration via EXD — the
-    // real value only ships in the server's ActionEffect packet. 0.6s is a
-    // reasonable approximation for most boss abilities; if a scenario needs
-    // tighter timing we can derive per-action values from captured ACT logs.
-    private const float DefaultAnimationLockSeconds = 0.6f;
+    private float animationLock;
     private float remainingAnimationLock;
 
     public bool IsCasting => casting;
@@ -72,62 +63,51 @@ public sealed unsafe class SimCast : ISimObject
     // to world only where native fields demand it) drives the AOE landing point and
     // the pre-fire facing snap; targetId, if set, makes the packet carry NumTargets=1
     // (some actions only animate on the caster when an entity target is delivered).
-    public bool Start(uint actionId, Vector3? localTargetLocation, float? castSeconds, GameObjectId? targetId, float omenDelay, float omenRotate, byte animationVariation)
+    public bool Start(uint actionId, Vector3? localTargetLocation, float? castTime, GameObjectId? targetId, float omenDelay, float rotation, byte animationVariation, float animationLock, float? fireDelay = null)
     {
         var chara = parent.BattleCharaPtr;
         if (chara == null) return false;
 
         Lumina.Excel.Sheets.Action action;
-        if (castSeconds is null)
+
+        if (castTime == null)
         {
             var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+
             if (!actionSheet.TryGetRow(actionId, out action))
             {
-                Plugin.Log.Warning($"Action row {actionId} not found");
+                Plugin.Log.Warning($"[SimCast.Start] Action Row {actionId} not found");
                 return false;
             }
-            castSeconds = action.Cast100ms / 10f;
+
+            castTime = action.Cast100ms / 10f;
         }
 
-        var seconds = castSeconds.Value;
-        chara->CastInfo.ActionType = 1; // ActionType.Action
-        chara->CastInfo.ActionId = actionId;
-        if (targetId is { } tid)
-            chara->CastInfo.TargetId = tid;
-        else
-            chara->CastInfo.TargetId = chara->GetGameObjectId();
-        if (localTargetLocation is { } loc) chara->CastInfo.TargetLocation = coordinates.ToGlobal(loc);
+        this.animationLock = animationLock;
+        var castTimeValue = castTime.Value;
 
-        targetLocation = localTargetLocation;
-        this.targetId = targetId;
-        this.animationVariation = animationVariation;
-        ActionId = actionId;
-        if (seconds <= 0f)
+        if (castTimeValue <= 0)
         {
             FaceTarget(chara);
-            FireActionEffect(chara, WorldTargetLocation, targetId, animationVariation);
-            remainingAnimationLock = DefaultAnimationLockSeconds;
+            remainingAnimationLock = animationLock;
+            FireActionEffect(chara, actionId, WorldTargetLocation, targetId, animationVariation, animationLock);
             ResetCastState();
             return true;
         }
 
-        chara->CastInfo.IsCasting = true;
-        chara->CastInfo.Interruptible = false;
-        chara->CastInfo.CurrentCastTime = 0f;
-        chara->CastInfo.BaseCastTime = seconds;
-        chara->CastInfo.TotalCastTime = seconds;
+        var target = targetId ?? chara->GetGameObjectId();
+        NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, rotation, localTargetLocation, target);
+
+        elapsed = 0f;
+        total = chara->CastInfo.TotalCastTime;
 
         casting = true;
-        elapsed = 0f;
-        total = seconds;
-        omenScheduled = false;
-        this.omenDelay = MathF.Max(0f, omenDelay);
-        this.omenRotate = omenRotate;
-        omenActionId = actionId;
-        if (this.omenDelay <= 0f)
-            SpawnOmen(chara);
-        else
-            omenScheduled = true;
+        targetLocation = localTargetLocation;
+        this.targetId = targetId;
+        this.animationVariation = animationVariation;
+        ActionId = actionId;
+        this.fireDelay = fireDelay ?? 0;
+
         return true;
     }
 
@@ -219,51 +199,48 @@ public sealed unsafe class SimCast : ISimObject
 
     public void Tick(float deltaSeconds)
     {
-        omen?.Tick(deltaSeconds);
-        if (omen is { IsActive: false })
+        if (remainingAnimationLock > 0f)
         {
-            omen.Despawn();
-            omen = null;
+            remainingAnimationLock = MathF.Max(0f, remainingAnimationLock - deltaSeconds);
         }
 
-        if (remainingAnimationLock > 0f)
-            remainingAnimationLock = MathF.Max(0f, remainingAnimationLock - deltaSeconds);
-
-        if (!casting) return;
+        if (!casting)
+        {
+            return;
+        }
 
         var chara = parent.BattleCharaPtr;
-        if (chara == null) { casting = false; return; }
-
-        elapsed += deltaSeconds;
-        if (omenScheduled && elapsed >= omenDelay)
+        if (chara == null)
         {
-            omenScheduled = false;
-            SpawnOmen(chara);
+            casting = false;
+            return;
         }
+
+        var castInfo = chara->CastInfo;
+        elapsed = castInfo.CurrentCastTime;
+
         if (elapsed >= total)
         {
-            chara->CastInfo.CurrentCastTime = total;
-            FaceTarget(chara);
-            FireActionEffect(chara, WorldTargetLocation, targetId, animationVariation);
-            remainingAnimationLock = DefaultAnimationLockSeconds;
-            chara->CastInfo.IsCasting = false;
-            omen?.Despawn();
-            omen = null;
-            ResetCastState();
-        }
-        else
-        {
-            chara->CastInfo.CurrentCastTime = elapsed;
-        }
-    }
+            var fire = true;
 
-    // Suppress the default telegraph so a scenario can render a custom omen (e.g.
-    // SwivelCannon's 210° cone covers the whole arena from the edge; the scenario
-    // draws a half-disc at arena center instead).
-    public void HideOmen()
-    {
-        omen?.Despawn();
-        omen = null;
+            if (fireDelay > 0)
+            {
+                fireDelayElapsed += deltaSeconds;
+
+                if (fireDelayElapsed < fireDelay)
+                {
+                    fire = false;
+                }
+            }
+
+            if (fire)
+            {
+                FaceTarget(chara);
+                remainingAnimationLock = animationLock;
+                FireActionEffect(chara, ActionId, WorldTargetLocation, targetId, animationVariation, animationLock);
+                ResetCastState();
+            }
+        }
     }
 
     // Teardown for caster despawn: drop the telegraph, stop any pending delayed
@@ -282,35 +259,22 @@ public sealed unsafe class SimCast : ISimObject
             chara->CastInfo.ActionType = 0;
         }
         casting = false;
-        omenScheduled = false;
-        omen?.Despawn();
-        omen = null;
     }
 
     private void ResetCastState()
     {
         casting = false;
-        omenScheduled = false;
         targetLocation = null;
         targetId = null;
         animationVariation = 0;
         ActionId = 0;
+        fireDelay = 0;
+        fireDelayElapsed = 0;
     }
 
     // targetLocation is stored scenario-local; lift to world only for native
     // ActionEffect delivery (Receive / CastInfo expect world coords).
     private Vector3? WorldTargetLocation => targetLocation is { } loc ? coordinates.ToGlobal(loc) : null;
-
-    private void SpawnOmen(BattleChara* chara)
-    {
-        // Origin in scenario-local coords (parent.Position is local); SimOmen converts
-        // to world at its native spawn boundary.
-        var origin = targetLocation ?? parent.Position;
-        var rotation = MathUtil.NormalizeRotation(chara->Rotation + omenRotate);
-        omen?.Despawn();
-        // Persistent (no duration): SimCast clears it on cast completion / hide / despawn.
-        omen = new SimOmen(coordinates, omenActionId, origin, rotation);
-    }
 
     // Targeted casts (ground location now; entity targets later) snap to face the target
     // on the final tick so the release animation plays in the intended direction even if
@@ -332,10 +296,8 @@ public sealed unsafe class SimCast : ISimObject
     // deliver to. When deliverTo is null, NumTargets=0 (used for self-targeted
     // casts and cast releases without an entity target) — the release animation
     // still plays.
-    private void FireActionEffect(BattleChara* chara, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
+    private void FireActionEffect(BattleChara* chara, uint actionId, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
     {
-        var actionId = chara->CastInfo.ActionId;
-
         if (deliverTo != null)
         {
             var characterManager = CharacterManager.Instance();
@@ -352,6 +314,6 @@ public sealed unsafe class SimCast : ISimObject
 
         var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
 
-        NativeActionEffect(actionId, 0f, (ushort)actionId, animationVariation, (ActionType)chara->CastInfo.ActionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
+        NativeActionEffect(actionId, animationLock, (ushort)actionId, animationVariation, (ActionType)chara->CastInfo.ActionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
     }
 }
