@@ -152,4 +152,12 @@ internal static unsafe class DirectorFunctions
 
         DirectorUnknownUpdateFunction(eventFramework, instanceDirector->Info.EventId.Id, sequence, unk, unionData, 12); // Size 12 is hard-coded in the game .exe
     }
+
+    internal static void DirectorUnknownUpdate(byte sequence, byte unk, byte[] unionData)
+    {
+        fixed (byte* unionDataPtr = unionData)
+        {
+            DirectorUnknownUpdate(0, 1, unionDataPtr);
+        }
+    }
 }
