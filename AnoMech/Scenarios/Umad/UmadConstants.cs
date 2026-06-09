@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Numerics;
+using AnoMech.Core.Game;
 
 namespace AnoMech.Scenarios.Umad;
 
@@ -77,4 +80,18 @@ public static class UmadConstants
     {
         public const float AllThingsEndHalfCone = MathF.PI / 2;
     }
+
+    // "12y Waymarks": A/B/C/D on cardinals 12y out, 1-4 on the diagonals (±6,±6 ≈ 8.49y).
+    // Scenario-local offsets from the (100,0,100) arena origin.
+    public static IReadOnlyList<Waymark> UmadWaymarks =>
+    [
+        new(WaymarkSlot.A,     new Vector3(  0, 0, -12)),
+        new(WaymarkSlot.B,     new Vector3( 12, 0,   0)),
+        new(WaymarkSlot.C,     new Vector3(  0, 0,  12)),
+        new(WaymarkSlot.D,     new Vector3(-12, 0,   0)),
+        new(WaymarkSlot.One,   new Vector3( -6, 0,  -6)),
+        new(WaymarkSlot.Two,   new Vector3(  6, 0,  -6)),
+        new(WaymarkSlot.Three, new Vector3(  6, 0,   6)),
+        new(WaymarkSlot.Four,  new Vector3( -6, 0,   6)),
+    ];
 }

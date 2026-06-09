@@ -35,18 +35,18 @@ public sealed class UmadP2ForsakenState
     public UmadP2ForsakenState(SimParty party, UmadP2ForsakenStateOverrides overrides)
     {
         EndAttacks = [overrides.FirstEndAttack ?? NextEnd(), NextEnd(), NextEnd(), NextEnd()];
-        NewNorth = rng.NextDirection();
+        NewNorth = overrides.NewNorth ?? rng.NextDirection();
         Rotation = rng.NextSign();
-        
-        var supportLockon = rng.NextObj(LockonId.ForsakenChariot, LockonId.ForsakenCone);
+
+        var supportLockon = overrides.SupportLockon ?? rng.NextObj(LockonId.ForsakenChariot, LockonId.ForsakenCone);
         var dpsLockon = supportLockon == LockonId.ForsakenChariot ? LockonId.ForsakenCone : LockonId.ForsakenChariot;
-        
+
         List<PartyRole> supports = [PartyRole.MainTank, PartyRole.OffTank, PartyRole.RegenHealer, PartyRole.ShieldHealer];
         List<PartyRole> dps = [PartyRole.MeleeDpsA, PartyRole.MeleeDpsB, PartyRole.PhysRangedDps, PartyRole.CasterDps];
         supports.ForEach(role => Lockons[role] = supportLockon);
         dps.ForEach(role => Lockons[role] = dpsLockon);
-        Lockons[rng.NextObj(supports.ToArray())] = LockonId.ForsakenStack; 
-        Lockons[rng.NextObj(dps.ToArray())] = LockonId.ForsakenStack;
+        Lockons[overrides.SupportStackRole ?? rng.NextObj(supports.ToArray())] = LockonId.ForsakenStack;
+        Lockons[overrides.DpsStackRole ?? rng.NextObj(dps.ToArray())] = LockonId.ForsakenStack;
         Plugin.Log.Info($"Lockon assigments: {string.Join(",", Enum.GetValues<PartyRole>().Select(r => Lockons[r]))}");
     }
     

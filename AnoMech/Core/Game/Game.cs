@@ -95,14 +95,23 @@ public sealed class Game : IDisposable
             return;
         }
 
+        // Captured before TryLoad: false only on the first start from the inn (a true
+        // zone entry), true for any restart/switch within the already-loaded zone.
+        var freshLoad = !World.Map.IsZoneLoaded;
+
         World.HideObject(ExitObjectBaseId);
         World.Map.TryLoad(scenario.TargetInstance);
         World.ScenarioOrigin = scenario.TargetInstance.Origin;
         World.Map.ArmColliderDrops(scenario.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
         World.PlaceWaymarks(scenario.Waymarks);
         World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
-        TeleportPlayerToSpawn(scenario);   // begin every run at the canonical spawn point
-        scenario.Run(World, selectedAi);
+        scenario.Run(World, selectedAi);   // creates the SimArenaBoundary the out-of-arena check reads
+        // Entering the zone always starts at spawn; a restart only recenters the player
+        // if they're standing outside the arena ring (otherwise they keep their position).
+        if (freshLoad)
+            TeleportPlayerToSpawn(scenario);
+        else
+            TeleportPlayerToSpawnIfOutsideArena(scenario);
         ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;
@@ -205,19 +214,23 @@ public sealed class Game : IDisposable
 
     public void Reset() => Plugin.Framework.Run(() =>
     {
-        TeleportPlayerToSpawnIfOutsideArena();
+        if (activeScenario is { } scenario)
+            TeleportPlayerToSpawnIfOutsideArena(scenario);
         ResetInternal();
         Bgm.Reset();
     });
 
-    // On reset, pull the player back to the scenario's spawn point if they ended up
-    // outside the arena ring (e.g. knocked out of bounds). Must run before
-    // ResetInternal clears activeScenario / Party / ScenarioOrigin.
-    private void TeleportPlayerToSpawnIfOutsideArena()
+    // Pull the player back to the scenario's spawn point only if they're standing
+    // outside the arena ring (e.g. knocked out of bounds, or wandered off). No-op
+    // when the scenario enforces no boundary. Reads the live game-object position:
+    // at scenario start the SimPlayer was just created and hasn't ticked, so its
+    // cached Position is still zero. At reset this must run before ResetInternal
+    // clears Party / ScenarioOrigin.
+    private void TeleportPlayerToSpawnIfOutsideArena(IScenario scenario)
     {
-        if (activeScenario is not { } scenario) return;
-        if (Player is not { } player) return;
-        if (!World.IsOutsideArena(player.Position)) return;
+        var lp = Plugin.ObjectTable.LocalPlayer;
+        if (lp == null) return;
+        if (!World.IsOutsideArena(World.Coordinates.ToLocal(lp.Position))) return;
         TeleportPlayerToSpawn(scenario);
     }
 

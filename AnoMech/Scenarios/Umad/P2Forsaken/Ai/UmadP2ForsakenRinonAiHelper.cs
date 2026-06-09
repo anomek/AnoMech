@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
-namespace AnoMech.Scenarios.Umad.P2Forsaken;
+namespace AnoMech.Scenarios.Umad.P2Forsaken.Ai;
 
 // Party-member movement choreography for UMAD P2 Forsaken. Reads the shared
 // UmadP2ForsakenState so movement stays in sync with the randomized layout, and
@@ -20,7 +21,9 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken;
 // default no-op keeps standalone use behaviour-identical to the old strat.
 public sealed class UmadP2ForsakenRinonAiHelper
 {
-    private readonly Action<int, IList<PartyRole>> reorderActive;
+    private readonly Vector2?[] oddCoords;
+    private readonly Vector2?[] evenCoords;
+    private readonly Action<UmadP2ForsakenRinonAiHelper, int, IList<PartyRole>> reorderActive;
 
     private UmadP2ForsakenState state = null!;
 
@@ -29,8 +32,13 @@ public sealed class UmadP2ForsakenRinonAiHelper
     private List<PartyRole> alpha = [];
     private List<PartyRole> beta = [];
 
-    public UmadP2ForsakenRinonAiHelper(Action<int, IList<PartyRole>> reorderActive)
+    public UmadP2ForsakenRinonAiHelper(
+        Vector2?[] oddCoords,
+        Vector2?[] evenCoords,
+        Action<UmadP2ForsakenRinonAiHelper, int, IList<PartyRole>> reorderActive)
     {
+        this.oddCoords = oddCoords;
+        this.evenCoords = evenCoords;
         this.reorderActive = reorderActive;
     }
 
@@ -132,25 +140,14 @@ public sealed class UmadP2ForsakenRinonAiHelper
         return () =>
         {
             var move = i % 2 == 1 ? EvenTower(i) : OddTower(i); // odd/even flipped because 0 indexing teehee
-            reorderActive(i, i is < 3 or 7 ? alpha : beta);        // plug point: same active-group rule as ActiveRole
+            reorderActive(this, i, i is < 3 or 7 ? alpha : beta); // plug point: same active-group rule as ActiveRole
             return move;
         };
     }
 
     private IAiMove OddTower(int i)
     {
-        return AiMove.Create(
-                         // active grop
-                         new(5.5f, -5.5f),  // stack
-                         new(8f, -8f),      // cone
-                         new(-5.4f, -2.4f), // stack
-                         new(-5.4f, -8.5f), // chariot
-                         // passive group
-                         new(9.5f, -9.5f),  // outer cone bait
-                         new(2.5f, -2.5f),  // inner cone bait
-                         new(-3.5f, -1.9f), // in stack
-                         new(-3.5f, -1.9f)  //  in stack
-                     )
+        return AiMove.Create(oddCoords)
                      .Assignments([
                          ActiveRole(LockonId.ForsakenStack, i, 0),
                          ActiveRole(LockonId.ForsakenCone, i, 0),
@@ -166,18 +163,8 @@ public sealed class UmadP2ForsakenRinonAiHelper
 
     private IAiMove EvenTower(int i)
     {
-        return AiMove.Create(
-                         // active group
-                         new(3.2f, -3.2f),  // cone1
-                         new(8, -8),        // chariot1
-                         new(-3.2f, -3.2f), // cone2
-                         new(-8, -8),       // chariot2
-                         // passive group
-                         new(8.8f, -2.4f),    // cone bait1
-                         new(3.8f, 4.2f),  // clone bait1
-                         new(-3.8f, 4.2f), // clone bait2
-                         new(-8.8f, -2.4f)    // cone bait2 
-                     ).Assignments([
+        return AiMove.Create(evenCoords)
+                     .Assignments([
                          ActiveRole(LockonId.ForsakenCone, i, 0),
                          ActiveRole(LockonId.ForsakenChariot, i, 0),
                          ActiveRole(LockonId.ForsakenCone, i, 1),
@@ -188,5 +175,92 @@ public sealed class UmadP2ForsakenRinonAiHelper
                          PassiveRole(i, 3),
                      ])
                      .ApplyPositions(state.NewNorthAt(i).Apply);
+    }
+
+    // --- Coordinate sets ---
+    // 16 scenario-local XZ coords per set: 8 for odd-index towers, 8 for even-index
+    // towers (active 4 + passive 4 each). Passed into the constructor by the strats.
+    // AiMove copies these on Create, so its per-move rotation never mutates the set.
+
+    // Standard layout — the values the helper used to hardcode. Shared by the
+    // "South Flex 341" and "Kroxy-Rinon 341" strats.
+    public static readonly Vector2?[] StandardOdd =
+    [
+        // active group
+        new(5.5f, -5.5f),  // stack
+        new(8f, -8f),      // cone
+        new(-5.4f, -2.4f), // stack
+        new(-5.4f, -8.5f), // chariot
+        // passive group
+        new(9.5f, -9.5f),  // outer cone bait
+        new(2.5f, -2.5f),  // inner cone bait
+        new(-3.5f, -1.9f), // in stack
+        new(-3.5f, -1.9f)  // in stack
+    ];
+
+    public static readonly Vector2?[] OldEven =
+    [
+        // active group
+        new(3.2f, -3.2f),  // cone1
+        new(8, -8),        // chariot1
+        new(-3.2f, -3.2f), // cone2
+        new(-8, -8),       // chariot2
+        // passive group
+        new(8.8f, -2.4f),  // cone bait1
+        new(3.8f, 4.2f),   // clone bait1
+        new(-3.8f, 4.2f),  // clone bait2
+        new(-8.8f, -2.4f)  // cone bait2
+    ];
+
+    public static readonly Vector2?[] DiamonMarkersEven =
+    [
+        // active group
+        new(4.8f, -2.2f),  // TODO cone1
+        new(6.3f, -9.2f),        // TODO chariot1
+        new(-4.8f, -2.2f), // TODO cone2
+        new(-6.3f, -9.2f),       // TODO chariot2
+        // passive group
+        new(10.5f, 0f),  // TODO cone bait1
+        new(3.8f, 5.3f),   // TODO clone bait1
+        new(-3.8f, 5.3f),  // TODO clone bait2
+        new(-10.5f, 0f)  // TODO cone bait2
+    ];
+
+    // --- Reorder behaviors ---
+    // The strats' plug point, shared so the set-1 and set-2 variants stay in sync.
+    // Invoked from TowerPositions with the helper instance + the active 4-role group.
+
+    // South Flex: rotate the active group's assignment per tower.
+    public static void SouthFlexReorder(UmadP2ForsakenRinonAiHelper helper, int index, IList<PartyRole> active)
+    {
+        if (index % 2 == 0) // odd tower
+        {
+            List<PartyRole> reordered =
+            [
+                helper.ActiveRole(LockonId.ForsakenStack, index, 0),
+                helper.ActiveRole(LockonId.ForsakenCone, index, 0),
+                helper.ActiveRole(LockonId.ForsakenChariot, index, 0),
+                helper.ActiveRole(LockonId.ForsakenStack, index, 1)
+            ];
+            active.Clear();
+            reordered.ForEach(active.Add);
+        }
+        else // even tower
+        {
+            List<PartyRole> reordered =
+            [
+                helper.ActiveRole(LockonId.ForsakenCone, index, 0),
+                helper.ActiveRole(LockonId.ForsakenChariot, index, 0),
+                helper.ActiveRole(LockonId.ForsakenChariot, index, 1),
+                helper.ActiveRole(LockonId.ForsakenCone, index, 1)
+            ];
+            active.Clear();
+            reordered.ForEach(active.Add);
+        }
+    }
+
+    // Kroxy: no reorder — standalone behaviour-identical to the original helper.
+    public static void KroxyReorder(UmadP2ForsakenRinonAiHelper helper, int index, IList<PartyRole> active)
+    {
     }
 }
