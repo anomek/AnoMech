@@ -187,12 +187,12 @@ public sealed class UmadP2ForsakenRinonAiHelper
     public static readonly Vector2?[] StandardOdd =
     [
         // active group
-        new(5.5f, -5.5f),  // stack
+        new(4.8f, -4.8f),  // stack
         new(8f, -8f),      // cone
         new(-5.4f, -2.4f), // stack
         new(-5.4f, -8.5f), // chariot
         // passive group
-        new(9.5f, -9.5f),  // outer cone bait
+        new(9.6f, -9.6f),  // outer cone bait
         new(2.5f, -2.5f),  // inner cone bait
         new(-3.5f, -1.9f), // in stack
         new(-3.5f, -1.9f)  // in stack
@@ -215,15 +215,15 @@ public sealed class UmadP2ForsakenRinonAiHelper
     public static readonly Vector2?[] DiamonMarkersEven =
     [
         // active group
-        new(4.8f, -2.2f),  // TODO cone1
-        new(6.3f, -9.2f),        // TODO chariot1
-        new(-4.8f, -2.2f), // TODO cone2
-        new(-6.3f, -9.2f),       // TODO chariot2
+        new(4.8f, -2.2f),  // cone1
+        new(6.3f, -9.2f),        // chariot1
+        new(-4.8f, -2.2f), // cone2
+        new(-6.3f, -9.2f),       // chariot2
         // passive group
-        new(10.5f, 0f),  // TODO cone bait1
-        new(3.8f, 5.3f),   // TODO clone bait1
-        new(-3.8f, 5.3f),  // TODO clone bait2
-        new(-10.5f, 0f)  // TODO cone bait2
+        new(10.5f, 0f),  // cone bait1
+        new(3.5f, 4.9f),   // clone bait1
+        new(-3.5f, 4.9f),  // clone bait2
+        new(-10.5f, 0f)  // cone bait2
     ];
 
     // --- Reorder behaviors ---
