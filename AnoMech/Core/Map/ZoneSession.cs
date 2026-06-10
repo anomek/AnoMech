@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Numerics;
-using ThreadingTask = System.Threading.Tasks.Task;
+using AnoMech.Services;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
@@ -13,11 +13,10 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Environment;
 using FFXIVClientStructs.FFXIV.Client.Network;
-using FFXIVClientStructs.FFXIV.Client.System.Framework;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
 using static FFXIVClientStructs.FFXIV.Client.Network.PacketDispatcher.Delegates;
+using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace AnoMech.Core.Map;
 
@@ -30,9 +29,6 @@ public sealed unsafe class ZoneSession : IDisposable
     private const uint InnIntendedUse = 2;
 
     // ── Native delegates ──────────────────────────────────────────────────────
-
-    private delegate nint LoadZoneDelegate(nint a1, uint territory, int a3, byte a4, byte a5, byte a6);
-    private readonly LoadZoneDelegate loadZone;
 
     private delegate nint SetupTerritoryTypeDelegate(void* eventFramework, ushort territoryType);
     private readonly SetupTerritoryTypeDelegate setupTerritoryType;
@@ -71,11 +67,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public ZoneSession()
     {
-        // LoadZone native function (sig from Hyperborea Memory.cs)
-        var loadZoneAddr = Plugin.SigScanner.ScanText(
-            "40 55 56 41 54 41 56 41 57 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 44 24");
-        loadZone = Marshal.GetDelegateForFunctionPointer<LoadZoneDelegate>(loadZoneAddr);
-
         // SetupTerritoryType native function (sig from Hyperborea Memory.cs)
         var setupTTAddr = Plugin.SigScanner.ScanText(
             "48 89 5C 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC ?? 48 8B D9 48 89 6C 24");
@@ -283,7 +274,7 @@ public sealed unsafe class ZoneSession : IDisposable
         }
 
         Plugin.Log.Information("[ZoneSession] Step 4: LoadZone (native)");
-        loadZone((nint)gm, territory, 0, 0, 1, 1);
+        GameMainService.LoadZone(gm, territory, 0, 0, 1);
 
         Plugin.Log.Information("[ZoneSession] Step 5: SetupTerritoryType");
         setupTerritoryType(ef, (ushort)territory);

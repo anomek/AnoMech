@@ -10,6 +10,7 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Windows;
+using AnoMech.Services;
 
 namespace AnoMech;
 
@@ -97,6 +98,9 @@ public sealed class Plugin : IDalamudPlugin
         DutyState.DutyStarted += OnDutyStarted;
         DutyState.DutyWiped += OnDutyWiped;
         DutyState.DutyCompleted += OnDutyCompleted;
+
+        // Initialize Services
+        GameMainService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }
