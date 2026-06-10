@@ -13,18 +13,6 @@ namespace AnoMech.Core.Map;
 // has run for the zone. No disposal needed: we hold a delegate, not a hook.
 internal static unsafe class DirectorFunctions
 {
-    private delegate void DirectorUnknownUpdateDelegate(EventFramework* eventFramework, uint eventId, byte sequence, byte unk, byte* unionData, ulong size);
-    private static readonly DirectorUnknownUpdateDelegate DirectorUnknownUpdateFunction;
-
-    static DirectorFunctions()
-    {
-        var unknownUpdateAddr = Plugin.SigScanner.ScanText(
-            "89 54 24 10 48 89 4C 24 ?? 53 56 57 41 55 41 57 48 83 EC 30 48 8B 99");
-        DirectorUnknownUpdateFunction = Marshal.GetDelegateForFunctionPointer<DirectorUnknownUpdateDelegate>(unknownUpdateAddr);
-
-        Plugin.Log.Information("[DirectorFunctions] Initialized.");
-    }
-
     // The duty pre-pull spawn barrier is a set of SharedGroup ILayoutInstances
     // (the engine's "prefab" container type, see SharedGroupLayoutInstance.cs).
     // In a real duty the server-driven Commence flow clears their collision; in
@@ -66,27 +54,5 @@ internal static unsafe class DirectorFunctions
         if (disabled > 0)
             Plugin.Log.Information($"[BarrierDrop] disabled {disabled} SharedGroups within r{radius} of ({center.X:F2},{center.Y:F2},{center.Z:F2})");
         return disabled;
-    }
-
-    internal static void DirectorUnknownUpdate(byte sequence, byte unk, byte* unionData)
-    {
-        var eventFramework = EventFramework.Instance();
-        var instanceDirector = eventFramework->GetInstanceContentDirector();
-
-        if (instanceDirector == null)
-        {
-            Plugin.Log.Debug("[DirectorFunctions] DirectorUnknownUpdate: no InstanceContentDirector, skipping.");
-            return;
-        }
-
-        DirectorUnknownUpdateFunction(eventFramework, instanceDirector->Info.EventId.Id, sequence, unk, unionData, 12); // Size 12 is hard-coded in the game .exe
-    }
-
-    internal static void DirectorUnknownUpdate(byte sequence, byte unk, byte[] unionData)
-    {
-        fixed (byte* unionDataPtr = unionData)
-        {
-            DirectorUnknownUpdate(0, 1, unionDataPtr);
-        }
     }
 }
