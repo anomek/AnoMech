@@ -101,6 +101,8 @@ public sealed class Plugin : IDalamudPlugin
 
         // Initialize Services
         EventFrameworkService.Initialize();
+        EventObjectManagerService.Initialize();
+        EventObjectService.Initialize();
         GameMainService.Initialize();
         PacketDispatcherService.Initialize();
 
