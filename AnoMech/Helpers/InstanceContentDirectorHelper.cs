@@ -68,7 +68,7 @@ internal static unsafe class InstanceContentDirectorHelper
 
         fixed (byte* unionDataPtr = unionData)
         {
-            SetDirectorData(sequence, unk, unionDataPtr);
+            SetDirectorData(sequence, unk, unionDataPtr, (ulong)unionData.Length);
         }
     }
 
