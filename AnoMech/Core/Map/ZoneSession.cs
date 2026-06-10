@@ -30,9 +30,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // ── Native delegates ──────────────────────────────────────────────────────
 
-    private delegate nint SetupTerritoryTypeDelegate(void* eventFramework, ushort territoryType);
-    private readonly SetupTerritoryTypeDelegate setupTerritoryType;
-
     // Hooked at the call-site address (Hyperborea [EzHook("E8...", true)] pattern).
     // We never Enable() these — they exist only for their MinHook trampoline, which
     // correctly handles the E8 relative offset regardless of other plugin patches.
@@ -67,11 +64,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public ZoneSession()
     {
-        // SetupTerritoryType native function (sig from Hyperborea Memory.cs)
-        var setupTTAddr = Plugin.SigScanner.ScanText(
-            "48 89 5C 24 ?? 48 89 7C 24 ?? 41 56 48 83 EC ?? 48 8B D9 48 89 6C 24");
-        setupTerritoryType = Marshal.GetDelegateForFunctionPointer<SetupTerritoryTypeDelegate>(setupTTAddr);
-
         // SetupInstanceContent — hooked AT the call site, not at the function entry.
         // Mirrors Hyperborea's [EzHook("E8...", true)] pattern exactly. The hook is
         // never enabled; we call .Original(...) so MinHook's trampoline executes the
@@ -241,10 +233,10 @@ public sealed unsafe class ZoneSession : IDisposable
 
     private void LoadZoneInternal(uint territory, Vector3 playerPos)
     {
-        var ef = EventFramework.Instance();
+        var eventFramework = EventFramework.Instance();
         var gm = GameMain.Instance();
-        Plugin.Log.Information($"[ZoneSession] LoadZone territory={territory} ef={((nint)ef):X} gm={((nint)gm):X}");
-        if (ef == null || gm == null)
+        Plugin.Log.Information($"[ZoneSession] LoadZone territory={territory} ef={((nint)eventFramework):X} gm={((nint)gm):X}");
+        if (eventFramework == null || gm == null)
         {
             Plugin.Log.Error("[ZoneSession] Null singleton — aborting zone load");
             return;
@@ -253,7 +245,7 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (instanceContentWasLoaded != null)
         {
-            finalizeInstanceContentHook.Original((nint)ef, 0x80030000 + instanceContentWasLoaded.Value);
+            finalizeInstanceContentHook.Original((nint)eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
             instanceContentWasLoaded = null;
         }
 
@@ -269,7 +261,7 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information($"[ZoneSession] ContentId={content}");
         if (content is { } cid && cid != 0)
         {
-            setupInstanceContentHook.Original((nint)ef, 0x80030000 + cid, cid, 0);
+            setupInstanceContentHook.Original((nint)eventFramework, 0x80030000 + cid, cid, 0);
             instanceContentWasLoaded = cid;
         }
 
@@ -277,7 +269,7 @@ public sealed unsafe class ZoneSession : IDisposable
         GameMainService.LoadZone(gm, territory, 0, 0, 1);
 
         Plugin.Log.Information("[ZoneSession] Step 5: SetupTerritoryType");
-        setupTerritoryType(ef, (ushort)territory);
+        eventFramework->SetTerritoryTypeId((ushort)territory);
 
         Plugin.Log.Information("[ZoneSession] Step 6: SyncClientState");
         SyncClientStateTerritoryType((ushort)territory);
