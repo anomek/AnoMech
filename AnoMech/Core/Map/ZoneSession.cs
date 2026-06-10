@@ -30,9 +30,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // ── Native delegates ──────────────────────────────────────────────────────
 
-    private delegate byte FinalizeInstanceContentDelegate(nint a1, uint a2);
-    private readonly Hook<FinalizeInstanceContentDelegate> finalizeInstanceContentHook;
-
     private delegate byte SendPacketDelegate(nint a1, nint a2, nint a3, byte a4);
     private readonly Hook<SendPacketDelegate> sendPacketHook;
 
@@ -58,13 +55,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public ZoneSession()
     {
-        // FinalizeInstanceContent — direct function-entry sig (starts with MOV prologue, not E8).
-        // Hooked for consistency so .Original() also goes through the trampoline correctly.
-        var finalizeAddr = Plugin.SigScanner.ScanText(
-            "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 70 48 8D B1");
-        finalizeInstanceContentHook = Plugin.GameInterop.HookFromAddress<FinalizeInstanceContentDelegate>(
-            finalizeAddr, (a1, a2) => 0);              // detour never fires — hook stays disabled
-
         // Heartbeat (ZoneUp) opcode — auto-detected by signature (from Hyperborea Memory.cs)
         heartbeatOpcode = (ushort)Marshal.ReadInt32(
             Plugin.SigScanner.ScanText("C7 44 24 ?? ?? ?? ?? ?? 48 F7 F1") + 0x4);
@@ -230,7 +220,7 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (instanceContentWasLoaded != null)
         {
-            finalizeInstanceContentHook.Original((nint)eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
+            EventFrameworkService.TerminateDirector(eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
             instanceContentWasLoaded = null;
         }
 
@@ -347,6 +337,5 @@ public sealed unsafe class ZoneSession : IDisposable
         Revert();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();
-        finalizeInstanceContentHook.Dispose();
     }
 }
