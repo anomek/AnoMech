@@ -20,6 +20,6 @@ internal unsafe class EventFrameworkService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new EventFrameworkService());;
+        Plugin.GameInterop.InitializeFromAttributes(new EventFrameworkService());
     }
 }

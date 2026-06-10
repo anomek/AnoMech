@@ -1,5 +1,5 @@
 using AnoMech.Core.Game;
-using AnoMech.Core.Native;
+using AnoMech.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -144,7 +144,7 @@ public sealed unsafe class SimCast : ISimObject
             PositionZ = qPosZ,
         };
 
-        ActorCastFunctions.HandleActorCastPacket(parent.GameObjectId.ObjectId, &actorCastPacket);
+        PacketDispatcherService.HandleActorCastPacket(parent.GameObjectId.ObjectId, &actorCastPacket);
     }
 
     public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)

@@ -102,6 +102,7 @@ public sealed class Plugin : IDalamudPlugin
         // Initialize Services
         EventFrameworkService.Initialize();
         GameMainService.Initialize();
+        PacketDispatcherService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }
