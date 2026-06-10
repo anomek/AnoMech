@@ -30,12 +30,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // ── Native delegates ──────────────────────────────────────────────────────
 
-    // Hooked at the call-site address (Hyperborea [EzHook("E8...", true)] pattern).
-    // We never Enable() these — they exist only for their MinHook trampoline, which
-    // correctly handles the E8 relative offset regardless of other plugin patches.
-    private delegate nint SetupInstanceContentDelegate(nint a1, uint a2, uint a3, uint a4);
-    private readonly Hook<SetupInstanceContentDelegate> setupInstanceContentHook;
-
     private delegate byte FinalizeInstanceContentDelegate(nint a1, uint a2);
     private readonly Hook<FinalizeInstanceContentDelegate> finalizeInstanceContentHook;
 
@@ -64,15 +58,6 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public ZoneSession()
     {
-        // SetupInstanceContent — hooked AT the call site, not at the function entry.
-        // Mirrors Hyperborea's [EzHook("E8...", true)] pattern exactly. The hook is
-        // never enabled; we call .Original(...) so MinHook's trampoline executes the
-        // original E8 relative call with the correct offset for its trampoline location.
-        var setupCallSite = Plugin.SigScanner.ScanText(
-            "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? E8 ?? ?? ?? ?? 8B 54 24 70 48 8B C8 E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? E8 ?? ?? ?? ?? 0F B6 54 24");
-        setupInstanceContentHook = Plugin.GameInterop.HookFromAddress<SetupInstanceContentDelegate>(
-            setupCallSite, (a1, a2, a3, a4) => 0);   // detour never fires — hook stays disabled
-
         // FinalizeInstanceContent — direct function-entry sig (starts with MOV prologue, not E8).
         // Hooked for consistency so .Original() also goes through the trampoline correctly.
         var finalizeAddr = Plugin.SigScanner.ScanText(
@@ -256,13 +241,12 @@ public sealed unsafe class ZoneSession : IDisposable
             ((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)obj.Address)->DisableDraw();
         }
 
-        Plugin.Log.Information("[ZoneSession] Step 3: SetupInstanceContent");
+        Plugin.Log.Information("[ZoneSession] Step 3: InitDirector");
         var content = GetContentId(territory);
         Plugin.Log.Information($"[ZoneSession] ContentId={content}");
         if (content is { } cid && cid != 0)
         {
-            setupInstanceContentHook.Original((nint)eventFramework, 0x80030000 + cid, cid, 0);
-            instanceContentWasLoaded = cid;
+            EventFrameworkService.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
         }
 
         Plugin.Log.Information("[ZoneSession] Step 4: LoadZone (native)");
@@ -363,7 +347,6 @@ public sealed unsafe class ZoneSession : IDisposable
         Revert();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();
-        setupInstanceContentHook.Dispose();
         finalizeInstanceContentHook.Dispose();
     }
 }

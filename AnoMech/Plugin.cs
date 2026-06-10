@@ -100,6 +100,7 @@ public sealed class Plugin : IDalamudPlugin
         DutyState.DutyCompleted += OnDutyCompleted;
 
         // Initialize Services
+        EventFrameworkService.Initialize();
         GameMainService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
