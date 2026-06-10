@@ -1,3 +1,4 @@
+using AnoMech.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -98,7 +99,7 @@ public sealed class MapController : IDisposable
         }
         IsInInstance = true;
         effects.Loaded = true;
-        DirectorFunctions.Commence();
+        InstanceContentDirectorHelper.Commence();
         ArmBarrierDrop(target.PlayerPosition, 10f);
     }
 
@@ -124,12 +125,6 @@ public sealed class MapController : IDisposable
 
     // Replay a single MapEffect state change. packetFlags: high16=State, low8=Flags.
     public void AddEffect(uint packetFlags, byte index) => effects.Apply(packetFlags, index);
-
-    // Replay a server-sent DirectorUpdate (`33|` ACT log opcode) against the
-    // live InstanceContentDirector. Mirrors the FireDirectorUpdate signature.
-    public void DirectorUpdate(uint category, uint arg1, uint arg2 = 0,
-                               int a6 = 0, int a7 = 0, int a8 = 0, int a9 = 0)
-        => DirectorFunctions.FireDirectorUpdate(category, arg1, arg2, a6, a7, a8, a9);
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
