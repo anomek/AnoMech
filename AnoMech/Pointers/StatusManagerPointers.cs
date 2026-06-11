@@ -1,9 +1,9 @@
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
-internal unsafe class StatusManagerService
+internal unsafe class StatusManagerPointers
 {
     [Signature("48 8B C4 55 57 41 54 41 56", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static OnGainStatusDelegate OnGainStatus { get; private set; } = null!;
@@ -12,6 +12,6 @@ internal unsafe class StatusManagerService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new StatusManagerService());
+        Plugin.GameInterop.InitializeFromAttributes(new StatusManagerPointers());
     }
 }

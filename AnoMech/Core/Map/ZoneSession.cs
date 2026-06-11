@@ -3,7 +3,7 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using AnoMech.Services;
+using AnoMech.Pointers;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
@@ -220,7 +220,7 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (instanceContentWasLoaded != null)
         {
-            EventFrameworkService.TerminateDirector(eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
+            EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
             instanceContentWasLoaded = null;
         }
 
@@ -236,11 +236,11 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information($"[ZoneSession] ContentId={content}");
         if (content is { } cid && cid != 0)
         {
-            EventFrameworkService.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
+            EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
         }
 
         Plugin.Log.Information("[ZoneSession] Step 4: LoadZone (native)");
-        GameMainService.LoadZone(gm, territory, 0, 0, 1);
+        GameMainPointers.LoadZone(gm, territory, 0, 0, 1);
 
         Plugin.Log.Information("[ZoneSession] Step 5: SetupTerritoryType");
         eventFramework->SetTerritoryTypeId((ushort)territory);

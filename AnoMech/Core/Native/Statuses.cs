@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using AnoMech.Services;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -85,7 +85,7 @@ internal static unsafe class Statuses
             if (slots[i].StatusId == statusId) return; // AddStatus took (doppel) — leave it alone
 
         Apply(chara, statusId, 0f, param);
-        StatusManagerService.OnGainStatus(&bc->StatusManager, statusId, 0f, param, 0, 0);
+        StatusManagerPointers.OnGainStatus(&bc->StatusManager, statusId, 0f, param, 0, 0);
     }
 
     public static void Remove(Character* chara, ushort statusId)

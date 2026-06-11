@@ -1,6 +1,6 @@
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
-using AnoMech.Services;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -176,7 +176,7 @@ public sealed unsafe class SimEnemy : SimNpc
 
         if (nativeHitbox)
         {
-            chara->ModelContainer.UnscaledRadius = ModelContainerService.CalculateUnscaledRadius(&chara->ModelContainer);
+            chara->ModelContainer.UnscaledRadius = ModelContainerPointers.CalculateUnscaledRadius(&chara->ModelContainer);
             chara->HitboxRadius = chara->Scale * chara->ModelContainer.UnscaledRadius; // From Client::Game::Character::ModelContainer_UpdateHitboxRadius
         }
 

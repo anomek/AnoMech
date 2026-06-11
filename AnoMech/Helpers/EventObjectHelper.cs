@@ -1,4 +1,4 @@
-using AnoMech.Services;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Helpers;
@@ -36,7 +36,7 @@ internal static unsafe class EventObjectHelper
         // param_5). For simulator-spawned EObjs we want the EObj-sheet lookup, so
         // flag must be 0 — confirmed empirically by reading actor->ExportedSGRowPtr
         // after spawn.
-        slot = EventObjectManagerService.CreateEventObject(eventObjectManager, 0, eObjRowId, 0, 0, 0, -1, 0);
+        slot = EventObjectManagerPointers.CreateEventObject(eventObjectManager, 0, eObjRowId, 0, 0, 0, -1, 0);
         if (slot < 0)
         {
             Plugin.Log.Warning($"EventObjectSpawn: CreateEventObject returned -1 for EObj row {eObjRowId} (0x{eObjRowId:X}) — pool full or invalid row");
@@ -101,6 +101,6 @@ internal static unsafe class EventObjectHelper
             return;
         }
 
-        EventObjectService.SetEventObjectState((EventObject*)obj, state, 1, 0);
+        EventObjectPointers.SetEventObjectState((EventObject*)obj, state, 1, 0);
     }
 }

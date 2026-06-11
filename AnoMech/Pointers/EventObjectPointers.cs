@@ -1,9 +1,9 @@
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
-internal unsafe class EventObjectService
+internal unsafe class EventObjectPointers
 {
     [Signature("E8 ?? ?? ?? ?? 49 8B 06 44 0F B6 C5", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static SetEventObjectStateDelegate SetEventObjectState { get; private set; } = null!;
@@ -20,6 +20,6 @@ internal unsafe class EventObjectService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new EventObjectService());
+        Plugin.GameInterop.InitializeFromAttributes(new EventObjectPointers());
     }
 }

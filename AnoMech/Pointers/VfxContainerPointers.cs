@@ -1,9 +1,9 @@
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
-internal unsafe class VfxContainerService
+internal unsafe class VfxContainerPointers
 {
     [Signature("E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 0F B6 54 24 ?? 45", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static SetTetherDelegate SetTether { get; private set; } = null!;
@@ -12,6 +12,6 @@ internal unsafe class VfxContainerService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new VfxContainerService());
+        Plugin.GameInterop.InitializeFromAttributes(new VfxContainerPointers());
     }
 }

@@ -1,5 +1,5 @@
 using AnoMech.Core.Game;
-using AnoMech.Services;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
@@ -25,7 +25,7 @@ internal static unsafe class VfxFunctions
     public static void SetTether(Character* chara, byte slot, ushort tetherId, GameObjectId targetId, byte progress)
     {
         if (chara == null) return;
-        VfxContainerService.SetTether(&chara->Vfx, slot, tetherId, (ulong)targetId, progress);
+        VfxContainerPointers.SetTether(&chara->Vfx, slot, tetherId, (ulong)targetId, progress);
     }
 
     public static void ClearTether(Character* chara, byte slot)
@@ -81,14 +81,14 @@ internal static unsafe class VfxFunctions
         var bytes = Encoding.UTF8.GetBytes(path + "\0");
         fixed (byte* p = bytes)
         {
-            return VfxDataService.ActorVfxCreate(p, (GameObject*)caster, (GameObject*)target, -1f, 0, 0, 0);
+            return VfxDataPointers.ActorVfxCreate(p, (GameObject*)caster, (GameObject*)target, -1f, 0, 0, 0);
         }
     }
 
     public static void RemoveActorVfx(VfxData* vfx)
     {
         if (vfx == null) return;
-        VfxDataService.Dtor(vfx, 0);
+        VfxDataPointers.Dtor(vfx, 0);
     }
 
     public static bool VfxPathExists(string path)

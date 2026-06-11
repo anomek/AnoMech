@@ -1,9 +1,9 @@
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
-internal unsafe class ModelContainerService
+internal unsafe class ModelContainerPointers
 {
     [Signature("E8 ?? ?? ?? ?? 49 8B 06 44 0F B6 C5", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static CalculateUnscaledRadiusDelegate CalculateUnscaledRadius { get; private set; } = null!;
@@ -12,6 +12,6 @@ internal unsafe class ModelContainerService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new ModelContainerService());
+        Plugin.GameInterop.InitializeFromAttributes(new ModelContainerPointers());
     }
 }

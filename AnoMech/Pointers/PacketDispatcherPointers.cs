@@ -1,7 +1,7 @@
 using Dalamud.Utility.Signatures;
 using System.Runtime.InteropServices;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
 [StructLayout(LayoutKind.Explicit, Size = 0x20)]
 public partial struct ActorCastPacket
@@ -20,7 +20,7 @@ public partial struct ActorCastPacket
     [FieldOffset(0x1C)] public ushort PositionZ; // Quantized Position
 }
 
-internal unsafe class PacketDispatcherService
+internal unsafe class PacketDispatcherPointers
 {
     [Signature("40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static HandleActorCastPacketDelegate HandleActorCastPacket { get; private set; } = null!;
@@ -29,6 +29,6 @@ internal unsafe class PacketDispatcherService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new PacketDispatcherService());
+        Plugin.GameInterop.InitializeFromAttributes(new PacketDispatcherPointers());
     }
 }

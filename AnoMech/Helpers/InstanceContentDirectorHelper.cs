@@ -1,4 +1,4 @@
-using AnoMech.Services;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using System;
 using System.Linq;
@@ -48,7 +48,7 @@ internal static unsafe class InstanceContentDirectorHelper
         }
 
         var eventId = director->GetEventId();
-        EventFrameworkService.SetDirectorData(eventFramework, eventId, sequence, unknown, unionData, length);
+        EventFrameworkPointers.SetDirectorData(eventFramework, eventId, sequence, unknown, unionData, length);
     }
 
     public static void SetDirectorData(byte sequence, byte unk, byte[] unionData, bool fillExtraData = true)

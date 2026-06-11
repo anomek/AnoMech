@@ -2,9 +2,9 @@ using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Vfx;
 
-namespace AnoMech.Services;
+namespace AnoMech.Pointers;
 
-internal unsafe class VfxDataService
+internal unsafe class VfxDataPointers
 {
     [Signature("40 53 55 56 57 48 81 EC ?? ?? ?? ?? 0F 29 B4 24 ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 0F", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static CreateActorCharacterVfxDelegate ActorVfxCreate { get; private set; } = null!;
@@ -17,6 +17,6 @@ internal unsafe class VfxDataService
 
     public static void Initialize()
     {
-        Plugin.GameInterop.InitializeFromAttributes(new VfxDataService());
+        Plugin.GameInterop.InitializeFromAttributes(new VfxDataPointers());
     }
 }
