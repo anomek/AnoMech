@@ -107,6 +107,7 @@ public sealed class Plugin : IDalamudPlugin
         ModelContainerService.Initialize();
         PacketDispatcherService.Initialize();
         StatusManagerService.Initialize();
+        TimelineContainerService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }
