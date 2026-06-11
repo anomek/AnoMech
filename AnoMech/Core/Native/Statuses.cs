@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using AnoMech.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -84,28 +85,7 @@ internal static unsafe class Statuses
             if (slots[i].StatusId == statusId) return; // AddStatus took (doppel) — leave it alone
 
         Apply(chara, statusId, 0f, param);
-        ResolveOnGainStatus()?.Invoke(&bc->StatusManager, statusId, 0f, param, 0, 0);
-    }
-
-    // Client::Game::StatusManager::OnGainStatus — fires a status's gain side effects (StatusLoopVFX,
-    // log message, etc.). Not bound in FFXIVClientStructs, so we sig-scan it (same pattern as
-    // VfxFunctions). AddStatus calls it as OnGainStatus(this, statusId, 0f, param, source, 0).
-    private delegate void OnGainStatusDelegate(StatusManager* self, ushort statusId, float p3, ushort param, long source, byte p6);
-    private static OnGainStatusDelegate? onGainStatus;
-
-    private static OnGainStatusDelegate? ResolveOnGainStatus()
-    {
-        if (onGainStatus != null) return onGainStatus;
-        try
-        {
-            var addr = Plugin.SigScanner.ScanText("48 8B C4 55 57 41 54 41 56");
-            onGainStatus = Marshal.GetDelegateForFunctionPointer<OnGainStatusDelegate>(addr);
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Warning($"Statuses: failed to resolve OnGainStatus: {ex.Message}");
-        }
-        return onGainStatus;
+        StatusManagerService.OnGainStatus(&bc->StatusManager, statusId, 0f, param, 0, 0);
     }
 
     public static void Remove(Character* chara, ushort statusId)

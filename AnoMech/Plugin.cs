@@ -106,6 +106,7 @@ public sealed class Plugin : IDalamudPlugin
         GameMainService.Initialize();
         ModelContainerService.Initialize();
         PacketDispatcherService.Initialize();
+        StatusManagerService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }
