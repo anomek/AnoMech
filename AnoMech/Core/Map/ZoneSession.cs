@@ -39,7 +39,7 @@ public sealed unsafe class ZoneSession : IDisposable
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly ushort heartbeatOpcode;
-    private uint? instanceContentWasLoaded;
+    private uint? loadedInstanceContent;
 
     // Set true right before we open the Social window for a party resync; the Social
     // PostSetup listener closes it again and clears this. Distinguishes our open from
@@ -129,7 +129,7 @@ public sealed unsafe class ZoneSession : IDisposable
         savedPosition = Plugin.ObjectTable.LocalPlayer!.Position;
 
         EnableFirewall();
-        LoadZoneInternal(territoryId, playerSpawn);
+        LoadZoneInternal(territoryId, playerSpawn, false);
         IsActive = true;
         Plugin.Log.Information($"[ZoneSession] Entered territory {territoryId}.");
     }
@@ -153,7 +153,7 @@ public sealed unsafe class ZoneSession : IDisposable
     {
         DisableFirewall();
         if (savedTerritoryId != 0)
-            LoadZoneInternal(savedTerritoryId, savedPosition);
+            LoadZoneInternal(savedTerritoryId, savedPosition, true);
         savedTerritoryId = 0;
         IsActive = false;
         Plugin.Log.Information("[ZoneSession] Reverted to inn.");
@@ -206,7 +206,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // ── Zone loading sequence (mirrors Hyperborea Utils.LoadZone) ─────────────
 
-    private void LoadZoneInternal(uint territory, Vector3 playerPos)
+    private void LoadZoneInternal(uint territory, Vector3 playerPos, bool unloading)
     {
         var eventFramework = EventFramework.Instance();
         var gm = GameMain.Instance();
@@ -218,10 +218,10 @@ public sealed unsafe class ZoneSession : IDisposable
         }
 
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
-        if (instanceContentWasLoaded != null)
+        if (loadedInstanceContent != null)
         {
-            EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + instanceContentWasLoaded.Value);
-            instanceContentWasLoaded = null;
+            EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + loadedInstanceContent.Value);
+            loadedInstanceContent = null;
         }
 
         Plugin.Log.Information("[ZoneSession] Step 2: DisableDraw all objects");
@@ -237,6 +237,11 @@ public sealed unsafe class ZoneSession : IDisposable
         if (content is { } cid && cid != 0)
         {
             EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
+
+            if (!unloading)
+            {
+                loadedInstanceContent = cid;
+            }
         }
 
         Plugin.Log.Information("[ZoneSession] Step 4: LoadZone (native)");
