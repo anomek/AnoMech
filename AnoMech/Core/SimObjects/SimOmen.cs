@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -30,8 +31,8 @@ public sealed unsafe class SimOmen : ISimObject
     // to global only at the native boundary (SpawnStaticVfx).
     private readonly Coordinates coordinates;
 
-    private VfxFunctions.StaticVfxStruct* primary;
-    private VfxFunctions.StaticVfxStruct* alt;
+    private VfxObject* primary;
+    private VfxObject* alt;
 
     // null = persistent (cleared explicitly by the owner); otherwise seconds left
     // before this omen reports itself inactive for reaping.

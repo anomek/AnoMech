@@ -108,6 +108,8 @@ public sealed class Plugin : IDalamudPlugin
         PacketDispatcherService.Initialize();
         StatusManagerService.Initialize();
         TimelineContainerService.Initialize();
+        VfxContainerService.Initialize();
+        VfxDataService.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }

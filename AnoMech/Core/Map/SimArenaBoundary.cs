@@ -2,6 +2,7 @@ using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 
 namespace AnoMech.Core.Map;
 
@@ -23,7 +24,7 @@ internal sealed unsafe class SimArenaBoundary : ISimObject
     private readonly SimParty party;
     private readonly float radiusSq;
     private readonly string cause;
-    private readonly VfxFunctions.StaticVfxStruct* ringVfx;
+    private readonly VfxObject* ringVfx;
 
     public bool IsAlive => true;
     public bool IsActive => true;
