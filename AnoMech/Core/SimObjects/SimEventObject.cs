@@ -1,28 +1,79 @@
-using System.Numerics;
 using AnoMech.Core.Game;
-using AnoMech.Core.Native;
 using AnoMech.Helpers;
+using AnoMech.Pointers;
+using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.Network;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using System.Numerics;
 
 namespace AnoMech.Core.SimObjects;
 
-// Placement.Position is scenario-local (offset from SimWorld.ScenarioOrigin) —
-// same coordinate space as SimEventObject.Position / SetPosition once spawned.
-// EObjRowId references Lumina's EObj sheet — the row's SgbPath/PopType drives
-// the model picked by the engine's internal SharedGroup attach. ModelChara
-// substitution is not part of the EObj pipeline; pick the right EObj row.
-//
-// VisibleState is the SG state index that means "visible" for this EObj. The
-// orb (1EB83C) is already visible at the engine default state=0, so leave it
-// at 0. The Sigma ground circles (1EB83D / 1EB83E) need state=16 to render
-// fully; state=1..6 partial-renders are the engine's player-proximity animation
-// frames. SetVisible toggles between this value and 0.
-public record struct EventObjectSpawnConfig(
-    uint EObjRowId,
-    Placement Placement = default,
-    bool IsVisible = true,
-    short VisibleState = 0,
-    float Lifetime = 0f);
+public class EventObjectSpawnConfig
+{
+    // References Lumina's EObj sheet,
+    // the row's SgbPath/PopType drives the model picked by the engine's internal SharedGroup attach.
+    // ModelChara substitution is not part of the EObj pipeline; pick the right EObj row.
+    public uint EObjId { get; init; }
+
+    // Placement.Position is scenario-local (offset from SimWorld.ScenarioOrigin),
+    // same coordinate space as SimEventObject.Position / SetPosition once spawned.
+    public Placement Placement { get; init; }
+
+    public sbyte ObjectIndex { get; init; } = -1;
+    public byte TargetableStatus { get; init; } = 0;
+    public byte VisibilityFlag { get; init; } = 0;
+    public uint EntityId { get; init; } = 0;
+    public uint LayoutId { get; init; } = 0;
+    public EventId EventId { get; init; } = 0;
+    public uint OwnerId { get; init; } = 0xE0000000;
+    public uint GimmickId { get; init; } = 0;
+    public float Radius { get; init; } = 1;
+    public ushort FateId { get; init; } = 0;
+    public byte EventState { get; init; } = 0;
+
+    // This is the SG state index that means "visible" for this EObj.
+    // The orb (1EB83C) is already visible at the engine default state=0, so leave it at 0.
+    // The Sigma ground circles (1EB83D / 1EB83E) need state=16 to render fully
+    // state=1..6 partial-renders are the engine's player-proximity animation frames. SetVisible toggles between this value and 0.
+    public ushort TimelineState { get; init; } = 0;
+
+    public bool SpawnVisible { get; init; } = true;
+    public float Lifetime { get; init; } = 0;
+
+    public unsafe SpawnObjectPacket ToPacket(SimWorld world)
+    {
+        var objectIndex = sbyte.Max(-1, ObjectIndex);
+        var worldPos = world.Coordinates.ToGlobal(Placement.Position);
+
+        var packet = new SpawnObjectPacket
+        {
+            ObjectIndex = (byte)objectIndex,
+            ObjectKind = 7, // EventObject
+            TargetableStatus = TargetableStatus,
+            Visibility = VisibilityFlag,
+            BaseId = EObjId,
+            EntityId = EntityId,
+            LayoutId = LayoutId,
+            EventId = EventId,
+            OwnerId = OwnerId,
+            GimmickId = GimmickId,
+            Radius = Radius,
+            Rotation = MathUtil.QuantizeRotation(Placement.Rotation),
+            FateId = FateId,
+            EventState = EventState,
+            PositionX = worldPos.X,
+            PositionY = worldPos.Y,
+            PositionZ = worldPos.Z
+        };
+
+        // private in CS, so we have to set it manually
+        var packetBytePtr = (byte*)&packet;
+        var timelineStatePtr = (ushort*)(packetBytePtr + 0x2C);
+        *timelineStatePtr = TimelineState;
+
+        return packet;
+    }
+}
 
 // Handle around an EventObject GameObject allocated via the manager's
 // CreateEventObject (the 40-slot pool exposed in GameObjectManager indices
@@ -44,7 +95,8 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     private int slot = -1;
     private GameObject* obj;
     private readonly SimWorld world;
-    private readonly short visibleState;
+    private readonly ushort visibleState;
+    private readonly float lifetime;
 
     public uint EObjRowId { get; }
     public string DisplayName => $"EObj 0x{EObjRowId:X}";
@@ -60,36 +112,36 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     public Vector3 Position { get; private set; }
     public float Rotation { get; private set; }
 
-    protected SimEventObject(int slot, GameObject* obj, SimWorld world, uint eObjRowId, short visibleState)
+    private float lifetimeElapsed { get; set; } = 0;
+
+    protected SimEventObject(int slot, GameObject* obj, SimWorld world, uint eObjRowId, ushort visibleState, float lifetime)
     {
         this.slot = slot;
         this.obj = obj;
         this.world = world;
         this.visibleState = visibleState;
+        this.lifetime = lifetime;
         EObjRowId = eObjRowId;
     }
 
     internal static SimEventObject? Spawn(EventObjectSpawnConfig config, SimWorld world, EventScheduler events)
     {
-        if (!EventObjectHelper.Create(config.EObjRowId, out var slot, out var obj))
+        var packet = config.ToPacket(world);
+
+        if (!EventObjectHelper.Create(&packet, out var slot, out var eObjPtr))
+        {
             return null;
+        }
 
-        var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
-        obj->SetPosition(worldPos.X, worldPos.Y, worldPos.Z);
-        obj->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
+        var eObj = new SimEventObject(slot, eObjPtr, world, config.EObjId, config.TimelineState, config.Lifetime);
 
-        var eo = new SimEventObject(slot, obj, world, config.EObjRowId, config.VisibleState);
-        // Seed stored Position/Rotation. The native struct writes above are
-        // authoritative for the engine; SetPosition mirrors them into the C#
-        // fields (and harmlessly re-pushes to native).
-        eo.SetPosition(config.Placement);
-        if (config.IsVisible && config.VisibleState != 0)
-            eo.SetState(config.VisibleState);
+        if (!config.SpawnVisible && config.TimelineState != 0)
+        {
+            eObj.SetVisible(false);
+        }
 
-        if (config.Lifetime > 0f) events.Add(config.Lifetime, eo.Despawn);
-
-        Plugin.Log.Info($"SimEventObject: spawned EObj 0x{config.EObjRowId:X} at slot {slot} ({worldPos.X:F2},{worldPos.Y:F2},{worldPos.Z:F2})");
-        return eo;
+        Plugin.Log.Info($"[SimEventObject.Create] Spawned EObj with EObjId 0x{config.EObjId:X} at Slot: {slot} ({packet.PositionX:F2}, {packet.PositionY:F2}, {packet.PositionZ:F2})");
+        return eObj;
     }
 
     public void SetPosition(Vector3 position)
@@ -116,7 +168,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     // experiment empirically to find what activates a given visual. Safe to
     // call before the SG instance is attached: only the field write happens,
     // the notify silently no-ops; the engine picks up the field once attached.
-    public void SetState(short state)
+    public void SetState(ushort state)
     {
         if (obj == null) return;
         EventObjectHelper.SetState(obj, state);
@@ -125,7 +177,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     // Convenience for parser-driven scenarios that emit SetVisible from
     // ACT 261|Change ModelStatus events. Flips between the configured
     // VisibleState and 0 (the engine default / "hidden" for gated SGs).
-    public void SetVisible(bool visible) => SetState(visible ? visibleState : (short)0);
+    public void SetVisible(bool visible) => SetState(visible ? visibleState : (ushort)0);
 
     public virtual void Tick(float deltaSeconds)
     {
@@ -133,18 +185,40 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         // direct-struct writes between Ticks (engine doesn't move EObjs on
         // its own, but the parallel pattern with SimNpc keeps the contract
         // uniform across IPositioned implementers).
-        if (obj == null) return;
+        if (obj == null)
+        {
+            return;
+        }
+
         Position = world.Coordinates.ToLocal(obj->Position);
         Rotation = obj->Rotation;
+
+        if (lifetime > 0)
+        {
+            lifetimeElapsed += deltaSeconds;
+
+            if (lifetimeElapsed >= lifetime)
+            {
+                Despawn();
+            }
+        }
     }
 
     public void Despawn()
     {
         if (slot < 0) return;
         var releasedSlot = slot;
+
         slot = -1;
         obj = null;
-        EventObjectHelper.Destroy(releasedSlot);
+
+        byte[] packet = [(byte)releasedSlot];
+
+        fixed (byte* packetPtr = packet)
+        {
+            PacketDispatcherPointers.HandleDespawnObjectPacket(0, packetPtr);
+        }
+
         Plugin.Log.Info($"SimEventObject: despawned slot {releasedSlot}");
     }
 }
