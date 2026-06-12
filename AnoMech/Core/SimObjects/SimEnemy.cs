@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel.Sheets;
+using System.Collections.Generic;
+using System.Numerics;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -131,6 +131,14 @@ public sealed unsafe class SimEnemy : SimNpc
             return null;
         }
 
+        var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
+        var modelCharaSheet = Plugin.DataManager.GetExcelSheet<ModelChara>();
+        if (!modelCharaSheet.TryGetRow(modelCharaId, out var modelChara))
+        {
+            Plugin.Log.Warning($"ModelChara row {config.BNpcBaseId} (0x{config.BNpcBaseId:X}) not found");
+            return null;
+        }
+
         if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
 
         var chara = (BattleChara*)obj;
@@ -143,10 +151,33 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
         var scale = config.Scale > 0f ? config.Scale : bnpc.Scale;
         chara->Scale = scale;
-        var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
         chara->ModelContainer.ModelCharaId = (int)modelCharaId;
         chara->SEPack = bnpc.SEPack;
-        var hitboxRadius = config.HitboxRadius > 0f ? config.HitboxRadius : ResolveHitboxRadius(modelCharaId, scale);
+
+        var nativeHitbox = true;
+
+        // From Client::Game::Character::CharacterSetupContainer_SetupRaw
+        switch (modelChara.Type)
+        {
+            case 1:
+                // TODO: This Type in the game's .exe is a bit complex, for now we just fallback to the previous solving method
+                var hitboxRadius = config.HitboxRadius > 0f ? config.HitboxRadius : ResolveHitboxRadius(modelCharaId, scale);
+                chara->HitboxRadius = hitboxRadius;
+                nativeHitbox = false;
+                break;
+            case 2:
+                chara->ModelContainer.ModelSkeletonId = modelChara.Model + 10000;
+                break;
+            case 3:
+                chara->ModelContainer.ModelSkeletonId = modelChara.Model;
+                break;
+        }
+
+        if (nativeHitbox)
+        {
+            chara->ModelContainer.UnscaledRadius = ModelContainerFunctions.CalculateUnscaledRadius(&chara->ModelContainer);
+            chara->HitboxRadius = chara->Scale * chara->ModelContainer.UnscaledRadius; // From Client::Game::Character::ModelContainer_UpdateHitboxRadius
+        }
 
         // Engine-resolved name (vfunc 6), same source as the nameplate, so the Name[]
         // buffer we stamp below stays consistent with the rest of the UI.
@@ -158,7 +189,6 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->CharacterSetup.CopyFromCharacter((Character*)chara, CharacterSetupContainer.CopyFlags.None);
 
         chara->BattleNpcSubKind = BattleNpcSubKind.Combatant;
-        chara->HitboxRadius = hitboxRadius;
         chara->MaxHealth = 1_000_000;
         chara->Health = 1_000_000;
         chara->Battalion = 4;
@@ -283,11 +313,25 @@ public sealed unsafe class SimEnemy : SimNpc
         var draw = obj->DrawObject;
         return draw != null && draw->IsVisible;
     }
-    
-    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0)
+
+    // Engine doesn't expose post-action animation-lock duration via EXD — the
+    // real value only ships in the server's ActionEffect packet. 0.6s is a
+    // reasonable approximation for most boss abilities; if a scenario needs
+    // tighter timing we can derive per-action values from captured ACT logs.
+    public bool Cast(uint actionId, Vector3? targetLocation = null, float? castSeconds = null, GameObjectId? targetId = null, float omenDelay = 0f, float omenRotate = 0f, byte animationVariation = 0, float animationLock = 0.6f, float? fireDelay = null)
     {
         // targetLocation stays scenario-local; SimCast lifts to world at native boundaries.
-        return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation);
+        return cast.Start(actionId, targetLocation, castSeconds, targetId, omenDelay, omenRotate, animationVariation, animationLock, fireDelay);
+    }
+
+    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)
+    {
+        cast.NativeCast(actionId, actionType, omenDelay, castTime, interruptible, rotation, position, targetId, ballistaId);
+    }
+
+    public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)
+    {
+        cast.NativeActionEffect(actionId, animationLock, spellId, animationVariaton, actionType, flags, rotation, position, animationTargetId, actionTargetId, ballistaId);
     }
 
     public override bool AnimationLock => cast.IsBusy;

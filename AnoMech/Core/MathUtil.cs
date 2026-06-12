@@ -14,4 +14,14 @@ internal static class MathUtil
         if (r <= -MathF.PI) r = MathF.PI;
         return r;
     }
+
+    public static ushort QuantizeRotation(float degrees)
+    {
+        return (ushort)((degrees + MathF.PI) / (2 * MathF.PI) * ushort.MaxValue);
+    }
+
+    public static ushort QuantizePosition(float value)
+    {
+        return (ushort)((value + 1000) * 100 * 0.32767f);
+    }
 }
