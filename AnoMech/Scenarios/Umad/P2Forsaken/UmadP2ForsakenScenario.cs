@@ -307,6 +307,8 @@ public sealed class UmadP2ForsakenScenario : IScenario
         }
     }
     
+    // Based on logs, clones end up 4y away from their target
+    // TODO: verify in simulator
     private void RunCloneEndAttack(SimEnemy? enemy, float start, int number, int index)
     {
         var end = state.EndAttacks[number];

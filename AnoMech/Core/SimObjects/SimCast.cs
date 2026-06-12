@@ -68,13 +68,12 @@ public sealed unsafe class SimCast : ISimObject
         var chara = parent.BattleCharaPtr;
         if (chara == null) return false;
 
-        Lumina.Excel.Sheets.Action action;
 
         if (castTime == null)
         {
             var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
 
-            if (!actionSheet.TryGetRow(actionId, out action))
+            if (!actionSheet.TryGetRow(actionId, out var action))
             {
                 Plugin.Log.Warning($"[SimCast.Start] Action Row {actionId} not found");
                 return false;
@@ -86,14 +85,6 @@ public sealed unsafe class SimCast : ISimObject
         this.animationLock = animationLock;
         var castTimeValue = castTime.Value;
 
-        if (castTimeValue <= 0)
-        {
-            FaceTarget(chara);
-            remainingAnimationLock = animationLock;
-            FireActionEffect(chara, actionId, WorldTargetLocation, targetId, animationVariation, animationLock);
-            ResetCastState();
-            return true;
-        }
 
         var target = targetId ?? chara->GetGameObjectId();
         NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, rotation, localTargetLocation, target);
@@ -107,7 +98,15 @@ public sealed unsafe class SimCast : ISimObject
         this.animationVariation = animationVariation;
         ActionId = actionId;
         this.fireDelay = fireDelay ?? 0;
-
+        
+        if (castTimeValue <= 0)
+        {
+            FaceTarget(chara);
+            remainingAnimationLock = animationLock;
+            FireActionEffect(chara, actionId, targetLocation, targetId, animationVariation, animationLock);
+            ResetCastState();
+        }
+        
         return true;
     }
 
@@ -217,8 +216,9 @@ public sealed unsafe class SimCast : ISimObject
             return;
         }
 
-        var castInfo = chara->CastInfo;
-        elapsed = castInfo.CurrentCastTime;
+        elapsed += deltaSeconds;
+        // Can't trust game counting time, because our objects are ticked twice for some reason by game
+        chara->CastInfo.CurrentCastTime = elapsed;
 
         if (elapsed >= total)
         {
@@ -238,7 +238,7 @@ public sealed unsafe class SimCast : ISimObject
             {
                 FaceTarget(chara);
                 remainingAnimationLock = animationLock;
-                FireActionEffect(chara, ActionId, WorldTargetLocation, targetId, animationVariation, animationLock);
+                FireActionEffect(chara, ActionId, targetLocation, targetId, animationVariation, animationLock);
                 ResetCastState();
             }
         }
@@ -297,24 +297,22 @@ public sealed unsafe class SimCast : ISimObject
     // deliver to. When deliverTo is null, NumTargets=0 (used for self-targeted
     // casts and cast releases without an entity target) — the release animation
     // still plays.
-    private void FireActionEffect(BattleChara* chara, uint actionId, Vector3? targetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
+    private void FireActionEffect(BattleChara* chara, uint actionId, Vector3? localTargetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
     {
-        if (deliverTo != null)
+        if (deliverTo is { } id)
         {
             var characterManager = CharacterManager.Instance();
-            var deliverToId = deliverTo.Value.ObjectId;
+            var deliverToId = id.ObjectId;
 
             if (characterManager == null || characterManager->LookupBattleCharaByEntityId(deliverToId) == null)
             {
                 Plugin.Log.Warning(
                     $"FireActionEffect: target {deliverToId:X} for action {actionId:X} on caster {chara->EntityId:X} not in CharacterManager._battleCharas; dropping deliverTo to avoid ApplyAll null-deref");
+                deliverTo = null;
             }
-
-            deliverTo = null;
         }
 
-        var pos = targetLocation ?? new Vector3(chara->Position.X, chara->Position.Y, chara->Position.Z);
-
+        var pos = localTargetLocation ?? parent.Position;
         NativeActionEffect(actionId, animationLock, (ushort)actionId, animationVariation, (ActionType)chara->CastInfo.ActionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
     }
 }
