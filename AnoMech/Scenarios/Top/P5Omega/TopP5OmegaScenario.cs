@@ -1,12 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
+using AnoMech.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Numerics;
 using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Omega;
@@ -60,7 +60,7 @@ public sealed class TopP5OmegaScenario : IScenario
 
     private void Run_InstanceEvents()
     {
-        world.Events.Add(30.96f, () => world.Map.DirectorUpdate(0x80000004U, 0x1517U));
+        world.Events.Add(30.96f, () => InstanceContentDirectorHelper.ProcessDirectorUpdate(0x80000004U, 0x1517U));
     }
 
     private void Run_OtherDebuffs()

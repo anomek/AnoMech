@@ -10,6 +10,7 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Windows;
+using AnoMech.Pointers;
 
 namespace AnoMech;
 
@@ -97,6 +98,18 @@ public sealed class Plugin : IDalamudPlugin
         DutyState.DutyStarted += OnDutyStarted;
         DutyState.DutyWiped += OnDutyWiped;
         DutyState.DutyCompleted += OnDutyCompleted;
+
+        // Initialize Pointers
+        EventFrameworkPointers.Initialize();
+        EventObjectManagerPointers.Initialize();
+        EventObjectPointers.Initialize();
+        GameMainPointers.Initialize();
+        ModelContainerPointers.Initialize();
+        PacketDispatcherPointers.Initialize();
+        StatusManagerPointers.Initialize();
+        TimelineContainerPointers.Initialize();
+        VfxContainerPointers.Initialize();
+        VfxDataPointers.Initialize();
 
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
     }

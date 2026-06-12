@@ -1,14 +1,13 @@
 #if DEBUG
+using AnoMech.Core.Game.Party;
+using AnoMech.Core.Map;
+using AnoMech.Core.SimObjects;
+using AnoMech.Helpers;
+using Dalamud.Bindings.ImGui;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Numerics;
-using Dalamud.Bindings.ImGui;
-using AnoMech.Core;
-using AnoMech.Core.Game.Party;
-using AnoMech.Core.Map;
-using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Windows;
 
@@ -267,11 +266,16 @@ internal sealed unsafe class DebugMenu
             else if (!TryParseId(debugDirectorArg1Text, out var arg1))
                 Plugin.Log.Warning($"Director update: can't parse Arg1 '{debugDirectorArg1Text}'");
             else
-                DirectorFunctions.FireDirectorUpdate(cat, arg1);
+                InstanceContentDirectorHelper.ProcessDirectorUpdate(cat, arg1);
         }
         ImGui.SameLine();
         if (ImGui.Button("Fire P5 Sigma transition"))
-            DirectorFunctions.FireP5SigmaTransition();
+        {
+            // Replays the P5 Sigma transition trigger observed in TOP_pull_05_clear.log
+            // at 01:21:13.0890 (~135 ms before Omega-M's 7B85 / Omega-F's 7B86 cast):
+            //   33 | 800375AC | 8000001E | 2AC
+            InstanceContentDirectorHelper.ProcessDirectorUpdate(0x8000001E, 0x2AC);
+        }
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Death system");

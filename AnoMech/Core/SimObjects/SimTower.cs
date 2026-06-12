@@ -1,5 +1,6 @@
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using AnoMech.Helpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
@@ -35,7 +36,8 @@ public sealed unsafe class SimTower : SimEventObject
             Plugin.Log.Warning("SimTower: states array must contain at least one entry (states[0] = empty)");
             return null;
         }
-        if (!EventObjectSpawn.Create(config.EObjRowId, out var slot, out var obj))
+
+        if (!EventObjectHelper.Create(config.EObjRowId, out var slot, out var obj))
             return null;
 
         var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);

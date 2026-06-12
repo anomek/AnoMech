@@ -1,6 +1,7 @@
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using AnoMech.Helpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
@@ -70,7 +71,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
 
     internal static SimEventObject? Spawn(EventObjectSpawnConfig config, SimWorld world, EventScheduler events)
     {
-        if (!EventObjectSpawn.Create(config.EObjRowId, out var slot, out var obj))
+        if (!EventObjectHelper.Create(config.EObjRowId, out var slot, out var obj))
             return null;
 
         var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
@@ -118,7 +119,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     public void SetState(short state)
     {
         if (obj == null) return;
-        EventObjectSpawn.SetState(obj, state);
+        EventObjectHelper.SetState(obj, state);
     }
 
     // Convenience for parser-driven scenarios that emit SetVisible from
@@ -143,7 +144,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         var releasedSlot = slot;
         slot = -1;
         obj = null;
-        EventObjectSpawn.Destroy(releasedSlot);
+        EventObjectHelper.Destroy(releasedSlot);
         Plugin.Log.Info($"SimEventObject: despawned slot {releasedSlot}");
     }
 }

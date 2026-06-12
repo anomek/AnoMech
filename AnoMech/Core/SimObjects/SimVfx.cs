@@ -1,6 +1,6 @@
-using System;
 using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Vfx;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -22,8 +22,8 @@ public sealed unsafe class SimVfx : ISimObject
     private float elapsed;
 
     public string Path { get; }
-    public IntPtr Handle { get; private set; }
-    public bool IsActive => Handle != IntPtr.Zero;
+    public VfxData* Handle { get; private set; }
+    public bool IsActive => Handle != null;
 
     internal SimVfx(SimCharacter target, string path, float duration)
     {
@@ -54,6 +54,6 @@ public sealed unsafe class SimVfx : ISimObject
     {
         if (!IsActive) return;
         VfxFunctions.RemoveActorVfx(Handle);
-        Handle = IntPtr.Zero;
+        Handle = null;
     }
 }

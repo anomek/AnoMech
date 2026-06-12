@@ -1,7 +1,7 @@
-// https://github.com/aers/FFXIVClientStructs/pull/1855
+using Dalamud.Utility.Signatures;
 using System.Runtime.InteropServices;
 
-namespace AnoMech.Core.Native;
+namespace AnoMech.Pointers;
 
 [StructLayout(LayoutKind.Explicit, Size = 0x20)]
 public partial struct ActorCastPacket
@@ -20,25 +20,15 @@ public partial struct ActorCastPacket
     [FieldOffset(0x1C)] public ushort PositionZ; // Quantized Position
 }
 
-internal static unsafe class ActorCastFunctions
+internal unsafe class PacketDispatcherPointers
 {
-    private delegate nint HandleActorCastPacketDelegate(uint entityId, ActorCastPacket* packet);
+    [Signature("40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static HandleActorCastPacketDelegate HandleActorCastPacket { get; private set; } = null!;
 
-    private static readonly HandleActorCastPacketDelegate HandleActorCastPacketFunction;
+    public delegate void HandleActorCastPacketDelegate(uint entityId, ActorCastPacket* packet);
 
-    static ActorCastFunctions()
+    public static void Initialize()
     {
-        var addr = Plugin.SigScanner.ScanText(
-            "40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B");
-
-        HandleActorCastPacketFunction =
-            Marshal.GetDelegateForFunctionPointer<HandleActorCastPacketDelegate>(addr);
-
-        Plugin.Log.Information("[ActorCastFunctions] Initialized.");
-    }
-
-    internal static void HandleActorCastPacket(uint entityId, ActorCastPacket* packet)
-    {
-        HandleActorCastPacketFunction(entityId, packet);
+        Plugin.GameInterop.InitializeFromAttributes(new PacketDispatcherPointers());
     }
 }
