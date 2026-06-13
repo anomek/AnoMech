@@ -1,8 +1,4 @@
-using System;
-using System.Linq;
-using System.Numerics;
-using System.Reflection;
-using System.Runtime.InteropServices;
+using AnoMech.Helpers;
 using AnoMech.Pointers;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
@@ -11,10 +7,16 @@ using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Environment;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
+using System;
+using System.Linq;
+using System.Numerics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using static FFXIVClientStructs.FFXIV.Client.Network.PacketDispatcher.Delegates;
 using ThreadingTask = System.Threading.Tasks.Task;
 
@@ -250,6 +252,13 @@ public sealed unsafe class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (loadedInstanceContent != null)
         {
+            var uiState = UIState.Instance();
+
+            if (uiState != null)
+            {
+                uiState->DirectorTodo.IsShown = false;
+            }
+
             EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + loadedInstanceContent.Value);
             loadedInstanceContent = null;
         }
@@ -262,15 +271,20 @@ public sealed unsafe class ZoneSession : IDisposable
         }
 
         Plugin.Log.Information("[ZoneSession] Step 3: InitDirector");
-        var content = GetContentId(territory);
-        Plugin.Log.Information($"[ZoneSession] ContentId={content}");
-        if (content is { } cid && cid != 0)
+
+        var cfc = GetContentFinderCondition(territory);
+
+        if (cfc != null)
         {
-            EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
+            var contentId = cfc.Value.Content.RowId;
+            Plugin.Log.Information($"[ZoneSession] ContentId={contentId}");
+
+            EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + contentId, contentId, 0);
 
             if (!unloading)
             {
-                loadedInstanceContent = cid;
+                loadedInstanceContent = contentId;
+                InstanceContentDirectorHelper.SetDutyData(cfc.Value);
             }
         }
 
@@ -303,11 +317,25 @@ public sealed unsafe class ZoneSession : IDisposable
         }
     }
 
-    private static uint? GetContentId(uint territoryId)
+    private ContentFinderCondition? GetContentFinderCondition(uint territoryId)
     {
-        var row = Plugin.DataManager.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(territoryId);
-        var cid = row?.ContentFinderCondition.ValueNullable?.Content.RowId;
-        return cid is null or 0 ? null : cid;
+        var sheet = Plugin.DataManager.GetExcelSheet<TerritoryType>();
+
+        if (sheet == null)
+        {
+            Plugin.Log.Debug($"[ZoneSession.GetContentFinderCondition] TerritoryType sheet was null.");
+            return null;
+        }
+
+        var rowRef = sheet[territoryId].ContentFinderCondition;
+
+        if (!rowRef.IsValid)
+        {
+            Plugin.Log.Debug($"TerritoryType sheet, index {territoryId} does not have a valid ContentFinderCondition reference.");
+            return null;
+        }
+
+        return rowRef.Value;
     }
 
     private static void SyncClientStateTerritoryType(ushort territory)
