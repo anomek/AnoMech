@@ -1,10 +1,11 @@
-using System;
-using System.Collections.Generic;
+using AnoMech.Core.SimObjects;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI.Arrays;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using AnoMech.Core.SimObjects;
+using System;
+using System.Collections.Generic;
 using Action = Lumina.Excel.Sheets.Action;
 
 namespace AnoMech.Core;
@@ -173,7 +174,7 @@ internal sealed unsafe class EnmityHud : IDisposable
         for (int i = 0; i < EnemyListSize; i++)
         {
             var e = slotEnemies[i];
-            if (e is null || !e.IsActive)
+            if (e is null || !e.IsActive || e.BattleCharaPtr == null)
             {
                 WriteEmptyRow(ref enemyArr->Enemies[i], strArr, i);
                 continue;
@@ -197,14 +198,13 @@ internal sealed unsafe class EnmityHud : IDisposable
             enemy.MaxHPPercent = 100;
             enemy.CastPercent = castPercent;
             enemy.EntityId = entityId;
-            enemy.ActiveInList = true;
+            enemy.ActiveInList = (e.BattleCharaPtr->TargetableStatus & ObjectTargetableFlags.IsTargetable) != 0;
 
             strArr->SetValue(i * 2 + StrEnemyName, e.DisplayName, managed: true);
             strArr->SetValue(i * 2 + StrCastname, castName, managed: true);
         }
 
         enemyArr->EnemyCount = activeCount;
-        enemyArr->TargetEntityId = firstEntityId;
     }
 
     private static void MarkArraysDirty()

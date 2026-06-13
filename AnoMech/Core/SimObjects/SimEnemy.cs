@@ -1,5 +1,4 @@
 using AnoMech.Core.Game;
-using AnoMech.Core.Native;
 using AnoMech.Helpers;
 using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -93,6 +92,7 @@ public sealed unsafe class SimEnemy : SimNpc
         EnemyListMode.OnlyWhenVisible => IsEngineVisible(),
         _ => false,
     };
+
     public bool IsCasting => cast.IsCasting;
     public uint CastActionId => cast.ActionId;
     public float CastProgress => cast.Progress;
@@ -222,24 +222,32 @@ public sealed unsafe class SimEnemy : SimNpc
         base.Despawn();
     }
 
+    /// <summary>
+    /// Sets the targetable status of this <see cref="SimEnemy"/>, which will reflect in their Nameplate and in the Enemy List (if visible there).
+    /// </summary>
+    /// <param name="targetable">
+    /// If <see langword="true"/>, then the Nameplate will be visible, and able to target them using the Enemy List.
+    /// If <see langword="false"/>, then the Nameplate will not be visible, and not able to target them using the Enemy List.
+    /// </param>
     public void SetTargetable(bool targetable)
     {
         var chara = BattleCharaPtr;
         if (chara == null) return;
         if (targetable)
         {
-            chara->TargetableStatus |= ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1;
-            // chara->RenderFlags &= ~VisibilityFlags.Nameplate;
+            chara->TargetableStatus |= (ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable;
         }
         else
         {
-            chara->TargetableStatus &= ~(ObjectTargetableFlags.IsTargetable | ObjectTargetableFlags.Unk1);
-            // chara->RenderFlags |= VisibilityFlags.Nameplate;
+            chara->TargetableStatus &= ~((ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable);
         }
     }
 
-    // Only meaningful when the spawn config set EnemyListMode.Manual.
-    public void SetInEnemyList(bool inEnemyList)
+    /// <summary>
+    /// Only executed when <see cref="EnemyListMode"/> is <see cref="EnemyListMode.Manual"/>
+    /// </summary>
+    /// <param name="inEnemyList">Will make the Enemy appear or not in the Enemy List (Enmity List)</param>
+    public void SetVisibleInEnemyList(bool inEnemyList)
     {
         if (EnemyListMode != EnemyListMode.Manual)
         {
