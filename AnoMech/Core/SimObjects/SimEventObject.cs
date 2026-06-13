@@ -20,7 +20,7 @@ public class EventObjectSpawnConfig
     public Placement Placement { get; init; }
 
     public sbyte ObjectIndex { get; init; } = -1;
-    public byte TargetableStatus { get; init; } = 0;
+    public byte TargetableStatus { get; init; } = 1; // 1 - untargettable
     public byte VisibilityFlag { get; init; } = 0;
     public uint EntityId { get; init; } = 0;
     public uint LayoutId { get; init; } = 0;
@@ -40,10 +40,10 @@ public class EventObjectSpawnConfig
     public bool SpawnVisible { get; init; } = true;
     public float Lifetime { get; init; } = 0;
 
-    public unsafe SpawnObjectPacket ToPacket(SimWorld world)
+    public unsafe SpawnObjectPacket ToPacket(Coordinates coordinates)
     {
         var objectIndex = sbyte.Max(-1, ObjectIndex);
-        var worldPos = world.Coordinates.ToGlobal(Placement.Position);
+        var worldPos = coordinates.ToGlobal(Placement.Position);
 
         var packet = new SpawnObjectPacket
         {
@@ -94,7 +94,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
 {
     private int slot = -1;
     private GameObject* obj;
-    private readonly SimWorld world;
+    private readonly Coordinates coordinates;
     private readonly ushort visibleState;
     private readonly float lifetime;
 
@@ -114,26 +114,26 @@ public unsafe class SimEventObject : ISimObject, IPositioned
 
     private float lifetimeElapsed { get; set; } = 0;
 
-    protected SimEventObject(int slot, GameObject* obj, SimWorld world, uint eObjRowId, ushort visibleState, float lifetime)
+    protected SimEventObject(int slot, GameObject* obj, Coordinates coordinates, uint eObjRowId, ushort visibleState, float lifetime)
     {
         this.slot = slot;
         this.obj = obj;
-        this.world = world;
+        this.coordinates = coordinates;
         this.visibleState = visibleState;
         this.lifetime = lifetime;
         EObjRowId = eObjRowId;
     }
 
-    internal static SimEventObject? Spawn(EventObjectSpawnConfig config, SimWorld world, EventScheduler events)
+    internal static SimEventObject? Spawn(EventObjectSpawnConfig config, Coordinates coordinates, EventScheduler events)
     {
-        var packet = config.ToPacket(world);
+        var packet = config.ToPacket(coordinates);
 
         if (!EventObjectHelper.Create(&packet, out var slot, out var eObjPtr))
         {
             return null;
         }
 
-        var eObj = new SimEventObject(slot, eObjPtr, world, config.EObjId, config.TimelineState, config.Lifetime);
+        var eObj = new SimEventObject(slot, eObjPtr, coordinates, config.EObjId, config.TimelineState, config.Lifetime);
 
         if (!config.SpawnVisible && config.TimelineState != 0)
         {
@@ -148,7 +148,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
     {
         Position = position;
         if (obj == null) return;
-        var w = world.Coordinates.ToGlobal(position);
+        var w = coordinates.ToGlobal(position);
         obj->SetPosition(w.X, w.Y, w.Z);
     }
 
@@ -157,7 +157,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
         Position = placement.Position;
         Rotation = MathUtil.NormalizeRotation(placement.Rotation);
         if (obj == null) return;
-        var w = world.Coordinates.ToGlobal(placement.Position);
+        var w = coordinates.ToGlobal(placement.Position);
         obj->SetPosition(w.X, w.Y, w.Z);
         obj->SetRotation(Rotation);
     }
@@ -190,7 +190,7 @@ public unsafe class SimEventObject : ISimObject, IPositioned
             return;
         }
 
-        Position = world.Coordinates.ToLocal(obj->Position);
+        Position = coordinates.ToLocal(obj->Position);
         Rotation = obj->Rotation;
 
         if (lifetime > 0)

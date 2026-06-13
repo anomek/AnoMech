@@ -17,9 +17,9 @@ public sealed unsafe class SimTower : SimEventObject
     private readonly ushort[] states;
     private int? lastCount;
 
-    private SimTower(int slot, GameObject* obj, SimWorld world, uint eObjRowId,
+    private SimTower(int slot, GameObject* obj, Coordinates coordinates, uint eObjRowId,
                      ushort[] states, float radius, SimParty party, float lifetime)
-        : base(slot, obj, world, eObjRowId, states[0], lifetime)
+        : base(slot, obj, coordinates, eObjRowId, states[0], lifetime)
     {
         this.party = party;
         this.radius = radius;
@@ -27,7 +27,7 @@ public sealed unsafe class SimTower : SimEventObject
     }
 
     internal static SimTower? Spawn(
-        EventObjectSpawnConfig config, SimWorld world, EventScheduler events,
+        EventObjectSpawnConfig config, Coordinates coordinates, EventScheduler events,
         ushort[] states, float radius, SimParty party)
     {
         if (states == null || states.Length == 0)
@@ -36,16 +36,16 @@ public sealed unsafe class SimTower : SimEventObject
             return null;
         }
 
-        var packet = config.ToPacket(world);
+        var packet = config.ToPacket(coordinates);
 
         if (!EventObjectHelper.Create(&packet, out var slot, out var obj))
             return null;
 
-        var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
+        var worldPos = coordinates.ToGlobal(config.Placement.Position);
         obj->SetPosition(worldPos.X, worldPos.Y, worldPos.Z);
         obj->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
 
-        var tower = new SimTower(slot, obj, world, config.EObjId, states, radius, party, config.Lifetime);
+        var tower = new SimTower(slot, obj, coordinates, config.EObjId, states, radius, party, config.Lifetime);
 
         Plugin.Log.Info($"SimTower: spawned EObj 0x{config.EObjId:X} at slot {slot} ({worldPos.X:F2},{worldPos.Y:F2},{worldPos.Z:F2}) radius={radius:F1} states=[{string.Join(",", states)}]");
         return tower;

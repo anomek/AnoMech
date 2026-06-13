@@ -117,7 +117,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     // side of the engine — see SimEventObject / EventObjectSpawn for details.
     public SimEventObject? SpawnEventObject(EventObjectSpawnConfig config)
     {
-        var eo = SimEventObject.Spawn(config, this, Events);
+        var eo = SimEventObject.Spawn(config, Coordinates, Events);
         if (eo != null) children.Add(eo);
         return eo;
     }
@@ -128,7 +128,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     // and scenario movement drive the visual.
     public SimTower? SpawnTower(EventObjectSpawnConfig config, ushort[] states, float radius)
     {
-        var tower = SimTower.Spawn(config, this, Events, states, radius, Party);
+        var tower = SimTower.Spawn(config, Coordinates, Events, states, radius, Party);
         if (tower != null) children.Add(tower);
         return tower;
     }

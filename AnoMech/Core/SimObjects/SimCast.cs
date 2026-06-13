@@ -63,7 +63,8 @@ public sealed unsafe class SimCast : ISimObject
     // to world only where native fields demand it) drives the AOE landing point and
     // the pre-fire facing snap; targetId, if set, makes the packet carry NumTargets=1
     // (some actions only animate on the caster when an entity target is delivered).
-    public bool Start(uint actionId, Vector3? localTargetLocation, float? castTime, GameObjectId? targetId, float omenDelay, float rotation, byte animationVariation, float animationLock, float? fireDelay = null)
+    // omenRotate is an offset added to the caster's facing (0 = aligned with parent.Rotation).
+    public bool Start(uint actionId, Vector3? localTargetLocation, float? castTime, GameObjectId? targetId, float omenDelay, float omenRotate, byte animationVariation, float animationLock, float? fireDelay = null)
     {
         var chara = parent.BattleCharaPtr;
         if (chara == null) return false;
@@ -87,7 +88,7 @@ public sealed unsafe class SimCast : ISimObject
 
 
         var target = targetId ?? chara->GetGameObjectId();
-        NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, rotation, localTargetLocation, target);
+        NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, parent.Rotation + omenRotate, localTargetLocation, target);
 
         elapsed = 0f;
         total = chara->CastInfo.TotalCastTime;
