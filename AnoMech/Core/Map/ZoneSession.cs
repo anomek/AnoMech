@@ -154,7 +154,7 @@ public sealed unsafe class ZoneSession : IDisposable
         => ThreadingTask.Delay(1000).ContinueWith(_ => Plugin.Framework.Run(() => SetWeather(weatherId)));
 
     // Reload the saved inn territory and restore position; disable firewall.
-    public void Revert()
+    public void Revert(bool dispose)
     {
         // We need to wait before calling DisableFirewall(), so we'll set the Occupied condition to be sure the Player doesn't do anything in the meantime. 
         var condition = Conditions.Instance();
@@ -166,22 +166,34 @@ public sealed unsafe class ZoneSession : IDisposable
         IsActive = false;
         Plugin.Log.Information("[ZoneSession] Reverted to inn.");
 
-        // If this isn't delayed, a Packet will be sent to the server!!!
-        ThreadingTask.Delay(1000).ContinueWith(_ =>
+        // If this is getting called on Dispose(), then these Tasks will not be properly executed, so we'll gate them to be safe
+        if (!dispose)
         {
-            // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
+            // If this isn't delayed, a Packet will be sent to the server!!!
+            ThreadingTask.Delay(1000).ContinueWith(_ =>
+            {
+                // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
+                SetLocalPlayerPosition(savedPosition, savedRotation);
+                condition->Occupied = false;
+
+                DisableFirewall();
+            });
+
+            // Resync the real party HUD once the inn reload has settled. A bare
+            // InfoProxyPartyMember.RequestData() sends the same request the Social window
+            // does but doesn't sync MainGroup — the HUD update is client-side work the
+            // Social agent does on the reply (proven via packet trace). So open the Social
+            // agent and let it do that work itself. (Closing it again is a follow-up step.)
+            ThreadingTask.Delay(1500).ContinueWith(_ => Plugin.Framework.Run(OpenSocialForPartyResync));
+        }
+        else
+        {
+            // This skips all safety delays, so if possible, don't disable the plugin while being in a Scenario
             SetLocalPlayerPosition(savedPosition, savedRotation);
             condition->Occupied = false;
-            
             DisableFirewall();
-        });
-
-        // Resync the real party HUD once the inn reload has settled. A bare
-        // InfoProxyPartyMember.RequestData() sends the same request the Social window
-        // does but doesn't sync MainGroup — the HUD update is client-side work the
-        // Social agent does on the reply (proven via packet trace). So open the Social
-        // agent and let it do that work itself. (Closing it again is a follow-up step.)
-        ThreadingTask.Delay(1500).ContinueWith(_ => Plugin.Framework.Run(OpenSocialForPartyResync));
+            Plugin.Framework.Run(OpenSocialForPartyResync);
+        }
     }
 
     // Opens the Social agent, which issues its own (callback-routed) party-member
@@ -372,10 +384,13 @@ public sealed unsafe class ZoneSession : IDisposable
         // To not freeze a player that's disabling/reloading/etc the plugin while not in a Scenario
         if (IsActive)
         {
-            Revert();
+            Revert(true);
+        }
+        else
+        {
+            DisableFirewall(); // To be sure the Hooks are disabled before calling Dispose
         }
 
-        DisableFirewall();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();
     }
