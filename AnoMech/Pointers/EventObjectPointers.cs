@@ -16,7 +16,7 @@ internal unsafe class EventObjectPointers
     // only writes the state field and skips the notify — engine populates
     // actor[0x108] asynchronously after the SG resource loads, so a later
     // call will propagate.
-    public delegate void SetEventObjectStateDelegate(EventObject* thisPtr, short state, byte immediate, ulong extra);
+    public delegate void SetEventObjectStateDelegate(EventObject* thisPtr, ushort state, byte immediate, ulong extra);
 
     public static void Initialize()
     {

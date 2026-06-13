@@ -126,7 +126,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     // many party members stand within `radius` of the EObj (counts past the
     // array length clamp to the last entry). Bound to the current Party so AI
     // and scenario movement drive the visual.
-    public SimTower? SpawnTower(EventObjectSpawnConfig config, short[] states, float radius)
+    public SimTower? SpawnTower(EventObjectSpawnConfig config, ushort[] states, float radius)
     {
         var tower = SimTower.Spawn(config, this, Events, states, radius, Party);
         if (tower != null) children.Add(tower);

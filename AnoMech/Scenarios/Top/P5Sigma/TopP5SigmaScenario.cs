@@ -310,7 +310,7 @@ public sealed class TopP5SigmaScenario : IScenario
             var tower = state.Towers[i];
             if (tower == null) continue;
             SimEventObject? eventObj_1EB83C_4000A6E7 = null;
-            world.Events.Add(33.96f, () => eventObj_1EB83C_4000A6E7 = world.SpawnEventObject(new EventObjectSpawnConfig(EObjRowId: EObjId.TowerTimer, Placement: new Placement(tower.Position, -0.000f), IsVisible: false)));
+            world.Events.Add(33.96f, () => eventObj_1EB83C_4000A6E7 = world.SpawnEventObject(new EventObjectSpawnConfig { EObjId = EObjId.TowerTimer, Placement = new Placement(tower.Position, -0.000f), SpawnVisible = false }));
             world.Events.Add(34.02f, () => eventObj_1EB83C_4000A6E7?.SetVisible(true));
             world.Events.Add(43.66f, () => eventObj_1EB83C_4000A6E7?.Despawn());
         }
@@ -324,9 +324,9 @@ public sealed class TopP5SigmaScenario : IScenario
             var tower = state.Towers[i];
             if (tower == null) continue;
             var eObjId = tower.MinPlayers == 1 ? EObjId.TowerSolo : EObjId.TowerPair;
-            short[] stateIds = tower.MinPlayers == 1 ? [1, 16] : [1, 16, 32];
+            ushort[] stateIds = tower.MinPlayers == 1 ? [1, 16] : [1, 16, 32];
             SimEventObject? eventObj_1EB83E_4000A6E8 = null;
-            world.Events.Add(33.96f, () => eventObj_1EB83E_4000A6E8 = world.SpawnTower(new EventObjectSpawnConfig(EObjRowId: eObjId, Placement: new Placement(tower.Position, -0.000f), IsVisible: false), stateIds, Geometry.TowerRadius));
+            world.Events.Add(33.96f, () => eventObj_1EB83E_4000A6E8 = world.SpawnTower(new EventObjectSpawnConfig { EObjId = eObjId, Placement = new Placement(tower.Position, -0.000f), SpawnVisible = false }, stateIds, Geometry.TowerRadius));
             world.Events.Add(34.02f, () => eventObj_1EB83E_4000A6E8?.SetVisible(true));
             world.Events.Add(43.66f, () => eventObj_1EB83E_4000A6E8?.Despawn());
         }

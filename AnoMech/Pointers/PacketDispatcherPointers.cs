@@ -25,7 +25,11 @@ internal unsafe class PacketDispatcherPointers
     [Signature("40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static HandleActorCastPacketDelegate HandleActorCastPacket { get; private set; } = null!;
 
+    [Signature("40 53 48 83 EC 20 48 8B DA 48 8D 0D ?? ?? ?? ?? 0F", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static HandleDespawnObjectPacketDelegate HandleDespawnObjectPacket { get; private set; } = null!;
+
     public delegate void HandleActorCastPacketDelegate(uint entityId, ActorCastPacket* packet);
+    public delegate void HandleDespawnObjectPacketDelegate(uint unused, byte* packet);
 
     public static void Initialize()
     {

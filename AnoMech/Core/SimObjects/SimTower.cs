@@ -1,5 +1,4 @@
 using AnoMech.Core.Game;
-using AnoMech.Core.Native;
 using AnoMech.Helpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
@@ -15,12 +14,12 @@ public sealed unsafe class SimTower : SimEventObject
 {
     private readonly SimParty party;
     private readonly float radius;
-    private readonly short[] states;
+    private readonly ushort[] states;
     private int? lastCount;
 
     private SimTower(int slot, GameObject* obj, SimWorld world, uint eObjRowId,
-                     short[] states, float radius, SimParty party)
-        : base(slot, obj, world, eObjRowId, states[0])
+                     ushort[] states, float radius, SimParty party, float lifetime)
+        : base(slot, obj, world, eObjRowId, states[0], lifetime)
     {
         this.party = party;
         this.radius = radius;
@@ -29,7 +28,7 @@ public sealed unsafe class SimTower : SimEventObject
 
     internal static SimTower? Spawn(
         EventObjectSpawnConfig config, SimWorld world, EventScheduler events,
-        short[] states, float radius, SimParty party)
+        ushort[] states, float radius, SimParty party)
     {
         if (states == null || states.Length == 0)
         {
@@ -37,18 +36,18 @@ public sealed unsafe class SimTower : SimEventObject
             return null;
         }
 
-        if (!EventObjectHelper.Create(config.EObjRowId, out var slot, out var obj))
+        var packet = config.ToPacket(world);
+
+        if (!EventObjectHelper.Create(&packet, out var slot, out var obj))
             return null;
 
         var worldPos = world.Coordinates.ToGlobal(config.Placement.Position);
         obj->SetPosition(worldPos.X, worldPos.Y, worldPos.Z);
         obj->SetRotation(MathUtil.NormalizeRotation(config.Placement.Rotation));
 
-        var tower = new SimTower(slot, obj, world, config.EObjRowId, states, radius, party);
+        var tower = new SimTower(slot, obj, world, config.EObjId, states, radius, party, config.Lifetime);
 
-        if (config.Lifetime > 0f) events.Add(config.Lifetime, tower.Despawn);
-
-        Plugin.Log.Info($"SimTower: spawned EObj 0x{config.EObjRowId:X} at slot {slot} ({worldPos.X:F2},{worldPos.Y:F2},{worldPos.Z:F2}) radius={radius:F1} states=[{string.Join(",", states)}]");
+        Plugin.Log.Info($"SimTower: spawned EObj 0x{config.EObjId:X} at slot {slot} ({worldPos.X:F2},{worldPos.Y:F2},{worldPos.Z:F2}) radius={radius:F1} states=[{string.Join(",", states)}]");
         return tower;
     }
 
