@@ -119,7 +119,8 @@ public sealed unsafe class ZoneSession : IDisposable
             || c[ConditionFlag.InDutyQueue]
             || c[ConditionFlag.InCombat]
             || c[ConditionFlag.Mounted]
-            || c[ConditionFlag.Jumping];
+            || c[ConditionFlag.Jumping]
+            || c[ConditionFlag.Occupied];
     }
 
     // Load the target territory, teleport player to playerSpawn, enable firewall.
