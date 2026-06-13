@@ -8,7 +8,11 @@ internal unsafe class EventObjectManagerPointers
     [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 57 41 54 41 57 48 83 EC ?? 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static CreateEventObjectDelegate CreateEventObject { get; private set; } = null!;
 
+    [Signature("83 FA 27 77", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static GetEventObjectByIndexDelegate GetEventObjectByIndex { get; private set; } = null!;
+
     public delegate int CreateEventObjectDelegate(EventObjectManager* thisPtr, uint entityId, uint eObjId, ulong a4, uint layoutId, uint gimmickId, int objectIndex, byte flag);
+    public delegate GameObject* GetEventObjectByIndexDelegate(EventObjectManager* eventObjectManager, uint index);
 
     public static void Initialize()
     {

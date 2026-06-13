@@ -131,9 +131,11 @@ internal sealed unsafe class DebugMenu
                 // this in Game.RunScenarioInternal.
                 var player = Plugin.ObjectTable.LocalPlayer;
                 if (player != null) plugin.Game.World.ScenarioOrigin = player.Position;
-                plugin.Game.World.SpawnEventObject(new EventObjectSpawnConfig(
-                    EObjRowId: eObjRowId,
-                    IsVisible: true));
+                plugin.Game.World.SpawnEventObject(new EventObjectSpawnConfig
+                {
+                    EObjId = eObjRowId,
+                    SpawnVisible = true
+                });
             }
         }
 
@@ -583,7 +585,7 @@ internal sealed unsafe class DebugMenu
     // N increments each click. SGs gate sub-instance visibility on this state
     // field — we use this to find empirically which value activates a given
     // EObj's hidden visuals (e.g., the P5 Sigma tower ground circles).
-    private static short eventObjectStateProbe;
+    private static ushort eventObjectStateProbe;
     private void BumpEventObjectState()
     {
         eventObjectStateProbe++;

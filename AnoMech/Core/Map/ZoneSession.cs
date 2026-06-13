@@ -50,6 +50,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     private uint savedTerritoryId;
     private Vector3 savedPosition;
+    public float savedRotation;
 
     // ── Construction ──────────────────────────────────────────────────────────
 
@@ -125,11 +126,14 @@ public sealed unsafe class ZoneSession : IDisposable
     // Firewall is enabled before the zone load (matching Hyperborea's sequence).
     public void Enter(uint territoryId, Vector3 playerSpawn)
     {
+        var localPlayer = Plugin.ObjectTable.LocalPlayer!;
+
         savedTerritoryId = Plugin.ClientState.TerritoryType;
-        savedPosition = Plugin.ObjectTable.LocalPlayer!.Position;
+        savedPosition = localPlayer.Position;
+        savedRotation = localPlayer.Rotation;
 
         EnableFirewall();
-        LoadZoneInternal(territoryId, playerSpawn, false);
+        LoadZoneInternal(territoryId, false, playerSpawn);
         IsActive = true;
         Plugin.Log.Information($"[ZoneSession] Entered territory {territoryId}.");
     }
@@ -151,12 +155,25 @@ public sealed unsafe class ZoneSession : IDisposable
     // Reload the saved inn territory and restore position; disable firewall.
     public void Revert()
     {
-        DisableFirewall();
+        // We need to wait before calling DisableFirewall(), so we'll set the Occupied condition to be sure the Player doesn't do anything in the meantime. 
+        var condition = Conditions.Instance();
+        condition->Occupied = true;
+
         if (savedTerritoryId != 0)
-            LoadZoneInternal(savedTerritoryId, savedPosition, true);
+            LoadZoneInternal(savedTerritoryId, true, savedPosition, savedRotation);
         savedTerritoryId = 0;
         IsActive = false;
         Plugin.Log.Information("[ZoneSession] Reverted to inn.");
+
+        // If this isn't delayed, a Packet will be sent to the server!!!
+        ThreadingTask.Delay(1000).ContinueWith(_ =>
+        {
+            // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
+            SetLocalPlayerPosition(savedPosition, savedRotation);
+            condition->Occupied = false;
+            
+            DisableFirewall();
+        });
 
         // Resync the real party HUD once the inn reload has settled. A bare
         // InfoProxyPartyMember.RequestData() sends the same request the Social window
@@ -206,7 +223,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // ── Zone loading sequence (mirrors Hyperborea Utils.LoadZone) ─────────────
 
-    private void LoadZoneInternal(uint territory, Vector3 playerPos, bool unloading)
+    private void LoadZoneInternal(uint territory, bool unloading, Vector3 playerPos, float? rotation = null)
     {
         var eventFramework = EventFramework.Instance();
         var gm = GameMain.Instance();
@@ -254,12 +271,23 @@ public sealed unsafe class ZoneSession : IDisposable
         SyncClientStateTerritoryType((ushort)territory);
 
         Plugin.Log.Information("[ZoneSession] Step 7: SetPosition");
+        SetLocalPlayerPosition(playerPos, rotation);
+
+        Plugin.Log.Information("[ZoneSession] LoadZone complete");
+    }
+
+    private void SetLocalPlayerPosition(Vector3 position, float? rotation = null)
+    {
         if (Plugin.ObjectTable.LocalPlayer is { Address: var addr } && addr != IntPtr.Zero)
         {
             var chara = (Character*)addr;
-            chara->GameObject.SetPosition(playerPos.X, playerPos.Y, playerPos.Z);
+            chara->GameObject.SetPosition(position.X, position.Y, position.Z);
+
+            if (rotation != null)
+            {
+                chara->GameObject.SetRotation(rotation.Value);
+            }
         }
-        Plugin.Log.Information("[ZoneSession] LoadZone complete");
     }
 
     private static uint? GetContentId(uint territoryId)
@@ -339,7 +367,14 @@ public sealed unsafe class ZoneSession : IDisposable
     public void Dispose()
     {
         Plugin.AddonLifecycle.UnregisterListener(AddonEvent.PostSetup, "Social", OnSocialPostSetup);
-        Revert();
+
+        // To not freeze a player that's disabling/reloading/etc the plugin while not in a Scenario
+        if (IsActive)
+        {
+            Revert();
+        }
+
+        DisableFirewall();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();
     }
