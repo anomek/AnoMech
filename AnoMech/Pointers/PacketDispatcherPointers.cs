@@ -20,6 +20,12 @@ public partial struct ActorCastPacket
     [FieldOffset(0x1C)] public ushort PositionZ; // Quantized Position
 }
 
+[StructLayout(LayoutKind.Explicit, Size = 0x1)]
+public partial struct DespawnCharacterPacket
+{
+    [FieldOffset(0x0)] public byte Index;
+}
+
 internal unsafe class PacketDispatcherPointers
 {
     [Signature("40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
@@ -28,8 +34,12 @@ internal unsafe class PacketDispatcherPointers
     [Signature("40 53 48 83 EC 20 48 8B DA 48 8D 0D ?? ?? ?? ?? 0F", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static HandleDespawnObjectPacketDelegate HandleDespawnObjectPacket { get; private set; } = null!;
 
+    [Signature("48 89 5C 24 ?? 57 48 83 EC 40 0F B6 1A", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static HandleDespawnCharacterPacketDelegate HandleDespawnCharacterPacket { get; private set; } = null!;
+
     public delegate void HandleActorCastPacketDelegate(uint entityId, ActorCastPacket* packet);
     public delegate void HandleDespawnObjectPacketDelegate(uint unused, byte* packet);
+    public delegate void HandleDespawnCharacterPacketDelegate(ulong unused, DespawnCharacterPacket* packet);
 
     public static void Initialize()
     {

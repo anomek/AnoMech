@@ -1,11 +1,12 @@
-using System;
-using System.Numerics;
 using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
+using AnoMech.Helpers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel;
 using Lumina.Excel.Sheets;
+using System;
+using System.Numerics;
 
 namespace AnoMech.Core.Game.Party;
 
@@ -76,8 +77,9 @@ internal static unsafe class PartyCreator
 
     private static SimPartyNpc? Spawn(PartyMemberPreset preset, SimWorld world, PartyRole role, Placement placement, ExcelSheet<Item> itemSheet)
     {
-        if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
+        if (!CharacterManagerHelper.CreateCharacter(out var idx, out var obj)) return null;
 
+        var gameObj = (GameObject*)obj;
         var chara = (BattleChara*)obj;
         chara->ObjectKind = ObjectKind.Pc;
         chara->Position = world.Coordinates.ToGlobal(placement.Position);
@@ -90,7 +92,7 @@ internal static unsafe class PartyCreator
 
         WriteCustomize(chara);
         WriteEquipment(chara, preset, itemSheet);
-        BattleCharaSpawn.WriteName(obj, preset.Name);
+        GameObjectHelper.WriteName(gameObj, preset.Name);
         obj->RenderFlags = 0;
 
         chara->TargetableStatus = ObjectTargetableFlags.IsTargetable;
@@ -120,8 +122,6 @@ internal static unsafe class PartyCreator
             chara->HomeWorld = localChara->HomeWorld;
             chara->CurrentWorld = localChara->CurrentWorld;
         }
-
-        BattleCharaSpawn.RegisterInCharacterManager(chara);
 
         Plugin.Log.Info($"PartyCreator: spawned {preset.Name} ({role}, job {preset.ClassJob}) at index {idx}");
         var member = new SimPartyNpc(idx, world.Coordinates, role, preset.ClassJob, preset.Name);

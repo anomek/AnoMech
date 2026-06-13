@@ -14,7 +14,7 @@ public sealed unsafe class SimPartyNpc : SimNpc, ISimPartyMember
     public byte ClassJob { get; }
     public string DisplayName { get; }
 
-    internal SimPartyNpc(uint index, Coordinates coordinates, PartyRole role, byte classJob, string name) : base(index, coordinates)
+    internal SimPartyNpc(int index, Coordinates coordinates, PartyRole role, byte classJob, string name) : base(index, coordinates)
     {
         Role = role;
         ClassJob = classJob;
@@ -25,8 +25,6 @@ public sealed unsafe class SimPartyNpc : SimNpc, ISimPartyMember
 
     public override void Despawn()
     {
-        var bc = BattleCharaPtr;
-        if (bc != null) BattleCharaSpawn.UnregisterFromCharacterManager(bc);
         base.Despawn();
     }
 

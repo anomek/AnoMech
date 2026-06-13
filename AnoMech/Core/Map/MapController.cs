@@ -50,7 +50,7 @@ public sealed class MapController : IDisposable
     // Revert to the saved inn territory and restore position.
     public void Unload()
     {
-        zone.Revert();
+        zone.Revert(false);
         IsInInstance = false;
         pendingColliderDrops.Clear();
     }

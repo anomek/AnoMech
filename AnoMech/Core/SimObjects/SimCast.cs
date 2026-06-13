@@ -216,9 +216,8 @@ public sealed unsafe class SimCast : ISimObject
             return;
         }
 
-        elapsed += deltaSeconds;
-        // Can't trust game counting time, because our objects are ticked twice for some reason by game
-        chara->CastInfo.CurrentCastTime = elapsed;
+        var castInfo = chara->CastInfo;
+        elapsed = castInfo.CurrentCastTime;
 
         if (elapsed >= total)
         {
