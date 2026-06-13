@@ -263,13 +263,21 @@ public sealed unsafe class SimEnemy : SimNpc
 
     private void ReconcileVisibility()
     {
-        if (desiredVisible == currentVisible) return;
+        if (desiredVisible == currentVisible)
+        {
+            return;
+        }
+
         var obj = BattleCharaPtr;
-        if (obj == null) return;
-        if (!obj->IsReadyToDraw()) return;
-        if (desiredVisible) obj->EnableDraw();
-        else                obj->DisableDraw();
+        if (obj == null || obj->DrawObject == null)
+        {
+            return;
+        }
+
+        obj->DrawObject->IsVisible = desiredVisible;
         currentVisible = desiredVisible;
+
+        Plugin.Log.Debug($"[SimEnemy.ReconcileVisibility] {DisplayName}'s visibility was set to {desiredVisible}");
     }
 
     // Authoritative draw state (DrawObject.Flags bits 0 and 3, set by Enable/DisableDraw).
