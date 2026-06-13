@@ -1,5 +1,6 @@
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using AnoMech.Helpers;
 using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -62,14 +63,6 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public uint BNpcBaseId { get; }
 
-    // CharacterManager._battleCharas registration is kept aligned with visibility:
-    // a registered BC is force-drawn by the engine's per-frame CharacterManager
-    // update, so staying registered while invisible would override our DisableDraw.
-    // We register only while visible (toggled by SyncRegistration). Safe because
-    // scenarios are inn-gated, so the open-world render-cache teardown crash
-    // documented in EnmityHud.cs is unreachable.
-    private bool registeredNow;
-
 
     // Live-read via GameObject::GetName() (vfunc 6, resolves NameId -> BNpcName) —
     // same path the target bar uses, so engine-driven renames mid-fight propagate
@@ -104,15 +97,12 @@ public sealed unsafe class SimEnemy : SimNpc
     public uint CastActionId => cast.ActionId;
     public float CastProgress => cast.Progress;
 
-    internal SimEnemy(uint index, uint bNpcBaseId, string displayName, EnemyListMode enemyListMode, Coordinates coordinates, bool initiallyVisible = true) : base(index, coordinates)
+    internal SimEnemy(int index, uint bNpcBaseId, string displayName, EnemyListMode enemyListMode, Coordinates coordinates) : base(index, coordinates)
     {
         BNpcBaseId = bNpcBaseId;
         DisplayName = displayName;
         EnemyListMode = enemyListMode;
         cast = new SimCast(this, coordinates);
-        // Mirrors the conditional register call in Spawn: registered iff
-        // spawned visible.
-        registeredNow = initiallyVisible;
     }
 
     // Allocates a BattleChara, configures it as a BattleNpc per the supplied
@@ -140,8 +130,9 @@ public sealed unsafe class SimEnemy : SimNpc
             return null;
         }
 
-        if (!BattleCharaSpawn.CreateBattleChara(out var idx, out var obj)) return null;
+        if (!CharacterManagerHelper.CreateCharacter(out var idx, out var obj)) return null;
 
+        var gameObj = (GameObject*)obj;
         var chara = (BattleChara*)obj;
         // Engine's canonical BNpc initializer — populates ModelContainer from BNpcBase,
         // including ModeAttributeFlags (body sub-mesh, e.g. Omega-M's shield). Must run
@@ -182,9 +173,9 @@ public sealed unsafe class SimEnemy : SimNpc
 
         // Engine-resolved name (vfunc 6), same source as the nameplate, so the Name[]
         // buffer we stamp below stays consistent with the rest of the UI.
-        var displayName = ((GameObject*)chara)->GetName().ToString();
+        var displayName = gameObj->GetName().ToString();
         if (string.IsNullOrEmpty(displayName)) displayName = $"BNpc {config.BNpcBaseId:X}";
-        BattleCharaSpawn.WriteName(obj, displayName);
+        GameObjectHelper.WriteName(gameObj, displayName);
         obj->RenderFlags = 0;
 
         chara->CharacterSetup.CopyFromCharacter((Character*)chara, CharacterSetupContainer.CopyFlags.None);
@@ -205,14 +196,8 @@ public sealed unsafe class SimEnemy : SimNpc
         if (config.NameId != 0) chara->NameId = config.NameId;
         if (config.Level != 0) chara->Level = config.Level;
 
-        // Registration lets the engine resolve the boss by entity id (needed for
-        // ActionEffect delivery and model-state morphs). Register only while visible —
-        // see the registeredNow field for the full rationale.
-        if (config.IsVisible)
-            BattleCharaSpawn.RegisterInCharacterManager(chara);
-
         Plugin.Log.Info($"SimEnemy: spawned BNpcBase {config.BNpcBaseId} (ModelChara {bnpc.ModelChara.RowId}, scale {bnpc.Scale}) at index {idx}");
-        var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.EnemyList, world.Coordinates, config.IsVisible);
+        var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.EnemyList, world.Coordinates);
         // Mirror the native position/rotation writes above into the C#-side fields.
         enemy.SetPosition(config.Placement);
         enemy.SetTargetable(config.Targetable);
@@ -232,12 +217,6 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Despawn()
     {
-        if (registeredNow)
-        {
-            var bc = BattleCharaPtr;
-            if (bc != null) BattleCharaSpawn.UnregisterFromCharacterManager(bc);
-            registeredNow = false;
-        }
         Movement.Follow(null);
         cast.Despawn();
         base.Despawn();
@@ -283,26 +262,6 @@ public sealed unsafe class SimEnemy : SimNpc
         if (desiredVisible) obj->EnableDraw();
         else                obj->DisableDraw();
         currentVisible = desiredVisible;
-        SyncRegistration();
-    }
-
-    // Align registration with visibility after each transition (see registeredNow).
-    // The SetModelState morph path doesn't touch currentVisible, so registration
-    // stays stable through a morph.
-    private void SyncRegistration()
-    {
-        var bc = BattleCharaPtr;
-        if (bc == null) return;
-        if (currentVisible && !registeredNow)
-        {
-            BattleCharaSpawn.RegisterInCharacterManager(bc);
-            registeredNow = true;
-        }
-        else if (registeredNow && !currentVisible)
-        {
-            BattleCharaSpawn.UnregisterFromCharacterManager(bc);
-            registeredNow = false;
-        }
     }
 
     // Authoritative draw state (DrawObject.Flags bits 0 and 3, set by Enable/DisableDraw).

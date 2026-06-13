@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native;
+using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
@@ -13,16 +14,16 @@ namespace AnoMech.Core.SimObjects;
 // handle on Despawn" lifecycle.
 public unsafe class SimNpc : SimCharacter
 {
-    public const uint InvalidIndex = 0xFFFFFFFF;
+    public const int InvalidIndex = -1;
 
-    private uint index;
+    private int index;
     private bool pendingDraw;
 
     private protected override Movement Movement => field ??= new Movement(this);
     
-    internal override BattleChara* BattleCharaPtr => (BattleChara*)(index == InvalidIndex ? null : ClientObjectManager.Instance()->GetObjectByIndex((ushort)index));
+    internal override BattleChara* BattleCharaPtr => (BattleChara*)(index == InvalidIndex ? null : CharacterManager.Instance()->BattleCharas[index]);
 
-    protected SimNpc(uint index, Coordinates coordinates) : base(coordinates)
+    protected SimNpc(int index, Coordinates coordinates) : base(coordinates)
     {
         this.index = index;
         pendingDraw = index != InvalidIndex;
@@ -112,7 +113,22 @@ public unsafe class SimNpc : SimCharacter
             // does not close this window either. See crash dumps 20260529_193455 and 20260603_221355.
             QuiesceActionTimeline();
             obj->DisableDraw();
-            ClientObjectManager.Instance()->DeleteObjectByIndex((ushort)index, 0);
+
+            var characterManager = CharacterManager.Instance();
+
+            if (characterManager == null)
+            {
+                Plugin.Log.Warning("[SimNpc.Despawn] CharacterManager.Instance() was null.");
+            }
+            else
+            {
+                var packet = new DespawnCharacterPacket
+                {
+                    Index = (byte)index
+                };
+
+                PacketDispatcherPointers.HandleDespawnCharacterPacket(0, &packet);
+            }
         }
         index = InvalidIndex;
         pendingDraw = false;

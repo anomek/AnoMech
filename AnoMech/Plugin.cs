@@ -100,6 +100,7 @@ public sealed class Plugin : IDalamudPlugin
         DutyState.DutyCompleted += OnDutyCompleted;
 
         // Initialize Pointers
+        CharacterManagerPointers.Initialize();
         EventFrameworkPointers.Initialize();
         EventObjectManagerPointers.Initialize();
         EventObjectPointers.Initialize();
