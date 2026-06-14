@@ -52,7 +52,9 @@ public sealed unsafe class ZoneSession : IDisposable
 
     private uint savedTerritoryId;
     private Vector3 savedPosition;
-    public float savedRotation;
+    private float savedRotation;
+    private int savedExp;
+    private uint savedRestedExp;
 
     // ── Construction ──────────────────────────────────────────────────────────
 
@@ -134,6 +136,8 @@ public sealed unsafe class ZoneSession : IDisposable
         savedTerritoryId = Plugin.ClientState.TerritoryType;
         savedPosition = localPlayer.Position;
         savedRotation = localPlayer.Rotation;
+        savedExp = Plugin.PlayerState.GetClassJobExperience(Plugin.PlayerState.ClassJob.Value);
+        savedRestedExp = Plugin.PlayerState.BaseRestedExperience;
 
         EnableFirewall();
         LoadZoneInternal(territoryId, false, playerSpawn);
@@ -249,6 +253,9 @@ public sealed unsafe class ZoneSession : IDisposable
             return;
         }
 
+        var classJobId = (byte)Plugin.PlayerState.ClassJob.RowId;
+        var currentLevel = (byte)Plugin.PlayerState.Level;
+
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (loadedInstanceContent != null)
         {
@@ -261,6 +268,18 @@ public sealed unsafe class ZoneSession : IDisposable
 
             EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + loadedInstanceContent.Value);
             loadedInstanceContent = null;
+
+            var updateClassInfoPacket = new UpdateClassInfoPacket
+            {
+                ClassJobId = classJobId,
+                CurrentLevel = currentLevel,
+                ClassJobLevel = currentLevel,
+                SyncedLevel = 0,
+                ClassJobExp = (ushort)savedExp,
+                BaseRestedExperience = savedRestedExp
+            };
+
+            PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
         }
 
         Plugin.Log.Information("[ZoneSession] Step 2: DisableDraw all objects");
@@ -285,6 +304,21 @@ public sealed unsafe class ZoneSession : IDisposable
             {
                 loadedInstanceContent = contentId;
                 InstanceContentDirectorHelper.SetDutyData(cfc.Value);
+
+                var cfcLevelSync = cfc.Value.ClassJobLevelSync;
+                var shouldSync = currentLevel > cfcLevelSync;
+
+                var updateClassInfoPacket = new UpdateClassInfoPacket
+                {
+                    ClassJobId = classJobId,
+                    CurrentLevel = currentLevel,
+                    ClassJobLevel = currentLevel,
+                    SyncedLevel = shouldSync ? cfcLevelSync : (ushort)0,
+                    ClassJobExp = 0,
+                    BaseRestedExperience = 0
+                };
+
+                PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
             }
         }
 
