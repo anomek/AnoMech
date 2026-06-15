@@ -542,46 +542,18 @@ public sealed unsafe class ZoneSession : IDisposable
                 // Add extra stats
                 ApplyExtraStats(stats, GetMateriaStats(inventoryItem));
                 ApplyExtraStats(stats, GetMandervilleWeaponStats(inventoryItem));
-
-                foreach(var (attribute, value) in GetMateriaStats(inventoryItem))
-                {
-                    if (!stats.ContainsKey(attribute))
-                    {
-                        continue;
-                    }
-
-                    stats[attribute] += value;
-                }
-
-                foreach (var (attribute, value) in GetMandervilleWeaponStats(inventoryItem))
-                {
-                    if (!stats.ContainsKey(attribute))
-                    {
-                        continue;
-                    }
-
-                    stats[attribute] += value;
-                }
             }
             else // Calculate the sync value
             {
-                if (inventoryItem.Slot == 0 || inventoryItem.Slot == 1)
-                {
-                    // Determine if Resistance weapon
-                    var resistanceSheet = Plugin.DataManager.GetExcelSheet<ResistanceWeaponAdjust>();
-                    if (resistanceSheet.TryGetRow(itemId, out var _))
-                    {
-                        ApplyExtraStats(stats, GetMateriaStats(inventoryItem));
-                    }
+                var resistanceStats = new Dictionary<int, int>();
 
-                    // Determine if Manderville weapon
-                    var mandervilleSheet = Plugin.DataManager.GetExcelSheet<MandervilleWeaponEnhance>();
-                    if (mandervilleSheet.TryGetRow(itemId, out var _))
-                    {
-                        ApplyExtraStats(stats, GetMateriaStats(inventoryItem));
-                        ApplyExtraStats(stats, GetMandervilleWeaponStats(inventoryItem));
-                    }
+                var resistanceSheet = Plugin.DataManager.GetExcelSheet<ResistanceWeaponAdjust>();
+                if (resistanceSheet.TryGetRow(itemId, out var _))
+                {
+                    resistanceStats = GetMateriaStats(inventoryItem);
                 }
+
+                var mandervilleStats = GetMandervilleWeaponStats(inventoryItem);
 
                 // Doing this instead of calling ExdModule.GetItemRowById because it's not guaranteed to always return on this frame
                 var dummyItem = new byte[0xA0];
@@ -601,8 +573,20 @@ public sealed unsafe class ZoneSession : IDisposable
                             continue;
                         }
 
-                        var paramMaxValue = (int)InventoryItem.GetParameterMaxValue((uint)baseParamId, dummyItemPtr);
-                        var syncedValue = int.Min(item.BaseParamValue[x], paramMaxValue);
+                        var statValue = item.BaseParamValue[x];
+
+                        if (resistanceStats.TryGetValue(baseParamId, out var resistanceStat))
+                        {
+                            statValue += (short)resistanceStat;
+                        }
+
+                        if (mandervilleStats.TryGetValue(baseParamId, out var mandervilleStat))
+                        {
+                            statValue += (short)mandervilleStat;
+                        }
+
+                        var statMaxValue = (int)InventoryItem.GetParameterMaxValue((uint)baseParamId, dummyItemPtr);
+                        var syncedValue = int.Min(statValue, statMaxValue);
                         stats[baseParamId] += syncedValue;
 
                         Plugin.Log.Debug($"Item \"{item.Name}\" (ilvl {item.LevelItem.RowId})'s {(PlayerAttribute)baseParamId} was synced to {syncedValue}");
