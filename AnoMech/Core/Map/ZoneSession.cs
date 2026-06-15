@@ -506,6 +506,7 @@ public sealed unsafe class ZoneSession : IDisposable
             }
         }
 
+        // Get Item Stats
         var inventoryManager = InventoryManager.Instance();
         var equippedItems = inventoryManager->GetInventoryContainer(InventoryType.EquippedItems);
 
@@ -591,6 +592,59 @@ public sealed unsafe class ZoneSession : IDisposable
 
                         Plugin.Log.Debug($"Item \"{item.Name}\" (ilvl {item.LevelItem.RowId})'s {(PlayerAttribute)baseParamId} was synced to {syncedValue}");
                     }
+                }
+            }
+        }
+
+        // Get Food Buffs
+        var localPlayer = (BattleChara*)Plugin.ObjectTable.LocalPlayer!.Address;
+
+        if (localPlayer != null)
+        {
+            var statusManager = localPlayer->StatusManager;
+
+            foreach (var status in statusManager.Status)
+            {
+                var statusId = status.StatusId;
+
+                if (statusId == 0 || statusId != 48)
+                {
+                    continue;
+                }
+                
+                var hq = status.Param > 10000;
+                var foodId = hq ? status.Param - 10000 : status.Param;
+
+                if (!Plugin.DataManager.GetExcelSheet<ItemFood>().TryGetRow((uint)foodId, out var food))
+                {
+                    continue;
+                }
+                
+                foreach (var bonus in food.Params)
+                {
+                    var stat = (int)bonus.BaseParam.RowId;
+                    
+                    if (stat == 0 || !stats.ContainsKey(stat))
+                    {
+                        continue;
+                    }
+
+                    var value = hq ? bonus.ValueHQ : bonus.Value;
+                    var max = hq ? bonus.MaxHQ : bonus.Max;
+                    int statBuff;
+
+                    if (bonus.IsRelative)
+                    {
+                        var currentStat = stats[stat];
+                        var percentBuff = (int)(currentStat * (value / 100f));
+                        statBuff = int.Min(percentBuff, max);
+                    }
+                    else
+                    {
+                        statBuff = value;
+                    }
+
+                    stats[stat] += statBuff;
                 }
             }
         }
