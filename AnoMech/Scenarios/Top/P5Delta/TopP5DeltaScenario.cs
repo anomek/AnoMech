@@ -23,6 +23,8 @@ public sealed class TopP5DeltaScenario : IScenario
         WeatherId: 174);
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP5;
+    public byte Level => 90;
+    public ushort ItemLevel => 365;
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 

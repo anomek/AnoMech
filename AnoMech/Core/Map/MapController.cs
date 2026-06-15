@@ -39,7 +39,7 @@ public sealed class MapController : IDisposable
     public bool IsInInn() => ZoneSession.IsInInn();
 
     // Load the target territory client-side. Must be called from the Inn.
-    public void Load(uint territoryId, Vector3 playerPosition) => zone.Enter(territoryId, playerPosition);
+    public void Load(uint territoryId, Vector3 playerPosition, byte levelSync, ushort itemLevelSync) => zone.Enter(territoryId, playerPosition, levelSync, itemLevelSync);
 
     // Apply weather after a zone load (1-second delayed to let the engine settle).
     public void ApplyWeather(byte weatherId) => zone.ApplyWeather(weatherId);
@@ -79,7 +79,7 @@ public sealed class MapController : IDisposable
     // Enter the scenario's target instance if conditions are met.
     // Sets IsInInstance when the zone is already active or the Inn load succeeds.
     // No-op (IsInInstance stays false) when target is null or the player isn't in the Inn.
-    public void TryLoad(TargetInstance? target)
+    public void TryLoad(TargetInstance? target, byte levelSync, ushort itemLevelSync)
     {
         if (target == null) return;
         // Fresh load only when no zone is active yet (must be in the Inn). When a
@@ -89,7 +89,7 @@ public sealed class MapController : IDisposable
         if (!IsZoneLoaded)
         {
             if (!IsInInn()) return;
-            Load(target.TerritoryId, target.PlayerPosition);
+            Load(target.TerritoryId, target.PlayerPosition, levelSync, itemLevelSync);
             freshLoad = true;
         }
         if (target.WeatherId is { } wid)

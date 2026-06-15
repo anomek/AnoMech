@@ -21,6 +21,8 @@ public sealed class TopP2PartySynergyScenario : IScenario
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP2;
     public bool SupportsSolo => true;
+    public byte Level => 90;
+    public ushort ItemLevel => 365;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP2PartySynergySettingsWindow settingsWindow = new();

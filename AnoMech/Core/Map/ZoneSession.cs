@@ -35,7 +35,9 @@ public sealed unsafe class ZoneSession : IDisposable
         public float Rotation { get; set; }
         public int Exp { get; set; }
         public uint RestedExp { get; set; }
+        public bool LevelSync { get; set; }
         public int Level { get; set; }
+        public bool ItemLevelSync { get; set; }
         public Dictionary<int, int> Attributes { get; } = new();
     }
 
@@ -137,7 +139,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // Load the target territory, teleport player to playerSpawn, enable firewall.
     // Firewall is enabled before the zone load (matching Hyperborea's sequence).
-    public void Enter(uint territoryId, Vector3 playerSpawn)
+    public void Enter(uint territoryId, Vector3 playerSpawn, byte levelSync, ushort itemLevelSync)
     {
         var localPlayer = Plugin.ObjectTable.LocalPlayer!;
 
@@ -146,7 +148,9 @@ public sealed unsafe class ZoneSession : IDisposable
         sessionSave.Rotation = localPlayer.Rotation;
         sessionSave.Exp = Plugin.PlayerState.GetClassJobExperience(Plugin.PlayerState.ClassJob.Value);
         sessionSave.RestedExp = Plugin.PlayerState.BaseRestedExperience;
+        sessionSave.LevelSync = levelSync != 0;
         sessionSave.Level = localPlayer.Level;
+        sessionSave.ItemLevelSync = itemLevelSync != 0;
         sessionSave.Attributes.Clear();
 
         EnableFirewall();
@@ -394,45 +398,51 @@ public sealed unsafe class ZoneSession : IDisposable
     // (Item) Level Sync
     private void SetSync(ContentFinderCondition cfc, Character* player, uint territory, byte classJobId)
     {
-        var currentLevel = (byte)Plugin.PlayerState.Level;
-
         var cfcLevelSync = cfc.ClassJobLevelSync;
-        var levelSynced = currentLevel > cfcLevelSync;
 
-        if (levelSynced)
+        if (sessionSave.LevelSync)
         {
-            if (player != null)
+            var currentLevel = (byte)Plugin.PlayerState.Level;
+            var levelSynced = currentLevel > cfcLevelSync;
+
+            if (levelSynced)
             {
-                player->Level = cfcLevelSync;
+                if (player != null)
+                {
+                    player->Level = cfcLevelSync;
+                }
+
+                var updateClassInfoPacket = new UpdateClassInfoPacket
+                {
+                    ClassJobId = classJobId,
+                    CurrentLevel = currentLevel,
+                    ClassJobLevel = currentLevel,
+                    SyncedLevel = cfcLevelSync,
+                    ClassJobExp = 0,
+                    BaseRestedExperience = 0
+                };
+
+                PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
             }
-
-            var updateClassInfoPacket = new UpdateClassInfoPacket
-            {
-                ClassJobId = classJobId,
-                CurrentLevel = currentLevel,
-                ClassJobLevel = currentLevel,
-                SyncedLevel = cfcLevelSync,
-                ClassJobExp = 0,
-                BaseRestedExperience = 0
-            };
-
-            PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
         }
 
-        var uiState = UIState.Instance();
-        if (uiState != null)
+        if (sessionSave.ItemLevelSync)
         {
-            var ilvlSync = cfc.ItemLevelSync != 0 ? cfc.ItemLevelSync : cfc.ItemLevelRequired;
-
-            if (ilvlSync != 0)
+            var uiState = UIState.Instance();
+            if (uiState != null)
             {
-                Plugin.Log.Debug($"Setting up iLvl sync to {ilvlSync}");
-                var syncedAttributes = GetSyncedAttributes(cfcLevelSync, ilvlSync);
+                var ilvlSync = cfc.ItemLevelSync != 0 ? cfc.ItemLevelSync : cfc.ItemLevelRequired;
 
-                foreach (var (baseParamId, value) in syncedAttributes)
+                if (ilvlSync != 0)
                 {
-                    sessionSave.Attributes[baseParamId] = uiState->PlayerState.Attributes[baseParamId];
-                    uiState->PlayerState.Attributes[baseParamId] = value;
+                    Plugin.Log.Debug($"Setting up iLvl sync to {ilvlSync}");
+                    var syncedAttributes = GetSyncedAttributes(cfcLevelSync, ilvlSync);
+
+                    foreach (var (baseParamId, value) in syncedAttributes)
+                    {
+                        sessionSave.Attributes[baseParamId] = uiState->PlayerState.Attributes[baseParamId];
+                        uiState->PlayerState.Attributes[baseParamId] = value;
+                    }
                 }
             }
         }
@@ -440,24 +450,27 @@ public sealed unsafe class ZoneSession : IDisposable
 
     private void ResetSync(UIState* uiState, Character* player, byte classJobId)
     {
-        var updateClassInfoPacket = new UpdateClassInfoPacket
+        if (sessionSave.LevelSync)
         {
-            ClassJobId = classJobId,
-            CurrentLevel = (ushort)sessionSave.Level,
-            ClassJobLevel = (ushort)sessionSave.Level,
-            SyncedLevel = 0,
-            ClassJobExp = (ushort)sessionSave.Exp,
-            BaseRestedExperience = sessionSave.RestedExp
-        };
+            var updateClassInfoPacket = new UpdateClassInfoPacket
+            {
+                ClassJobId = classJobId,
+                CurrentLevel = (ushort)sessionSave.Level,
+                ClassJobLevel = (ushort)sessionSave.Level,
+                SyncedLevel = 0,
+                ClassJobExp = (ushort)sessionSave.Exp,
+                BaseRestedExperience = sessionSave.RestedExp
+            };
 
-        PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
+            PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
 
-        if (player != null)
-        {
-            player->Level = (byte)sessionSave.Level;
+            if (player != null)
+            {
+                player->Level = (byte)sessionSave.Level;
+            }
         }
 
-        if (uiState != null)
+        if (sessionSave.ItemLevelSync && uiState != null)
         {
             foreach (var (baseParamId, value) in sessionSave.Attributes)
             {
