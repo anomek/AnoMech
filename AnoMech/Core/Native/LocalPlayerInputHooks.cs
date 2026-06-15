@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
@@ -31,6 +32,31 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
 
     public bool DisableAllActions { get; set; }
     public bool ZeroMovement { get; set; }
+
+    // --- Player activity signals (read by SimPlayer to drive Party.Player.IsMoving/IsActing) ---
+    // Movement is the engine's own per-frame movement sample taken in RMIWalkDetour — the same
+    // signal bossmod's MovementOverride.IsMoving() reads — captured as the player's true input
+    // intent *before* the stun-zeroing. This is intent/input based (matches cast-cancel semantics),
+    // not a position delta. Holds its last value on frames where RMIWalk doesn't fire.
+    public bool MovementInputActive { get; private set; }
+
+    // True while the player's weapon auto-attack is swinging.
+    public bool IsAutoAttacking => UIState.Instance()->WeaponState.AutoAttackState.IsAutoAttacking;
+
+    // True while the player is in a jump arc (CONDITION_JUMP). State poll like
+    // IsAutoAttacking — a jump is always self-initiated, so the state flag is
+    // equivalent to input intent here (nothing can force the player airborne).
+    public bool IsJumping => Plugin.Condition[ConditionFlag.Jumping];
+
+    // Latched whenever the player actually fires a real action; drained once per frame by SimPlayer
+    // (PollActionUsed) so a same-frame action press is still observable to a snapshot mechanic.
+    private bool actionUsedSincePoll;
+    public bool PollActionUsed()
+    {
+        var used = actionUsedSincePoll;
+        actionUsedSincePoll = false;
+        return used;
+    }
 
     private delegate void RMIWalkDelegate(void* self, float* sumLeft, float* sumForward, float* sumTurnLeft, byte* haveBackwardOrStrafe, byte* a6, byte bAdditiveUnk);
     [Signature("E8 ?? ?? ?? ?? 80 7B 3E 00 48 8D 3D")]
@@ -86,6 +112,9 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     private void RMIWalkDetour(void* self, float* sumLeft, float* sumForward, float* sumTurnLeft, byte* haveBackwardOrStrafe, byte* a6, byte bAdditiveUnk)
     {
         rmiWalkHook.Original(self, sumLeft, sumForward, sumTurnLeft, haveBackwardOrStrafe, a6, bAdditiveUnk);
+        // Capture the engine's movement sample as the player's true movement intent, before any
+        // stun-zeroing below. (self is a MoveControllerSubMemberForMine*; the sums are its move vector.)
+        MovementInputActive = *sumLeft != 0 || *sumForward != 0;
         if (!ZeroMovement) return;
         *sumLeft = 0;
         *sumForward = 0;
@@ -120,6 +149,10 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     {
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
         var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        // Record a real action use for Party.Player.IsActing — but ignore the auto-attack-cancel
+        // general action that UpdateDetour issues while stunned.
+        if (result && !IsStopAutosAction(actionType, actionId))
+            actionUsedSincePoll = true;
         if (result && actionType == ActionType.Action && actionId == SprintActionId)
             Plugin.GameInstance?.Player?.AddStatus(SprintStatusId, SprintDuration, SprintStatusParam);
         return result;
@@ -128,7 +161,9 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
     private bool UseActionLocationDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, Vector3* location, uint extraParam, byte a7)
     {
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
-        return useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
+        var result = useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
+        if (result) actionUsedSincePoll = true;
+        return result;
     }
 
     // Lets the auto-cancel UseAction from UpdateDetour through; everything else

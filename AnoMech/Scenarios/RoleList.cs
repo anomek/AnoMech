@@ -76,6 +76,19 @@ public class RoleList
 
         return new RoleList(party, list);
     }
+    
+    // first 4 slots - random supports, last 4 slots - random dps
+    public static RoleList RandomRoleStable(SimParty party)
+    {
+        var supports = Enumerable.Range(0, 4)
+                                             .Select(i => (PartyRole)i)
+                                             .Shuffle();
+        var dps = Enumerable.Range(4, 4)
+                                 .Select(i => (PartyRole)i)
+                                 .Shuffle();
+        var all = supports.Concat(dps).ToList();
+        return new RoleList(party, all);
+    }
 
     public static RoleList AllExcept(SimParty party, params PartyRole[] roles)
     {

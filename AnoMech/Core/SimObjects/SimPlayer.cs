@@ -15,6 +15,15 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
 
+    // Player activity for stillness/movement mechanics (e.g. Pyretic, Acceleration Bomb).
+    // IsMoving = locomotion input (the engine's own RMIWalk movement sample, the same signal
+    // bossmod keys off) OR jumping OR using any action — all three "break" a don't-move mechanic
+    // in real FFXIV, so all three count here. IsActing = IsMoving OR auto-attacking, i.e. the
+    // strictly-broader "is the player doing something" trigger. Both are re-sampled each tick and
+    // forced false while KO'd. Scenarios read these on Party.Player at the mechanic's resolve time.
+    public bool IsMoving { get; private set; }
+    public bool IsActing { get; private set; }
+
     internal override BattleChara* BattleCharaPtr => (BattleChara*)(Plugin.ObjectTable.LocalPlayer?.Address ?? 0);
 
     private protected override PlayerMovement Movement => field ??= new PlayerMovement(this);
@@ -28,7 +37,23 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        SampleActivity();
         SyncInputLock();
+    }
+
+    private void SampleActivity()
+    {
+        var hooks = Plugin.PlayerInputHooks;
+        // Drain the action latch every frame — even while dead — so a stale press can't carry over.
+        var actedThisFrame = hooks.PollActionUsed();
+        if (Dead)
+        {
+            IsMoving = false;
+            IsActing = false;
+            return;
+        }
+        IsMoving = hooks.MovementInputActive || actedThisFrame || hooks.IsJumping;
+        IsActing = IsMoving || hooks.IsAutoAttacking;
     }
 
     public void OnKilled()

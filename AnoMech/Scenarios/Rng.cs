@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using AnoMech.Core.Game.Party;
+using AnoMech.Scenarios.Umad.P3KefkaSays;
 
 namespace AnoMech.Scenarios;
 
@@ -45,5 +48,10 @@ public class Rng
     public PartyRole NextRole()
     {
         return (PartyRole)rng.Next(8);
+    }
+
+    public IReadOnlyList<T> Shuffle<T>(params T[] values)
+    {
+        return values.Shuffle().ToList();
     }
 }

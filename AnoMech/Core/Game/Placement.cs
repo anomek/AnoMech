@@ -49,4 +49,14 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
         var dz = other.Position.Z - Position.Z;
         return dx * dx + dz * dz;
     }
+
+    public Placement MulX(float mul)
+    {
+        return new Placement(Position with { X = Position.X * mul }, Rotation);
+    }
+
+    public Placement MulRot(float mul)
+    {
+        return new Placement(Position, Rotation * mul);
+    }
 }

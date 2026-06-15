@@ -24,7 +24,7 @@ public class DamageSolver
     public IReadOnlyList<SimCharacter> Resolve(
         IPositioned? source, uint actionId, DamageType[] damageType, (ushort statusId, float duration)[] statusesToApply,
         int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null,
-        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null)
+        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null, bool killTargets = true)
     {
         if (source == null) return [];
         var placement = source.Placement();
@@ -37,6 +37,7 @@ public class DamageSolver
         AnoMech.Windows.DamageDebugWindow.Instance?.Record(query);
 #endif
         var targets = query.Run(party.Find);
+        List<SimCharacter> deadTargets = [];
         if (excludeTargets is { Length: > 0 })
             targets = targets.Where(t => !excludeTargets.Contains(t)).ToList();
         HashSet<DamageType> damageTypeBase = [DamageType.Any];
@@ -50,34 +51,71 @@ public class DamageSolver
             bool wildCharge = i++ < wildChargeTargets;
             if (targets.Count < stackMinTargets)
             {
-                target.Die($"Died to {ActionLookup.Name(actionId)} ({targets.Count}/{stackMinTargets} players in stack)");
+                deadTargets.Add(target);
+                if (killTargets)
+                    target.Die($"Died to {ActionLookup.Name(actionId)} ({targets.Count}/{stackMinTargets} players in stack)");
             }
-            else if (!CheckLethal(actionId, target, wildCharge ? damageTypeWildCharge : damageTypeBase))
+            else if (CheckLethal(actionId, target, wildCharge ? damageTypeWildCharge : damageTypeBase, killTargets))
+            {
+                deadTargets.Add(target);
+            }
+            else
             {
                 foreach (var status in statusesToApply)
-                {
                     target.AddStatus(status.statusId, status.duration);       
-                }
             }
         }
-        return targets;
+        return killTargets ? targets : deadTargets;
     }
     
-    private bool CheckLethal(uint actionId, SimCharacter target, HashSet<DamageType> damageTypes)
+    // Gaze resolver. Each member lives or dies by which way it faces the `target`.
+    // lookAway == true: safe play is to face away, so anyone "looking" (target inside
+    // the front 90° arc) dies. lookAway == false: safe play is to face the target, so
+    // anyone "not looking" (target inside the back 90° arc) dies. The target itself is
+    // always skipped. Facing uses each member's own rotation (forward = (sin, cos)),
+    // matching CharacterFind.InsideCone. Returns the members that were killed.
+    public IReadOnlyList<SimCharacter> ResolveGaze(IPositioned? target, bool lookAway)
+    {
+        if (target == null) return [];
+        const float cosHalf = 0.70710677f; // cos(45°) — front/back arcs are 90° wide
+        var killed = new List<SimCharacter>();
+        foreach (var member in party.ActiveMembers().ToList())
+        {
+            if (ReferenceEquals(member, target)) continue;
+            var dx = target.Position.X - member.Position.X;
+            var dz = target.Position.Z - member.Position.Z;
+            var distSq = dx * dx + dz * dz;
+            if (distSq < 0.0001f) continue; // on top of the target — facing undefined
+            var dist = MathF.Sqrt(distSq);
+            var cos = (dx * MathF.Sin(member.Rotation) + dz * MathF.Cos(member.Rotation)) / dist;
+            var looking = cos >= cosHalf;        // target within front 90° arc
+            var notLooking = cos <= -cosHalf;    // target within back 90° arc
+            if (lookAway ? looking : notLooking)
+            {
+                member.Die(lookAway
+                    ? "Died to gaze (looked at the target)"
+                    : "Died to gaze (faced away from the target)");
+                killed.Add(member);
+            }
+        }
+        return killed;
+    }
+
+    private bool CheckLethal(uint actionId, SimCharacter target, HashSet<DamageType> damageTypes, bool killTarget)
     {
         if (damageTypes.Contains(DamageType.Lethal))
         {
-            target.Die($"Died to {ActionLookup.Name(actionId)}");
+            if (killTarget)  target.Die($"Died to {ActionLookup.Name(actionId)}");
             return true;
         }
         else if (IsLethal(target, damageTypes))
         {
-            target.Die($"Died to {ActionLookup.Name(actionId)} (had vuln up debuff)");
+            if (killTarget) target.Die($"Died to {ActionLookup.Name(actionId)} (had vuln up debuff)");
             return true;
         }
         else if (damageTypes.Contains(DamageType.TankBuster) && target is not ISimPartyMember { Role: PartyRole.OffTank or PartyRole.MainTank })
         {
-            target.Die($"Died to {ActionLookup.Name(actionId)} (tank buster)");
+            if(killTarget) target.Die($"Died to {ActionLookup.Name(actionId)} (tank buster)");
             return true;
         }
         else
@@ -122,5 +160,7 @@ public enum DamageType
     Lethal,
     Any,
     Magic,
-    TankBuster
+    TankBuster,
+    Black,
+    White
 }

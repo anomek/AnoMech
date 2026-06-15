@@ -1,6 +1,7 @@
 #if DEBUG
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
+using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 using AnoMech.Helpers;
 using Dalamud.Bindings.ImGui;
@@ -34,6 +35,7 @@ internal sealed unsafe class DebugMenu
     private string debugModeAttrFlagsText = "0x00";
     private string debugCastActionIdText = "0";
     private string debugCastAnimVariationText = "0";
+    private string debugLockonIdText = "0";
     private string debugStatusIdText = "0";
     private string debugStatusDurationText = "0";
     private string debugStatusStacksText = "1";
@@ -69,6 +71,25 @@ internal sealed unsafe class DebugMenu
 
         if (ImGui.Button("Damage debug window"))
             DamageDebugWindow.Instance!.Toggle();
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Player activity (live)");
+        ImGui.Separator();
+        // IsActing/IsMoving are only sampled while a scenario player is ticking; the raw
+        // input-hook signals below stay live everywhere (handy to verify detection at the inn).
+        var simPlayer = plugin.Game.Player;
+        if (simPlayer == null)
+            ImGui.TextDisabled("IsActing: -   IsMoving: -   (no scenario player)");
+        else
+        {
+            DrawBoolFlag("IsActing", simPlayer.IsActing);
+            ImGui.SameLine();
+            DrawBoolFlag("IsMoving", simPlayer.IsMoving);
+        }
+        var inputHooks = Plugin.PlayerInputHooks;
+        DrawBoolFlag("MovementInput", inputHooks.MovementInputActive);
+        ImGui.SameLine();
+        DrawBoolFlag("AutoAttacking", inputHooks.IsAutoAttacking);
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Manual spawn");
@@ -149,6 +170,18 @@ internal sealed unsafe class DebugMenu
             if (TryParseId(debugTimelineIdText, out var timelineId))
                 PlayAnimationOnTarget((ushort)timelineId);
             else Plugin.Log.Warning($"Play animation: can't parse TimelineId '{debugTimelineIdText}'");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Attach lockon VFX to target");
+        ImGui.Separator();
+        ImGui.SetNextItemWidth(120);
+        ImGui.InputText("LockonId", ref debugLockonIdText, 16);
+        if (ImGui.Button("Attach lockon on target"))
+        {
+            if (TryParseId(debugLockonIdText, out var lockonId))
+                AttachLockonOnTarget(lockonId);
+            else Plugin.Log.Warning($"Lockon: can't parse LockonId '{debugLockonIdText}'");
         }
 
         ImGui.Spacing();
@@ -307,6 +340,15 @@ internal sealed unsafe class DebugMenu
         if (ImGui.Button("Stop##bgm")) plugin.Game.Bgm.Reset();
     }
 
+    // Live read-only flag readout: green when set, dimmed when clear.
+    private static void DrawBoolFlag(string label, bool value)
+    {
+        var color = value
+            ? new System.Numerics.Vector4(0.3f, 1f, 0.3f, 1f)
+            : new System.Numerics.Vector4(0.55f, 0.55f, 0.55f, 1f);
+        ImGui.TextColored(color, $"{label}: {value}");
+    }
+
     // Accepts decimal ("1340") or hex ("0x53C" / "53Ch" — case-insensitive).
     private static bool TryParseId(string input, out uint value)
     {
@@ -338,6 +380,34 @@ internal sealed unsafe class DebugMenu
             }
         }
         Plugin.Log.Warning($"Play animation: target '{target.Name}' is not a tracked enemy");
+    }
+
+    // Resolves the Lockon-sheet IconName for lockonId, builds vfx/lockon/eff/{name}.avfx,
+    // and attaches it (entity-following) to the targeted sim character — enemy doppel,
+    // party doppel, or the player if self-targeted. Fire-and-forget (persistent: false):
+    // the game owns the VFX lifetime, the sim doesn't track or remove it.
+    private void AttachLockonOnTarget(uint lockonId)
+    {
+        var target = Plugin.TargetManager.Target;
+        if (target == null)
+        {
+            Plugin.Log.Warning("Lockon: no target selected");
+            return;
+        }
+        var chara = ResolveSimCharacter(target.GameObjectId);
+        if (chara == null)
+        {
+            Plugin.Log.Warning($"Lockon: target '{target.Name}' is not a tracked sim character");
+            return;
+        }
+        var iconName = VfxFunctions.LockonVfxIconName(lockonId);
+        if (iconName == null)
+        {
+            Plugin.Log.Warning($"Lockon: no IconName for LockonId {lockonId}");
+            return;
+        }
+        chara.AttachLockonVfx(lockonId, persistent: false);
+        Plugin.Log.Info($"Lockon: attached {lockonId} ({iconName}) on '{target.Name}'");
     }
 
     private void SetModelStateOnTarget(byte value)

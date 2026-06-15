@@ -1984,22 +1984,25 @@ def emit_csharp_instance_action(
         return f"world.Tether({', '.join(bits)})"
     if opcode == "33":
         # Director-sourced ActorControl (filter.should_drop already removed
-        # NPC/player-sourced 33 rows). Fields after the directorId: 3=category,
-        # 4=arg1, 5=arg2 — all uppercase hex without 0x.
+        # NPC/player-sourced 33 rows). ACT type-33 layout:
+        #   33|ts|directorId|category|arg1|arg2|arg3|arg4|hash
+        # so 3=category, 4..7=arg1..arg4 (uppercase hex, no 0x). The native
+        # DirectorUpdate takes category + arg1..arg6, but the log never carries
+        # arg5/arg6 (always exactly 4 data fields), so we forward only arg1..arg4.
         cat = _safe(parts, 3)
-        arg1 = _safe(parts, 4)
-        arg2 = _safe(parts, 5)
         if not cat:
             return None
         try:
             cat_i = int(cat, 16)
-            arg1_i = int(arg1, 16) if arg1 else 0
-            arg2_i = int(arg2, 16) if arg2 else 0
+            args = [int(a, 16) if (a := _safe(parts, i)) else 0 for i in range(4, 8)]
         except ValueError:
             return None
-        bits = [f"0x{cat_i:X}U", f"0x{arg1_i:X}U"]
-        if arg2_i != 0:
-            bits.append(f"0x{arg2_i:X}U")
+        # Trim trailing-zero args (DirectorUpdate defaults arg1..arg6 to 0); keep
+        # interior zeros. Matches the hand-written Commence() idiom, e.g.
+        # DirectorUpdate(0x4000000C) and DirectorUpdate(0x40000001, 0x1C20).
+        while args and args[-1] == 0:
+            args.pop()
+        bits = [f"0x{cat_i:X}U", *(f"0x{a:X}U" for a in args)]
         return f"world.Map.DirectorUpdate({', '.join(bits)})"
     # 258 / 259 / 268 / 269 → no API mapping; comment-only.
     return None

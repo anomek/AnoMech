@@ -126,6 +126,12 @@ public sealed class MapController : IDisposable
     // Replay a single MapEffect state change. packetFlags: high16=State, low8=Flags.
     public void AddEffect(uint packetFlags, byte index) => effects.Apply(packetFlags, index);
 
+    // Replay a native DirectorUpdate event (instance progress / state sync) — the
+    // server-side InstanceContentDirector message a scenario timeline replays. Thin
+    // forwarder so scenarios address it through world.Map alongside AddEffect.
+    public void DirectorUpdate(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0)
+        => InstanceContentDirectorHelper.ProcessDirectorUpdate(category, arg1, arg2, arg3, arg4, arg5, arg6);
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public void Dispose()
