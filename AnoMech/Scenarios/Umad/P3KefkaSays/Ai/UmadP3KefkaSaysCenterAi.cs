@@ -15,12 +15,24 @@ namespace AnoMech.Scenarios.Umad.P3KefkaSays.Ai;
 //  - Flood of Naught (~63s): Neo Exdeath cleaves the whole arena with two giant
 //    Antilights (left/right of centre) split by a thin Edge of Death line. Every
 //    player is hit by an antilight, so each picks the left/right side by colour.
+//  - Elemental wave 1 + Death Shriek gaze (~71s/~80s): the first Death Bolt/Wave
+//    spread and the Wave1 gaze pair.
+//  - Stray Flames (Inferno "Mana Release", ~92s): bait the fire stacked in the
+//    middle, then run out for the real Chariot or stay in for the lie's Donut.
+//  - Elemental wave 2 under Blizzard (~96s/~97s): the same stack/solo split, but
+//    folded into Mystery[3]'s two Blizzard-safe wedges so it clears the cones too.
+//  - Wave2 Death Shriek (~104s): a centre solve — pair the two gaze sources across
+//    the middle and resolve both shrieks with one radial facing, nothing to dodge.
+//  - Stray Spray (Tsunami "Mana Release") + last Mystery Magic (~115s): bait the
+//    water in the middle, then one final move that clears it (in for the real Donut /
+//    out for the fake Chariot) and solves Mystery[4]'s cones+lines at the same time.
 //
-// Both are derived from the per-run randomized state (the ground-truth layout),
+// All are derived from the per-run randomized state (the ground-truth layout),
 // not from the in-game lockon/lie clues, because the AI knows the truth.
 //
-// Everything else (Mana Charge, Ultima Upsurge, the elemental waves, …) is not
-// handled yet. See UmadP2ForsakenRinonAiHelper for the fuller pattern to grow into.
+// That covers every positional mechanic through to the LightOfJudgment enrage
+// (~120s). Mana Charge and Ultima Upsurge are raidwides that need no movement. See
+// UmadP2ForsakenRinonAiHelper for the fuller pattern.
 public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
 {
     public string Name => "Kefka Says (WIP)";
@@ -30,21 +42,221 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
         var ai = new AiManager(world);
 
         // Gather near centre before the first Mystery Magic resolves (~16s).
-        ai.Move(2f, () => Stack(new Vector2(0f, 0f)), jitter: 0f, arrivalTime: 9f);
+        ai.Move(2f, () => Stack(new Vector2(0f, 0f)), jitter: 2f, arrivalTime: 9f);
+        ai.Move(11.6f, () => Stack(SafeSpot(state.Mystery[0])), jitter: 0.8f, arrivalTime: 15.4f);
+        ai.Move(26.4f, () => Stack(SafeSpot(state.Mystery[1])), jitter: 0.8f, arrivalTime: 30.3f);
+        ai.Move(41.5f, () => Stack(SafeSpot(state.Mystery[2])), jitter: 0.8f, arrivalTime: 45.4f);
 
-        // Mystery Magic k resolves at cast+5 (~16.0 / 30.9 / 46.1). Lockons/cast land
-        // at ~11 / 26 / 41, so move in once the layout is shown and arrive just before.
-        ai.Move(11.6f, () => Stack(SafeSpot(state.Mystery[0])), jitter: 0f, arrivalTime: 15.4f);
-        ai.Move(26.4f, () => Stack(SafeSpot(state.Mystery[1])), jitter: 0f, arrivalTime: 30.3f);
-        ai.Move(41.5f, () => Stack(SafeSpot(state.Mystery[2])), jitter: 0f, arrivalTime: 45.4f);
-
-        // Flood of Naught: antilights/edge cast at 57.39, resolve at 62.89. Lie state
-        // shows at 57.30, so split to colours once it's up and arrive just before.
         ai.Move(57.6f, () => FloodOfNaught(state), jitter: 2.5f, arrivalTime: 62.2f);
+        ai.Move(63, () => ResolveElements(state.ElemRoles[0], state.ElemTrue[0]), arrivalTime: 70.5f);
+        ai.Move(72, () => ResolveGaze(state.Wave1, state.Mystery[3]), jitter: 0, arrivalTime: 76f);
+        ai.Move(78.5f, () => ResolveGazeLook(world, state.Mystery[3], state.Wave1True), jitter: 0);
+
+        // Stray Flames: bait the fire stacked in the middle (scenario locks each bait
+        // at ~87.3s), then react to the resolved shape, which lands ~92.4s.
+        ai.Move(81f, () => Stack(new Vector2(0f, 0f)), jitter: 1f, arrivalTime: 86.5f);
+        ai.Move(88f, () => StrayFlames(state.InfernoMystery), jitter: 0.5f, arrivalTime: 92f);
+
+        // Elemental wave 2 (~96.5s) folded into Mystery[3]'s Blizzard-safe wedges (~97.4s).
+        ai.Move(92.5f, () => ResolveElementsUnderBlizzard(state.ElemRoles[1], state.ElemTrue[1], state.Mystery[3]), arrivalTime: 96.3f);
+
+        // Wave2 Death Shriek (~104.4s): a pure positioning+facing solve in the middle,
+        // nothing else live. Position the pair, then nudge to set the gaze facing.
+        ai.Move(98f, () => ResolveGazeCentre(state.Wave2), jitter: 0, arrivalTime: 101.5f);
+        ai.Move(102.5f, () => ResolveGazeCentreLook(world, state.Wave2True), jitter: 0);
+
+        // Water bait (~109.98 lock) + last Mystery Magic (Mystery[4], ~115.6s): bait
+        // Stray Spray stacked in the middle, then one final move that clears the water
+        // (in for the real Donut / out for the fake Chariot) and solves Mystery[4].
+        ai.Move(106f, () => Stack(new Vector2(0f, 0f)), jitter: 0.8f, arrivalTime: 109.5f);
+        ai.Move(111f, () => StraySprayAndMystery(state.TsunamiMystery, state.Mystery[4]), jitter: 0.3f, arrivalTime: 114.5f);
     }
+
+    // The two gaze sources (Wave1[0]/Wave1[4]) stack 0.5y apart and opposite, just off
+    // centre toward Mystery[3]'s Thunder-safe lane (arena centre itself is on a line
+    // boundary). Everyone resolves both shrieks by facing toward/away from them; the rest
+    // fan ~5y out along the safe lane, since the lines resolve in the same window.
+    private IAiMove ResolveGaze(RoleList wave, MysteryCast thunder)
+    {
+        var rot = LineBaseRotation * thunder.LightningOrientation;
+        var lane = new Vector2(MathF.Sin(rot), MathF.Cos(rot));
+        var safeSpot = ThunderSafeSpot(thunder);
+        var pairCentre = safeSpot * 0.5f;
+
+        var coords = new Vector2?[8];
+        coords[(int)wave[0]] = pairCentre + lane * 0.5f;
+        coords[(int)wave[4]] = pairCentre - lane * 0.5f;
+
+        int[] others = [1, 2, 3, 5, 6, 7];
+        for (var k = 0; k < others.Length; k++)
+        {
+            var along = (k - (others.Length - 1) / 2f) * 1.5f;
+            coords[(int)wave[others[k]]] = safeSpot + lane * along;
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // MoveTo faces the travel direction, so a small radial step out/in sets the gaze
+    // facing the resolver reads: out (look away) when the cast is true, in (look toward)
+    // on the lie. The step is backed off if it would land inside a real Thunder line.
+    private IAiMove ResolveGazeLook(SimWorld world, MysteryCast thunder, bool lookAway)
+    {
+        var scale = lookAway ? 1.2f : 0.8f;
+        var coords = new Vector2?[8];
+        for (var i = 0; i < 8; i++)
+        {
+            var member = world.Party.Get(i);
+            if (member == null || !member.IsAlive()) continue;
+            var p = new Vector2(member.Position.X, member.Position.Z);
+            coords[i] = ThunderSafeNudge(p, scale, thunder);
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // Scale `p` radially (set facing), easing the scale back toward 1 until the result
+    // clears the real Thunder lines.
+    private static Vector2 ThunderSafeNudge(Vector2 p, float scale, MysteryCast thunder)
+    {
+        for (var t = 1f; t > 0f; t -= 0.2f)
+        {
+            var q = p * (1f + (scale - 1f) * t);
+            if (LineClearance(q, thunder) > 1f) return q;
+        }
+        return p;
+    }
+
+    // --- Wave2 Death Shriek (centre solve) ------------------------------------
+    //
+    // Two gaze sources (wave[0]/wave[4]) and nothing else live, so it's pure
+    // positioning + facing. The pair straddles the centre (one either side of the
+    // origin along Z), so a radial nudge from centre points each of them away
+    // from / toward the other; everyone else rings them at GazeRingRadius and
+    // faces radially too, resolving both shrieks at once because the sources sit
+    // near the middle. lookAway (Wave2True) -> face out; else face in.
+    private const float GazePairOffset = 2f;
+    private const float GazeRingRadius = 6f;
+
+    private IAiMove ResolveGazeCentre(RoleList wave)
+    {
+        var coords = new Vector2?[8];
+        coords[(int)wave[0]] = new Vector2(0f, -GazePairOffset);
+        coords[(int)wave[4]] = new Vector2(0f, GazePairOffset);
+
+        int[] others = [1, 2, 3, 5, 6, 7];
+        for (var k = 0; k < others.Length; k++)
+        {
+            var th = (k + 0.5f) * (MathF.PI / 3f); // 6 spokes, offset off the N/S pair axis
+            coords[(int)wave[others[k]]] = new Vector2(MathF.Sin(th), MathF.Cos(th)) * GazeRingRadius;
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // Radial nudge from centre to set the gaze facing (cf. ResolveGazeLook, but with
+    // nothing to dodge, so no line back-off): scale each position out (look away) or
+    // in (look toward) so MoveTo orients everyone relative to the centre pair.
+    private static IAiMove ResolveGazeCentreLook(SimWorld world, bool lookAway)
+    {
+        var scale = lookAway ? 1.2f : 0.8f;
+        var coords = new Vector2?[8];
+        for (var i = 0; i < 8; i++)
+        {
+            var member = world.Party.Get(i);
+            if (member == null || !member.IsAlive()) continue;
+            coords[i] = new Vector2(member.Position.X, member.Position.Z) * scale;
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // Wave-1 elements: no Blizzard live yet, so the 3+1 / 3+1 stack-and-solo split
+    // sits on the cardinals (stacks N/S, solos W/E).
+    private IAiMove ResolveElements(RoleList roleList, bool isTrue) =>
+        ElementFormation(roleList, isTrue, ElementCardinals, 0f);
+
+    // Wave-2 elements (~96.5s) resolve in the same window as Mystery[3]'s Blizzard
+    // cones (~97.4s), which leave only two opposite 90° wedges safe. So both stacks
+    // and both solos fold into those wedges (one stack + one solo each, kept >8y apart
+    // so the r=8 Death Bolt/Wave circles never double-dip anyone), and the whole
+    // formation rotates onto the safe diagonal. Real cones are the two inter-cardinals
+    // with (i + BlizzardOffset) even — offset 0 -> SE+NW real (safe NE/SW, +45°);
+    // offset 1 -> NE+SW real (safe SE/NW, -45°).
+    private IAiMove ResolveElementsUnderBlizzard(RoleList roleList, bool isTrue, MysteryCast blizzard) =>
+        ElementFormation(roleList, isTrue, ElementWedges,
+                         blizzard.BlizzardOffset == 0 ? MathF.PI / 4f : -MathF.PI / 4f);
+
+    // Shared element router: positions 0,1 + the stack-marker fill one stack; the
+    // solo-marker stands alone. The isTrue swaps send each Death Bolt/Wave marker
+    // (roleList 2/3 and 6/7) to the stack-vs-solo spot that matches its required count,
+    // mirroring Run_Neo_Exdeath_400040E9_5's minTargets. `rotation` spins the whole
+    // shape onto a safe diagonal (0 = leave on the cardinals).
+    private static IAiMove ElementFormation(RoleList roleList, bool isTrue, Vector2?[] coords, float rotation) =>
+        AiMove.Create(coords)
+              .Assignments([
+                  roleList[0],
+                  roleList[1],
+                  isTrue ? roleList[3] : roleList[2],
+                  isTrue ? roleList[2] : roleList[3],
+                  roleList[4],
+                  roleList[5],
+                  isTrue ? roleList[7] : roleList[6],
+                  isTrue ? roleList[6] : roleList[7]
+              ])
+              .ApplyPositions(p => p.Rotate(rotation));
+
+    // coords[0..2] = stack (3), coords[3] = solo; coords[4..6] = stack (3), coords[7] = solo.
+    private static readonly Vector2?[] ElementCardinals =
+    {
+        new(0f, -10f), new(0f, -10f), new(0f, -10f), new(-10f, 0f),
+        new(0f, 10f), new(0f, 10f), new(0f, 10f), new(10f, 0f),
+    };
+
+    // Two opposite wedges (point-symmetric): ~28° off each wedge centre at r≈12.5, so
+    // stack and solo sit ~11.7y apart and ~17° clear of the cone edges before rotation.
+    private static readonly Vector2?[] ElementWedges =
+    {
+        new(-5.86f, -11.04f), new(-5.86f, -11.04f), new(-5.86f, -11.04f), new(5.86f, -11.04f),
+        new(5.86f, 11.04f), new(5.86f, 11.04f), new(5.86f, 11.04f), new(-5.86f, 11.04f),
+    };
 
     // Every slot to the same destination.
     private static IAiMove Stack(Vector2 spot) => AiMove.All(spot);
+
+    // --- Stray Flames bait (Inferno "Mana Release") ------------------------------
+    //
+    // Each player carries the Inferno fire and drops a self-centred AOE where it sits
+    // when the debuff expires (scenario Run_Chaos_400040E2_2 locks each bait to the
+    // player's position at ~87.3s, then resolves InfernoMystery.Solution ~5s later).
+    // The whole party baits stacked in the arena centre so the AOEs land on top of
+    // each other, and the resolved shape decides the safe spot:
+    //   real -> StrayFlames_Chariot (circle r=6 on the bait) -> everyone runs out
+    //   lie  -> StrayFlames_Donut   (safe inside r=6)         -> everyone stays in
+    private static IAiMove StrayFlames(ChaosMystery inferno)
+    {
+        if (!inferno.SolutionIsChariot) // Donut: the middle (inside r=6) is safe — stay stacked.
+            return AiMove.All(new Vector2(0f, 0f));
+
+        // Chariot: the circle covers the centre; fan straight out well past r=6.
+        const float radius = 11f;
+        var coords = new Vector2?[8];
+        for (var i = 0; i < 8; i++)
+        {
+            var th = i * MathF.PI / 4f;
+            coords[i] = new Vector2(MathF.Sin(th) * radius, MathF.Cos(th) * radius);
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // --- Stray Spray bait (Tsunami "Mana Release") + last Mystery Magic -----------
+    //
+    // The water bait (~115.1s) resolves a beat before Mystery[4]'s cones+lines
+    // (~115.6s — the second Mana Release fires both together), so this single final
+    // move has to clear both at once. Everyone baited stacked in the middle, so the
+    // resolved water shape just picks which Mystery-safe spot to stack on:
+    //   donut (real)   -> safe inside r=6  -> the near Mystery spot (≤6y, also dodges
+    //                                          Mystery[4]) keeps us in the donut hole
+    //   chariot (fake) -> safe outside r=6 -> a far Mystery spot (8-12y) is both out
+    //                                          of the circle and in the safe wedge/lane
+    private static IAiMove StraySprayAndMystery(ChaosMystery water, MysteryCast mystery) =>
+        AiMove.All(water.SolutionIsChariot ? FarSafeSpot(mystery) : SafeSpot(mystery));
 
     // --- Mystery Magic safe-spot solver ---------------------------------------
     //
@@ -93,10 +305,29 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
         return best;
     }
 
+    // The best-clearance bearing in the 8-12y ring — used when the water Chariot forces
+    // everyone out past r=6 while the last Mystery's cones/lines still have to be dodged.
+    private static Vector2 FarSafeSpot(MysteryCast mystery)
+    {
+        Vector2 best = new(0f, 10f);
+        var bestClear = float.NegativeInfinity;
+        for (var radius = 8f; radius <= 12f; radius += 0.5f)
+        {
+            for (var deg = 0; deg < 360; deg += 2)
+            {
+                var th = deg * MathF.PI / 180f;
+                var q = new Vector2(MathF.Sin(th) * radius, MathF.Cos(th) * radius);
+                var clear = Clearance(q, mystery);
+                if (clear > bestClear) { bestClear = clear; best = q; }
+            }
+        }
+        return best;
+    }
+
     // Signed distance to the nearest real-hazard edge at `q` (negative = inside one).
     private static float Clearance(Vector2 q, MysteryCast mystery)
     {
-        var min = float.PositiveInfinity;
+        var min = LineClearance(q, mystery);
         var r = q.Length();
         var qBearing = MathF.Atan2(q.X, q.Y);
 
@@ -107,7 +338,14 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
             var d = AngleDiff(qBearing, coneBearing);
             min = MathF.Min(min, r * MathF.Sin(d - ConeHalfAngle)); // < 0 when inside the cone
         }
+        return min;
+    }
 
+    // Signed distance to the nearest real Thunder-line edge (Blizzard cones ignored —
+    // they aren't live during the gaze).
+    private static float LineClearance(Vector2 q, MysteryCast mystery)
+    {
+        var min = float.PositiveInfinity;
         for (var i = 0; i < 4; i++)
         {
             if ((i + mystery.LightningOffset) % 2 != 0) continue; // fake line — harmless
@@ -121,6 +359,22 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
             min = MathF.Min(min, MathF.Abs(Vector2.Dot(rel, right)) - LineHalfWidth); // < 0 inside the strip
         }
         return min;
+    }
+
+    // The ~5y-off-centre point deepest in a Thunder-safe lane.
+    private static Vector2 ThunderSafeSpot(MysteryCast thunder)
+    {
+        const float radius = 5f;
+        Vector2 best = new(0f, radius);
+        var bestClear = float.NegativeInfinity;
+        for (var deg = 0; deg < 360; deg += 2)
+        {
+            var th = deg * MathF.PI / 180f;
+            var q = new Vector2(MathF.Sin(th) * radius, MathF.Cos(th) * radius);
+            var clear = LineClearance(q, thunder);
+            if (clear > bestClear) { bestClear = clear; best = q; }
+        }
+        return best;
     }
 
     // Smallest angle between two bearings, in [0, PI].
@@ -157,20 +411,11 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
         for (var i = 0; i < 8; i++)
         {
             var role = state.Wave3[i];
-            var hasBeyondDeathState = (i % 2 == 0) == state.Wave4True;
-            var wound = state.Wounds[i] ? DamageType.White : DamageType.Black;
-
-            // Cleanse group survives by mismatching its wound; everyone else matches (dies).
-            var needed = hasBeyondDeathState ? Opposite(wound) : wound;
-
-            // Exactly one side resolves to `needed` (the two are always opposite colours).
-            var rightSide = state.Antilights[1].ResolvedDamageType == needed;
-            var local = new Vector3(rightSide ? AntilightLocalX : -AntilightLocalX, 0f, 0f);
+            var rightSide = (i % 2 == 0) ^ state.Wounds[i] ^ (state.Antilights[0].Antilight == Antilight.White);
+            var local = new Vector3(rightSide ? -AntilightLocalX : AntilightLocalX, 0f, 0f);
             var world = state.NeoExdeathDirection.Apply(local);
             coords[(int)role] = new Vector2(world.X, world.Z);
         }
         return AiMove.Create(coords).NaturalOrder();
     }
-
-    private static DamageType Opposite(DamageType t) => t == DamageType.White ? DamageType.Black : DamageType.White;
 }

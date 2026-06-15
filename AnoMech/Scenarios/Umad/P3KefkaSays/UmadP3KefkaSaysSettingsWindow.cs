@@ -1,3 +1,4 @@
+using System;
 using Dalamud.Bindings.ImGui;
 
 namespace AnoMech.Scenarios.Umad.P3KefkaSays;
@@ -18,11 +19,27 @@ public sealed class UmadP3KefkaSaysSettingsWindow
             DrawFirstBlizzard();
             DrawFirstLightning();
             DrawFirstBlizzardOffset();
-            DrawInferno();
-            DrawTsunami();
 #endif
+            RealFakeRow("Exdeath 1:", "ex1", Overrides.ExdeathCast1Real, v => Overrides.ExdeathCast1Real = v);
+            RealFakeRow("Exdeath 2:", "ex2", Overrides.ExdeathCast2Real, v => Overrides.ExdeathCast2Real = v);
+            RealFakeRow("Exdeath 3:", "ex3", Overrides.ExdeathCast3Real, v => Overrides.ExdeathCast3Real = v);
+            RealFakeRow("Exdeath 4:", "ex4", Overrides.ExdeathCast4Real, v => Overrides.ExdeathCast4Real = v);
+            RealFakeRow("Chaos 1:",   "chaos1", Overrides.ChaosCast1Real, v => Overrides.ChaosCast1Real = v);
+            RealFakeRow("Chaos 2:",   "chaos2", Overrides.ChaosCast2Real, v => Overrides.ChaosCast2Real = v);
             SettingsGrid.End();
         }
+    }
+
+    // Auto / Real / Fake tri-state row writing a nullable-bool override
+    // (null = Auto/random, true = Real, false = Fake).
+    private static void RealFakeRow(string label, string id, bool? value, Action<bool?> set)
+    {
+        SettingsGrid.Row(label);
+        if (ImGui.RadioButton($"Auto##{id}", value == null))  set(null);
+        ImGui.SameLine();
+        if (ImGui.RadioButton($"Real##{id}", value == true))  set(true);
+        ImGui.SameLine();
+        if (ImGui.RadioButton($"Fake##{id}", value == false)) set(false);
     }
 
 #if DEBUG
@@ -58,28 +75,6 @@ public sealed class UmadP3KefkaSaysSettingsWindow
         ImGui.SameLine();
         if (ImGui.RadioButton("1##firstoffset", v == 1))       Overrides.FirstBlizzardOffset = 1;
     }
-
-    private void DrawInferno()
-    {
-        var v = Overrides.InfernoReal;
-        SettingsGrid.Row("Chaos Fire:");
-        if (ImGui.RadioButton("Auto##inferno", v == null))  Overrides.InfernoReal = null;
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Real##inferno", v == true))  Overrides.InfernoReal = true;
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Fake##inferno", v == false)) Overrides.InfernoReal = false;
-    }
-
-    private void DrawTsunami()
-    {
-        var v = Overrides.TsunamiReal;
-        SettingsGrid.Row("Tsunami:");
-        if (ImGui.RadioButton("Auto##tsunami", v == null))  Overrides.TsunamiReal = null;
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Real##tsunami", v == true))  Overrides.TsunamiReal = true;
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Fake##tsunami", v == false)) Overrides.TsunamiReal = false;
-    }
 #endif
 
     private void ResetAll()
@@ -88,8 +83,12 @@ public sealed class UmadP3KefkaSaysSettingsWindow
         Overrides.FirstBlizzardReal = null;
         Overrides.FirstLightningReal = null;
         Overrides.FirstBlizzardOffset = null;
-        Overrides.InfernoReal = null;
-        Overrides.TsunamiReal = null;
 #endif
+        Overrides.ExdeathCast1Real = null;
+        Overrides.ExdeathCast2Real = null;
+        Overrides.ExdeathCast3Real = null;
+        Overrides.ExdeathCast4Real = null;
+        Overrides.ChaosCast1Real = null;
+        Overrides.ChaosCast2Real = null;
     }
 }

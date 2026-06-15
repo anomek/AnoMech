@@ -83,7 +83,7 @@ public static class UmadConstants
         public const uint WhiteAntilight               = 0xC394U; // rect 47x21 (len x width), cast 5.5s
         public const uint BlackAntilight               = 0xC395U; // rect 47x21 (len x width), cast 5.5s
         public const uint EdgeOfDeath                  = 0xC396U; // rect 48x2 (len x width), cast 5.5s
-        public const uint FloodOfNaught_WhiteTrue      = 0xC393U; // single-target, cast 5.0s
+        public const uint FloodOfNaught_WhiteTrue      = 0xC392U; // single-target, cast 5.0s
         public const uint FloodOfNaught_BlackTrue      = 0xC393U; // single-target, cast 5.0s
         public const uint FloodOfNaught_WhiteFake      = 0xC3A1U; // single-target, cast 5.0s
         public const uint FloodOfNaught_BlackFake      = 0xC3A2U; // single-target, cast 5.0s

@@ -22,9 +22,12 @@ public class DamageSolver
     
     
     public IReadOnlyList<SimCharacter> Resolve(
-        IPositioned? source, uint actionId, DamageType[] damageType, (ushort statusId, float duration)[] statusesToApply,
+        IPositioned? source, uint actionId, DamageType[] damageType,
+        (ushort statusId, float duration)[] statusesToApply,
+        ushort[]? removeStatus = null,
         int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null,
-        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null, bool killTargets = true)
+        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null,
+        bool killTargets = true)
     {
         if (source == null) return [];
         var placement = source.Placement();
@@ -61,6 +64,9 @@ public class DamageSolver
             }
             else
             {
+                if (removeStatus is {} r)
+                    foreach (var s in r)
+                        target.RemoveStatus(s);
                 foreach (var status in statusesToApply)
                     target.AddStatus(status.statusId, status.duration);       
             }

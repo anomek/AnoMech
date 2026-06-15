@@ -33,6 +33,7 @@ public sealed record Antilight(uint Action, DamageType DamageType, ushort Status
    public static Antilight White = new(ActionId.WhiteAntilight, DamageType.White, StatusId.WhiteWound, ActionId.FloodOfNaught_WhiteTrue, ActionId.FloodOfNaught_BlackFake);
    public static Antilight Black = new(ActionId.BlackAntilight, DamageType.Black, StatusId.BlackWound, ActionId.FloodOfNaught_BlackTrue, ActionId.FloodOfNaught_WhiteFake);
    
+   
    public Antilight Flip()
    {
        return this == White ?  Black : White;
@@ -50,6 +51,11 @@ public sealed record ChaosMystery(ChaosCast Cast, bool IsTrue)
 {
     public ushort StatusValue => (ushort)(IsTrue ? 1120 : 1119);
     public uint Solution => IsTrue ? Cast.TrueSolution : Cast.FakeSolution;
+
+    // Circle (run out of the bait) vs donut (stay inside). Inferno's real solution is
+    // the Chariot, Tsunami's is the Donut, so this keys on the resolved shape directly
+    // rather than on IsTrue.
+    public bool SolutionIsChariot => Solution == ActionId.StrayFlames_Chariot || Solution == ActionId.StraySpray_Chariot;
 }
 
 // Per-run randomized assignments the scenario and AI consume. Filled in the ctor
@@ -97,18 +103,29 @@ public sealed class UmadP3KefkaSaysState
     
     public bool[] Wounds { get; }
 
-    public ushort BeyondDeathState => Wave4True ? StatusId.BeyondDeath : StatusId.AllaganField;
+    public ushort BeyondDeathStatus => Wave3True ? StatusId.BeyondDeath : StatusId.AllaganField;
+    public ushort AllaganFieldStatus => Wave3True ? StatusId.AllaganField : StatusId.BeyondDeath;
 
     public UmadP3KefkaSaysState(SimParty party, UmadP3KefkaSaysStateOverrides overrides)
     {
-        InfernoMystery = new ChaosMystery(ChaosCast.Inferno, overrides.InfernoReal ?? rng.NextBool());
-        TsunamiMystery = new ChaosMystery(ChaosCast.Tsunami, overrides.TsunamiReal ?? rng.NextBool());
-        ChaosMysteries = rng.Shuffle(InfernoMystery, TsunamiMystery);
+        // Chaos casts are controlled by position: shuffle which element casts first, then
+        // apply the per-cast Real/Fake override (or randomize). InfernoMystery / TsunamiMystery
+        // point back at the same instances so the later Mana Release resolution
+        // (Run_Chaos_400040E2_2, which reads them by element) stays consistent with these casts.
+        var chaosOrder = rng.Shuffle(ChaosCast.Inferno, ChaosCast.Tsunami);
+        ChaosMysteries =
+        [
+            new ChaosMystery(chaosOrder[0], overrides.ChaosCast1Real ?? rng.NextBool()),
+            new ChaosMystery(chaosOrder[1], overrides.ChaosCast2Real ?? rng.NextBool()),
+        ];
+        InfernoMystery = ChaosMysteries.First(m => m.Cast == ChaosCast.Inferno);
+        TsunamiMystery = ChaosMysteries.First(m => m.Cast == ChaosCast.Tsunami);
+
         Wave1First = rng.NextBool();
-        Wave1True = rng.NextBool();
-        Wave2True = rng.NextBool();
-        Wave3True = rng.NextBool();
-        Wave4True = rng.NextBool();
+        Wave1True = overrides.ExdeathCast1Real ?? rng.NextBool();
+        Wave2True = overrides.ExdeathCast2Real ?? rng.NextBool();
+        Wave3True = overrides.ExdeathCast3Real ?? rng.NextBool();
+        Wave4True = overrides.ExdeathCast4Real ?? rng.NextBool();
 
         Mystery = Enumerable.Range(0, 5)
                             .Select(i => NextMystery(i == 0 ? overrides : null))

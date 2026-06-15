@@ -9,6 +9,16 @@ public sealed class UmadP3KefkaSaysStateOverrides
     public bool? FirstBlizzardReal { get; set; }    // null = random; true = Real, false = Fake (debug-only UI)
     public bool? FirstLightningReal { get; set; }   // null = random; true = Real, false = Fake (debug-only UI)
     public int?  FirstBlizzardOffset { get; set; }  // null = random; else 0 or 1 (debug-only UI)
-    public bool? InfernoReal { get; set; }          // chaos fire: null = random; true = Real, false = Fake (debug-only UI)
-    public bool? TsunamiReal { get; set; }          // null = random; true = Real, false = Fake (debug-only UI)
+
+    // Neo Exdeath's four Mystery casts (3x Grand Cross + Flood of Naught), by cast order.
+    // null = random; true = Real (boss tells the truth), false = Fake (boss lies).
+    public bool? ExdeathCast1Real { get; set; }
+    public bool? ExdeathCast2Real { get; set; }
+    public bool? ExdeathCast3Real { get; set; }
+    public bool? ExdeathCast4Real { get; set; }
+
+    // Chaos's two casts, by cast order (the element type Inferno/Tsunami stays randomized).
+    // null = random; true = Real, false = Fake.
+    public bool? ChaosCast1Real { get; set; }
+    public bool? ChaosCast2Real { get; set; }
 }

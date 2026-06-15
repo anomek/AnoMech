@@ -19,7 +19,7 @@ namespace AnoMech.Scenarios.Umad.P3KefkaSays;
 //   10018AEA M1, 100AF82E M2, 100A7A8F R1, 1009061B C.
 public sealed class UmadP3KefkaSaysScenario : IScenario
 {
-    public string Name => "UMAD P3 Kefka Says";
+    public string Name => "UMAD P3 Kefka Says (WIP)";
     public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1363,
         Origin: new Vector3(100.000f, 0f, 100.000f),
@@ -27,6 +27,8 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         WeatherId: 174);
     public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
     public ushort Bgm => 533;
+    
+    public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly UmadP3KefkaSaysSettingsWindow settingsWindow = new();
@@ -40,7 +42,7 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
     private SimWorld world = null!;
     private SimParty party = null!;
     private DamageSolver damage = null!;
-    private SimEnemy[] detonationHelpers;  // invisible KefkaHelper that casts DeathSurge on Allagan Field detonation
+    private SimEnemy[] detonationHelpers = [];  // invisible KefkaHelper that casts DeathSurge on Allagan Field detonation
     private int detonatioHelperIndex;
 
     public void Run(SimWorld worldParam, int? selectedAi)
@@ -69,6 +71,7 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         Run_Neo_Exdeath_400040E9_5();
         Run_InstanceEvents();
         Run_OtherDebuffs();
+        Run_AccelerationBomb();
     }
 
     private void Run_InstanceEvents()
@@ -116,8 +119,8 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         world.Events.Add(51.67f, () => state.Wave3.ForEach((i, c) => c.AddStatus(state.Wounds[i]? StatusId.WhiteWound : StatusId.BlackWound)));
         world.Events.Add(66.34f, () => party.ForEachActive(c =>
         {
-            if (c.HasStatus(state.BeyondDeathState))  c.Die("Beyond Death not cleansed");
-            if (c.HasStatus(state.Wave3True ? StatusId.AllaganField : StatusId.BeyondDeath))
+            if (c.HasStatus(state.BeyondDeathStatus))  c.Die("Beyond Death not cleansed");
+            if (c.HasStatus(state.AllaganFieldStatus))
             {
                 var helper = detonationHelpers[detonatioHelperIndex++ % 4];
                 helper.SetPosition(c.Position);
@@ -128,9 +131,36 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         world.Events.Add(66.64f, () => party.ForEachActive(c => c.RemoveStatus(StatusId.BlackWound)));
     }
 
+    private void Run_AccelerationBomb()
+    {
+        // Acceleration Bomb is a "don't move" debuff, but Kefka Says: that wave's lie can flip it
+        // to "must move". At detonation the local player dies if they did the wrong thing. The
+        // player's bomb is from whichever wave tagged their role at an AccelerationBomb slot
+        // (debuffs[0]/[1]); Wave2 (35.28) re-stamps over Wave1 (20.36), so Wave2 wins. Each bomb's
+        // lie is its source wave's truth (Wave1 -> Wave1True, Wave2 -> Wave2True). Times mirror
+        // Run_OtherDebuffs (apply + duration).
+        int w1 = Array.IndexOf(state.Wave1.List, party.PlayerRole) % 4;
+        int w2 = Array.IndexOf(state.Wave2.List, party.PlayerRole) % 4;
+
+        if (w2 == 0)      world.Events.Add(96.28f, () => ResolveAccelerationBomb(state.Wave2True)); // 35.28+61
+        else if (w2 == 1) world.Events.Add(71.28f, () => ResolveAccelerationBomb(state.Wave2True)); // 35.28+36
+        else if (w1 == 0) world.Events.Add(71.36f, () => ResolveAccelerationBomb(state.Wave1True)); // 20.36+51
+        else if (w1 == 1) world.Events.Add(96.36f, () => ResolveAccelerationBomb(state.Wave1True)); // 20.36+76
+    }
+
+    private void ResolveAccelerationBomb(bool real)
+    {
+        var player = party.Player;
+        if (player == null || !player.IsAlive()) return;
+        // real (honest) -> must be still, die if acting; fake (lie) -> must move, die if still.
+        if (real ? player.IsActing : !player.IsActing)
+            player.Die(real ? "Moved during Acceleration Bomb"
+                            : "Stood still during fake Acceleration Bomb");
+    }
+
     public void Tick(float delta, float elapsed)
     {
-        var status = state.Wave3True ? StatusId.AllaganField : StatusId.BeyondDeath;
+        var status = state.AllaganFieldStatus;
         state.Wave3.ForEach(c =>
         {
             if (c.HasStatus(status) && !c.IsAlive())
@@ -332,12 +362,12 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         world.Events.Add(57.39f, () => enemy?.Cast(mystery.Antilight.Action));
         world.Events.Add(57.39f + 5.5f, () =>
         {
-            var dead = damage.Resolve(enemy, mystery.Antilight.Action, [mystery.ResolvedDamageType], [(mystery.Antilight.Status, 0f)], killTargets: false);
+            var dead = damage.Resolve(enemy, mystery.Antilight.Action, [mystery.ResolvedDamageType], [(mystery.Antilight.Status, 0f)], removeStatus: [StatusId.BlackWound, StatusId.WhiteWound], killTargets: false);
             foreach (var simCharacter in dead)
             {
-                if (simCharacter.HasStatus(state.BeyondDeathState))
+                if (simCharacter.HasStatus(state.BeyondDeathStatus))
                 {
-                    simCharacter.RemoveStatus(state.BeyondDeathState);
+                    simCharacter.RemoveStatus(state.BeyondDeathStatus);
                     simCharacter.RemoveStatus(StatusId.BlackWound);
                     simCharacter.RemoveStatus(StatusId.WhiteWound);
                 }    
@@ -353,14 +383,14 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
     {
         SimEnemy? neo_Exdeath_400040E8_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.NeoExdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true, Placement: new Placement(new Vector3(7.420f, 0.000f, 20.860f), -2.360f)));
         world.Events.Add(57.30f, () => neo_Exdeath_400040E8_2?.SetPosition(state.NeoExdeathDirection.Apply(new Placement(new Vector3(-9.5f, 0.000f, -20f), 0f))));
-        ResolveAntilight(neo_Exdeath_400040E8_2, state.Antilights[1]);
+        ResolveAntilight(neo_Exdeath_400040E8_2, state.Antilights[0]);
     }
 
     private void Run_Neo_Exdeath_400040E9_2()
     {
         SimEnemy? neo_Exdeath_400040E9_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.NeoExdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(20.860f, 0.000f, 7.420f), -2.360f)));
         world.Events.Add(57.30f, () => neo_Exdeath_400040E9_2?.SetPosition(state.NeoExdeathDirection.Apply(new Placement(new Vector3(9.5f, 0.000f, -20f), 0f))));
-        ResolveAntilight(neo_Exdeath_400040E9_2, state.Antilights[0]);
+        ResolveAntilight(neo_Exdeath_400040E9_2, state.Antilights[1]);
     }
 
     private void Run_Chaos_400040E2_2()
@@ -375,7 +405,7 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
             world.Events.Add(92.36f, () => damage.Resolve(chaos_400040E2_2, state.InfernoMystery.Solution, [DamageType.Lethal], []));
             world.Events.Add(109.98f, () => chaos_400040E2_2?.SetPosition(party.Get(role)!.Placement()));
             world.Events.Add(110.07f, () => chaos_400040E2_2?.Cast(state.TsunamiMystery.Solution, omenDelay: 4f));
-            world.Events.Add(92.36f, () => damage.Resolve(chaos_400040E2_2, state.TsunamiMystery.Solution, [DamageType.Lethal], []));
+            world.Events.Add(115.07f, () => damage.Resolve(chaos_400040E2_2, state.TsunamiMystery.Solution, [DamageType.Lethal], []));
         }
     }
 
@@ -388,8 +418,8 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
             
             SimEnemy? neo_Exdeath_400040E9_5 = null;
             var actionId = i % 2 == 0 ? ActionId.DeathBolt : ActionId.DeathWave;
-            var minTargets1 = (i % 2 == 0) ^ state.ElemTrue[0] ? 1 : 3;
-            var minTargets2 = (i % 2 == 0) ^ state.ElemTrue[1] ? 1 : 3;
+            var minTargets1 = (i % 2 == 0) ^ state.ElemTrue[0] ? 3 : 1;
+            var minTargets2 = (i % 2 == 0) ^ state.ElemTrue[1] ? 3 : 1;
             
             
             world.Events.Add(70.09f, () => neo_Exdeath_400040E9_5 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.NeoExdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-0.210f, 0.000f, 0.290f), 2.960f))));
