@@ -19,8 +19,8 @@ namespace AnoMech.Scenarios.Umad.P3KefkaSays.Ai;
 //    spread and the Wave1 gaze pair.
 //  - Stray Flames (Inferno "Mana Release", ~92s): bait the fire stacked in the
 //    middle, then run out for the real Chariot or stay in for the lie's Donut.
-//  - Elemental wave 2 under Blizzard (~96s/~97s): the same stack/solo split, but
-//    folded into Mystery[3]'s two Blizzard-safe wedges so it clears the cones too.
+//  - Elemental wave 2 under Blizzard (~96s/~97s): the same wave-1 cardinal cross,
+//    each spot stepped one notch into Mystery[3]'s Blizzard-safe wedge to clear the cones.
 //  - Wave2 Death Shriek (~104s): a centre solve — pair the two gaze sources across
 //    the middle and resolve both shrieks with one radial facing, nothing to dodge.
 //  - Stray Spray (Tsunami "Mana Release") + last Mystery Magic (~115s): bait the
@@ -168,53 +168,57 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
     }
 
     // Wave-1 elements: no Blizzard live yet, so the 3+1 / 3+1 stack-and-solo split
-    // sits on the cardinals (stacks N/S, solos W/E).
+    // sits on the cardinals (support stack N + solo W, dps stack S + solo E).
     private IAiMove ResolveElements(RoleList roleList, bool isTrue) =>
-        ElementFormation(roleList, isTrue, ElementCardinals, 0f);
+        ElementFormation(roleList, isTrue, ElementCardinals);
 
     // Wave-2 elements (~96.5s) resolve in the same window as Mystery[3]'s Blizzard
-    // cones (~97.4s), which leave only two opposite 90° wedges safe. So both stacks
-    // and both solos fold into those wedges (one stack + one solo each, kept >8y apart
-    // so the r=8 Death Bolt/Wave circles never double-dip anyone), and the whole
-    // formation rotates onto the safe diagonal. Real cones are the two inter-cardinals
-    // with (i + BlizzardOffset) even — offset 0 -> SE+NW real (safe NE/SW, +45°);
-    // offset 1 -> NE+SW real (safe SE/NW, -45°).
-    private IAiMove ResolveElementsUnderBlizzard(RoleList roleList, bool isTrue, MysteryCast blizzard) =>
-        ElementFormation(roleList, isTrue, ElementWedges,
-                         blizzard.BlizzardOffset == 0 ? MathF.PI / 4f : -MathF.PI / 4f);
+    // cones (~97.4s). Keep the exact wave-1 cardinal cross, but step each spot one
+    // notch into its Blizzard-safe wedge. Cardinals sit on cone-edge boundaries; the
+    // two real cones are an opposite inter-cardinal pair (offset 0 -> SE+NW real, safe
+    // NE+SW; offset 1 -> NE+SW real, safe SE+NW), so each spot steps toward its single
+    // safe neighbour and the sign flips with the offset. Lethality is offset-only (NOT
+    // isTrue — that's the Bolt/Wave lie); only the cones are live here (no Thunder lines).
+    private const float BlizzardNudge = 3f;
+    private IAiMove ResolveElementsUnderBlizzard(RoleList roleList, bool isTrue, MysteryCast blizzard)
+    {
+        var s = blizzard.BlizzardOffset == 0 ? BlizzardNudge : -BlizzardNudge;
+        return ElementFormation(roleList, isTrue, ElementCardinals, p =>
+        {
+            p.AddX(0, s); p.AddX(1, s); p.AddX(2, s);    // N stack -> NE (offset 0)
+            p.AddY(3, s);                                // W solo  -> SW
+            p.AddX(4, -s); p.AddX(5, -s); p.AddX(6, -s); // S stack -> SW
+            p.AddY(7, -s);                               // E solo  -> NE
+        });
+    }
 
     // Shared element router: positions 0,1 + the stack-marker fill one stack; the
     // solo-marker stands alone. The isTrue swaps send each Death Bolt/Wave marker
     // (roleList 2/3 and 6/7) to the stack-vs-solo spot that matches its required count,
-    // mirroring Run_Neo_Exdeath_400040E9_5's minTargets. `rotation` spins the whole
-    // shape onto a safe diagonal (0 = leave on the cardinals).
-    private static IAiMove ElementFormation(RoleList roleList, bool isTrue, Vector2?[] coords, float rotation) =>
-        AiMove.Create(coords)
-              .Assignments([
-                  roleList[0],
-                  roleList[1],
-                  isTrue ? roleList[3] : roleList[2],
-                  isTrue ? roleList[2] : roleList[3],
-                  roleList[4],
-                  roleList[5],
-                  isTrue ? roleList[7] : roleList[6],
-                  isTrue ? roleList[6] : roleList[7]
-              ])
-              .ApplyPositions(p => p.Rotate(rotation));
+    // mirroring Run_Neo_Exdeath_400040E9_5's minTargets. `adjust` optionally tweaks the
+    // coordinates (null = leave on the cardinals).
+    private static IAiMove ElementFormation(RoleList roleList, bool isTrue, Vector2?[] coords,
+                                            Action<IAiPositions>? adjust = null)
+    {
+        var move = AiMove.Create(coords)
+                         .Assignments([
+                             roleList[0],
+                             roleList[1],
+                             isTrue ? roleList[3] : roleList[2],
+                             isTrue ? roleList[2] : roleList[3],
+                             roleList[4],
+                             roleList[5],
+                             isTrue ? roleList[7] : roleList[6],
+                             isTrue ? roleList[6] : roleList[7]
+                         ]);
+        return adjust is null ? move : move.ApplyPositions(adjust);
+    }
 
-    // coords[0..2] = stack (3), coords[3] = solo; coords[4..6] = stack (3), coords[7] = solo.
+    // coords[0..2] = stack (3) N, coords[3] = solo W; coords[4..6] = stack (3) S, coords[7] = solo E.
     private static readonly Vector2?[] ElementCardinals =
     {
         new(0f, -10f), new(0f, -10f), new(0f, -10f), new(-10f, 0f),
         new(0f, 10f), new(0f, 10f), new(0f, 10f), new(10f, 0f),
-    };
-
-    // Two opposite wedges (point-symmetric): ~28° off each wedge centre at r≈12.5, so
-    // stack and solo sit ~11.7y apart and ~17° clear of the cone edges before rotation.
-    private static readonly Vector2?[] ElementWedges =
-    {
-        new(-5.86f, -11.04f), new(-5.86f, -11.04f), new(-5.86f, -11.04f), new(5.86f, -11.04f),
-        new(5.86f, 11.04f), new(5.86f, 11.04f), new(5.86f, 11.04f), new(-5.86f, 11.04f),
     };
 
     // Every slot to the same destination.
