@@ -4,7 +4,7 @@ using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
-namespace AnoMech.Scenarios.Umad.P3KefkaSays;
+namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
 public sealed record KefkaCast(uint DamageAction, uint OmenAction, uint Lockon)
 {
@@ -61,7 +61,7 @@ public sealed record ChaosMystery(ChaosCast Cast, bool IsTrue)
 // Per-run randomized assignments the scenario and AI consume. Filled in the ctor
 // (apply override if set, otherwise pick at random) so Run stays deterministic for
 // the duration of one play. See UmadP2ForsakenState for the canonical shape.
-public sealed class UmadP3KefkaSaysState
+public sealed class UmadP4KefkaSaysState
 {
     private readonly Rng rng = new();
 
@@ -106,7 +106,7 @@ public sealed class UmadP3KefkaSaysState
     public ushort BeyondDeathStatus => Wave3True ? StatusId.BeyondDeath : StatusId.AllaganField;
     public ushort AllaganFieldStatus => Wave3True ? StatusId.AllaganField : StatusId.BeyondDeath;
 
-    public UmadP3KefkaSaysState(SimParty party, UmadP3KefkaSaysStateOverrides overrides)
+    public UmadP4KefkaSaysState(SimParty party, UmadP4KefkaSaysStateOverrides overrides)
     {
         // Chaos casts are controlled by position: shuffle which element casts first, then
         // apply the per-cast Real/Fake override (or randomize). InfernoMystery / TsunamiMystery
@@ -143,7 +143,7 @@ public sealed class UmadP3KefkaSaysState
         );
     }
 
-    private MysteryCast NextMystery(UmadP3KefkaSaysStateOverrides? overrides = null)
+    private MysteryCast NextMystery(UmadP4KefkaSaysStateOverrides? overrides = null)
     {
         var blizzard = overrides?.FirstBlizzardReal switch
         {

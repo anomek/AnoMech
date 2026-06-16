@@ -3,9 +3,9 @@ using System.Numerics;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.SimObjects;
 
-namespace AnoMech.Scenarios.Umad.P3KefkaSays.Ai;
+namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
-// Party-movement AI for UMAD P3 "Kefka Says".
+// Party-movement AI for UMAD P4 "Kefka Says".
 //
 // Handled so far:
 //  - The opening three Mystery Magic casts (the Blizzard-cone + Thrumming-Thunder-
@@ -33,11 +33,11 @@ namespace AnoMech.Scenarios.Umad.P3KefkaSays.Ai;
 // That covers every positional mechanic through to the LightOfJudgment enrage
 // (~120s). Mana Charge and Ultima Upsurge are raidwides that need no movement. See
 // UmadP2ForsakenRinonAiHelper for the fuller pattern.
-public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
+public sealed class UmadP4KefkaSaysAi : IScenarioAi<UmadP4KefkaSaysState>
 {
     public string Name => "Kefka Says (WIP)";
 
-    public void Run(UmadP3KefkaSaysState state, SimWorld world)
+    public void Run(UmadP4KefkaSaysState state, SimWorld world)
     {
         var ai = new AiManager(world);
 
@@ -265,7 +265,7 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
     // --- Mystery Magic safe-spot solver ---------------------------------------
     //
     // Mirrors the hazard geometry the scenario resolves against (see
-    // UmadP3KefkaSaysScenario.Run_Kefka_400040E5_1 / Run_Kefka_400040E6_1 and the
+    // UmadP4KefkaSaysScenario.Run_Kefka_400040E5_1 / Run_Kefka_400040E6_1 and the
     // shapes in CharacterFind), so "safe here" matches "DamageSolver won't hit me".
 
     // Blizzard: 4 cones, apex at arena centre, facing the 4 inter-cardinals, 45°
@@ -409,7 +409,7 @@ public sealed class UmadP3KefkaSaysCenterAi : IScenarioAi<UmadP3KefkaSaysState>
     // BeyondDeathState = Wave4True ? BeyondDeath : AllaganField, so the "must-cleanse"
     // parity flips with the lie — that's the "fake cast" dependency.
     private const float AntilightLocalX = 8f; // off the Edge of Death, inside the side rect
-    private static IAiMove FloodOfNaught(UmadP3KefkaSaysState state)
+    private static IAiMove FloodOfNaught(UmadP4KefkaSaysState state)
     {
         var coords = new Vector2?[8];
         for (var i = 0; i < 8; i++)

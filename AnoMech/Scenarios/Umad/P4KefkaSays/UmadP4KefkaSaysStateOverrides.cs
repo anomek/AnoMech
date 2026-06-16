@@ -1,10 +1,10 @@
-namespace AnoMech.Scenarios.Umad.P3KefkaSays;
+namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
-// User-controlled overrides for UmadP3KefkaSaysState's randomized fields. Bound by
+// User-controlled overrides for UmadP4KefkaSaysState's randomized fields. Bound by
 // the scenario's settings UI; null/default values leave the field randomized at
 // scenario start. The state ctor consumes this directly.
 // See UmadP2ForsakenStateOverrides for the canonical shape.
-public sealed class UmadP3KefkaSaysStateOverrides
+public sealed class UmadP4KefkaSaysStateOverrides
 {
     public bool? FirstBlizzardReal { get; set; }    // null = random; true = Real, false = Fake (debug-only UI)
     public bool? FirstLightningReal { get; set; }   // null = random; true = Real, false = Fake (debug-only UI)

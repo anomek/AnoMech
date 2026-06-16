@@ -12,7 +12,7 @@ using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
 using AnoMech.Scenarios.Top.P6WaveCannon2;
 using AnoMech.Scenarios.Umad.P2Forsaken;
-using AnoMech.Scenarios.Umad.P3KefkaSays;
+using AnoMech.Scenarios.Umad.P4KefkaSays;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -60,7 +60,7 @@ public sealed class Game : IDisposable
         Scenarios = new IScenario[]
         {
             new UmadP2ForsakenScenario(),
-            new UmadP3KefkaSaysScenario(),
+            new UmadP4KefkaSaysScenario(),
             new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),

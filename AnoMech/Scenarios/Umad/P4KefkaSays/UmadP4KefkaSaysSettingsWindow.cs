@@ -1,19 +1,19 @@
 using System;
 using Dalamud.Bindings.ImGui;
 
-namespace AnoMech.Scenarios.Umad.P3KefkaSays;
+namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
 // ImGui panel rendered in the main window's "Scenario config" pane when this
 // scenario is active. Owns the StateOverrides instance and writes user choices into
 // it. See UmadP2ForsakenSettingsWindow for the canonical shape.
-public sealed class UmadP3KefkaSaysSettingsWindow
+public sealed class UmadP4KefkaSaysSettingsWindow
 {
-    public UmadP3KefkaSaysStateOverrides Overrides { get; } = new();
+    public UmadP4KefkaSaysStateOverrides Overrides { get; } = new();
 
     public void Draw()
     {
         if (ImGui.Button("Auto")) ResetAll();
-        if (SettingsGrid.Begin("##umadp3kefkasays"))
+        if (SettingsGrid.Begin("##umadp4kefkasays"))
         {
 #if DEBUG
             DrawFirstBlizzard();

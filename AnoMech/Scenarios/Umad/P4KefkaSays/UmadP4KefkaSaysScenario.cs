@@ -2,24 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios.Umad.P3KefkaSays.Ai;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
-namespace AnoMech.Scenarios.Umad.P3KefkaSays;
+namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
 // Auto-generated body from tools/parser.py --code, rehomed into the canonical layout.
 // Player id -> role (first-seen order in the window):
 //   10066D86 MT, 100AC8F1 OT, 100AE96C H1, 100702A3 H2,
 //   10018AEA M1, 100AF82E M2, 100A7A8F R1, 1009061B C.
-public sealed class UmadP3KefkaSaysScenario : IScenario
+public sealed class UmadP4KefkaSaysScenario : IScenario
 {
-    public string Name => "UMAD P3 Kefka Says (WIP)";
+    public string Name => "UMAD P4 Kefka Says (WIP)";
     public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1363,
         Origin: new Vector3(100.000f, 0f, 100.000f),
@@ -31,14 +29,14 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
     public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
 
     public void DrawSettings() => settingsWindow.Draw();
-    private readonly UmadP3KefkaSaysSettingsWindow settingsWindow = new();
+    private readonly UmadP4KefkaSaysSettingsWindow settingsWindow = new();
 
     public IReadOnlyList<IScenarioAi> AiStrats =>
     [
-        new UmadP3KefkaSaysCenterAi(),
+        new UmadP4KefkaSaysAi(),
     ];
 
-    private UmadP3KefkaSaysState state = null!;
+    private UmadP4KefkaSaysState state = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
     private DamageSolver damage = null!;
@@ -50,9 +48,9 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
         UmadRsvStrings.Seed();
         world = worldParam;
         party = worldParam.Party;
-        state = new UmadP3KefkaSaysState(party, settingsWindow.Overrides);
+        state = new UmadP4KefkaSaysState(party, settingsWindow.Overrides);
         if (selectedAi is { } idx && idx < AiStrats.Count)
-            ((IScenarioAi<UmadP3KefkaSaysState>)AiStrats[idx]).Run(state, world);
+            ((IScenarioAi<UmadP4KefkaSaysState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
         damage.SetStatuses(DamageType.Black, StatusId.BlackWound);

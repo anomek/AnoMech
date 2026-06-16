@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core.Game.Party;
-using AnoMech.Scenarios.Umad.P3KefkaSays;
 
 namespace AnoMech.Scenarios;
 
