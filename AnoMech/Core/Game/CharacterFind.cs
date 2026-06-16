@@ -215,7 +215,7 @@ public sealed class CharacterFind<T> where T : IPositioned
             4 or 12
                   => InsideRect(forward, halfWidth, range),
             5     => InsideCircle(source.Position, range),
-            6     => InsideCircle(source.Position, range), // donut — inner radius not in sheet
+            6     => OutsideCircle(source.Position, range), // donut: EffectRange is the inner safe radius — hit anyone outside it
             10 or 11
                   => InsideRect(forward, halfWidth, range)
                          .Concat(InsideRect(new Placement(source.Position, forward.Rotation + MathF.PI / 2f), halfWidth, range))
