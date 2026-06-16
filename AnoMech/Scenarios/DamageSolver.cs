@@ -26,16 +26,14 @@ public class DamageSolver
         (ushort statusId, float duration)[] statusesToApply,
         ushort[]? removeStatus = null,
         int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null,
-        float? coneAngleOverride = null, float? coneRotationOverride = null, SimCharacter[]? excludeTargets = null,
+        float? size = null, float? coneRotationDelta = null, SimCharacter[]? excludeTargets = null,
         bool killTargets = true)
     {
         if (source == null) return [];
         var placement = source.Placement();
-        // Additive facing offset (radians) applied on top of the caster's rotation;
-        // lets a scenario aim the resolved cone without turning the model. null = caster's facing.
-        if (coneRotationOverride is { } delta)
+        if (coneRotationDelta is { } delta)
             placement = placement with { Rotation = placement.Rotation + delta };
-        var query = new AoeQuery(actionId, placement, coneHalfAngle: coneAngleOverride);
+        var query = new AoeQuery(actionId, placement, size: size);
 #if DEBUG
         AnoMech.Windows.DamageDebugWindow.Instance?.Record(query);
 #endif

@@ -100,6 +100,23 @@ public sealed class CharacterFind<T> where T : IPositioned
         return hits;
     }
 
+    // Members in the ring (donut) between `innerRadius` and `outerRadius` of `center` on
+    // the XZ plane — outside the safe hole, inside the outer edge. Alive only.
+    public IReadOnlyList<T> InsideRing(Vector3 center, float innerRadius, float outerRadius)
+    {
+        var innerSq = innerRadius * innerRadius;
+        var outerSq = outerRadius * outerRadius;
+        var hits = new List<T>();
+        foreach (var m in source())
+        {
+            var dx = m.Position.X - center.X;
+            var dz = m.Position.Z - center.Z;
+            var d = dx * dx + dz * dz;
+            if (d > innerSq && d <= outerSq) hits.Add(m);
+        }
+        return hits;
+    }
+
     // Plus-shaped AOE centered on `origin`: union of two perpendicular centered
     // rects. Each arm extends `halfLength` along its axis and `halfWidth`
     // perpendicular.
@@ -185,16 +202,12 @@ public sealed class CharacterFind<T> where T : IPositioned
         return pool.Count == 0 ? default : pool[Random.Shared.Next(pool.Count)];
     }
 
-    // Members hit by an action's AOE, derived from the Action sheet (CastType +
-    // EffectRange + XAxisModifier). source.Position is the caster, source.Rotation
-    // is the caster facing; for rects/cones the effective forward is
-    // source.Rotation + omenRotate (matches SpawnCastOmen). targetLocation is
-    // used for CastType 2 (circle-on-ground) as the AOE center; ignored for
-    // source-anchored shapes. Cone half-angle isn't carried by the sheet — pass null
-    // (the default) for 30° (60° wide cone); override per-action if a specific cone
-    // needs tighter bounds.
-    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement source,
-        Vector3? targetLocation = null, float omenRotate = 0f, float? coneHalfAngle = null)
+    // size is extra dimension, that's not present in game data.
+    // Exact interpretation depends on spell type
+    // 3, 13 (cones) -> halfAngleRad default PI/6
+    // 8 (charge) -> charge length default 100
+    // 10 (donut) -> inner safe radius default 0
+    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement target, float omenRotate = 0f, float? size = null)
     {
         var actionSheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
         if (!actionSheet.TryGetRow(actionId, out var action))
@@ -203,28 +216,26 @@ public sealed class CharacterFind<T> where T : IPositioned
             return Array.Empty<T>();
         }
         var range = (float)action.EffectRange;
-        if (range <= 0f) return Array.Empty<T>();
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
-        var cone = coneHalfAngle ?? MathF.PI / 6f;
-        var forward = new Placement(source.Position, source.Rotation + omenRotate);
+        var forward = new Placement(target.Position, target.Rotation + omenRotate);
         var hits = action.CastType switch
         {
-            2     => InsideCircle(targetLocation ?? source.Position, range),
-            3 or 8 or 13
-                  => InsideCone(forward, cone, range),
-            4 or 12
+            2 or 5 or 6 // Probably different targeting: ground / caster / target. Doesn't matter for us
+                  => InsideCircle(target.Position, range),
+            3 or 13     // 3 - frontal cone, 13 - special variant (no idea what's difference)
+                  => InsideCone(forward, size ?? MathF.PI / 6f, range),
+            8   // this is charge, from caster (target) to destination (just pass distance as size)
+                  => InsideRect(forward, halfWidth, size ?? 100),
+            4 or 12 // standard rectangle, 12 seems to just be newer kind of spells
                   => InsideRect(forward, halfWidth, range),
-            5     => InsideCircle(source.Position, range),
-            6     => OutsideCircle(source.Position, range), // donut: EffectRange is the inner safe radius — hit anyone outside it
-            10 or 11
-                  => InsideRect(forward, halfWidth, range)
-                         .Concat(InsideRect(new Placement(source.Position, forward.Rotation + MathF.PI / 2f), halfWidth, range))
-                         .Distinct()
-                         .ToList(),
+            10  // donut
+                  => InsideRing(target.Position, size ?? 0f, range),
+            11  // +
+                  => InsideCross(forward, halfWidth, range),
             _ =>
                 LogUnknownCastType(actionId, action.CastType),
         };
-        return SortByDistanceTo(hits, source.Position);
+        return SortByDistanceTo(hits, target.Position);
     }
 
     // Orders hits by ascending XZ distance to `from` (closest first), so callers that
@@ -293,11 +304,11 @@ public sealed class CharacterFind<T> where T : IPositioned
 // exactly one place (Run), so any parameter it grows is carried to both callers
 // automatically — the debug picture can't drift from the resolved AOE.
 public readonly struct AoeQuery(uint actionId, Placement source,
-    Vector3? targetLocation = null, float omenRotate = 0f, float? coneHalfAngle = null)
+    float omenRotate = 0f, float? size = null)
 {
     public Placement Source { get; } = source;
 
     public IReadOnlyList<T> Run<T>(CharacterFind<T> find) where T : IPositioned =>
-        find.InsideActionAoe(actionId, Source, targetLocation, omenRotate, coneHalfAngle);
+        find.InsideActionAoe(actionId, Source, omenRotate, size);
 }
 

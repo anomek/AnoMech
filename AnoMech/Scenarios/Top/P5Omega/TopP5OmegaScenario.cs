@@ -235,7 +235,7 @@ public sealed class TopP5OmegaScenario : IScenario
         if (omega4000A40B1 is not { IsActive: true } unit) return;
         // 120° cone (60° half-angle) per the OmegaDiffuseWaveCannonAOE comment in
         // TopConstants. The Action sheet doesn't carry cone width, so override.
-        foreach (var hit in party.Find.InsideActionAoe(ActionId.OmegaDiffuseWaveCannonAOE, unit.Placement(), coneHalfAngle: MathF.PI / 3f))
+        foreach (var hit in party.Find.InsideActionAoe(ActionId.OmegaDiffuseWaveCannonAOE, unit.Placement(), size: MathF.PI / 3f))
         {
             Plugin.Log.Info($"Hit: {(hit as ISimPartyMember)?.Role} by Diffuse Wave Cannon ");
             hit.Die("Diffuse Wave Cannon");

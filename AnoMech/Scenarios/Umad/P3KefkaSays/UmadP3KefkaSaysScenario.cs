@@ -333,7 +333,7 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
                 if (actionId != 0)
                     world.Events.Add(blizzTiming[k], () => kefka_400040E6_1?.Cast(actionId));
                 if (real)
-                    world.Events.Add(blizzTiming[k] + 5, () => damage.Resolve(kefka_400040E6_1, actionId, [DamageType.Lethal], [], coneAngleOverride: MathF.PI / 4));
+                    world.Events.Add(blizzTiming[k] + 5, () => damage.Resolve(kefka_400040E6_1, actionId, [DamageType.Lethal], [], size: MathF.PI / 4));
             }
         }
     }
@@ -402,10 +402,10 @@ public sealed class UmadP3KefkaSaysScenario : IScenario
             world.Events.Add(87.16f, () => chaos_400040E2_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Chaos, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.700f, 0.000f, 0.280f), -1.960f))));
             world.Events.Add(87.28f, () => chaos_400040E2_2?.SetPosition(party.Get(role)!.Placement()));
             world.Events.Add(87.36f, () => chaos_400040E2_2?.Cast(state.InfernoMystery.Solution, omenDelay: 4f));
-            world.Events.Add(92.36f, () => damage.Resolve(chaos_400040E2_2, state.InfernoMystery.Solution, [DamageType.Lethal], []));
+            world.Events.Add(92.36f, () => damage.Resolve(chaos_400040E2_2, state.InfernoMystery.Solution, [DamageType.Lethal], [], size: 6f));
             world.Events.Add(109.98f, () => chaos_400040E2_2?.SetPosition(party.Get(role)!.Placement()));
             world.Events.Add(110.07f, () => chaos_400040E2_2?.Cast(state.TsunamiMystery.Solution, omenDelay: 4f));
-            world.Events.Add(115.07f, () => damage.Resolve(chaos_400040E2_2, state.TsunamiMystery.Solution, [DamageType.Lethal], []));
+            world.Events.Add(115.07f, () => damage.Resolve(chaos_400040E2_2, state.TsunamiMystery.Solution, [DamageType.Lethal], [], size: 6f));
         }
     }
 

@@ -182,7 +182,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         });
         world.Events.Add(start + 12.8f, () => kefka_40004FD3?.Face(party.Player));
         world.Events.Add(start + 12.9f, () => kefka_40004FD3?.Cast(end.AllThingsEnding, targetLocation: party.Player!.Position));
-        world.Events.Add(start + 17.9f, () => damage.Resolve(kefka_40004FD3, end.AllThingsEnding, [DamageType.Lethal], [], coneAngleOverride: Geometry.AllThingsEndHalfCone, coneRotationOverride: end.RotationOverride));
+        world.Events.Add(start + 17.9f, () => damage.Resolve(kefka_40004FD3, end.AllThingsEnding, [DamageType.Lethal], [], size: Geometry.AllThingsEndHalfCone, coneRotationDelta: end.RotationOverride));
     }
 
     private void RunTower(SimEnemy? enemy1, SimEnemy? enemy2, float start, int index)
@@ -280,7 +280,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
                     break;
                 case LockonId.ForsakenCone:
                     towerHelper[index]?.Cast(ActionId.Spellwave);
-                    damage.Resolve(towerHelper[index], ActionId.Spellwave, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 1.96f)], coneAngleOverride: MathF.PI / 4, excludeTargets: [character]);
+                    damage.Resolve(towerHelper[index], ActionId.Spellwave, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 1.96f)], size: MathF.PI / 4, excludeTargets: [character]);
                     break;
             }
         });
@@ -324,7 +324,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         });
         world.Events.Add(start + 6f, () => enemy?.Face(party.Player));
         world.Events.Add(start + 6.1f, () => enemy?.Cast(end.AllThingsEnding, targetLocation: party.Player!.Position));
-        world.Events.Add(start + 11.1f, () => damage.Resolve(enemy, end.AllThingsEnding, [DamageType.Lethal], [], coneAngleOverride: Geometry.AllThingsEndHalfCone, coneRotationOverride: end.RotationOverride));
+        world.Events.Add(start + 11.1f, () => damage.Resolve(enemy, end.AllThingsEnding, [DamageType.Lethal], [], size: Geometry.AllThingsEndHalfCone, coneRotationDelta: end.RotationOverride));
         world.Events.Add(start + 14.1f, () => enemy?.PlayActionTimeline(TimelineId.WarpOut));
     }
 
