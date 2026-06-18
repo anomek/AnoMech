@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -24,11 +24,12 @@ public sealed class TopP6WaveCannon2Scenario : IScenario
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
 
     public ushort Bgm => BgmId.TopP6;
+    public bool SupportsSolo => true;
+    public byte Level => 90;
+    public ushort ItemLevel => 365;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP6WaveCannon2SettingsWindow settingsWindow = new();
-
-    public bool SupportsSolo => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new TopP6WaveCannon2Ai()];
 

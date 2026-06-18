@@ -1,5 +1,8 @@
 using AnoMech.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.System.String;
+using Lumina.Excel.Sheets;
 using System;
 using System.Linq;
 
@@ -70,6 +73,51 @@ internal static unsafe class InstanceContentDirectorHelper
         {
             SetDirectorData(sequence, unk, unionDataPtr, (ulong)unionData.Length);
         }
+    }
+
+    public static void SetDutyData(ContentFinderCondition contentFinderCondition)
+    {
+        var eventFramework = EventFramework.Instance();
+
+        if (eventFramework == null)
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.SetDutyData] EventFramework.Instance() was null");
+            return;
+        }
+
+        var director = eventFramework->GetInstanceContentDirector();
+
+        if (director == null)
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.SetDutyData] eventFramework->GetInstanceContentDirector() was null");
+            return;
+        }
+
+        var uiState = UIState.Instance();
+
+        if (uiState == null)
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.SetDutyData] UIState.Instance() was null");
+            return;
+        }
+
+        var contentTypeRef = contentFinderCondition.ContentType;
+
+        if (contentTypeRef.IsValid)
+        {
+            director->ContentTypeRowId = (byte)contentFinderCondition.ContentType.RowId;
+            director->IconId = contentTypeRef.Value.IconDutyFinder;
+        }
+        else
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.SetDutyData] contentFinderCondition.ContentType was not valid, skipping director->ContentTypeRowId and director->IconId.");
+        }
+
+        using var str = new Utf8String(contentFinderCondition.Name);
+
+        director->Title.SetString(str);
+        uiState->DirectorTodo.Title.SetString(str);
+        uiState->DirectorTodo.IsShown = true;
     }
 
     // Fire the three DirectorUpdate events the server sends at instance Commence

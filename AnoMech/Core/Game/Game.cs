@@ -102,7 +102,7 @@ public sealed class Game : IDisposable
         var freshLoad = !World.Map.IsZoneLoaded;
 
         World.HideObject(ExitObjectBaseId);
-        World.Map.TryLoad(scenario.TargetInstance);
+        World.Map.TryLoad(scenario.TargetInstance, scenario.Level, scenario.ItemLevel);
         World.ScenarioOrigin = scenario.TargetInstance.Origin;
         World.Map.ArmColliderDrops(scenario.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
         World.PlaceWaymarks(scenario.Waymarks);

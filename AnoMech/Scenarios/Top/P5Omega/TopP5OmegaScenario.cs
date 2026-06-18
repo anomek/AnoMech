@@ -22,6 +22,8 @@ public sealed class TopP5OmegaScenario : IScenario
     public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
     public ushort Bgm => BgmId.TopP5;
     public bool SupportsSolo => true;
+    public byte Level => 90;
+    public ushort ItemLevel => 365;
 
     private SimWorld world = null!;
     private SimParty party = null!;

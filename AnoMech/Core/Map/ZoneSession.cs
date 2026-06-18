@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using AnoMech.Helpers;
 using AnoMech.Pointers;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
@@ -11,6 +13,7 @@ using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Environment;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -25,6 +28,19 @@ namespace AnoMech.Core.Map;
 // All public methods must be called from the framework thread.
 public sealed unsafe class ZoneSession : IDisposable
 {
+    private class SessionSave
+    {
+        public uint TerritoryId { get; set; }
+        public Vector3 Position { get; set; }
+        public float Rotation { get; set; }
+        public int Exp { get; set; }
+        public uint RestedExp { get; set; }
+        public bool LevelSync { get; set; }
+        public int Level { get; set; }
+        public bool ItemLevelSync { get; set; }
+        public Dictionary<int, int> Attributes { get; } = new();
+    }
+
     // TerritoryIntendedUse.Inn = 2 (from ECommons TerritoryIntendedUseEnum)
     private const uint InnIntendedUse = 2;
 
@@ -48,9 +64,7 @@ public sealed unsafe class ZoneSession : IDisposable
 
     public bool IsActive { get; private set; }
 
-    private uint savedTerritoryId;
-    private Vector3 savedPosition;
-    public float savedRotation;
+    private readonly SessionSave sessionSave = new();
 
     // ── Construction ──────────────────────────────────────────────────────────
 
@@ -125,13 +139,19 @@ public sealed unsafe class ZoneSession : IDisposable
 
     // Load the target territory, teleport player to playerSpawn, enable firewall.
     // Firewall is enabled before the zone load (matching Hyperborea's sequence).
-    public void Enter(uint territoryId, Vector3 playerSpawn)
+    public void Enter(uint territoryId, Vector3 playerSpawn, byte levelSync, ushort itemLevelSync)
     {
         var localPlayer = Plugin.ObjectTable.LocalPlayer!;
 
-        savedTerritoryId = Plugin.ClientState.TerritoryType;
-        savedPosition = localPlayer.Position;
-        savedRotation = localPlayer.Rotation;
+        sessionSave.TerritoryId = Plugin.ClientState.TerritoryType;
+        sessionSave.Position = localPlayer.Position;
+        sessionSave.Rotation = localPlayer.Rotation;
+        sessionSave.Exp = Plugin.PlayerState.GetClassJobExperience(Plugin.PlayerState.ClassJob.Value);
+        sessionSave.RestedExp = Plugin.PlayerState.BaseRestedExperience;
+        sessionSave.LevelSync = levelSync != 0;
+        sessionSave.Level = localPlayer.Level;
+        sessionSave.ItemLevelSync = itemLevelSync != 0;
+        sessionSave.Attributes.Clear();
 
         EnableFirewall();
         LoadZoneInternal(territoryId, false, playerSpawn);
@@ -160,9 +180,11 @@ public sealed unsafe class ZoneSession : IDisposable
         var condition = Conditions.Instance();
         condition->Occupied = true;
 
-        if (savedTerritoryId != 0)
-            LoadZoneInternal(savedTerritoryId, true, savedPosition, savedRotation);
-        savedTerritoryId = 0;
+        if (sessionSave.TerritoryId != 0)
+            LoadZoneInternal(sessionSave.TerritoryId, true, sessionSave.Position, sessionSave.Rotation);
+
+        sessionSave.TerritoryId = 0;
+
         IsActive = false;
         Plugin.Log.Information("[ZoneSession] Reverted to inn.");
 
@@ -173,7 +195,7 @@ public sealed unsafe class ZoneSession : IDisposable
             ThreadingTask.Delay(1000).ContinueWith(_ =>
             {
                 // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
-                SetLocalPlayerPosition(savedPosition, savedRotation);
+                SetLocalPlayerPosition(sessionSave.Position, sessionSave.Rotation);
                 condition->Occupied = false;
 
                 DisableFirewall();
@@ -189,7 +211,7 @@ public sealed unsafe class ZoneSession : IDisposable
         else
         {
             // This skips all safety delays, so if possible, don't disable the plugin while being in a Scenario
-            SetLocalPlayerPosition(savedPosition, savedRotation);
+            SetLocalPlayerPosition(sessionSave.Position, sessionSave.Rotation);
             condition->Occupied = false;
             DisableFirewall();
             Plugin.Framework.Run(OpenSocialForPartyResync);
@@ -247,11 +269,28 @@ public sealed unsafe class ZoneSession : IDisposable
             return;
         }
 
+        var player = (Character*)Plugin.ObjectTable.LocalPlayer!.Address;
+        if (player == null)
+        {
+            Plugin.Log.Error("[ZoneSession] Plugin.ObjectTable.LocalPlayer was null.");
+        }
+
+        var classJobId = (byte)Plugin.PlayerState.ClassJob.RowId;
+
         Plugin.Log.Information("[ZoneSession] Step 1: FinalizeInstanceContent");
         if (loadedInstanceContent != null)
         {
+            var uiState = UIState.Instance();
+
+            if (uiState != null)
+            {
+                uiState->DirectorTodo.IsShown = false;
+            }
+
             EventFrameworkPointers.TerminateDirector(eventFramework, 0x80030000 + loadedInstanceContent.Value);
             loadedInstanceContent = null;
+
+            ResetSync(uiState, player, classJobId);
         }
 
         Plugin.Log.Information("[ZoneSession] Step 2: DisableDraw all objects");
@@ -261,17 +300,25 @@ public sealed unsafe class ZoneSession : IDisposable
             ((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)obj.Address)->DisableDraw();
         }
 
-        Plugin.Log.Information("[ZoneSession] Step 3: InitDirector");
-        var content = GetContentId(territory);
-        Plugin.Log.Information($"[ZoneSession] ContentId={content}");
-        if (content is { } cid && cid != 0)
+        if (!unloading)
         {
-            EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + cid, cid, 0);
+            Plugin.Log.Information("[ZoneSession] Step 3: InitDirector");
 
-            if (!unloading)
-            {
-                loadedInstanceContent = cid;
-            }
+            var cfc = GetContentFinderCondition(territory)!.Value;
+
+            var contentId = cfc.Content.RowId;
+            Plugin.Log.Information($"[ZoneSession] ContentId={contentId}");
+
+            EventFrameworkPointers.InitDirector(eventFramework, 0x80030000 + contentId, contentId, 0);
+
+            loadedInstanceContent = contentId;
+            InstanceContentDirectorHelper.SetDutyData(cfc);
+
+            SetSync(cfc, player, territory, classJobId);
+        }
+        else
+        {
+            Plugin.Log.Information("[ZoneSession] Step 3: InitDirector (Skipped)");
         }
 
         Plugin.Log.Information("[ZoneSession] Step 4: LoadZone (native)");
@@ -303,11 +350,25 @@ public sealed unsafe class ZoneSession : IDisposable
         }
     }
 
-    private static uint? GetContentId(uint territoryId)
+    private ContentFinderCondition? GetContentFinderCondition(uint territoryId)
     {
-        var row = Plugin.DataManager.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(territoryId);
-        var cid = row?.ContentFinderCondition.ValueNullable?.Content.RowId;
-        return cid is null or 0 ? null : cid;
+        var sheet = Plugin.DataManager.GetExcelSheet<TerritoryType>();
+
+        if (sheet == null)
+        {
+            Plugin.Log.Debug($"[ZoneSession.GetContentFinderCondition] TerritoryType sheet was null.");
+            return null;
+        }
+
+        var rowRef = sheet[territoryId].ContentFinderCondition;
+
+        if (!rowRef.IsValid)
+        {
+            Plugin.Log.Debug($"TerritoryType sheet, index {territoryId} does not have a valid ContentFinderCondition reference.");
+            return null;
+        }
+
+        return rowRef.Value;
     }
 
     private static void SyncClientStateTerritoryType(ushort territory)
@@ -331,6 +392,354 @@ public sealed unsafe class ZoneSession : IDisposable
         catch (Exception e)
         {
             Plugin.Log.Warning($"[ZoneSession] Could not sync ClientState.TerritoryType: {e.Message}");
+        }
+    }
+
+    // (Item) Level Sync
+    private void SetSync(ContentFinderCondition cfc, Character* player, uint territory, byte classJobId)
+    {
+        var cfcLevelSync = cfc.ClassJobLevelSync;
+
+        if (sessionSave.LevelSync)
+        {
+            var currentLevel = (byte)Plugin.PlayerState.Level;
+            var levelSynced = currentLevel > cfcLevelSync;
+
+            if (levelSynced)
+            {
+                if (player != null)
+                {
+                    player->Level = cfcLevelSync;
+                }
+
+                var updateClassInfoPacket = new UpdateClassInfoPacket
+                {
+                    ClassJobId = classJobId,
+                    CurrentLevel = currentLevel,
+                    ClassJobLevel = currentLevel,
+                    SyncedLevel = cfcLevelSync,
+                    ClassJobExp = 0,
+                    BaseRestedExperience = 0
+                };
+
+                PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
+            }
+        }
+
+        if (sessionSave.ItemLevelSync)
+        {
+            var uiState = UIState.Instance();
+            if (uiState != null)
+            {
+                var ilvlSync = cfc.ItemLevelSync != 0 ? cfc.ItemLevelSync : cfc.ItemLevelRequired;
+
+                if (ilvlSync != 0)
+                {
+                    Plugin.Log.Debug($"Setting up iLvl sync to {ilvlSync}");
+                    var syncedAttributes = GetSyncedAttributes(cfcLevelSync, ilvlSync);
+
+                    foreach (var (baseParamId, value) in syncedAttributes)
+                    {
+                        sessionSave.Attributes[baseParamId] = uiState->PlayerState.Attributes[baseParamId];
+                        uiState->PlayerState.Attributes[baseParamId] = value;
+                    }
+                }
+            }
+        }
+    }
+
+    private void ResetSync(UIState* uiState, Character* player, byte classJobId)
+    {
+        if (sessionSave.LevelSync)
+        {
+            var updateClassInfoPacket = new UpdateClassInfoPacket
+            {
+                ClassJobId = classJobId,
+                CurrentLevel = (ushort)sessionSave.Level,
+                ClassJobLevel = (ushort)sessionSave.Level,
+                SyncedLevel = 0,
+                ClassJobExp = (ushort)sessionSave.Exp,
+                BaseRestedExperience = sessionSave.RestedExp
+            };
+
+            PacketDispatcherPointers.HandleUpdateClassInfoPacket(0, &updateClassInfoPacket);
+
+            if (player != null)
+            {
+                player->Level = (byte)sessionSave.Level;
+            }
+        }
+
+        if (sessionSave.ItemLevelSync && uiState != null)
+        {
+            foreach (var (baseParamId, value) in sessionSave.Attributes)
+            {
+                uiState->PlayerState.Attributes[baseParamId] = value;
+            }
+        }
+    }
+
+    private Dictionary<int, int> GetSyncedAttributes(byte level, ushort ilvl)
+    {
+        var stats = new Dictionary<int, int>();
+
+        var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
+        var baseParamSheet = Plugin.DataManager.GetExcelSheet<BaseParam>();
+        var paramGrowSheet = Plugin.DataManager.GetExcelSheet<ParamGrow>();
+
+        var supportedAttributes = new PlayerAttribute[]
+        {
+                PlayerAttribute.SkillSpeed,
+                PlayerAttribute.SpellSpeed
+        };
+
+        foreach (var attribute in supportedAttributes)
+        {
+            switch (attribute)
+            {
+                case PlayerAttribute.SkillSpeed:
+                case PlayerAttribute.SpellSpeed:
+                    stats[(int)attribute] = paramGrowSheet[level].BaseSpeed;
+                    break;
+                default:
+                    continue;
+            }
+        }
+
+        // Get Item Stats
+        var inventoryManager = InventoryManager.Instance();
+        var equippedItems = inventoryManager->GetInventoryContainer(InventoryType.EquippedItems);
+
+        for (int i = 0; i < equippedItems->GetSize(); i++)
+        {
+            var inventoryItem = equippedItems->Items[i];
+            var itemId = inventoryItem.ItemId;
+
+            if (itemId == 0)
+            {
+                continue;
+            }
+
+            var item = itemSheet[itemId];
+            var itemLevel = item.LevelItem.RowId;
+            
+            if (item.LevelItem.RowId <= ilvl) // Add it as is if the ilvl is the same or less than sync
+            {
+                Plugin.Log.Debug($"Item \"{item.Name}\" (ilvl {item.LevelItem.RowId}) fits the ilvl sync requirements.");
+
+                for (int x = 0; x < item.BaseParam.Count; x++)
+                {
+                    var baseParam = item.BaseParam[x];
+                    var baseParamId = (int)baseParam.RowId;
+
+                    if (!supportedAttributes.Contains((PlayerAttribute)baseParamId))
+                    {
+                        continue;
+                    }
+
+                    stats[baseParamId] += item.BaseParamValue[x];
+                }
+
+                // Add extra stats
+                ApplyExtraStats(stats, GetMateriaStats(inventoryItem));
+                ApplyExtraStats(stats, GetMandervilleWeaponStats(inventoryItem));
+            }
+            else // Calculate the sync value
+            {
+                var resistanceStats = new Dictionary<int, int>();
+
+                var resistanceSheet = Plugin.DataManager.GetExcelSheet<ResistanceWeaponAdjust>();
+                if (resistanceSheet.TryGetRow(itemId, out var _))
+                {
+                    resistanceStats = GetMateriaStats(inventoryItem);
+                }
+
+                var mandervilleStats = GetMandervilleWeaponStats(inventoryItem);
+
+                // Doing this instead of calling ExdModule.GetItemRowById because it's not guaranteed to always return on this frame
+                var dummyItem = new byte[0xA0];
+                fixed (byte* dummyItemPtr = dummyItem)
+                {
+                    *(dummyItemPtr + 0x54) = item.BaseParamModifier;
+                    *(ushort*)(dummyItemPtr + 0x8A) = ilvl;
+                    *(dummyItemPtr + 0x9A) = (byte)item.EquipSlotCategory.RowId;
+
+                    for (int x = 0; x < item.BaseParam.Count; x++)
+                    {
+                        var baseParam = item.BaseParam[x];
+                        var baseParamId = (int)baseParam.RowId;
+
+                        if (!supportedAttributes.Contains((PlayerAttribute)baseParamId))
+                        {
+                            continue;
+                        }
+
+                        var statValue = item.BaseParamValue[x];
+
+                        if (resistanceStats.TryGetValue(baseParamId, out var resistanceStat))
+                        {
+                            statValue += (short)resistanceStat;
+                        }
+
+                        if (mandervilleStats.TryGetValue(baseParamId, out var mandervilleStat))
+                        {
+                            statValue += (short)mandervilleStat;
+                        }
+
+                        var statMaxValue = (int)InventoryItem.GetParameterMaxValue((uint)baseParamId, dummyItemPtr);
+                        var syncedValue = int.Min(statValue, statMaxValue);
+                        stats[baseParamId] += syncedValue;
+
+                        Plugin.Log.Debug($"Item \"{item.Name}\" (ilvl {item.LevelItem.RowId})'s {(PlayerAttribute)baseParamId} was synced to {syncedValue}");
+                    }
+                }
+            }
+        }
+
+        // Get Food Buffs
+        var localPlayer = (BattleChara*)Plugin.ObjectTable.LocalPlayer!.Address;
+
+        if (localPlayer != null)
+        {
+            var statusManager = localPlayer->StatusManager;
+
+            foreach (var status in statusManager.Status)
+            {
+                var statusId = status.StatusId;
+
+                if (statusId == 0 || statusId != 48)
+                {
+                    continue;
+                }
+                
+                var hq = status.Param > 10000;
+                var foodId = hq ? status.Param - 10000 : status.Param;
+
+                if (!Plugin.DataManager.GetExcelSheet<ItemFood>().TryGetRow((uint)foodId, out var food))
+                {
+                    continue;
+                }
+                
+                foreach (var bonus in food.Params)
+                {
+                    var stat = (int)bonus.BaseParam.RowId;
+                    
+                    if (stat == 0 || !stats.ContainsKey(stat))
+                    {
+                        continue;
+                    }
+
+                    var value = hq ? bonus.ValueHQ : bonus.Value;
+                    var max = hq ? bonus.MaxHQ : bonus.Max;
+                    int statBuff;
+
+                    if (bonus.IsRelative)
+                    {
+                        var currentStat = stats[stat];
+                        var percentBuff = (int)(currentStat * (value / 100f));
+                        statBuff = int.Min(percentBuff, max);
+                    }
+                    else
+                    {
+                        statBuff = value;
+                    }
+
+                    stats[stat] += statBuff;
+                }
+            }
+        }
+
+        return stats;
+    }
+
+    // This also works for Resistance Weapons
+    private Dictionary<int, int> GetMateriaStats(InventoryItem inventoryItem)
+    {
+        var stats = new Dictionary<int, int>();
+        var materiaSheet = Plugin.DataManager.GetExcelSheet<Materia>();
+
+        for (int i = 0; i < inventoryItem.Materia.Length; i++)
+        {
+            var materiaId = inventoryItem.Materia[i];
+
+            if (materiaId == 0 || !materiaSheet.TryGetRow(materiaId, out var materiaRow))
+            {
+                continue;
+            }
+
+            var index = inventoryItem.MateriaGrades[i];
+            var statValue = materiaRow.Value[index];
+            var stat = materiaRow.BaseParam.RowId;
+            stats[(int)stat] = statValue;
+        }
+
+        return stats;
+    }
+
+    // https://github.com/VioletStardustXIV/XivGearExport/blob/main/XivGearExport/XivGearSet.cs#L447
+    private Dictionary<int, int> GetMandervilleWeaponStats(InventoryItem inventoryItem)
+    {
+        var stats = new Dictionary<int, int>();
+
+        var statsSheet = Plugin.DataManager.GetExcelSheet<MandervilleWeaponEnhance>();
+        var materiaSheet = Plugin.DataManager.GetExcelSheet<Materia>();
+
+        if (!statsSheet.TryGetRow(inventoryItem.ItemId, out var _))
+        {
+            return stats;
+        }
+
+        for (int i = 0; i < inventoryItem.Materia.Length; i++)
+        {
+            var materiaId = inventoryItem.Materia[i];
+
+            if (materiaId == 0 || !materiaSheet.TryGetRow(materiaId, out var materiaRow))
+            {
+                continue;
+            }
+
+            var index = inventoryItem.MateriaGrades[i];
+            var statValue = materiaRow.Value[index];
+
+            switch (materiaId)
+            {
+                case 1403:
+                    stats[(int)PlayerAttribute.CriticalHit] = statValue;
+                    break;
+                case 1404:
+                    stats[(int)PlayerAttribute.DirectHitRate] = statValue;
+                    break;
+                case 1405:
+                    stats[(int)PlayerAttribute.Determination] = statValue;
+                    break;
+                case 1406:
+                    stats[(int)PlayerAttribute.SkillSpeed] = statValue;
+                    break;
+                case 1407:
+                    stats[(int)PlayerAttribute.SpellSpeed] = statValue;
+                    break;
+                case 1408:
+                    stats[(int)PlayerAttribute.Tenacity] = statValue;
+                    break;
+                case 1409:
+                    stats[(int)PlayerAttribute.Piety] = statValue;
+                    break;
+            }
+        }
+
+        return stats;
+    }
+
+    private void ApplyExtraStats(Dictionary<int, int> stats, Dictionary<int, int> extraStats)
+    {
+        foreach (var (attribute, value) in extraStats)
+        {
+            if (!stats.ContainsKey(attribute))
+            {
+                continue;
+            }
+
+            stats[attribute] += value;
         }
     }
 
