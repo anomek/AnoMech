@@ -8,6 +8,7 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken.Ai;
 public sealed class UmadP2ForsakenSouthFlexAi : IScenarioAi<UmadP2ForsakenState>
 {
     public string Name => "South Flex 341";
+    public string? Group => "NA";
 
     public void Run(UmadP2ForsakenState state, SimWorld world)
         => new UmadP2ForsakenRinonAiHelper(

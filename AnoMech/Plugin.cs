@@ -220,6 +220,11 @@ public sealed class Plugin : IDalamudPlugin
             Log.Warning($"{scenario.Name} does not support Solo mode.");
             return;
         }
+        if (!solo && MainWindow.SelectedStrat < 0)
+        {
+            Log.Warning("No strat selected for the current region.");
+            return;
+        }
         Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo ? null : MainWindow.SelectedStrat);
     }
 

@@ -25,6 +25,11 @@ public interface IScenario
     // Selectable AI strats, ordered. The main-window strat picker is shown only when
     // there is more than one. The user's choice is passed to Run as selectedAi.
     IReadOnlyList<IScenarioAi> AiStrats { get; }
+
+    // Optional ordered region/group labels shown as buttons above the strat dropdown.
+    // When non-empty, the picker filters AiStrats by IScenarioAi.Group and lists only
+    // the selected region's strats. Empty (default) = no region row; all strats listed.
+    IReadOnlyList<string> StratGroups => Array.Empty<string>();
     // selectedAi: index into AiStrats of the strat to run, or null for solo (no AI).
 
     void Run(SimWorld world, int? selectedAi);

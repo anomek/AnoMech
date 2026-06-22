@@ -50,6 +50,10 @@ public sealed class UmadP2ForsakenScenario : IScenario
         new UmadP2ForsakenSouthFlex341OldAi(),
     ];
 
+    // NA holds the existing strats; EU is reserved for this branch's new strat (none
+    // yet — its dropdown stays empty and Start is gated off until one is added).
+    public IReadOnlyList<string> StratGroups { get; } = ["NA", "EU"];
+
     private UmadP2ForsakenState state = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
@@ -62,7 +66,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);
-        if (selectedAi is { } idx && idx < AiStrats.Count)
+        if (selectedAi is { } idx && idx >= 0 && idx < AiStrats.Count)
             ((IScenarioAi<UmadP2ForsakenState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
