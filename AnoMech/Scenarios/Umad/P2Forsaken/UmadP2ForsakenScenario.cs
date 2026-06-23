@@ -49,10 +49,13 @@ public sealed class UmadP2ForsakenScenario : IScenario
         new UmadP2ForsakenSouthFlexAi(),
         new UmadP2ForsakenKroxyRinonOldAi(),
         new UmadP2ForsakenSouthFlex341OldAi(),
+        new UmadP2ForsakenP3ZBuddyMeowAi(),
+        new UmadP2ForsakenZP6SouthAdjustAi(),
     ];
 
-    // NA holds the existing strats; EU is reserved for this branch's new strat (none
-    // yet — its dropdown stays empty and Start is gated off until one is added).
+    // NA holds the existing strats; EU holds this branch's new strats — isolated copies
+    // of NA strats over their own forked helpers ("p3Z Buddy Meow" from Kroxy-Rinon 341,
+    // "zP6 South adjust" from South Flex 341) — more to come.
     public IReadOnlyList<string> StratGroups { get; } = ["NA", "EU"];
 
     private UmadP2ForsakenState state = null!;
