@@ -8,6 +8,7 @@ using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
 using AnoMech.Core.Map;
 using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
@@ -29,6 +30,12 @@ public unsafe class MainWindow : Window, IDisposable
     // -1 when a grouped scenario's selected region has no strats (Start is then gated off).
     internal int SelectedStrat => _selectedStrat;
     private int _selectedStrat;
+
+    // Index into the selected scenario's WaymarkPresets; reset to the first preset when the
+    // selected scenario changes. Passed to RunScenario as selectedWaymark on Start. Ignored
+    // by scenarios that declare no presets.
+    internal int SelectedWaymark => _selectedWaymark;
+    private int _selectedWaymark;
 
     // The region/group label currently selected in the strat picker, for scenarios that
     // declare StratGroups. Null until a grouped scenario is drawn (then it snaps to the
@@ -163,6 +170,7 @@ public unsafe class MainWindow : Window, IDisposable
                 {
                     _selectedScenario = scenario;
                     _selectedStrat = 0;
+                    _selectedWaymark = 0;
                     // Restore the last region picked for this scenario; null self-heals to its first region when drawn.
                     _selectedStratGroup = _stratGroupMemory.GetValueOrDefault(scenario);
                 }
@@ -192,6 +200,7 @@ public unsafe class MainWindow : Window, IDisposable
 
         DrawRoleSelector();
         DrawStratSelector();
+        DrawWaymarkSelector();
 
         var inInn = ZoneSession.IsInInn();
         var busy = ZoneSession.IsPlayerBusy();
@@ -199,7 +208,7 @@ public unsafe class MainWindow : Window, IDisposable
         var hasStrat = HasStartableStrat();
         var canStart = envReady && hasStrat;
         ImGui.BeginDisabled(!canStart);
-        if (ImGui.Button("Start")) game.RunScenario(_selectedScenario, _roleOverride, _selectedStrat);
+        if (ImGui.Button("Start")) game.RunScenario(_selectedScenario, _roleOverride, _selectedStrat, _selectedWaymark);
         ImGui.EndDisabled();
         if (!canStart && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
         {
@@ -220,7 +229,7 @@ public unsafe class MainWindow : Window, IDisposable
         if (_selectedScenario.SupportsSolo)
         {
             ImGui.BeginDisabled(!envReady);
-            if (ImGui.Button("Start Solo")) game.RunScenario(_selectedScenario, _roleOverride, selectedAi: null);
+            if (ImGui.Button("Start Solo")) game.RunScenario(_selectedScenario, _roleOverride, selectedAi: null, _selectedWaymark);
             ImGui.EndDisabled();
             if (!envReady && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
@@ -254,6 +263,27 @@ public unsafe class MainWindow : Window, IDisposable
             debugMenu.DrawDebugContent();
         }
 #endif
+    }
+
+    // Drawn below the strat picker for scenarios that declare WaymarkPresets. _selectedWaymark
+    // is the index passed to RunScenario on Start; changing it while a scenario is loaded
+    // re-places the markers immediately (same live-feedback loop as the position readout).
+    private void DrawWaymarkSelector()
+    {
+        if (_selectedScenario is null) return;
+        var presets = _selectedScenario.WaymarkPresets;
+        if (presets.Count == 0) return;
+        if (_selectedWaymark < 0 || _selectedWaymark >= presets.Count) _selectedWaymark = 0;
+
+        var labels = new string[presets.Count];
+        for (var i = 0; i < presets.Count; i++) labels[i] = presets[i].Name;
+
+        ImGui.TextUnformatted("Waymarks:");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.Combo("##waymarks", ref _selectedWaymark, labels, labels.Length)
+            && plugin.Game.World.Map.IsInInstance)
+            plugin.Game.World.PlaceWaymarks(presets[_selectedWaymark].Markers);
     }
 
     private void DrawRoleSelector()

@@ -30,6 +30,11 @@ public interface IScenario
     // When non-empty, the picker filters AiStrats by IScenarioAi.Group and lists only
     // the selected region's strats. Empty (default) = no region row; all strats listed.
     IReadOnlyList<string> StratGroups => Array.Empty<string>();
+
+    // Selectable named waymark layouts. When non-empty, the main window shows a
+    // "Waymarks:" dropdown below the strat picker and the chosen layout is placed
+    // instead of Waymarks. Empty (default) = no dropdown; Waymarks is used as before.
+    IReadOnlyList<WaymarkLayout> WaymarkPresets => Array.Empty<WaymarkLayout>();
     // selectedAi: index into AiStrats of the strat to run, or null for solo (no AI).
 
     void Run(SimWorld world, int? selectedAi);

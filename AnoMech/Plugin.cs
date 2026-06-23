@@ -225,7 +225,7 @@ public sealed class Plugin : IDalamudPlugin
             Log.Warning("No strat selected for the current region.");
             return;
         }
-        Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo ? null : MainWindow.SelectedStrat);
+        Game.RunScenario(scenario, MainWindow.SelectedRoleOverride, solo ? null : MainWindow.SelectedStrat, MainWindow.SelectedWaymark);
     }
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();

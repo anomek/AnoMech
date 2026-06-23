@@ -73,12 +73,23 @@ public sealed class Game : IDisposable
 
     // selectedAi: index into the scenario's AiStrats of the strat to run, or null for
     // solo (no doppels, no AI). Defaults to 0 = run the first strat with a full party.
-    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, int? selectedAi = 0)
+    // selectedWaymark: index into the scenario's WaymarkPresets; ignored when it has none.
+    public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, int? selectedAi = 0, int selectedWaymark = 0)
     {
-        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, selectedAi));
+        Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, selectedAi, selectedWaymark));
     }
 
-    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, int? selectedAi)
+    // The waymark layout to place: the selected preset when the scenario defines any,
+    // otherwise the scenario's default Waymarks (back-compat for preset-less scenarios).
+    private static IReadOnlyList<Waymark> ResolveWaymarks(IScenario scenario, int selectedWaymark)
+    {
+        var presets = scenario.WaymarkPresets;
+        if (presets.Count > 0 && selectedWaymark >= 0 && selectedWaymark < presets.Count)
+            return presets[selectedWaymark].Markers;
+        return scenario.Waymarks;
+    }
+
+    private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, int? selectedAi, int selectedWaymark)
     {
         var solo = selectedAi is null;
         // Hard gate: scenarios are only ever run from an inn. Everything
@@ -107,7 +118,7 @@ public sealed class Game : IDisposable
         World.Map.TryLoad(scenario.TargetInstance, scenario.Level, scenario.ItemLevel);
         World.ScenarioOrigin = scenario.TargetInstance.Origin;
         World.Map.ArmColliderDrops(scenario.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
-        World.PlaceWaymarks(scenario.Waymarks);
+        World.PlaceWaymarks(ResolveWaymarks(scenario, selectedWaymark));
         World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
         scenario.Run(World, selectedAi);   // creates the SimArenaBoundary the out-of-arena check reads
         // Entering the zone always starts at spawn; a restart only recenters the player
