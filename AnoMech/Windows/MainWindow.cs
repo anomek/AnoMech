@@ -8,7 +8,6 @@ using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
 using AnoMech.Core.Map;
 using AnoMech.Core;
-using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
