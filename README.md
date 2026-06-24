@@ -26,9 +26,13 @@ See: https://github.com/anomek/MyDalamudPlugins
 
 ## Currently implemented:
 - Dancing Mad (Ultimate)
-    - P2 Forsaken 
-      - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
-      - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
+    - P2 Forsaken
+      - NA
+        - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
+        - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
+      - EU
+        - [p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
+        - [zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
       - you can choose between original positions and ones that use diamond markers
     - P3 Black Hole (Work in Pogress) _kefkabin_
     - P4 Kefka Says _kefkabin_
