@@ -45,8 +45,13 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
     // against a threshold without the sqrt.
     public float DistanceSq(IPositioned other)
     {
-        var dx = other.Position.X - Position.X;
-        var dz = other.Position.Z - Position.Z;
+        return DistanceSq(other.Position);
+    }
+
+    public float DistanceSq(Vector3 other)
+    {
+        var dx = other.X - Position.X;
+        var dz = other.Z - Position.Z;
         return dx * dx + dz * dz;
     }
 
@@ -58,5 +63,10 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
     public Placement MulRot(float mul)
     {
         return new Placement(Position, Rotation * mul);
+    }
+
+    public Placement AddToRotation(float add)
+    {
+        return this with { Rotation = Rotation + add };
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Native;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -21,7 +22,12 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     private protected abstract Movement Movement { get; }
     
     protected readonly Coordinates Coordinates = coordinates;
-    
+
+    // Obstacles this character's Movement steers around. Defaults to the shared
+    // empty field (no avoidance — straight lines); PartyCreator points party
+    // doppels at world.Obstacles so only bots avoid geometry.
+    internal ObstacleField Obstacles { get; set; } = ObstacleField.Empty;
+
     public virtual bool IsActive => BattleCharaPtr != null;
 
     // True while the character is rooted by an in-progress action (cast bar up or
@@ -91,6 +97,8 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
         => Movement.MoveTo(target, speed, finalRotation);
     public void MoveTo(Placement p) => MoveTo(p.Position);
     protected void StopMoving() => Movement.Stop();
+
+    public void Intercept(SimTether? tether) => Movement.Intercept(tether);
 
 
     // -------------------------

@@ -165,6 +165,8 @@ public enum DamageType
     Any,
     Magic,
     TankBuster,
+    Lightning,
+    Earth,
     Black,
-    White
+    White,
 }

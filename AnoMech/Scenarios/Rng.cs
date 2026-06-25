@@ -53,4 +53,24 @@ public class Rng
     {
         return values.Shuffle().ToList();
     }
+
+    public PartyRole NextSupportRole()
+    {
+        return (PartyRole)rng.Next(4);
+    }
+
+    public PartyRole NextDpsRole()
+    {
+        return (PartyRole)(rng.Next(4) + 4);
+    }
+
+    public PartyRole NextHealerRole()
+    {
+        return (PartyRole)(rng.Next(2) + 2);
+    }
+
+    public PartyRole NextTankRole()
+    {
+        return (PartyRole)rng.Next(2);
+    }
 }

@@ -87,11 +87,24 @@ public sealed unsafe class SimCast : ISimObject
         var castTimeValue = castTime.Value;
 
 
-        var target = targetId ?? chara->GetGameObjectId();
-        NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, parent.Rotation + omenRotate, localTargetLocation, target);
+        // Instant actions (castTimeValue <= 0): retail sends only the ActionEffect, never a
+        // StartCasting packet (verified against the Dancing Mad replay — 0 cast packets for the
+        // auto-attack 0xC252). Dispatching a cast-begin (HandleActorCastPacket) on the same frame
+        // as the release clobbers the action's body animation — invisible on VFX/cast abilities,
+        // but it's the whole show for a VFX-less auto-attack, so the boss never swings. Skip the
+        // cast packet entirely for instants and fire the effect directly below.
+        if (castTimeValue > 0)
+        {
+            var target = targetId ?? chara->GetGameObjectId();
+            NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, parent.Rotation + omenRotate, localTargetLocation, target);
+            total = chara->CastInfo.TotalCastTime;
+        }
+        else
+        {
+            total = 0f;
+        }
 
         elapsed = 0f;
-        total = chara->CastInfo.TotalCastTime;
 
         casting = true;
         targetLocation = localTargetLocation;
@@ -104,7 +117,7 @@ public sealed unsafe class SimCast : ISimObject
         {
             FaceTarget(chara);
             remainingAnimationLock = animationLock;
-            FireActionEffect(chara, actionId, targetLocation, targetId, animationVariation, animationLock);
+            FireActionEffect(chara, actionId, ActionType.Action, targetLocation, targetId, animationVariation, animationLock);
             ResetCastState();
         }
         
@@ -238,7 +251,7 @@ public sealed unsafe class SimCast : ISimObject
             {
                 FaceTarget(chara);
                 remainingAnimationLock = animationLock;
-                FireActionEffect(chara, ActionId, targetLocation, targetId, animationVariation, animationLock);
+                FireActionEffect(chara, ActionId, ActionType.Action, targetLocation, targetId, animationVariation, animationLock);
                 ResetCastState();
             }
         }
@@ -297,7 +310,7 @@ public sealed unsafe class SimCast : ISimObject
     // deliver to. When deliverTo is null, NumTargets=0 (used for self-targeted
     // casts and cast releases without an entity target) — the release animation
     // still plays.
-    private void FireActionEffect(BattleChara* chara, uint actionId, Vector3? localTargetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
+    private void FireActionEffect(BattleChara* chara, uint actionId, ActionType actionType, Vector3? localTargetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
     {
         if (deliverTo is { } id)
         {
@@ -313,6 +326,6 @@ public sealed unsafe class SimCast : ISimObject
         }
 
         var pos = localTargetLocation ?? parent.Position;
-        NativeActionEffect(actionId, animationLock, (ushort)actionId, animationVariation, (ActionType)chara->CastInfo.ActionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
+        NativeActionEffect(actionId, animationLock, (ushort)actionId, animationVariation, actionType, 0, chara->Rotation, pos, deliverTo, deliverTo);
     }
 }

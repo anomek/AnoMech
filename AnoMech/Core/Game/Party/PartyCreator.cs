@@ -125,6 +125,9 @@ internal static unsafe class PartyCreator
 
         Plugin.Log.Info($"PartyCreator: spawned {preset.Name} ({role}, job {preset.ClassJob}) at index {idx}");
         var member = new SimPartyNpc(idx, world.Coordinates, role, preset.ClassJob, preset.Name);
+        // Bots steer around the scenario's geometry; only doppels get the live
+        // field (bosses/player keep ObstacleField.Empty and move in straight lines).
+        member.Obstacles = world.Obstacles;
         // Seed the stored Position/Rotation to match the spawn placement so
         // anything reading SimCharacter.Position before the first Tick sees
         // the correct value (the Tick re-sync only kicks in next frame).

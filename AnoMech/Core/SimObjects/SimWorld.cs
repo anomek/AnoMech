@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 
@@ -24,6 +25,11 @@ public sealed class SimWorld : ISimObject, IDisposable
 
     // Zone loading and map effects entry point.
     public MapController Map { get; } = new();
+
+    // Scenario geometry: areas party bots steer around while moving. Empty by
+    // default (straight-line movement). Scenarios mutate it over their timeline
+    // (Add/Remove/Clear); wired to each doppel by PartyCreator, cleared on Despawn.
+    public ObstacleField Obstacles { get; } = new();
 
     // Convenience reference — SimParty.Empty until CreateParty is called.
     public SimParty Party { get; private set; } = SimParty.Empty;
@@ -197,6 +203,7 @@ public sealed class SimWorld : ISimObject, IDisposable
         partyHud.Clear();
         Markings.ClearAll();
         waymarks.ClearAll();
+        Obstacles.Clear();
         ScenarioOrigin = default;
     }
 

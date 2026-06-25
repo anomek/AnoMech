@@ -12,5 +12,12 @@ public enum PartyRole
     MeleeDpsB = 5,      // Monk slot
     PhysRangedDps = 6,  // Bard slot
     CasterDps = 7      // Black Mage slot
-    
+
 }
+
+public static class PartyRoleExtensions
+{
+    public static bool IsTank(this PartyRole role) => role is PartyRole.MainTank or PartyRole.OffTank;
+    public static bool IsDps(this PartyRole role) => (int)role >= (int)PartyRole.MeleeDpsA;
+}
+

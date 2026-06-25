@@ -9,22 +9,20 @@ namespace AnoMech.Scenarios.Umad;
 // One name per value, ordered by value. Action / status / timeline ids in hex,
 // the rest in decimal. Each action carries its AOE shape + size + cast time
 // (CastType / EffectRange / XAxisModifier / Cast100ms from the Action sheet).
-// Entries tagged "P3 Black Hole" come from that phase's log; the parser does not
-// resolve AOE shapes, so they carry no shape comment yet.
 public static class UmadConstants
 {
     public static class BNpcBaseId
     {
         public const uint KefkaHelper = 9020;  // generic invisible helper (also used as a Chaos helper in P3)
         public const uint Kefka       = 18475; // "Kefka Says" boss (P4); distinct row from GodKefka (19506) and KefkaP3 (19504)
-        public const uint KefkaP3     = 19504; // P3 Black Hole visible boss
-        public const uint GravenImage = 19505; // P3 Black Hole
+        public const uint KefkaP3     = 19504; // visible boss
+        public const uint GravenImage = 19505;
         public const uint GodKefka    = 19506;
         public const uint Chaos       = 19507;
-        public const uint ChaosP3     = 19508; // P3 Black Hole (distinct row from Chaos 19507)
-        public const uint Exdeath     = 19509; // P3 Black Hole (cf. NeoExdeath 19510)
+        public const uint ChaosP3     = 19508; // distinct row from Chaos 19507
+        public const uint Exdeath     = 19509; // cf. NeoExdeath 19510
         public const uint NeoExdeath  = 19510;
-        public const uint BlackHole   = 19512; // P3 Black Hole
+        public const uint BlackHole   = 19512;
         public const uint KefkaClone  = 19513;
     }
 
@@ -33,14 +31,14 @@ public static class UmadConstants
         public const uint Exdeath     = 6052;
         public const uint NeoExdeath  = 6055;
         public const uint Kefka       = 7131;
-        public const uint GravenImage = 7132; // P3 Black Hole
+        public const uint GravenImage = 7132;
         public const uint Chaos       = 7691;
-        public const uint BlackHole   = 8343; // P3 Black Hole
+        public const uint BlackHole   = 8343;
     }
 
     public static class EObjId
     {
-        public const uint EventObj1EC03D = 2015293; // P3 Black Hole
+        public const uint EarthCore = 2015293;
     }
 
     public static class ActionId
@@ -72,33 +70,34 @@ public static class UmadConstants
         public const uint PastSEnd_CloneResolve        = 0xBAD9U; // circle r=5, instant
         public const uint AllThingsEnding_Future       = 0xBADCU; // cone r=100, cast 5.0s
         public const uint AllThingsEnding_Past         = 0xBADDU; // cone r=100, cast 5.0s
-        public const uint SlapHappy                    = 0xBAE6U; // P3 Black Hole
-        public const uint SlapHappy_BAE7               = 0xBAE7U; // P3 Black Hole
-        public const uint SlapHappy_BAE8               = 0xBAE8U; // P3 Black Hole
-        public const uint SlapHappy_BAE9               = 0xBAE9U; // P3 Black Hole
-        public const uint ShockingImpact               = 0xBAEAU; // P3 Black Hole
-        public const uint Shockwave_BAEB               = 0xBAEBU; // P3 Black Hole (cf. Shockwave 0xBAFF)
-        public const uint LookUponMeAndDespair         = 0xBAECU; // P3 Black Hole
-        public const uint LookUponMeAndDespair_BAED    = 0xBAEDU; // P3 Black Hole
-        public const uint LookUponMeAndDespair_BAEE    = 0xBAEEU; // P3 Black Hole
-        public const uint StompAMole_BAEF              = 0xBAEFU; // P3 Black Hole (cf. StompAMole 0xBAF0)
+        public const uint SlapHappy_Left                    = 0xBAE6U; // single-target, cast 5.0s
+        public const uint SlapHappy_Right               = 0xBAE7U; // single-target, cast 5.0s
+        public const uint SlapHappy_Slap               = 0xBAE8U; // circle r=13, instant
+        public const uint SlapHappy_FinalSlap               = 0xBAE9U; // circle r=6, cast 1.5s
+        public const uint ShockingImpact               = 0xBAEAU; // cone r=100, instant
+        public const uint ShockwaveCone               = 0xBAEBU; // cone r=100, instant (cf. Shockwave 0xBAFF)
+        public const uint LookUponMeAndDespair         = 0xBAECU; // single-target, cast 4.0s
+        public const uint LookUponMeAndDespair2    = 0xBAEDU; // single-target, cast 4.0s
+        public const uint LookUponMeAndDespair_Omen    = 0xBAEEU; // rect 100x16 (len x width), cast 5.0s
+        public const uint StompAMole_Cast              = 0xBAEFU; // single-target, cast 5.0s (cf. StompAMole 0xBAF0)
         public const uint StompAMole                   = 0xBAF0U; // circle r=5, cast 1.5s
-        public const uint Cyclone                      = 0xBAF8U; // P3 Black Hole
-        public const uint Earthquake_BAFA              = 0xBAFAU; // P3 Black Hole (cf. Earthquake 0xC571)
-        public const uint BlackHole                    = 0xBAFBU; // P3 Black Hole
-        public const uint Nothingness                  = 0xBAFCU; // P3 Black Hole
-        public const uint LatitudinalImplosion         = 0xBAFEU; // P3 Black Hole
-        public const uint Shockwave                    = 0xBAFFU; // P3 Black Hole
-        public const uint DamningEdict                 = 0xBB01U; // P3 Black Hole
-        public const uint KnockDown_BB02               = 0xBB02U; // P3 Black Hole (cf. KnockDown 0xBB03)
+        public const uint Cyclone                      = 0xBAF8U; // circle r=6, instant
+        public const uint Earthquake_Cleanse           = 0xBAFAU; // circle r=100, instant (cf. Earthquake 0xC571)
+        public const uint BlackHole                    = 0xBAFBU; // single-target, cast 3.0s
+        public const uint Nothingness                  = 0xBAFCU; // rect 125x6 (len x width), instant
+        public const uint LongitudinalImplosion        = 0xBAFDU; // single-target, cast 5.0s
+        public const uint LatitudinalImplosion         = 0xBAFEU; // single-target, cast 5.0s
+        public const uint Shockwave                    = 0xBAFFU; // cone r=40, instant
+        public const uint DamningEdict                 = 0xBB01U; // rect 60x80 (len x width), cast 5.0s
+        public const uint KnockDown_Cast               = 0xBB02U; // single-target, cast 5.0s (cf. KnockDown 0xBB03)
         public const uint KnockDown                    = 0xBB03U; // circle r=6, instant
-        public const uint BigBang_BB05                 = 0xBB05U; // P3 Black Hole (cf. BigBang 0xBB06)
+        public const uint BigBang_Cast                 = 0xBB05U; // single-target, cast 5.0s (cf. BigBang 0xBB06)
         public const uint BigBang                      = 0xBB06U; // circle r=6, instant
-        public const uint ThunderIII_BB09              = 0xBB09U; // P3 Black Hole
-        public const uint ThunderIII_BB0C              = 0xBB0CU; // P3 Black Hole
+        public const uint ThunderIII_Cast              = 0xBB09U; // single-target, cast 5.0s
+        public const uint ThunderIII_Resolve           = 0xBB0CU; // circle r=5, instant
         public const uint BlizzardIII                  = 0xBB0DU; // circle r=6, cast 3.0s
-        public const uint BlizzardIII_BB0F             = 0xBB0FU; // P3 Black Hole (cf. BlizzardIII 0xBB0D)
-        public const uint BlizzardIII_BB11             = 0xBB11U; // P3 Black Hole
+        public const uint BlizzardIII_PuddlesQM        = 0xBB0FU; // single-target, cast 3.0s (cf. BlizzardIII 0xBB0D)
+        public const uint BlizzardIII_Raidwide         = 0xBB11U; // circle r=100, cast 4.0s
         public const uint GrandCross                   = 0xBB14U; // circle r=100, cast 9.0s
         public const uint DeathBomb                    = 0xBB15U; // single-target, instant
         public const uint DeathShriek                  = 0xBB16U; // circle r=100, instant
@@ -113,14 +112,15 @@ public static class UmadConstants
         public const uint StrayFlames_Donut            = 0xBB23U; // donut inner r=6, cast 5.0s
         public const uint StraySpray_Donut             = 0xBB24U; // donut inner r=6, cast 5.0s
         public const uint StraySpray_Chariot           = 0xBB25U; // circle r=6, cast 5.0s
-        public const uint WhiteHole                    = 0xBD66U; // P3 Black Hole
+        public const uint BlackSpark                   = 0xBCCDU; // single-target, instant
+        public const uint WhiteHole                    = 0xBD66U; // circle r=80, cast 5.0s
         public const uint UltimaUpsurge                = 0xC24AU; // circle r=100, cast 5.0s
         public const uint UltimateEmbrace              = 0xC24CU; // circle r=5, cast 5.0s
-        public const uint UnknownC250                  = 0xC250U; // P3 Black Hole
-        public const uint KefkaAuto                    = 0xC252U; // single-target, instant
+        public const uint AutoAttack2                  = 0xC250U; // single-target, instant
+        public const uint AutoAttack1                    = 0xC252U; // single-target, instant
         public const uint KefkaSays                    = 0xC2DCU; // single-target, cast 5.0s
-        public const uint Aetherlink                   = 0xC2E4U; // P3 Black Hole
-        public const uint Aetherlink_C2E5              = 0xC2E5U; // P3 Black Hole
+        public const uint Aetherlink_Chaos                   = 0xC2E4U; // single-target, instant
+        public const uint Aetherlink_Exdeath              = 0xC2E5U; // single-target, instant
         public const uint FloodOfNaught_WhiteTrue      = 0xC392U; // single-target, cast 5.0s
         public const uint FloodOfNaught_BlackTrue      = 0xC393U; // single-target, cast 5.0s
         public const uint WhiteAntilight               = 0xC394U; // rect 47x21 (len x width), cast 5.5s
@@ -129,12 +129,12 @@ public static class UmadConstants
         public const uint FloodOfNaught_WhiteFake      = 0xC3A1U; // single-target, cast 5.0s
         public const uint FloodOfNaught_BlackFake      = 0xC3A2U; // single-target, cast 5.0s
         public const uint KefkaPoof                    = 0xC3FDU; // single-target, instant
-        public const uint UnknownC4ba                  = 0xC4BAU; // P3 Black Hole
-        public const uint UnknownC533                  = 0xC533U; // P3 Black Hole
+        public const uint StandUp_ToWall                  = 0xC4BAU; // single-target, instant
+        public const uint StandUp_Levitate                  = 0xC533U; // single-target, instant
         public const uint KefkaRest                    = 0xC554U; // single-target, cast 3.0s
         public const uint KefkaUnrest                  = 0xC555U; // single-target, instant
-        public const uint Earthquake                   = 0xC571U; // P3 Black Hole
-        public const uint Earthquake_C572              = 0xC572U; // P3 Black Hole
+        public const uint Earthquake                   = 0xC571U; // single-target, cast 5.0s
+        public const uint Earthquake_Visual              = 0xC572U; // circle r=100, cast 5.0s
         public const uint ThrummingThunderIII_Cast     = 0xC5DEU; // single-target, cast 5.0s; P3 cast variant, base = 0xBA9F
     }
 
@@ -146,17 +146,21 @@ public static class UmadConstants
         public const ushort ManaCharge                = (ushort)0x5CA;
         public const ushort BlizzardCharged           = (ushort)0x5CC;
         public const ushort ThunderCharged            = (ushort)0x5CD;
-        public const ushort Accretion                 = (ushort)0x644;  // P3 Black Hole
+        public const ushort Accretion                 = (ushort)0x644;
         public const ushort KefkaLiesVfx              = (ushort)0x808;
-        public const ushort Unknown9E8                = (ushort)0x9E8;  // P3 Black Hole
+        public const ushort Max                       = (ushort)0x9E8;
         public const ushort DamageDown                = (ushort)0xB5F;
         public const ushort MagicVulnerabilityUp      = (ushort)0xB7D;
-        public const ushort LightningResistanceDownII = (ushort)0xBB6;  // P3 Black Hole
-        public const ushort FirstInLine               = (ushort)0xBBC;  // P3 Black Hole
-        public const ushort SecondInLine              = (ushort)0xBBD;  // P3 Black Hole
-        public const ushort ThirdInLine               = (ushort)0xBBE;  // P3 Black Hole
-        public const ushort EarthResistanceDownII     = (ushort)0xD2C;  // P3 Black Hole
-        public const ushort DeepFreeze                = (ushort)0xD98;  // P3 Black Hole
+        public const ushort LightningResistanceDownII = (ushort)0xBB6;
+        public const ushort FirstInLine               = (ushort)0xBBC;
+        public const ushort SecondInLine              = (ushort)0xBBD;
+        public const ushort ThirdInLine               = (ushort)0xBBE;
+        public const ushort EarthResistanceDownII     = (ushort)0xD2C;
+        public const ushort DeepFreeze                = (ushort)0xD98;
+        public const ushort EpicHero                  = (ushort)0x1060; // Chaos side
+        public const ushort EpicVillain               = (ushort)0x1061; // Chaos
+        public const ushort FatedHero                 = (ushort)0x1062; // Exdeath side
+        public const ushort FatedVillain              = (ushort)0x1063; // Exdeath
         public const ushort TelePortent_130C          = (ushort)0x130C;
         public const ushort TelePortent_130D          = (ushort)0x130D;
         public const ushort TelePortent_130E          = (ushort)0x130E;
@@ -169,9 +173,9 @@ public static class UmadConstants
         public const ushort Unknown13DC               = (ushort)0x13DC;
         public const ushort Unknown13DD               = (ushort)0x13DD;
         public const ushort Unknown13DE               = (ushort)0x13DE;
-        public const ushort Unbecoming                = (ushort)0x154C; // P3 Black Hole
-        public const ushort MeanestExistence          = (ushort)0x154D; // P3 Black Hole
-        public const ushort PrimordialCrust           = (ushort)0x154E; // P3 Black Hole
+        public const ushort Unbecoming                = (ushort)0x154C;
+        public const ushort MeanestExistence          = (ushort)0x154D;
+        public const ushort PrimordialCrust           = (ushort)0x154E;
         public const ushort WhiteWound                = (ushort)0x15A5;
         public const ushort BlackWound                = (ushort)0x15A6;
         public const ushort CursedShriek              = (ushort)0x15A7;
@@ -190,12 +194,15 @@ public static class UmadConstants
 
     public static class TetherId
     {
-        public const ushort Tether0054 = (ushort)0x54; // P3 Black Hole
+        // public const ushort GrabbyTether = (ushort)0x54;
+        // real instance uses 0x54 tether, that have visuals flipped 
+        // also TODO: it should be possible to grab more then one tether likes this (different then omega 89 tether)
+        public const ushort GrabbyTether = 89; 
     }
 
     public static class LockonId
     {
-        public const uint X_A1            = 161; // P3 Black Hole
+        public const uint Stack            = 161;
         public const uint ColdFalse       = 675;
         public const uint ColdTrue        = 676;
         public const uint LightningFalse  = 677;

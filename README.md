@@ -9,11 +9,8 @@ Simulate FFXIV raid mechanics client-side for solo practice. Go to any Inn, open
 
 **WARNING!!!**
 
-* This plugin is in beta and is unstable. You shouldn't crash during your training sessions, but you will crash
-after it. If you are doing any serious content: **RESTART YOUR GAME AFTER USING PLUGIN**.  
-You **WILL CRASH** in the middle of pull.  
-Only using plugin will make game unstable. You can keep it enabled, it won't affect game if you don't start sim.  
-I'm working on stability improvements, but it's not trivial.
+* This plugin is in beta and maybe be unstable. Thanks to improvemnts by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)
+it should not crash after practice sessions any more , but just to be safe **RESTART YOUR GAME AFTER USING PLUGIN**.  
 
 * **You are cut off from server traffic while in the sim zone.** To keep the
 fake zone stable, the plugin firewalls incoming packets from the server.
@@ -32,6 +29,9 @@ See: https://github.com/anomek/MyDalamudPlugins
     - P2 Forsaken 
       - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
       - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
+      - you can choose between original positions and ones that use diamond markers
+    - P3 Black Hole (Work in Pogress) _kefkabin_
+    - P4 Kefka Says _kefkabin_
 - The Omega Protocol (Ultimate): _NA pf strats_
     - P2 Party Synergy
     - P5 Delta
@@ -57,13 +57,18 @@ See: https://github.com/anomek/MyDalamudPlugins
 
 
 ## Known issues
-* Crashes ;(
+* May still crash sometimes
 * Minor visual and timing issues may occur
 * In scenarios for Top Omega Protocol (Ultimate):
   * Tether distance threshold are very rough estimations
   * Line AOE from Optiocal Unit (eye) doesn't render
+* Dancing Mad (Ultimate) P3 Black Hole is still in progress and many elements are missing
+  * exdeath tankbusters - both damage and AI is missing
+  * AI will not try to dodge black holes
+  * Stomp a Mole is not yet implemeneted
+  * This scenario is in very rough state at this moment
 
-## Acknowledgments
+#  Acknowledgments
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:

@@ -44,7 +44,7 @@ public class RoleList
 {
     private static readonly Random Rng = new Random();
 
-    private readonly IReadOnlyList<PartyRole> list;
+    private readonly List<PartyRole> list;
     private readonly SimParty party;
 
     public SimParty Party => party;
@@ -55,7 +55,7 @@ public class RoleList
     public RoleList(SimParty party, IReadOnlyList<PartyRole> list)
     {
         this.party = party;
-        this.list = list;
+        this.list = new List<PartyRole>(list);
     }
 
     public static RoleList Random(SimParty party)
@@ -169,5 +169,10 @@ public class RoleList
     public static RoleList Empty()
     {
         return new RoleList(SimParty.Empty, Array.Empty<PartyRole>());
+    }
+
+    public void Swap(int i, int i1)
+    {
+        (list[i], list[i1])  = (list[i1], list[i]);
     }
 }

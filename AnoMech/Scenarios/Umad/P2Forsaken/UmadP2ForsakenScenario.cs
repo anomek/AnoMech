@@ -141,20 +141,20 @@ public sealed class UmadP2ForsakenScenario : IScenario
     {
         SimEnemy? kefka_40004FD3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.GodKefka, NameId: BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
         world.Events.Add(1.0f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(1.30f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(1.30f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(2.46f, () => kefka_40004FD3?.Cast(ActionId.Forsaken));
         world.Events.Add(9.43f, () => world.SetWeather(89));
         
         world.Events.Add(11.15f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(11.35f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(11.35f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(14.09f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(14.39f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(14.39f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(17.13f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(17.43f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(17.43f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(20.17f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(20.47f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(20.47f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(13.21f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(23.51f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(23.51f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         
         RunKefkaEndAttack(kefka_40004FD3, 0, 25.61f);
         RunKefkaEndAttack(kefka_40004FD3, 1, 46.52f);
@@ -162,7 +162,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         RunKefkaEndAttack(kefka_40004FD3, 3, 88.36f);
         
         world.Events.Add(109.17f, () => kefka_40004FD3?.Face(party.Get(PartyRole.OffTank)));
-        world.Events.Add(109.47f, () => kefka_40004FD3?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
+        world.Events.Add(109.47f, () => kefka_40004FD3?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(110.58f, () => kefka_40004FD3?.Cast(ActionId.LightOfJudgment));
     }
     

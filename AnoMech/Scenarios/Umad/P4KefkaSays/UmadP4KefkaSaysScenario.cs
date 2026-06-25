@@ -17,7 +17,7 @@ namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 //   10018AEA M1, 100AF82E M2, 100A7A8F R1, 1009061B C.
 public sealed class UmadP4KefkaSaysScenario : IScenario
 {
-    public string Name => "UMAD P4 Kefka Says (WIP)";
+    public string Name => "UMAD P4 Kefka Says";
     public TargetInstance TargetInstance { get; } = new(
         TerritoryId: 1363,
         Origin: new Vector3(100.000f, 0f, 100.000f),
@@ -176,27 +176,27 @@ public sealed class UmadP4KefkaSaysScenario : IScenario
     {
         SimEnemy? kefka_40004142 = null;
         world.Events.Add(0f, () => kefka_40004142 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.Kefka, NameId: BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 3.140f))));
-        world.Events.Add(1.36f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(1.36f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(1.45f, () => kefka_40004142?.Cast(ActionId.KefkaSays));
-        world.Events.Add(9.41f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(9.41f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(9.59f, () => kefka_40004142?.Cast(ActionId.KefkaPoof, castSeconds: 0f));
         world.Events.Add(10.93f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[0].Blizzard.Lockon, persistent: false));
         world.Events.Add(10.93f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[0].Lightning.Lockon, persistent: false));
         world.Events.Add(11.02f, () => kefka_40004142?.Cast(ActionId.MysteryMagic));
-        world.Events.Add(17.45f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(20.49f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(23.53f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(17.45f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(20.49f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(23.53f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(25.85f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[1].Blizzard.Lockon, persistent: false));
         world.Events.Add(25.85f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[1].Lightning.Lockon, persistent: false));
         world.Events.Add(25.94f, () => kefka_40004142?.Cast(ActionId.MysteryMagic));
-        world.Events.Add(31.57f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(34.61f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(37.64f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(40.68f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(31.57f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(34.61f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(37.64f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(40.68f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(40.99f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[2].Blizzard.Lockon, persistent: false));
         world.Events.Add(40.99f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[2].Lightning.Lockon, persistent: false));
         world.Events.Add(41.08f, () => kefka_40004142?.Cast(ActionId.MysteryMagic));
-        world.Events.Add(48.76f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(48.76f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         
         // world.Events.Add(49.25f, () => kefka_40004142?.Cast(ActionId.KefkaRest, castSeconds: 0));
         world.Events.Add(53.05f, () => kefka_40004142?.Cast(ActionId.KefkaRest, castSeconds: 0));
@@ -206,13 +206,13 @@ public sealed class UmadP4KefkaSaysScenario : IScenario
         
         world.Events.Add(68.20f, () => kefka_40004142?.Cast(ActionId.ManaCharge));
         world.Events.Add(72.00f, () => kefka_40004142?.AddStatus(StatusId.ManaCharge));
-        world.Events.Add(73.20f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(73.20f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         
         world.Events.Add(74.37f, () => kefka_40004142?.AddStatus(StatusId.ThunderCharged));
         world.Events.Add(74.37f, () => kefka_40004142?.AttachLockonVfx(state.Mystery[3].Lightning.Lockon, persistent: false));
         world.Events.Add(74.45f, () => kefka_40004142?.Cast(ActionId.ThrummingThunderIII_Cast));
-        world.Events.Add(81.24f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(84.28f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(81.24f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(84.28f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(84.60f, () => kefka_40004142?.Cast(ActionId.UltimaUpsurge));
         
         world.Events.Add(92.33f, () => kefka_40004142?.AddStatus(StatusId.BlizzardCharged));
@@ -220,14 +220,14 @@ public sealed class UmadP4KefkaSaysScenario : IScenario
         world.Events.Add(92.41f, () => kefka_40004142?.Cast(ActionId.BlizzardIIIBlowout_Cast));
         world.Events.Add(98.13f, () => kefka_40004142?.RemoveStatus(StatusId.ManaCharge));
         
-        world.Events.Add(100.41f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(103.45f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(100.41f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(103.45f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(103.54f, () => kefka_40004142?.AttachLockonVfx(state.ManaReleaseBlizzardLockon, persistent: false));
         world.Events.Add(103.54f, () => kefka_40004142?.AttachLockonVfx(state.ManaReleaseLightningLockon, persistent: false));
         world.Events.Add(103.63f, () => kefka_40004142?.Cast(ActionId.ManaRelease));
-        world.Events.Add(113.51f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(116.51f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        world.Events.Add(119.54f, () => kefka_40004142?.Cast(ActionId.KefkaAuto, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(113.51f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(116.51f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
+        world.Events.Add(119.54f, () => kefka_40004142?.Cast(ActionId.AutoAttack1, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
         world.Events.Add(119.90f, () => kefka_40004142?.SetTargetable(false));
         world.Events.Add(120.03f, () => kefka_40004142?.Cast(ActionId.LightOfJudgment_Enrage));
     }
