@@ -244,7 +244,7 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
 
     private static float ClockwiseFrom(float north, Vector3 p)
     {
-        var d = MathF.Atan2(p.X, -p.Z) - north;
+        var d = (MathF.Atan2(p.X, -p.Z) - north) % MathF.Tau;
         return d < 0f ? d + MathF.Tau : d;
     }
 
