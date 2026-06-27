@@ -570,12 +570,12 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     private void Run_Kefka_400040E9_6()
     {
         SimEnemy? kefka_400040E9_6 = null;
-        world.Events.Add(74.02f, () => kefka_400040E9_6 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.790f))));
-        world.Events.Add(74.25f, () => kefka_400040E9_6?.SetPosition(state.KefkaPosition[2].Apply(new Placement(new Vector3(0.000f, 0.000f, -20.000f), 0))));
+        world.Events.Add(72.02f, () => kefka_400040E9_6 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.790f))));
+        world.Events.Add(73.25f, () => kefka_400040E9_6?.SetPosition(state.KefkaPosition[2].Apply(new Placement(new Vector3(0.000f, 0.000f, -20.000f), 0))));
         world.Events.Add(74.29f, () => kefka_400040E9_6?.Cast(ActionId.LookUponMeAndDespair_Omen, omenDelay: 4.2f));
         world.Events.Add(79.29f, () => damage.Resolve(kefka_400040E9_6, ActionId.LookUponMeAndDespair_Omen, [DamageType.Lethal], []));
         
-        world.Events.Add(132.26f, () => kefka_400040E9_6?.SetPosition(state.KefkaPosition[4].Apply(new Placement(new Vector3(0.000f, 0.000f, -20.000f), 0))));
+        world.Events.Add(131.26f, () => kefka_400040E9_6?.SetPosition(state.KefkaPosition[4].Apply(new Placement(new Vector3(0.000f, 0.000f, -20.000f), 0))));
         world.Events.Add(132.35f, () => kefka_400040E9_6?.Cast(ActionId.LookUponMeAndDespair_Omen, omenDelay: 4.2f));
         world.Events.Add(137.35f, () => damage.Resolve(kefka_400040E9_6, ActionId.LookUponMeAndDespair_Omen, [DamageType.Lethal], []));
     }
