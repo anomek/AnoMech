@@ -15,7 +15,6 @@ public sealed class TopP5OmegaState
     
     public RoleList HelloWorldTargets { get; }
     public RoleList DoubleDynamicTargets { get; }
-    public RoleList InitialTetherTargets { get; }
 
     public IReadOnlyList<Direction> AttackDirections { get; }
     public IReadOnlyList<OmegaAttack> OmegaAttacks { get; } 
@@ -54,7 +53,6 @@ public sealed class TopP5OmegaState
             Size = 4,
             IncludePlayer = overrides.ExtraDynamis,
         }.Build(party);
-        InitialTetherTargets = RoleList.Random(party, 2);
         BettleSpawnDirection = overrides.BettleSpawnDirection ?? rng.NextCardinal();
         MonitorSide = overrides.MonitorSide ?? rng.NextObj(MonitorSide.Left, MonitorSide.Right);
         FirstWaveCannonFront = overrides.FirstWaveCannonFront ?? rng.NextBool();

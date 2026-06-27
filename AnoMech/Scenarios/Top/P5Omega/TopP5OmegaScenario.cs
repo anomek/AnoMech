@@ -159,8 +159,8 @@ public sealed class TopP5OmegaScenario : IScenario
         world.Events.Add(1.39f, () => omega_4000A72E = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.BeetleHelper, NameId: BNpcNameId.OmegaBeetle, Level: 90, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, Placement: placement)));
         world.Events.Add(41.29f, () => omega_4000A72E?.PlayActionTimeline(TimelineId.Spawn));
         world.Events.Add(41.29f, () => omega_4000A72E?.SetVisible(true));
-        world.Events.Add(45.35f, () => tether1 = world.TetherPassable(state.InitialTetherTargets.Get(0), omega_4000A72E, TetherId.PassableTether));
-        world.Events.Add(45.35f, () => tether2 = world.TetherPassable(state.InitialTetherTargets.Get(1), omega_4000A72E, TetherId.PassableTether));
+        world.Events.Add(45.35f, () => tether1 = world.Tether(End.Passable(), omega_4000A72E, TetherId.PassableTether));
+        world.Events.Add(45.35f, () => tether2 = world.Tether(End.Passable(), omega_4000A72E, TetherId.PassableTether));
         world.Events.Add(45.43f, () => omega_4000A72E?.Cast(ActionId.Blaster));
         world.Events.Add(57.53f, () => omega_4000A72E?.Cast(ActionId.BlasterEffect, castSeconds: 0f, targetId: omega_4000A72E?.GameObjectId));
         world.Events.Add(60.65f, () => omega_4000A72E?.PlayActionTimeline(TimelineId.WarpOut));

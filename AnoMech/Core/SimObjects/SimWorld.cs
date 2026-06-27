@@ -52,60 +52,24 @@ public sealed class SimWorld : ISimObject, IDisposable
         waymarks = new Waymarks(Coordinates);
     }
 
+    // A fixed end is just the character; dynamic ends are End.Passable(...) /
+    // End.FarthestPlayer(). `from` hosts the channeling VFX (drawn from → to), so
+    // argument order picks the visual direction. The overload pair enforces "at
+    // least one fixed end" at compile time: two dynamic ends match neither overload
+    // (nor the both-character convenience) and won't compile — no runtime guard.
+    public SimTether Tether(SimCharacter? from, ITetherEnd to, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
+        => CreateTether(End.Fixed(from), to, tetherId, duration, debuffStatusId);
+    public SimTether Tether(DynamicEnd from, SimCharacter? to, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
+        => CreateTether(from, End.Fixed(to), tetherId, duration, debuffStatusId);
     public SimTether Tether(SimCharacter? a, SimCharacter? b, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
-    {
-        return Tether(a, () => b, tetherId, duration, debuffStatusId);
-    }
-
+        => CreateTether(End.Fixed(a), End.Fixed(b), tetherId, duration, debuffStatusId);
     public SimTether TetherFarestPlayer(SimCharacter? a, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
-    {
-        return Tether(a, () => a is null ? null : Party.Find.Farest(a.Position), tetherId, duration, debuffStatusId);
-    }
-    
+        => CreateTether(End.Fixed(a), End.FarthestPlayer(), tetherId, duration, debuffStatusId);
 
-    // Passable tether: target is fixed, source migrates each tick to whichever
-    // alive party member stands on the beam between current source and target.
-    // The half-width of the beam corridor is 0.5f (~1 yalm). Candidates who
-    // already host this tether id at slot 0 are skipped — naturally
-    // coordinating parallel passable tethers of the same id without an
-    // external shared set.
-    public SimTether TetherPassable(SimCharacter? source, SimEnemy? target, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
+
+    private SimTether CreateTether(ITetherEnd from, ITetherEnd to, ushort tetherId, float duration, ushort debuffStatusId)
     {
-        SimCharacter? currentSource = source;
-        Func<SimCharacter?> sourceResolver = () =>
-        {
-            if (currentSource is not { } cs || !cs.IsAlive()) return currentSource;
-            if (target is not { IsActive: true }) return currentSource;
-            var srcPos = cs.Position;
-            var tgtPos = target.Position;
-            var dx = tgtPos.X - srcPos.X;
-            var dz = tgtPos.Z - srcPos.Z;
-            var len = MathF.Sqrt(dx * dx + dz * dz);
-            if (len < 0.01f) return currentSource;
-            var placement = new Placement(srcPos, MathF.Atan2(dx, dz));
-            var candidates = Party.Find.InsideRect(placement, 0.5f, len);
-            SimCharacter? best = null;
-            var bestDistSq = float.MaxValue;
-            foreach (var c in candidates)
-            {
-                if (ReferenceEquals(c, cs)) continue;
-                if (c.HasTetherInSlot0(tetherId)) continue;
-                var ddx = c.Position.X - srcPos.X;
-                var ddz = c.Position.Z - srcPos.Z;
-                var d = ddx * ddx + ddz * ddz;
-                if (d < bestDistSq) { bestDistSq = d; best = c; }
-            }
-            if (best != null) currentSource = best;
-            return currentSource;
-        };
-        var tether = new SimTether(sourceResolver, () => target, tetherId, debuffStatusId, duration);
-        children.Add(tether);
-        return tether;
-    }
-    
-    public SimTether Tether(SimCharacter? a, Func<SimCharacter?> b, ushort tetherId, float duration = 0f, ushort debuffStatusId = 0)
-    {
-        var tether = new SimTether(a, b, tetherId, debuffStatusId, duration);
+        var tether = new SimTether(from, to, new TetherContext(Party.Find, tetherId), debuffStatusId, duration);
         children.Add(tether);
         return tether;
     }

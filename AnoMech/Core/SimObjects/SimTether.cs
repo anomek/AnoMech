@@ -10,6 +10,12 @@ namespace AnoMech.Core.SimObjects;
 // asks each character to host a matching debuff for the tether's duration —
 // SimCharacter.AddStatus(id, duration) owns the countdown and auto-removes on expiry.
 //
+// Each end is an ITetherEnd (see TetherEnd.cs) that resolves to a live character
+// every tick: a fixed anchor, the farthest player, or a passable beam-pass. The
+// `from` end hosts the VFX (drawn from `from` toward `to`). SimTether owns the
+// per-tick state (currentSource/currentTarget) and re-resolves both ends each
+// frame, swapping VFX + debuff whenever an end migrates to a new character.
+//
 // SimTether ticks its own elapsed counter so it can clear the tether VFX when
 // duration is reached. Both auto-expire and Despawn (called via SimWorld.Reset
 // or directly) use a sentinel check: only clear the slot when our TetherId is
@@ -23,8 +29,9 @@ public sealed unsafe class SimTether : ISimObject
 {
     private const byte Slot = 0;
 
-    private readonly Func<SimCharacter?> source;
-    private readonly Func<SimCharacter?> target;
+    private readonly ITetherEnd from;
+    private readonly ITetherEnd to;
+    private readonly TetherContext ctx;
     private SimStatus? statusA;
     private SimStatus? statusB;
     private readonly float duration;
@@ -52,18 +59,21 @@ public sealed unsafe class SimTether : ISimObject
     public bool StretchLt(float distance) =>
         A is { } a && B is { } b && Vector3.DistanceSquared(a.Position, b.Position) < distance * distance;
 
-    internal SimTether(SimCharacter? source, Func<SimCharacter?> target, ushort tetherId, ushort debuffStatusId, float duration)
-        : this(() => source, target, tetherId, debuffStatusId, duration) { }
-
-    internal SimTether(Func<SimCharacter?> source, Func<SimCharacter?> target, ushort tetherId, ushort debuffStatusId, float duration)
+    internal SimTether(ITetherEnd from, ITetherEnd to, TetherContext ctx, ushort debuffStatusId, float duration)
     {
-        this.source = source;
-        this.target = target;
-        TetherId = tetherId;
+        this.from = from;
+        this.to = to;
+        this.ctx = ctx;
+        TetherId = ctx.TetherId;
         this.debuffStatusId = debuffStatusId;
         this.duration = duration;
-        currentSource = source();
-        currentTarget = target();
+
+        // Seed both ends. At least one end is Fixed (enforced by the SimWorld.Tether
+        // overload set), so resolving the partner first hands the dynamic end a
+        // stable reference: anchor → dynamic source → settle the anchor again.
+        currentTarget = to.Resolve(null, null, ctx);
+        currentSource = from.Resolve(null, currentTarget, ctx);
+        currentTarget = to.Resolve(currentTarget, currentSource, ctx);
 
         CreateVfx();
         if (debuffStatusId != 0 && duration > 0f)
@@ -93,7 +103,7 @@ public sealed unsafe class SimTether : ISimObject
             }
         }
 
-        var nextTarget = target();
+        var nextTarget = to.Resolve(currentTarget, currentSource, ctx);
         if (nextTarget != currentTarget)
         {
             ClearTetherVfxIfOwned();
@@ -106,7 +116,7 @@ public sealed unsafe class SimTether : ISimObject
             }
         }
 
-        var nextSource = source();
+        var nextSource = from.Resolve(currentSource, currentTarget, ctx);
         if (nextSource != currentSource)
         {
             ClearTetherVfxIfOwned();

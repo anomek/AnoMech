@@ -194,15 +194,12 @@ public static class UmadConstants
 
     public static class TetherId
     {
-        // public const ushort GrabbyTether = (ushort)0x54;
-        // real instance uses 0x54 tether, that have visuals flipped 
-        // also TODO: it should be possible to grab more then one tether likes this (different then omega 89 tether)
-        public const ushort GrabbyTether = 89; 
+        public const ushort GrabbyTether = (ushort)0x54;
     }
 
     public static class LockonId
     {
-        public const uint Stack            = 161;
+        public const uint Stack           = 161;
         public const uint ColdFalse       = 675;
         public const uint ColdTrue        = 676;
         public const uint LightningFalse  = 677;
@@ -210,9 +207,6 @@ public static class UmadConstants
         public const uint ForsakenStack   = 715;
         public const uint ForsakenChariot = 716;
         public const uint ForsakenCone    = 717;
-
-        public static uint Cold(bool state) => state ? ColdTrue : ColdFalse;
-        public static uint Lightning(bool state) => state ? LightningTrue : LightningFalse;
     }
 
     public static class Geometry

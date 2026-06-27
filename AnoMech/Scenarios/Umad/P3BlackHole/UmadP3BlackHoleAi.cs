@@ -234,12 +234,12 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         player is null
             ? null
             : world.Children.OfType<SimTether>()
-                   .FirstOrDefault(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && ReferenceEquals(t.A, player));
+                   .FirstOrDefault(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && ReferenceEquals(t.B, player));
 
     private IReadOnlyList<SimTether> ActiveTethersClockwiseFrom(Direction north) =>
         world.Children.OfType<SimTether>()
-             .Where(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && t.B is not null)
-             .OrderBy(t => ClockwiseFrom(north.RadiansFromNorth, t.B!.Position))
+             .Where(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && t.A is not null)
+             .OrderBy(t => ClockwiseFrom(north.RadiansFromNorth, t.A!.Position))
              .ToList();
 
     private static float ClockwiseFrom(float north, Vector3 p)

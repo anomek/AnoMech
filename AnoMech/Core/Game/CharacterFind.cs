@@ -202,6 +202,13 @@ public sealed class CharacterFind<T> where T : IPositioned
         return pool.Count == 0 ? default : pool[Random.Shared.Next(pool.Count)];
     }
 
+    // One member chosen uniformly at random from the live set. Null when empty.
+    public T? RandomMember()
+    {
+        var pool = source() as IReadOnlyList<T> ?? source().ToList();
+        return pool.Count == 0 ? default : pool[Random.Shared.Next(pool.Count)];
+    }
+
     // size is extra dimension, that's not present in game data.
     // Exact interpretation depends on spell type
     // 3, 13 (cones) -> halfAngleRad default PI/6

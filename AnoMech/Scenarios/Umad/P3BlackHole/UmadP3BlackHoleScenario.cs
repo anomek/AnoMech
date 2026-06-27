@@ -503,14 +503,14 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         SimEnemy? black_Hole_40004166 = null;
         SimTether? tether = null;
         world.Events.Add(spawnTime, () => black_Hole_40004166 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.BlackHole, NameId: BNpcNameId.BlackHole, Level: 100, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true, Placement: new(pos, -3.140f))));
-        world.Events.Add(tetherTime, () => tether = world.TetherPassable(party.GetRandom()!, black_Hole_40004166!, TetherId.GrabbyTether));
+        world.Events.Add(tetherTime, () => tether = world.Tether(black_Hole_40004166!, End.Passable(), TetherId.GrabbyTether));
         
         var despawnDelay = 2f;
         var shootCooldown = 5.1f;
         for (int i = 0; i < numberOfShots; i++)
         {
             var shotTime = firstShotTime + i * shootCooldown;
-            world.Events.Add(shotTime - 0.1f, () => black_Hole_40004166?.Face(tether?.A));
+            world.Events.Add(shotTime - 0.1f, () => black_Hole_40004166?.Face(tether?.B));
             world.Events.Add(shotTime, () => black_Hole_40004166?.Cast(ActionId.Nothingness));
             world.Events.Add(shotTime , () => ResolveNothingness(damage.Resolve(black_Hole_40004166, ActionId.Nothingness, [DamageType.Lethal], [], killTargets: false)));
         }
