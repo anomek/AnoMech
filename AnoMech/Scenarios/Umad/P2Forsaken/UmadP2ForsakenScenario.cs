@@ -35,6 +35,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
         WeatherId: 79);
     public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
+    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
     public ushort Bgm => 533;
     
     public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
@@ -48,7 +49,14 @@ public sealed class UmadP2ForsakenScenario : IScenario
         new UmadP2ForsakenSouthFlexAi(),
         new UmadP2ForsakenKroxyRinonOldAi(),
         new UmadP2ForsakenSouthFlex341OldAi(),
+        new UmadP2ForsakenP3ZBuddyMeowAi(),
+        new UmadP2ForsakenZP6SouthAdjustAi(),
     ];
+
+    // NA holds the existing strats; EU holds this branch's new strats — isolated copies
+    // of NA strats over their own forked helpers ("p3Z Buddy Meow" from Kroxy-Rinon 341,
+    // "zP6 South adjust" from South Flex 341) — more to come.
+    public IReadOnlyList<string> StratGroups { get; } = ["NA", "EU"];
 
     private UmadP2ForsakenState state = null!;
     private SimWorld world = null!;
@@ -62,7 +70,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);
-        if (selectedAi is { } idx && idx < AiStrats.Count)
+        if (selectedAi is { } idx && idx >= 0 && idx < AiStrats.Count)
             ((IScenarioAi<UmadP2ForsakenState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);

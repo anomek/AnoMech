@@ -12,6 +12,11 @@ namespace AnoMech.Core.Game.Ai;
 public interface IScenarioAi
 {
     string Name { get; }
+
+    // Optional region/group this strat belongs to. Used by the main-window strat
+    // picker to bucket strats under region buttons; must match one of the scenario's
+    // IScenario.StratGroups. Null = ungrouped (scenario shows no region row).
+    string? Group => null;
 }
 
 public interface IScenarioAi<TState> : IScenarioAi

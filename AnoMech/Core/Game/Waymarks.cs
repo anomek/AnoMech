@@ -13,6 +13,10 @@ public enum WaymarkSlot : int
 
 public sealed record Waymark(WaymarkSlot Slot, Vector3 Offset);
 
+// A named waymark layout, selectable in the main window's "Waymarks:" dropdown.
+// Markers are scenario-local offsets, same frame as Waymark.Offset.
+public sealed record WaymarkLayout(string Name, IReadOnlyList<Waymark> Markers);
+
 public static class WaymarkPresets
 {
     // Ring of A,1,B,2,C,3,D,4 spaced 45° apart, A at north going clockwise.

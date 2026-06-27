@@ -24,6 +24,7 @@ public sealed class UmadP4KefkaSaysScenario : IScenario
         PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
         WeatherId: 174);
     public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
+    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
     public ushort Bgm => 20293;
     
     public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];

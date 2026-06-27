@@ -233,4 +233,23 @@ public static class UmadConstants
         new(WaymarkSlot.Three, new Vector3(  6, 0,   6)),
         new(WaymarkSlot.Four,  new Vector3( -6, 0,   6)),
     ];
+
+    // Named waymark layouts for the UMAD family, surfaced in the main window's
+    // "Waymarks:" dropdown. Default is the 12y "Diamond" layout (UmadWaymarks);
+    // append more entries here to add choices.
+    public static IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } =
+    [
+        new WaymarkLayout("Diamond Waymarks", UmadWaymarks),
+        new WaymarkLayout("DN Zenith Waymarks",
+        [
+            new(WaymarkSlot.A,     new Vector3(    0, 0,   -12)),
+            new(WaymarkSlot.B,     new Vector3(   12, 0,     0)),
+            new(WaymarkSlot.C,     new Vector3(    0, 0,    12)),
+            new(WaymarkSlot.D,     new Vector3(  -12, 0,     0)),
+            new(WaymarkSlot.One,   new Vector3(-8.765f, 0, -8.765f)),
+            new(WaymarkSlot.Two,   new Vector3( 8.628f, 0, -8.765f)),
+            new(WaymarkSlot.Three, new Vector3( 8.628f, 0,  8.628f)),
+            new(WaymarkSlot.Four,  new Vector3(-8.765f, 0,  8.628f)),
+        ]),
+    ];
 }

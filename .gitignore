@@ -1,6 +1,7 @@
 .vs/
 obj/
 /logs/
+/docs/
 /Reference/
 bin/
 .idea/
