@@ -1,59 +1,27 @@
 name: Build
 
-# Put your personal access token in a repository secret named PAT for cross-repository access
-
 on:
-  workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Which version segment to bump
+        type: choice
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+          - revision
 
-env:
-  PUBLIC_NAME: AnoMech
-  SOLUTION_NAME: AnoMech
-  INTERNAL_NAME: AnoMech
-  RELEASE_DIR: AnoMech\bin\x64\Release\AnoMech
-  PERSONAL_PLUGIN_REPO: anomek/MyDalamudPlugins
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+permissions:
+  contents: write          # lets the reusable workflow create the release + push the bump commit
 
 jobs:
   build:
-    runs-on: windows-2022
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v5
-      with:
-        submodules: recursive
-    - name: Install .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: 9.0.x
-    - name: Download Dalamud
-      run: |
-        Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
-        Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
-    - name: Build
-      run: |
-        dotnet restore -r win ${{ env.SOLUTION_NAME }}.sln
-        dotnet build --configuration Release
-    - uses: actions/upload-artifact@v4
-      with:
-        name: PluginRepoZip
-        path: ${{ env.RELEASE_DIR }}
-        if-no-files-found: error
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v5
-      with:
-        repository: ${{ env.PERSONAL_PLUGIN_REPO }}
-        token: ${{ secrets.PAT }}
-    - uses: actions/download-artifact@v4
-      with:
-        name: PluginRepoZip
-        path: plugins/${{ env.INTERNAL_NAME }}
-    - uses: EndBug/add-and-commit@v9
-      with:
-        add: --all
-        author_name: GitHub Action
-        author_email: github-actions[bot]@users.noreply.github.com
-        message: Update ${{ env.INTERNAL_NAME }}
+    uses: anomek/MyDalamudPlugins/.github/workflows/build-plugin.yml@master
+    with:
+      internal_name: AnoMech
+      solution_name: AnoMech
+      version_bump: ${{ inputs.version_bump }}
+    secrets:
+      PAT: ${{ secrets.PAT }}
