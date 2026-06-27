@@ -28,13 +28,13 @@ See: https://github.com/anomek/MyDalamudPlugins
 - Dancing Mad (Ultimate)
     - P2 Forsaken
       - NA
-        - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
         - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
-      - EU
+        - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
+        - you can choose between original positions and ones that use diamond markers
+      - EU _by [Wydox](https://github.com/Wydox)_
         - [p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
         - [zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
-      - you can choose between original positions and ones that use diamond markers
-    - P3 Black Hole (Work in Pogress) _kefkabin_
+    - P3 Black Hole (Work in Pogress) _kefkabin (at least it was in kefkabin, idk it's week 4)_
     - P4 Kefka Says _kefkabin_
 - The Omega Protocol (Ultimate): _NA pf strats_
     - P2 Party Synergy
@@ -73,6 +73,10 @@ See: https://github.com/anomek/MyDalamudPlugins
   * This scenario is in very rough state at this moment
 
 #  Acknowledgments
+
+Thanks for contributors:
+* [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting backend and improving / fixing a lot of logic there, plus fixing lots of crashes in process
+* [Wydox](https://github.com/Wydox) - EU strats for Forskaen
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:
