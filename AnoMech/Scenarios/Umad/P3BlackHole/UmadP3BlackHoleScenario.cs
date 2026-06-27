@@ -470,12 +470,16 @@ public sealed class UmadP3BlackHoleScenario : IScenario
             passive.Add(dir.Apply(inner));
             passive.Add(dir.Apply(mid));
                
-            var activeDir = Direction.Cardinal[i]; 
-            if (activeDir != state.BlackHoleDirections[wave])
+            if (i > 0)
+            {
+                var activeDir = state.BlackHoleDirections[wave].Rotate(2*i);
                 active.Add(activeDir.Apply(outer));
+            }
         }
+        if (state.SwapActiveBlackHoles[wave])
+            (active[0], active[2]) = (active[2], active[0]);
         
-        return active.Shuffle().Concat(passive).ToList();
+        return active.Concat(passive).ToList();
     }
     
     private void Run_Black_Hole_40004169()
