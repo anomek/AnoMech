@@ -34,7 +34,7 @@ See: https://github.com/anomek/MyDalamudPlugins
       - EU _by [Wydox](https://github.com/Wydox)_
         - [p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
         - [zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
-    - P3 Black Hole (Work in Pogress) _kefkabin (at least it was in kefkabin, idk it's week 4)_
+    - P3 Black Hole (Work in Pogress) _old bh (DSA, single tethers)_
     - P4 Kefka Says _kefkabin_
 - The Omega Protocol (Ultimate): _NA pf strats_
     - P2 Party Synergy
