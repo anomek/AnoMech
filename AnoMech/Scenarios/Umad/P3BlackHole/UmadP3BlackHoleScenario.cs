@@ -271,6 +271,13 @@ public sealed class UmadP3BlackHoleScenario : IScenario
             // TODO: temporary disable until we have AI that can resolve it
             // damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
         });
+        // world.Events.Add(time + 3f, () =>
+        // {
+        //     var target = party.Find.Closest(exdeath!.Position);
+        //     helper?.Cast(ActionId.ThunderIII_Resolve, targetId: target?.GameObjectId);
+        //     // TODO: temporary disable until we have AI that can resolve it
+        //     // damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
+        // });
     }
 
     private void Run_Exdeath_4000414C()

@@ -164,7 +164,7 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
     // perpendicular of its own cone so neither dodge stands on the (hit-counting) cone edge.
     // Read Chaos live, like the edict. Both shockwave dodges land close together, slap-safe.
     private const float ArenaRadius = 19f;             // ~outer Black Hole ring (z=-17), tune in-game
-    private const float ImplosionDodgeFraction = 0.30f;
+    private const float ImplosionDodgeFraction = 0.40f;
     private const float ImplosionConeLean = 0.18f;     // ~10deg off the cone edge
 
     private IAiMove DodgeImplosion(int shockwaveIndex, int slapIndex, int slapKefkaIndex)
@@ -245,15 +245,32 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
     private void ReturnToMiddle(int playerIndex) =>
         state.Roles.Get(playerIndex)?.MoveTo(new Vector3(0f, 0f, 0f));
 
-    // Look Upon (rect along the KefkaPosition[lookKefkaIndex] axis through centre) split:
-    // the tether holder dodges to one perpendicular safe side, the rest to the opposite
-    // side. Both sides clear the 16y corridor.
+    // Look Upon (rect along the KefkaPosition[lookKefkaIndex] axis through centre, 16y
+    // wide) split. The tether holder rides the last black hole's tether out to the arena
+    // edge, but the hole's bearing may sit in the Look-Upon corridor; nudge it ±45° to the
+    // side that clears the line and send the holder there. The rest take the opposite edge
+    // (180°), which the centre-symmetric corridor leaves equally clear.
     private void DodgeLookUponSplit(int tetherPlayerIndex, int lookKefkaIndex)
     {
-        var phi = state.KefkaPosition[lookKefkaIndex].RadiansFromNorth;
-        var perp = new Vector2(MathF.Cos(phi), MathF.Sin(phi));   // perpendicular to the rect line
-        const float dist = 11f;                                   // past the 8y half-width, with margin
-        var holderSpot = new Vector3(perp.X * dist, 0f, perp.Y * dist);
+        var theta = state.KefkaPosition[lookKefkaIndex].RadiansFromNorth;   // Look-Upon line bearing
+
+        // Bearing centre→black hole the holder is tethered to. Falls back to the line's
+        // perpendicular (always clear) if no active tether is readable.
+        var holder = state.Roles.Get(tetherPlayerIndex);
+        var blackHole = (TetherHeldBy(holder) ?? state.ScenarioObjects.Tethers.FirstOrDefault())?.A;
+        var alpha = blackHole is { } bh
+                        ? MathF.Atan2(bh.Position.X, -bh.Position.Z)
+                        : theta + MathF.PI / 2f;
+
+        // Of alpha±45°, at least one clears the 8y half-width corridor (edge perpendicular
+        // = edge·|sin(β-θ)|, ≥ 12.7y even with the hole on the line). Take the side farther
+        // from the line — the larger |sin(β-θ)| — which is always the safe one.
+        var plus = alpha + MathF.PI / 4f;
+        var minus = alpha - MathF.PI / 4f;
+        var beta = MathF.Abs(MathF.Sin(plus - theta)) >= MathF.Abs(MathF.Sin(minus - theta)) ? plus : minus;
+
+        const float edge = 18f;   // ride out to the arena edge, past the hole's r=17 ring
+        var holderSpot = new Vector3(edge * MathF.Sin(beta), 0f, -edge * MathF.Cos(beta));
         for (int i = 0; i < 8; i++)
             state.Roles.Get(i)?.MoveTo(i == tetherPlayerIndex ? holderSpot : -holderSpot);
     }
