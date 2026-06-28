@@ -66,11 +66,9 @@ See: https://github.com/anomek/MyDalamudPlugins
 * In scenarios for Top Omega Protocol (Ultimate):
   * Tether distance threshold are very rough estimations
   * Line AOE from Optiocal Unit (eye) doesn't render
-* Dancing Mad (Ultimate) P3 Black Hole is still in progress and many elements are missing
-  * exdeath tankbusters - both damage and AI is missing
-  * AI will not try to dodge black holes
+* Dancing Mad (Ultimate) P3 Black Hole is still work in progress and will get more polish
   * Stomp a Mole is not yet implemeneted
-  * This scenario is in very rough state at this moment
+  * It should be quite accurate up to Stomp a Mole
 
 #  Acknowledgments
 
