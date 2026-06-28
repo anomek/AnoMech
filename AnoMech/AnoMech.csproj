@@ -3,7 +3,7 @@
 
   <PropertyGroup>
     <Authors>Anomek</Authors>
-    <Version>0.3.6.0</Version>
+    <Version>0.3.7.0</Version>
     <Description>Simulate ultimate raid mechanics solo client-side</Description>
     <RootNamespace>AnoMech</RootNamespace>
     <PackageProjectUrl>https://github.com/anomek/AnoMech</PackageProjectUrl>
