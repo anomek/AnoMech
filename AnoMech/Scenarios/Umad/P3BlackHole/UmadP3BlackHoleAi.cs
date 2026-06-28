@@ -244,12 +244,14 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
     // Implosion fires two +-45deg Shockwave cones from Chaos, the axis rotating 90deg between
     // the two shockwaves, so the only bearings safe from both are the four diagonals at 45deg
     // to the cone axis. Of those, take the diagonal whose arena-border end is deepest into the
-    // slap-safe half (farthest from the slap-dangerous edge), resolve 30% of the way out along
-    // it from Chaos, then nudge each shockwave a few degrees off the diagonal toward the
-    // perpendicular of its own cone so neither dodge stands on the (hit-counting) cone edge.
-    // Read Chaos live, like the edict. Both shockwave dodges land close together, slap-safe.
-    private const float ArenaRadius = 19f;             // ~outer Black Hole ring (z=-17), tune in-game
-    private const float ImplosionDodgeFraction = 0.40f;
+    // slap-safe half (farthest from the slap-dangerous edge). Resolve where that diagonal crosses
+    // the line parallel to the slap divide that sits 10y into the safe half; if the diagonal
+    // never reaches that line inside the arena, hug the border (1y in) instead. Then nudge each
+    // shockwave a few degrees off the diagonal toward the perpendicular of its own cone so neither
+    // dodge stands on the (hit-counting) cone edge. Read Chaos live, like the edict.
+    private const float ArenaRadius = 20f;             // ~outer Black Hole ring (z=-17), tune in-game
+    private const float ImplosionSlapSafeMargin = 10f; // park this far past the slap divide, into the safe half
+    private const float ImplosionBorderInset = 1f;     // fallback: this far inside the arena border
     private const float ImplosionConeLean = 0.18f;     // ~10deg off the cone edge
 
     private IAiMove DodgeImplosion(int shockwaveIndex, int slapIndex, int slapKefkaIndex)
@@ -261,24 +263,36 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         var offset = state.ImplosionAttack == ActionId.LongitudinalImplosion ? 0f : MathF.PI / 2f;
         var baseAxis = boss.Rotation + offset;
 
-        // Arena-edge midpoint of the slap-dangerous half (opposite the slap-safe direction).
-        var dangerEdge = -SlapSafeDir(slapIndex, slapKefkaIndex) * ArenaRadius;
+        // Slap divide runs through arena center perpendicular to safeDir; dot(P, safeDir) is the
+        // signed distance into the slap-safe half. Danger edge is the arena rim on the unsafe side.
+        var safeDir = SlapSafeDir(slapIndex, slapKefkaIndex);
+        var dangerEdge = -safeDir * ArenaRadius;
 
         // Of the four 45deg diagonals, keep the one whose outward arena-border point is farthest
         // from that danger edge - deepest into the slap-safe half, robust to Chaos off-center.
         var bestDir = Vector2.Zero;
-        var bestBorder = Vector2.Zero;
+        var bestBorderDist = 0f;
         var bestDist = float.MinValue;
         for (var k = 0; k < 4; k++)
         {
             var theta = baseAxis + MathF.PI / 4f + k * (MathF.PI / 2f);
             var dir = new Vector2(MathF.Sin(theta), MathF.Cos(theta));
-            var border = c + dir * RayToArenaBorder(c, dir);
-            var dist = Vector2.DistanceSquared(border, dangerEdge);
-            if (dist > bestDist) { bestDist = dist; bestDir = dir; bestBorder = border; }
+            var borderDist = RayToArenaBorder(c, dir);
+            var dist = Vector2.DistanceSquared(c + dir * borderDist, dangerEdge);
+            if (dist > bestDist) { bestDist = dist; bestDir = dir; bestBorderDist = borderDist; }
         }
 
-        var length = ImplosionDodgeFraction * (bestBorder - c).Length();
+        // Where the diagonal crosses the safe-side parallel line (dot(P, safeDir) == margin):
+        // c + t*bestDir lies on it at t = (margin - dot(c, safeDir)) / dot(bestDir, safeDir).
+        // If that crossing is ahead of Chaos and inside the arena, dodge around it; otherwise
+        // the diagonal leaves the arena before reaching the line, so hug the border instead.
+        var denom = Vector2.Dot(bestDir, safeDir);
+        var length = bestBorderDist - ImplosionBorderInset;
+        if (denom > 1e-4f)
+        {
+            var t = (ImplosionSlapSafeMargin - Vector2.Dot(c, safeDir)) / denom;
+            if (t > 0f && t <= bestBorderDist) length = t;
+        }
 
         // Lean off the diagonal toward the perpendicular of THIS shockwave's cone axis, so we
         // sit just inside the 90deg safe band instead of on its edge.
@@ -370,7 +384,7 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         var bhPos = new Vector2(blackHole.Position.X, blackHole.Position.Z);
         var heldPos = new Vector2(held.Position.X, held.Position.Z);
         // Pull spot, then nudged 1.5y farther from the black hole along the bh→player axis.
-        var spot = CardinalClockwise(heldPos) + Vector2.Normalize(heldPos - bhPos) * 1.5f;
+        var spot = CardinalClockwise(bhPos) + Vector2.Normalize(heldPos - bhPos) * 1.5f;
         player?.MoveTo(new Vector3(spot.X, 0f, spot.Y));
     }
 

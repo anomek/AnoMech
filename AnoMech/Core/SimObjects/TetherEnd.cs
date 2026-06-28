@@ -57,6 +57,8 @@ public abstract class DynamicEnd : ITetherEnd
 // Beam-pass: each tick, whichever alive member stands inside the corridor between
 // the current holder and the anchor (and isn't already holding this tether id)
 // becomes the new holder — the closest such member to the current holder wins.
+// A member must be meaningfully *ahead* of the holder on the beam to count
+// (MinInterceptForward); one standing on top of the holder isn't intercepting.
 // Skipping members who already host this id lets parallel passable tethers of the
 // same id coordinate without an external shared set.
 //
@@ -64,6 +66,13 @@ public abstract class DynamicEnd : ITetherEnd
 // (End.Passable()) a random alive party member is chosen on the first resolve.
 public sealed class PassableEnd : DynamicEnd
 {
+    // A candidate must be at least this far *ahead* of the holder along the beam
+    // (in meters) to take it over. A member standing on top of the holder is at
+    // forward ≈ 0 and isn't intercepting the beam — without this floor, two
+    // co-located members hand the tether back and forth every frame (a visible
+    // flicker), since each sits at the start of the other's corridor.
+    private const float MinInterceptForward = 0.1f;
+
     private readonly SimCharacter? initial;
     private readonly float halfWidth;
 
@@ -86,6 +95,11 @@ public sealed class PassableEnd : DynamicEnd
         var len = MathF.Sqrt(dx * dx + dz * dz);
         if (len < 0.01f) return holder;
 
+        // Unit vector from holder toward anchor, to measure how far ahead a
+        // candidate sits on the beam (matches InsideRect's forward coordinate).
+        var fwdX = dx / len;
+        var fwdZ = dz / len;
+
         var placement = new Placement(holderPos, MathF.Atan2(dx, dz));
         SimCharacter? best = null;
         var bestDistSq = float.MaxValue;
@@ -95,6 +109,7 @@ public sealed class PassableEnd : DynamicEnd
             if (c.HasTetherInSlot0(ctx.TetherId)) continue;
             var ddx = c.Position.X - holderPos.X;
             var ddz = c.Position.Z - holderPos.Z;
+            if (ddx * fwdX + ddz * fwdZ < MinInterceptForward) continue;  // stacked on holder → not intercepting
             var d = ddx * ddx + ddz * ddz;
             if (d < bestDistSq) { bestDistSq = d; best = c; }
         }
