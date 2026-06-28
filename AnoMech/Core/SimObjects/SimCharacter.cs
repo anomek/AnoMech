@@ -98,7 +98,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     public void MoveTo(Placement p) => MoveTo(p.Position);
     protected void StopMoving() => Movement.Stop();
 
-    public void Intercept(SimTether? tether) => Movement.Intercept(tether);
+    public void Intercept(SimTether? tether, float margin = 3f) => Movement.Intercept(tether, margin);
 
 
     // -------------------------

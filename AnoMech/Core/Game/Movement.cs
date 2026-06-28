@@ -26,6 +26,7 @@ internal class Movement(SimCharacter parent)
     private float followCooldown;
 
     private SimTether? interceptTether;
+    private float interceptMargin = 3f;   // park this many yards short of either tether endpoint
 
     public bool IsMoving => destination != null;
 
@@ -47,11 +48,13 @@ internal class Movement(SimCharacter parent)
     }
 
     // Walk to the nearest point on the tether line and keep tracking it: TickIntercept
-    // re-projects every frame so a tether whose endpoints drift is still met.
-    public void Intercept(SimTether? tether)
+    // re-projects every frame so a tether whose endpoints drift is still met. `margin`
+    // is how many yards short of either endpoint to park.
+    public void Intercept(SimTether? tether, float margin = 3f)
     {
         followTarget = null;
         interceptTether = tether;
+        interceptMargin = margin;
         RetargetIntercept();
     }
 
@@ -60,7 +63,7 @@ internal class Movement(SimCharacter parent)
     // in-flight move just finishes.
     private void RetargetIntercept()
     {
-        const float margin = 3f; // park this many yards short of either tether endpoint
+        var margin = interceptMargin;
         if (interceptTether is not { A: { } a, B: { } b } || !a.IsAlive() || !b.IsAlive())
         {
             interceptTether = null;
@@ -76,7 +79,10 @@ internal class Movement(SimCharacter parent)
         var inset = margin / len;
         var (tMin, tMax) = 2f * inset >= 1f ? (0.5f, 0.5f) : (inset, 1f - inset);
         var t = Math.Clamp(Vector2.Dot(rel, seg) / (len * len), tMin, tMax);
-        var target = src + seg * t;
+        // Slide the parked point along the tether line to the nearest spot clear of
+        // obstacles, so the bot lands on the grab corridor instead of being parked
+        // perpendicular off it when a black hole sits on the line.
+        var target = parent.Obstacles.NearestClearOnSegment(src, src + seg, t, tMin, tMax);
         MoveTo(new Vector3(target.X, parent.Position.Y, target.Y));
     }
 
@@ -171,7 +177,7 @@ internal class Movement(SimCharacter parent)
             var desired = new Vector2(dx / dist, dz / dist);
             // Steer around obstacles; a no-op (returns `desired`) when the field is
             // empty, nothing blocks, or this is forced movement.
-            var heading = avoid ? parent.Obstacles.Steer(new Vector2(cur.X, cur.Z), desired) : desired;
+            var heading = avoid ? parent.Obstacles.Steer(new Vector2(cur.X, cur.Z), desired, dist) : desired;
             var next = new Vector3(cur.X + heading.X * step, cur.Y, cur.Z + heading.Y * step);
             parent.SetPosition(new Placement(next, faceTravel ? MathF.Atan2(heading.X, heading.Y) : parent.Rotation));
         }

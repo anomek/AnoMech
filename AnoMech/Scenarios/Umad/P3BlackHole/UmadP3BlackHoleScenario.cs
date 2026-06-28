@@ -10,6 +10,7 @@ using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
+using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
@@ -44,6 +45,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     private SimParty party = null!;
     private DamageSolver damage = null!;
     private List<Vector3>[] BlackHolePositions = null!;
+    private const float BlackHoleAvoidRadius = 1.5f; // damage radius is 1.25; small clearance
     private int PrimodialCrustsToResolve;
     private float CleanseCooldown;
     SimEnemy? CleanseHelper;
@@ -53,7 +55,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         UmadRsvStrings.Seed();
         world = worldParam;
         party = worldParam.Party;
-        state = new UmadP3BlackHoleState(party, settingsWindow.Overrides);
+        state = new UmadP3BlackHoleState(world, settingsWindow.Overrides);
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<UmadP3BlackHoleState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
@@ -76,6 +78,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         Run_Kefka_400040E7_1();
         Run_Black_Hole_40004166();
         Run_Black_Hole_40004169();
+        Run_BlackHoleObstacles();
         Run_Kefka_400040E9_6();
         Run_Exdeath_400040E2();
         Run_Exdeath_400040E3();
@@ -209,6 +212,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     private void Run_Chaos_4000414D()
     {
         SimEnemy? chaos_4000414D = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.ChaosP3, NameId: BNpcNameId.Chaos, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(-8.000f, 0.000f, 0.000f), 0.000f)));
+        state.ScenarioObjects.Chaos = chaos_4000414D;
         world.Events.Add(0.1f, () => chaos_4000414D?.AddStatus(StatusId.EpicVillain));
         world.Events.Add(0.98f, () => chaos_4000414D?.Cast(ActionId.Earthquake));
         world.Events.Add(1f, () => chaos_4000414D?.Follow(party.Get(PartyRole.MainTank)));
@@ -273,6 +277,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     {
         SimEnemy? thunderHelper = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), -2.190f)));
         SimEnemy? exdeath_4000414C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.Exdeath, NameId: BNpcNameId.Exdeath, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(8.000f, 0.000f, 0.000f), 0.000f)));
+        state.ScenarioObjects.Exdeath = exdeath_4000414C;
         world.Events.Add(0.1f, () => exdeath_4000414C?.AddStatus(StatusId.FatedVillain));
         world.Events.Add(1f, () => exdeath_4000414C?.Follow(party.Get(PartyRole.OffTank)));
         world.Events.Add(12.07f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
@@ -555,6 +560,13 @@ public sealed class UmadP3BlackHoleScenario : IScenario
 
     private void Run_Black_Hole_40004166()
     {
+        // Point the tether ordering at each wave's Kefka direction so the AI reads
+        // state.ScenarioObjects.Tethers already sorted clockwise from it.
+        world.Events.Add(25.17f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[0]);
+        world.Events.Add(55.70f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[1]);
+        world.Events.Add(89.95f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[2]);
+        world.Events.Add(123.34f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[3]);
+
         RunActiveBlackHole(BlackHolePositions[0][0], 25.17f, 25.17f, 32.27f, 1);
         RunActiveBlackHole(BlackHolePositions[0][1], 25.17f, 32.27f, 39.33f, 1);
         RunActiveBlackHole(BlackHolePositions[0][2], 25.17f, 32.27f, 39.33f, 1);
@@ -568,6 +580,26 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         RunActiveBlackHole(BlackHolePositions[3][0], 123.34f, 125.74f, 130.60f, 1);
         RunActiveBlackHole(BlackHolePositions[3][1], 123.34f, 125.74f, 130.60f, 1);
         RunActiveBlackHole(BlackHolePositions[3][2], 123.34f, 130.60f, 137.67f, 1);
+    }
+
+    private void Run_BlackHoleObstacles()
+    {
+        // Black holes appear, then 1.5s later (1.5s before their damage window opens)
+        // bots steer around them; obstacles clear when the wave despawns.
+        RunBlackHoleObstacleWave(0, 26.67f, 41.33f);
+        RunBlackHoleObstacleWave(1, 57.29f, 75.07f);
+        RunBlackHoleObstacleWave(2, 91.45f, 109.12f);
+        RunBlackHoleObstacleWave(3, 124.84f, 139.83f);
+    }
+
+    private void RunBlackHoleObstacleWave(int wave, float avoidStart, float avoidEnd)
+    {
+        world.Events.Add(avoidStart, () =>
+        {
+            foreach (var bh in BlackHolePositions[wave])
+                world.Obstacles.Add(new CircleObstacle(new Vector2(bh.X, bh.Z), BlackHoleAvoidRadius));
+        });
+        world.Events.Add(avoidEnd, () => world.Obstacles.Clear());
     }
 
 

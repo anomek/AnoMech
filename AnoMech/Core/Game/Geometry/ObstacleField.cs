@@ -62,25 +62,61 @@ public sealed class ObstacleField
         return p - normal * dist;   // dist < 0, normal outward -> move out by |dist|
     }
 
-    // Returns the unit steering direction for a bot at `pos` that wants to head
-    // in unit `desired`. With no obstacle in the way this is just `desired`
-    // (=> straight line). Otherwise the bot glides tangent to the nearest
-    // blocking obstacle, on the side that still makes progress toward `desired`,
-    // plus an outward push if it is currently inside.
-    internal Vector2 Steer(Vector2 pos, Vector2 desired)
+    // Nearest point to the projection `t0` on segment a->b (param clamped to
+    // [tMin,tMax]) that is clear of every obstacle, found by scanning outward along
+    // the line in both directions. Lets tether intercept stay ON the corridor when an
+    // obstacle covers the nearest point: it slides to the closest open spot on the
+    // line instead of being shoved perpendicular off it (which ClampOutside would do,
+    // silently breaking the grab). Returns the projection unchanged when the field is
+    // empty or no in-range point is clear (best-effort fallback).
+    public Vector2 NearestClearOnSegment(Vector2 a, Vector2 b, float t0, float tMin, float tMax)
+    {
+        var seg = b - a;
+        Vector2 At(float t) => a + seg * t;
+        var len = seg.Length();
+        if (obstacles.Count == 0 || len < 1e-6f || IsClear(At(t0))) return At(t0);
+
+        var dt = 0.5f / len;   // probe in ~0.5-yalm steps along the line
+        for (var d = dt; t0 - d >= tMin || t0 + d <= tMax; d += dt)
+        {
+            if (t0 + d <= tMax && IsClear(At(t0 + d))) return At(t0 + d);
+            if (t0 - d >= tMin && IsClear(At(t0 - d))) return At(t0 - d);
+        }
+        return At(t0);
+    }
+
+    private bool IsClear(Vector2 p)
+    {
+        foreach (var o in obstacles)
+            if (o.SignedDistance(p) < 0f) return false;
+        return true;
+    }
+
+    // Returns the unit steering direction for a bot at `pos` heading in unit
+    // `desired` toward a destination `dist` yalms away. With no obstacle in the way
+    // this is just `desired` (=> straight line). Otherwise the bot glides tangent to
+    // the nearest blocking obstacle, on the side that still makes progress toward
+    // `desired`, plus an outward push if it is currently inside.
+    internal Vector2 Steer(Vector2 pos, Vector2 desired, float dist)
     {
         if (obstacles.Count == 0) return desired;
 
-        // The obstacle "in the way": the nearest one we are inside, or near and
-        // closing on along the straight path within LookAhead.
+        // Look ahead along the path, but never past the destination — otherwise a
+        // bot settling just outside an obstacle keeps probing LookAhead into it and
+        // gets deflected tangentially every frame instead of arriving (the
+        // end-of-move twitch). On the final approach `reach` shrinks to `dist`.
+        var reach = MathF.Min(LookAhead, dist);
+        var ahead = pos + desired * reach;
+
+        // The obstacle "in the way": the nearest one we are inside, or that the
+        // capped look-ahead path actually runs into.
         IObstacle? blocking = null;
         var blockingDist = float.MaxValue;
-        var ahead = pos + desired * LookAhead;
         foreach (var o in obstacles)
         {
             var d = o.SignedDistance(pos);
-            var closing = d < LookAhead && o.SignedDistance(ahead) < d;
-            if (d >= 0f && !closing) continue;          // outside and not approaching
+            var willEnter = o.SignedDistance(ahead) < 0f;   // path penetrates before the destination
+            if (d >= 0f && !willEnter) continue;            // outside it and not heading into it
             if (d < blockingDist) { blockingDist = d; blocking = o; }
         }
         if (blocking == null) return desired;

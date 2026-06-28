@@ -26,47 +26,47 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         ai.Move(11f, StackCentre);
         ai.Move(18f, () => DodgeSlap(slapIndex: 0, kefkaIndex: 0));
         ai.Move(26f, StackCentre);
-        world.Events.Add(28f, () => GrabTether(kefkaIndex: 0, tetherIndex: 0, playerIndex: 4));
+        world.Events.Add(28f, () => GrabTether(tetherIndex: 0, playerIndex: 4));
         world.Events.Add(30f, () => PullTether(playerIndex: 4));
-        world.Events.Add(34f, () => GrabTether(kefkaIndex: 0, tetherIndex: 0, playerIndex: 4));
-        world.Events.Add(34f, () => GrabTether(kefkaIndex: 0, tetherIndex: 1, playerIndex: 0));
+        world.Events.Add(34f, () => GrabTether(tetherIndex: 0, playerIndex: 4));
+        world.Events.Add(34f, () => GrabTether(tetherIndex: 1, playerIndex: 0));
         world.Events.Add(36f, () => PullTether(playerIndex: 4));
         world.Events.Add(36f, () => PullTether(playerIndex: 0));
         ai.Move(46.5f, DodgeEdict);
         ai.Move(50.6f, () => DodgeSlap(slapIndex: 1, kefkaIndex: 1));
         ai.Move(56f, StackCentre);
-        world.Events.Add(59f, () => GrabTether(kefkaIndex: 1, tetherIndex: 0, playerIndex: 4));
-        world.Events.Add(59f, () => GrabTether(kefkaIndex: 1, tetherIndex: 1, playerIndex: 0));
-        world.Events.Add(59f, () => GrabTether(kefkaIndex: 1, tetherIndex: 2, playerIndex: 3));
+        world.Events.Add(59f, () => GrabTether(tetherIndex: 0, playerIndex: 4));
+        world.Events.Add(59f, () => GrabTether(tetherIndex: 1, playerIndex: 0));
+        world.Events.Add(59f, () => GrabTether(tetherIndex: 2, playerIndex: 3));
         world.Events.Add(61f, () => PullTether(playerIndex: 4));
         world.Events.Add(61f, () => PullTether(playerIndex: 0));
         world.Events.Add(61f, () => PullTether(playerIndex: 3));
-        world.Events.Add(64f, () => GrabTether(kefkaIndex: 1, tetherIndex: 0, playerIndex: 5));
+        world.Events.Add(64f, () => GrabTether(tetherIndex: 0, playerIndex: 5, intercept: 1f));
         world.Events.Add(66f, () => ReturnToMiddle(playerIndex: 4));
-        world.Events.Add(69f, () => GrabTether(kefkaIndex: 1, tetherIndex: 1, playerIndex: 1));
+        world.Events.Add(69f, () => GrabTether(tetherIndex: 1, playerIndex: 1, intercept: 1f));
         world.Events.Add(71f, () => ReturnToMiddle(playerIndex: 0));
         ai.Move(74f, DodgeEdictAndLookUpon);
         ai.Move(80f, StackCentre);
-        world.Events.Add(93f, () => GrabTether(kefkaIndex: 2, tetherIndex: 0, playerIndex: 5));
-        world.Events.Add(93f, () => GrabTether(kefkaIndex: 2, tetherIndex: 1, playerIndex: 1));
-        world.Events.Add(93f, () => GrabTether(kefkaIndex: 2, tetherIndex: 2, playerIndex: 7));
+        world.Events.Add(93f, () => GrabTether(tetherIndex: 0, playerIndex: 5));
+        world.Events.Add(93f, () => GrabTether(tetherIndex: 1, playerIndex: 1));
+        world.Events.Add(93f, () => GrabTether(tetherIndex: 2, playerIndex: 7));
         world.Events.Add(95f, () => PullTether(playerIndex: 5));
         world.Events.Add(95f, () => PullTether(playerIndex: 1));
         world.Events.Add(95f, () => PullTether(playerIndex: 7));
-        world.Events.Add(98f, () => GrabTether(kefkaIndex: 2, tetherIndex: 0, playerIndex: 6));
+        world.Events.Add(98f, () => GrabTether(tetherIndex: 0, playerIndex: 6, intercept: 1f));
         world.Events.Add(100f, () => ReturnToMiddle(playerIndex: 5));
-        world.Events.Add(103f, () => GrabTether(kefkaIndex: 2, tetherIndex: 1, playerIndex: 2));
+        world.Events.Add(103f, () => GrabTether(tetherIndex: 1, playerIndex: 2, intercept: 1f));
         world.Events.Add(105f, () => ReturnToMiddle(playerIndex: 1));
         world.Events.Add(110f, () => AnchorMtForImplosion(kefkaIndex: 3));
         ai.Move(117f, () => DodgeImplosion(shockwaveIndex: 0, slapIndex: 2, slapKefkaIndex: 3), jitter: 0f);
         ai.Move(119.2f, () => DodgeImplosion(shockwaveIndex: 1, slapIndex: 2, slapKefkaIndex: 3), jitter: 0f);
         ai.Move(121.3f, () => DodgeSlap(slapIndex: 2, kefkaIndex: 3));
         ai.Move(124f, StackCentre);
-        world.Events.Add(127f, () => GrabTether(kefkaIndex: 3, tetherIndex: 0, playerIndex: 6));
-        world.Events.Add(127f, () => GrabTether(kefkaIndex: 3, tetherIndex: 1, playerIndex: 2));
+        world.Events.Add(127f, () => GrabTether(tetherIndex: 0, playerIndex: 6));
+        world.Events.Add(127f, () => GrabTether(tetherIndex: 1, playerIndex: 2));
         world.Events.Add(129f, () => PullTether(playerIndex: 6));
         world.Events.Add(129f, () => PullTether(playerIndex: 2));
-        world.Events.Add(132f, () => GrabTether(kefkaIndex: 3, tetherIndex: 0, playerIndex: 2));
+        world.Events.Add(132f, () => GrabTether(tetherIndex: 0, playerIndex: 2));
         world.Events.Add(134f, () => DodgeLookUponSplit(tetherPlayerIndex: 2, lookKefkaIndex: 4));
         ai.Move(139f, StackCentre);
     }
@@ -106,8 +106,7 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
     // point in it nearest center.
     private IAiMove DodgeEdict()
     {
-        var boss = world.Children.OfType<SimEnemy>()
-                        .FirstOrDefault(e => e.IsAlive() && e.CastActionId == ActionId.DamningEdict);
+        var boss = state.ScenarioObjects.Chaos;
         if (boss is null) return StackCentre();
 
         var bossPos = new Vector2(boss.Position.X, boss.Position.Z);
@@ -131,8 +130,7 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         const float lookSafe = 11f;   // past the 8y half-width, with margin
         const float behind = 8f;      // distance to stand behind the boss
 
-        var boss = world.Children.OfType<SimEnemy>()
-                        .FirstOrDefault(e => e.IsAlive() && e.CastActionId == ActionId.DamningEdict);
+        var boss = state.ScenarioObjects.Chaos;
         if (boss is null) return AiMove.All(lookRight * lookSafe);
 
         var bossPos = new Vector2(boss.Position.X, boss.Position.Z);
@@ -158,25 +156,69 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         return AiMove.All(aOk ? a : b);
     }
 
-    // Implosion fires two opposite 90-degree cones from Chaos that rotate 90 degrees
-    // between the two shockwaves (shockwaveIndex 0 then 1). Read Chaos live (like the
-    // edict) and stand in the perpendicular safe wedge relative to it; pick the side
-    // toward the upcoming slap so the second shockwave dodge doubles as the slap dodge.
+    // Implosion fires two +-45deg Shockwave cones from Chaos, the axis rotating 90deg between
+    // the two shockwaves, so the only bearings safe from both are the four diagonals at 45deg
+    // to the cone axis. Of those, take the diagonal whose arena-border end is deepest into the
+    // slap-safe half (farthest from the slap-dangerous edge), resolve 30% of the way out along
+    // it from Chaos, then nudge each shockwave a few degrees off the diagonal toward the
+    // perpendicular of its own cone so neither dodge stands on the (hit-counting) cone edge.
+    // Read Chaos live, like the edict. Both shockwave dodges land close together, slap-safe.
+    private const float ArenaRadius = 19f;             // ~outer Black Hole ring (z=-17), tune in-game
+    private const float ImplosionDodgeFraction = 0.30f;
+    private const float ImplosionConeLean = 0.18f;     // ~10deg off the cone edge
+
     private IAiMove DodgeImplosion(int shockwaveIndex, int slapIndex, int slapKefkaIndex)
     {
-        var boss = world.Children.OfType<SimEnemy>()
-                        .FirstOrDefault(e => e.IsAlive() && e.BNpcBaseId == BNpcBaseId.ChaosP3);
-        var bossPos = boss is null ? Vector2.Zero : new Vector2(boss.Position.X, boss.Position.Z);
-        var bossRot = boss?.Rotation ?? MathF.PI;
+        var boss = state.ScenarioObjects.Chaos;
+        if (boss is null) return StackCentre();
 
+        var c = new Vector2(boss.Position.X, boss.Position.Z);
         var offset = state.ImplosionAttack == ActionId.LongitudinalImplosion ? 0f : MathF.PI / 2f;
-        var coneRot = bossRot + offset + shockwaveIndex * (MathF.PI / 2f);
-        var safe = new Vector2(MathF.Sin(coneRot + MathF.PI / 2f), MathF.Cos(coneRot + MathF.PI / 2f));
+        var baseAxis = boss.Rotation + offset;
 
-        var slapSafe = SlapSafeDir(slapIndex, slapKefkaIndex);
-        var dir = Vector2.Dot(safe, slapSafe) >= 0f ? safe : -safe;
-        float radius = shockwaveIndex == 0 ? 1f : 5f;
-        return AiMove.All(bossPos + dir * radius);
+        // Arena-edge midpoint of the slap-dangerous half (opposite the slap-safe direction).
+        var dangerEdge = -SlapSafeDir(slapIndex, slapKefkaIndex) * ArenaRadius;
+
+        // Of the four 45deg diagonals, keep the one whose outward arena-border point is farthest
+        // from that danger edge - deepest into the slap-safe half, robust to Chaos off-center.
+        var bestDir = Vector2.Zero;
+        var bestBorder = Vector2.Zero;
+        var bestDist = float.MinValue;
+        for (var k = 0; k < 4; k++)
+        {
+            var theta = baseAxis + MathF.PI / 4f + k * (MathF.PI / 2f);
+            var dir = new Vector2(MathF.Sin(theta), MathF.Cos(theta));
+            var border = c + dir * RayToArenaBorder(c, dir);
+            var dist = Vector2.DistanceSquared(border, dangerEdge);
+            if (dist > bestDist) { bestDist = dist; bestDir = dir; bestBorder = border; }
+        }
+
+        var length = ImplosionDodgeFraction * (bestBorder - c).Length();
+
+        // Lean off the diagonal toward the perpendicular of THIS shockwave's cone axis, so we
+        // sit just inside the 90deg safe band instead of on its edge.
+        var coneAxisAngle = baseAxis + shockwaveIndex * (MathF.PI / 2f);
+        var coneAxis = new Vector2(MathF.Sin(coneAxisAngle), MathF.Cos(coneAxisAngle));
+        var perp = RotateVec(coneAxis, MathF.PI / 2f);
+        if (Vector2.Dot(perp, bestDir) < 0f) perp = -perp;
+        var lean = MathF.Sign(bestDir.X * perp.Y - bestDir.Y * perp.X) * ImplosionConeLean;
+
+        return AiMove.All(c + RotateVec(bestDir, lean) * length);
+    }
+
+    // Distance from `from` (inside the arena) along unit `dir` to the arena-circle border.
+    private static float RayToArenaBorder(Vector2 from, Vector2 dir)
+    {
+        var proj = Vector2.Dot(from, dir);
+        return -proj + MathF.Sqrt(proj * proj + ArenaRadius * ArenaRadius - from.LengthSquared());
+    }
+
+    // Rotate an XZ vector by `radians` (CCW in the X->Z plane).
+    private static Vector2 RotateVec(Vector2 v, float radians)
+    {
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+        return new Vector2(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
     }
 
     // Unit vector toward the safe side of a Slap Happy (the side away from the r=13
@@ -216,43 +258,30 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
             state.Roles.Get(i)?.MoveTo(i == tetherPlayerIndex ? holderSpot : -holderSpot);
     }
 
-    private void GrabTether(int kefkaIndex, int tetherIndex, int playerIndex)
-    {
-        var tethers = ActiveTethersClockwiseFrom(state.KefkaPosition[kefkaIndex]);
-        state.Roles.Get(playerIndex)?.Intercept(tethers.ElementAtOrDefault(tetherIndex));
-    }
+    private void GrabTether(int tetherIndex, int playerIndex, float intercept = 3f) =>
+        state.Roles.Get(playerIndex)?.Intercept(state.ScenarioObjects.Tethers.ElementAtOrDefault(tetherIndex), intercept);
 
     private void PullTether(int playerIndex)
     {
         var player = state.Roles.Get(playerIndex);
-        if (TetherHeldBy(player)?.B is not { } blackHole) return;
-        var spot = CardinalClockwise(new Vector2(blackHole.Position.X, blackHole.Position.Z));
+        if (TetherHeldBy(player) is not { A: { } blackHole, B: { } held }) return;
+        var bhPos = new Vector2(blackHole.Position.X, blackHole.Position.Z);
+        var heldPos = new Vector2(held.Position.X, held.Position.Z);
+        // Pull spot, then nudged 1.5y farther from the black hole along the bh→player axis.
+        var spot = CardinalClockwise(heldPos) + Vector2.Normalize(heldPos - bhPos) * 1.5f;
         player?.MoveTo(new Vector3(spot.X, 0f, spot.Y));
     }
 
     private SimTether? TetherHeldBy(SimCharacter? player) =>
         player is null
             ? null
-            : world.Children.OfType<SimTether>()
-                   .FirstOrDefault(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && ReferenceEquals(t.B, player));
-
-    private IReadOnlyList<SimTether> ActiveTethersClockwiseFrom(Direction north) =>
-        world.Children.OfType<SimTether>()
-             .Where(t => t.IsActive && t.TetherId == TetherId.GrabbyTether && t.A is not null)
-             .OrderBy(t => ClockwiseFrom(north.RadiansFromNorth, t.A!.Position))
-             .ToList();
-
-    private static float ClockwiseFrom(float north, Vector3 p)
-    {
-        var d = (MathF.Atan2(p.X, -p.Z) - north) % MathF.Tau;
-        return d < 0f ? d + MathF.Tau : d;
-    }
+            : state.ScenarioObjects.Tethers.FirstOrDefault(t => ReferenceEquals(t.B, player));
 
     private static Vector2 CardinalClockwise(Vector2 cardinal)
     {
         var dir = Vector2.Normalize(cardinal);
-        var c = MathF.Cos(MathF.PI / 2f);
-        var s = MathF.Sin(MathF.PI / 2f);
-        return new Vector2(dir.X * c - dir.Y * s, dir.X * s + dir.Y * c) * 7f;
+        var c = MathF.Cos(MathF.PI / 3f);
+        var s = MathF.Sin(MathF.PI / 3f);
+        return new Vector2(dir.X * c - dir.Y * s, dir.X * s + dir.Y * c) * 8f;
     }
 }

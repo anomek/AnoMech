@@ -14,6 +14,8 @@ public sealed class UmadP3BlackHoleState
 {
     private readonly Rng rng = new();
 
+    public UmadP3BlackHoleScenarioObjects ScenarioObjects { get; }
+
     public RoleList Roles { get; }
     public RoleList StackTargets { get; }
     public RoleList EdictTargets { get; }
@@ -30,8 +32,10 @@ public sealed class UmadP3BlackHoleState
     public int MiniBlackHoleInitialAngle { get; }
     public int MiniBlackHoleChirality { get; }
 
-    public UmadP3BlackHoleState(SimParty party, UmadP3BlackHoleStateOverrides overrides)
+    public UmadP3BlackHoleState(SimWorld world, UmadP3BlackHoleStateOverrides overrides)
     {
+        var party = world.Party;
+        ScenarioObjects = new UmadP3BlackHoleScenarioObjects(world);
         Roles = BuildRoles(party, overrides);
 
         StackTargets = new RoleList(party, rng.Shuffle(rng.NextSupportRole(), rng.NextDpsRole()));
