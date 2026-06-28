@@ -21,7 +21,7 @@ public sealed class UmadP4KefkaSaysSettingsWindow
             DrawFirstBlizzardOffset();
 #endif
             RealFakeRow("Exdeath 1:", "ex1", Overrides.ExdeathCast1Real, v => Overrides.ExdeathCast1Real = v);
-            RealFakeRow("Exdeath 2:", "ex2", Overrides.ExdeathCast2Real, v => Overrides.ExdeathCast2Real = v);
+            DrawExdeath2();
             RealFakeRow("Exdeath 3:", "ex3", Overrides.ExdeathCast3Real, v => Overrides.ExdeathCast3Real = v);
             RealFakeRow("Exdeath 4:", "ex4", Overrides.ExdeathCast4Real, v => Overrides.ExdeathCast4Real = v);
             RealFakeRow("Chaos 1:",   "chaos1", Overrides.ChaosCast1Real, v => Overrides.ChaosCast1Real = v);
@@ -40,6 +40,20 @@ public sealed class UmadP4KefkaSaysSettingsWindow
         if (ImGui.RadioButton($"Real##{id}", value == true))  set(true);
         ImGui.SameLine();
         if (ImGui.RadioButton($"Fake##{id}", value == false)) set(false);
+    }
+
+    // Exdeath 2 gets a fourth choice: mirror cast 1's resolution (Wave2True = !Wave1True).
+    private void DrawExdeath2()
+    {
+        var v = Overrides.ExdeathCast2;
+        SettingsGrid.Row("Exdeath 2:");
+        if (ImGui.RadioButton("Auto##ex2", v == ExdeathCast2Mode.Auto)) Overrides.ExdeathCast2 = ExdeathCast2Mode.Auto;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Real##ex2", v == ExdeathCast2Mode.Real)) Overrides.ExdeathCast2 = ExdeathCast2Mode.Real;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Fake##ex2", v == ExdeathCast2Mode.Fake)) Overrides.ExdeathCast2 = ExdeathCast2Mode.Fake;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Opposite to 1##ex2", v == ExdeathCast2Mode.OppositeTo1)) Overrides.ExdeathCast2 = ExdeathCast2Mode.OppositeTo1;
     }
 
 #if DEBUG
@@ -85,7 +99,7 @@ public sealed class UmadP4KefkaSaysSettingsWindow
         Overrides.FirstBlizzardOffset = null;
 #endif
         Overrides.ExdeathCast1Real = null;
-        Overrides.ExdeathCast2Real = null;
+        Overrides.ExdeathCast2 = ExdeathCast2Mode.Auto;
         Overrides.ExdeathCast3Real = null;
         Overrides.ExdeathCast4Real = null;
         Overrides.ChaosCast1Real = null;

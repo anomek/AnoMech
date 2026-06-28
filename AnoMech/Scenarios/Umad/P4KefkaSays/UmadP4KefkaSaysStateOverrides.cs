@@ -1,5 +1,9 @@
 namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
+// Exdeath cast 2's Real/Fake override. Unlike the other casts it can also mirror
+// cast 1's resolution (OppositeTo1 => Wave2True = !Wave1True).
+public enum ExdeathCast2Mode { Auto, Real, Fake, OppositeTo1 }
+
 // User-controlled overrides for UmadP4KefkaSaysState's randomized fields. Bound by
 // the scenario's settings UI; null/default values leave the field randomized at
 // scenario start. The state ctor consumes this directly.
@@ -13,7 +17,7 @@ public sealed class UmadP4KefkaSaysStateOverrides
     // Neo Exdeath's four Mystery casts (3x Grand Cross + Flood of Naught), by cast order.
     // null = random; true = Real (boss tells the truth), false = Fake (boss lies).
     public bool? ExdeathCast1Real { get; set; }
-    public bool? ExdeathCast2Real { get; set; }
+    public ExdeathCast2Mode ExdeathCast2 { get; set; }   // Auto/Real/Fake, or Opposite-to-1
     public bool? ExdeathCast3Real { get; set; }
     public bool? ExdeathCast4Real { get; set; }
 

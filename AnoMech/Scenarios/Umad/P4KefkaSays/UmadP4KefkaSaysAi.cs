@@ -179,7 +179,7 @@ public sealed class UmadP4KefkaSaysAi : IScenarioAi<UmadP4KefkaSaysState>
     // NE+SW; offset 1 -> NE+SW real, safe SE+NW), so each spot steps toward its single
     // safe neighbour and the sign flips with the offset. Lethality is offset-only (NOT
     // isTrue — that's the Bolt/Wave lie); only the cones are live here (no Thunder lines).
-    private const float BlizzardNudge = 3f;
+    private const float BlizzardNudge = 1f;
     private IAiMove ResolveElementsUnderBlizzard(RoleList roleList, bool isTrue, MysteryCast blizzard)
     {
         var s = blizzard.BlizzardOffset == 0 ? BlizzardNudge : -BlizzardNudge;
@@ -217,8 +217,8 @@ public sealed class UmadP4KefkaSaysAi : IScenarioAi<UmadP4KefkaSaysState>
     // coords[0..2] = stack (3) N, coords[3] = solo W; coords[4..6] = stack (3) S, coords[7] = solo E.
     private static readonly Vector2?[] ElementCardinals =
     {
-        new(0f, -10f), new(0f, -10f), new(0f, -10f), new(-10f, 0f),
-        new(0f, 10f), new(0f, 10f), new(0f, 10f), new(10f, 0f),
+        new(0f, -12f), new(0f, -12f), new(0f, -12f), new(-12f, 0f),
+        new(0f, 12f), new(0f, 12f), new(0f, 12f), new(12f, 0f),
     };
 
     // Every slot to the same destination.

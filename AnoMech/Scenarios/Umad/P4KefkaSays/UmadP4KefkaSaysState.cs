@@ -123,7 +123,13 @@ public sealed class UmadP4KefkaSaysState
 
         Wave1First = rng.NextBool();
         Wave1True = overrides.ExdeathCast1Real ?? rng.NextBool();
-        Wave2True = overrides.ExdeathCast2Real ?? rng.NextBool();
+        Wave2True = overrides.ExdeathCast2 switch
+        {
+            ExdeathCast2Mode.Real => true,
+            ExdeathCast2Mode.Fake => false,
+            ExdeathCast2Mode.OppositeTo1 => !Wave1True,
+            _ => rng.NextBool(),
+        };
         Wave3True = overrides.ExdeathCast3Real ?? rng.NextBool();
         Wave4True = overrides.ExdeathCast4Real ?? rng.NextBool();
 
