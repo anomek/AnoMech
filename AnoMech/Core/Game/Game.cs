@@ -180,10 +180,20 @@ public sealed class Game : IDisposable
     // killed them. Gameplay side effects (OnKilled, which flips Dead, plus
     // the 5s freeze) only run outside godmode; the freeze fires once per run
     // on the first non-godmode death.
-    public void Kill(ISimPartyMember target, string cause)
+    //
+    // Returns true only when the member actually went down (OnKilled ran):
+    // false when it was already dead, invulnerable (GiveInvuln), or godmode
+    // swallowed it. Callers that run extra on-death logic should gate on this
+    // so an invuln'd/godmode'd "death" doesn't trigger gameplay consequences.
+    public bool Kill(ISimPartyMember target, string cause)
     {
-        if (target == null) return;
-        if (target.Dead) return;
+        if (target == null) return false;
+        if (target.Dead) return false;
+        if (target is SimCharacter sc && sc.HasStatus(SimParty.InvulnStatusId))
+        {
+            Plugin.Log.Info($"[Invuln] {DescribeName(target)} survived: {cause}");
+            return false;
+        }
 
         PrintDeath(target, cause);
         if (!firstDeathScheduled)
@@ -192,7 +202,7 @@ public sealed class Game : IDisposable
             ShowFirstDeathOverlay(target, cause);
         }
 
-        if (GodMode) return;
+        if (GodMode) return false;
         target.OnKilled();
         if (!firstFreezeScheduled)
         {
@@ -202,6 +212,7 @@ public sealed class Game : IDisposable
 #endif
             Events.Add(5f, () => Paused = true);
         }
+        return true;
     }
 
     private static void PrintDeath(ISimPartyMember target, string cause)

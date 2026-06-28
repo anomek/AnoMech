@@ -60,7 +60,8 @@ public class DamageSolver
             {
                 deadTargets.Add(target);
             }
-            else
+            
+            if (target.IsAlive())
             {
                 if (removeStatus is {} r)
                     foreach (var s in r)

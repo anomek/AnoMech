@@ -54,10 +54,14 @@ public static class SimCharacterDeathExtensions
     // (logged) — bosses are removed via Despawn, not killed.
     extension(SimCharacter c)
     {
-        public void Die(string cause)
+        // Returns true only when the member actually went down (see Game.Kill):
+        // false on a non-party character, an already-dead member, or one that
+        // survived via GiveInvuln/godmode. Gate extra on-death logic on this.
+        public bool Die(string cause)
         {
-            if (c is ISimPartyMember pm) Plugin.GameInstance.Kill(pm, cause);
-            else Plugin.Log.Warning($"Die() on non-party {c.GetType().Name} ignored: {cause}");
+            if (c is ISimPartyMember pm) return Plugin.GameInstance.Kill(pm, cause);
+            Plugin.Log.Warning($"Die() on non-party {c.GetType().Name} ignored: {cause}");
+            return false;
         }
 
         public void PlayKoActionTimeline()

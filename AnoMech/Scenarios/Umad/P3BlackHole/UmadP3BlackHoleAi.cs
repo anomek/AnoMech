@@ -32,6 +32,8 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         world.Events.Add(34f, () => GrabTether(tetherIndex: 1, playerIndex: 0));
         world.Events.Add(36f, () => PullTether(playerIndex: 4));
         world.Events.Add(36f, () => PullTether(playerIndex: 0));
+        ai.GiveInvuln(38f, PartyRole.OffTank);
+        ai.Move(40.5f, ResolveFirstThunder);
         ai.Move(46.5f, DodgeEdict);
         ai.Move(50.6f, () => DodgeSlap(slapIndex: 1, kefkaIndex: 1));
         ai.Move(56f, StackCentre);
@@ -47,6 +49,9 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         world.Events.Add(71f, () => ReturnToMiddle(playerIndex: 0));
         ai.Move(74f, DodgeEdictAndLookUpon);
         ai.Move(80f, StackCentre);
+        ai.Move(82f, ResolveSecondThunder);
+        ai.Move(84.5f, SwapSecondThunderTanks);
+        ai.Move(88f, StackCentre);
         world.Events.Add(93f, () => GrabTether(tetherIndex: 0, playerIndex: 5));
         world.Events.Add(93f, () => GrabTether(tetherIndex: 1, playerIndex: 1));
         world.Events.Add(93f, () => GrabTether(tetherIndex: 2, playerIndex: 7));
@@ -91,13 +96,93 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
                             : state.KefkaPosition[kefkaIndex];
         
         return state.SlapAttacks[slapIndex] == ActionId.SlapHappy_Left
-                   ? AiMove.All(new(9f, 0f)).ApplyPositions(direction.Apply)
+                   ? AiMove.All(new(9f, 0f)).ApplyPositions(direction.Apply).ApplyPositions(p => p.Multiply(1, 9f/7f))
                    : (IAiMove)AiMove.Create(
-                                        new(7f, 7f), new(7f, 7f),
+                                        new(7f, 7f), new(9f, 9f),
                                         new(9f, 0f), new(9f, 0f),
                                         new(7f, -7f), new(7f, -7f), new(7f, -7f), new(7f, -7f))
                                     .NaturalOrder()
                                     .ApplyPositions(direction.Apply);
+    }
+
+    // First Lightning III from Exdeath: a stack-radius tank buster snapshotted twice,
+    // 3s apart, onto whoever is closest to Exdeath. The OT eats both by standing in the
+    // middle of Exdeath's hitbox (so it stays the closest); everyone else clears the
+    // blast by sliding straight out from Exdeath's centre along their own bearing.
+    private const float ThunderBusterRadius = 8f;     // blast radius non-OTs must clear
+    private const float ThunderClearDistance = 10f;   // where they park, just past it
+
+    private IAiMove ResolveFirstThunder()
+    {
+        var exdeath = state.ScenarioObjects.Exdeath;
+        if (exdeath is null) return AiMove.Create().NaturalOrder();
+
+        var centre = new Vector2(exdeath.Position.X, exdeath.Position.Z);
+        var coords = new Vector2?[8];
+        for (int i = 0; i < 8; i++)
+        {
+            var member = world.Party.Get(i);
+            if (member is null || !member.IsAlive()) continue;
+
+            if (i == (int)PartyRole.OffTank)
+            {
+                coords[i] = centre;
+                continue;
+            }
+
+            var away = new Vector2(member.Position.X, member.Position.Z) - centre;
+            if (away.LengthSquared() >= ThunderBusterRadius * ThunderBusterRadius) continue;
+            var dir = away.LengthSquared() > 1e-4f
+                          ? Vector2.Normalize(away)
+                          : new Vector2(MathF.Sin(i * MathF.Tau / 8f), MathF.Cos(i * MathF.Tau / 8f));
+            coords[i] = centre + dir * ThunderClearDistance;
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // Second Lightning III from Exdeath: a two-hit tank-swap buster. The OT eats the first
+    // hit in the middle of Exdeath's hitbox (closest, so it's the one snapshotted); the MT
+    // waits exactly 8y out, perpendicular to the stack axis so it's clear of both the blast
+    // and the party. Everyone else stacks at centre, shoved straight away from Exdeath (along
+    // the Exdeath->centre axis) far enough to clear the blast when Exdeath sits near middle.
+    private IAiMove ResolveSecondThunder()
+    {
+        var exdeath = state.ScenarioObjects.Exdeath;
+        if (exdeath is null) return AiMove.Create().NaturalOrder();
+
+        var e = new Vector2(exdeath.Position.X, exdeath.Position.Z);
+        var away = e.LengthSquared() > 1e-4f ? Vector2.Normalize(-e) : new Vector2(0f, -1f);
+        var stack = e.Length() >= ThunderBusterRadius ? Vector2.Zero : e + away * ThunderClearDistance;
+        var mtSeat = e + RotateVec(away, MathF.PI / 2f) * ThunderBusterRadius;
+
+        var coords = new Vector2?[8];
+        for (int i = 0; i < 8; i++)
+        {
+            if (world.Party.Get(i) is not { } m || !m.IsAlive()) continue;
+            coords[i] = i switch
+            {
+                (int)PartyRole.OffTank  => e,
+                (int)PartyRole.MainTank => mtSeat,
+                _                       => stack,
+            };
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    // After the first hit the tanks trade spots, so the MT slides into the middle and is the
+    // closest player for the second hit while the OT takes over the 8y seat. Reads live
+    // positions (Exdeath is frozen across both hits) so it's a literal swap of where they
+    // each stand.
+    private IAiMove SwapSecondThunderTanks()
+    {
+        var mt = world.Party.Get(PartyRole.MainTank);
+        var ot = world.Party.Get(PartyRole.OffTank);
+        if (mt is null || ot is null) return AiMove.Create().NaturalOrder();
+
+        var coords = new Vector2?[8];
+        coords[(int)PartyRole.OffTank]  = new Vector2(mt.Position.X, mt.Position.Z);
+        coords[(int)PartyRole.MainTank] = new Vector2(ot.Position.X, ot.Position.Z);
+        return AiMove.Create(coords).NaturalOrder();
     }
 
     // Dodge the edict by tucking just behind the casting boss, but as close to arena

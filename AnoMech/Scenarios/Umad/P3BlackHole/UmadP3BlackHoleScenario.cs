@@ -264,20 +264,20 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     
     private void RunThunder(float time, SimEnemy? exdeath, SimEnemy? helper)
     {
+        world.Events.Add(time - 0.2f, () => exdeath?.Follow());
         world.Events.Add(time, () =>
         {
             var target = party.Find.Closest(exdeath!.Position);
             helper?.Cast(ActionId.ThunderIII_Resolve, targetId: target?.GameObjectId);
-            // TODO: temporary disable until we have AI that can resolve it
-            // damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
+            damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
         });
-        // world.Events.Add(time + 3f, () =>
-        // {
-        //     var target = party.Find.Closest(exdeath!.Position);
-        //     helper?.Cast(ActionId.ThunderIII_Resolve, targetId: target?.GameObjectId);
-        //     // TODO: temporary disable until we have AI that can resolve it
-        //     // damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
-        // });
+        world.Events.Add(time + 3f, () =>
+        {
+            var target = party.Find.Closest(exdeath!.Position);
+            helper?.Cast(ActionId.ThunderIII_Resolve, targetId: target?.GameObjectId);
+            damage.Resolve(target, ActionId.ThunderIII_Resolve, [DamageType.TankBuster, DamageType.Lightning], [(StatusId.LightningResistanceDownII, 3.96f)]);
+        });
+        world.Events.Add(time + 3.5f, () => exdeath?.Follow(party.Get(PartyRole.OffTank)));
     }
 
     private void Run_Exdeath_4000414C()
@@ -320,9 +320,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         world.Events.Add(156.95f, () => exdeath_4000414C?.Cast(ActionId.BlizzardIII_Raidwide));
         
         RunThunder(42.63f, exdeath_4000414C, thunderHelper);
-        RunThunder(45.67f, exdeath_4000414C, thunderHelper);
         RunThunder(83.94f, exdeath_4000414C, thunderHelper);
-        RunThunder(86.97f, exdeath_4000414C, thunderHelper);
     }
 
     private void Run_Chaos_400040E9_1()

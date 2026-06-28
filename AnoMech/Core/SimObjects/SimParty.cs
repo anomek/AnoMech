@@ -58,6 +58,19 @@ public sealed class SimParty : ISimObject
     public void WipeAllPlayers(string cause)
         => ForEachActive(m => { if (m.IsAlive()) m.Die(cause); });
 
+    // Status a member carries while temporarily invulnerable (GiveInvuln). Game.Kill
+    // swallows any death of a member holding it — every death path routes through Kill,
+    // so this covers DamageSolver and direct .Die() alike. Hallowed Ground (409): a
+    // recognizable buff icon that renders on doppels; the death gate reads it sim-side
+    // (HasStatus), so it works on the local player too even though the icon doesn't show.
+    public const ushort InvulnStatusId = 409;
+
+    // Makes `role` immune to death for `seconds` (default 10). Backed by InvulnStatusId,
+    // so it auto-expires and Game.Kill swallows any death — from DamageSolver or a direct
+    // .Die() — while it's held. No-op if the slot is empty.
+    public void GiveInvuln(PartyRole role, float seconds = 10f)
+        => Get(role)?.AddStatus(InvulnStatusId, seconds);
+
     // Raidwide knockback: pushes every active slot `distance` units away from
     // `source`. Each slot resolves its own direction from its current position.
     public void Knockback(Vector3 source, float distance)
