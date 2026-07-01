@@ -8,7 +8,7 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken.Ai;
 // without affecting it.
 public sealed class UmadP2ForsakenZP6SouthAdjustAi : IScenarioAi<UmadP2ForsakenState>
 {
-    public string Name => "zP6 South adjust";
+    public string Name => "[Old] zP6 South adjust";
     public string? Group => "EU";
 
     public void Run(UmadP2ForsakenState state, SimWorld world)

@@ -32,8 +32,9 @@ See: https://github.com/anomek/MyDalamudPlugins
         - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
         - you can choose between original positions and ones that use diamond markers
       - EU _by [Wydox](https://github.com/Wydox)_
-        - [p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
-        - [zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
+        - [\[LPDU\] Buddies](https://raidplan.io/plan/142oXOZpPc_jh3dd)
+        - [\[Old\] p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
+        - [\[Old\] zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
     - P3 Black Hole (Work in Pogress) _old bh (DSA, single tethers)_
     - P4 Kefka Says _kefkabin_
 - The Omega Protocol (Ultimate): _NA pf strats_

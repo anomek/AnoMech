@@ -8,7 +8,7 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken.Ai;
 // stack-spot rule, diverging from the NA version without affecting it.
 public sealed class UmadP2ForsakenP3ZBuddyMeowAi : IScenarioAi<UmadP2ForsakenState>
 {
-    public string Name => "p3Z Buddy Meow";
+    public string Name => "[Old] p3Z Buddy Meow";
     public string? Group => "EU";
 
     public void Run(UmadP2ForsakenState state, SimWorld world)

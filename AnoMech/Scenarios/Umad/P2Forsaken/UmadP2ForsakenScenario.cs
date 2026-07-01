@@ -49,6 +49,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
         new UmadP2ForsakenSouthFlexAi(),
         new UmadP2ForsakenKroxyRinonOldAi(),
         new UmadP2ForsakenSouthFlex341OldAi(),
+        new UmadP2ForsakenLpduBuddiesAi(),
         new UmadP2ForsakenP3ZBuddyMeowAi(),
         new UmadP2ForsakenZP6SouthAdjustAi(),
     ];
