@@ -245,5 +245,17 @@ public static class UmadConstants
             new(WaymarkSlot.Three, new Vector3( 8.628f, 0,  8.628f)),
             new(WaymarkSlot.Four,  new Vector3(-8.765f, 0,  8.628f)),
         ]),
+        // A/B/C/D on cardinals 12y out, 1-4 on the corners (±12, ±12).
+        new WaymarkLayout("[LPDU] Big Box",
+        [
+            new(WaymarkSlot.A,     new Vector3(  0, 0, -12)),
+            new(WaymarkSlot.B,     new Vector3( 12, 0,   0)),
+            new(WaymarkSlot.C,     new Vector3(  0, 0,  12)),
+            new(WaymarkSlot.D,     new Vector3(-12, 0,   0)),
+            new(WaymarkSlot.One,   new Vector3(-12, 0, -12)),
+            new(WaymarkSlot.Two,   new Vector3( 12, 0, -12)),
+            new(WaymarkSlot.Three, new Vector3( 12, 0,  12)),
+            new(WaymarkSlot.Four,  new Vector3(-12, 0,  12)),
+        ]),
     ];
 }
