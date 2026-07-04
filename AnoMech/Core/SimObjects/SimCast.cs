@@ -37,14 +37,15 @@ public sealed unsafe class SimCast : ISimObject
     private float animationLock;
     private float remainingAnimationLock;
 
-    public bool IsCasting => casting;
+    public bool IsCasting => parent.BattleCharaPtr != null && parent.BattleCharaPtr->CastInfo.IsCasting;
+
     public uint ActionId { get; private set; }
     public float Progress => total <= 0f ? 0f : Math.Clamp(elapsed / total, 0f, 1f);
 
     // True while the cast bar is up or the release animation is still playing. A
     // following boss roots itself while busy so the action animation finishes in
     // place instead of sliding.
-    public bool IsBusy => casting || remainingAnimationLock > 0f;
+    public bool IsBusy => IsCasting || remainingAnimationLock > 0f;
 
     // SimCast is a persistent subsystem of its caster: the owning SimEnemy holds it
     // as a direct field and ticks/despawns it explicitly, never reaping it by
@@ -116,8 +117,7 @@ public sealed unsafe class SimCast : ISimObject
         if (castTimeValue <= 0)
         {
             FaceTarget(chara);
-            remainingAnimationLock = animationLock;
-            FireActionEffect(chara, actionId, ActionType.Action, targetLocation, targetId, animationVariation, animationLock);
+            FireActionEffect(chara, actionId, ActionType.Action, animationLock, targetLocation, targetId, animationVariation);
             ResetCastState();
         }
         
@@ -209,6 +209,8 @@ public sealed unsafe class SimCast : ISimObject
             &targetEffects,
             &actionTarget
             );
+
+        remainingAnimationLock = animationLock;
     }
 
     public void Tick(float deltaSeconds)
@@ -250,8 +252,7 @@ public sealed unsafe class SimCast : ISimObject
             if (fire)
             {
                 FaceTarget(chara);
-                remainingAnimationLock = animationLock;
-                FireActionEffect(chara, ActionId, ActionType.Action, targetLocation, targetId, animationVariation, animationLock);
+                FireActionEffect(chara, ActionId, ActionType.Action, animationLock, targetLocation, targetId, animationVariation);
                 ResetCastState();
             }
         }
@@ -310,7 +311,7 @@ public sealed unsafe class SimCast : ISimObject
     // deliver to. When deliverTo is null, NumTargets=0 (used for self-targeted
     // casts and cast releases without an entity target) — the release animation
     // still plays.
-    private void FireActionEffect(BattleChara* chara, uint actionId, ActionType actionType, Vector3? localTargetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0, float animationLock = 0f)
+    private void FireActionEffect(BattleChara* chara, uint actionId, ActionType actionType, float animationLock, Vector3? localTargetLocation = null, GameObjectId? deliverTo = null, byte animationVariation = 0)
     {
         if (deliverTo is { } id)
         {

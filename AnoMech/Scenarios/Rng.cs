@@ -54,6 +54,18 @@ public class Rng
         return values.Shuffle().ToList();
     }
 
+    /// <summary>
+    /// Re-orders <paramref name="array"/> and returns a copy starting from a random index.
+    /// </summary>
+    public T[] RandomStart<T>(T[] array)
+    {
+        var start = rng.Next(array.Length);
+
+        return array.Skip(start)
+            .Concat(array.Take(start))
+            .ToArray();
+    }
+
     public PartyRole NextSupportRole()
     {
         return (PartyRole)rng.Next(4);

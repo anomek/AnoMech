@@ -11,6 +11,9 @@ public readonly record struct Placement(Vector3 Position, float Rotation)
     public Placement MoveForward(float distance) =>
         this with { Position = Position + new Vector3(MathF.Sin(Rotation), 0f, MathF.Cos(Rotation)) * distance };
 
+    public Placement MoveRight(float distance) =>
+        new(Position + (new Vector3(-MathF.Cos(Rotation), 0, MathF.Sin(Rotation)) * distance), Rotation);
+
     // Rotates Position around world origin in the XZ plane by `angle` radians
     // and advances Rotation by the same amount.
     public Placement RotateAroundOrigin(float angle)

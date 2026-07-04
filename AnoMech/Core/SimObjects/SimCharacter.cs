@@ -168,6 +168,13 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
         return s;
     }
 
+    public SimStatus AddStatusParam(ushort statusId, int param, float duration = 0f)
+    {
+        var s = new SimStatus(this, statusId, duration, (ushort)param);
+        statusList.Add(s);
+        return s;
+    }
+
     public void RemoveStatus(ushort statusId)
     {
         FindStatus(statusId)?.Despawn();
