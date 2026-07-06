@@ -11,7 +11,21 @@ namespace AnoMech.Core.SimObjects;
 public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coordinates), ISimPartyMember
 {
     private const ushort StunStatusId = 896;  // "Down for the Count" (896) — IsPermanent + LockControl variant.
-    
+
+    // The player's HP bar (real bc->Health) is touched only on a scenario KO — dropped to a 1-HP
+    // sliver here, restored in RestoreHpBar (revive / godmode heal-back). Driven by DamageSolver.
+    public void DropHpBar()
+    {
+        var bc = BattleCharaPtr;
+        if (bc != null) bc->Health = 1;
+    }
+
+    public void RestoreHpBar()
+    {
+        var bc = BattleCharaPtr;
+        if (bc != null && bc->Health < bc->MaxHealth) bc->Health = bc->MaxHealth;
+    }
+
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
 
@@ -71,6 +85,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
         StopMoving();
         if (Dead)
         {
+            RestoreHpBar(); // undo the KO bar drop (no-op if we never dropped it)
             ResetActionTimeline();
             PlayActionTimeline(77); // revive
             Dead = false;

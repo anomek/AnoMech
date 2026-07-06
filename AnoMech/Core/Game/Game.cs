@@ -14,6 +14,7 @@ using AnoMech.Scenarios.Top.P6WaveCannon2;
 using AnoMech.Scenarios.Umad.P2Forsaken;
 using AnoMech.Scenarios.Umad.P3BlackHole;
 using AnoMech.Scenarios.Umad.P4KefkaSays;
+using AnoMech.Scenarios.Umad.P5Exaflares;
 using AnoMech.Scenarios.Uwu.UltimatePredation;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
@@ -64,6 +65,7 @@ public sealed class Game : IDisposable
             new UmadP2ForsakenScenario(),
             new UmadP3BlackHoleScenario(),
             new UmadP4KefkaSaysScenario(),
+            new UmadP5ExaflaresScenario(),
             new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),

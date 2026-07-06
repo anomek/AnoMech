@@ -4,6 +4,7 @@ using System.Linq;
 using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
@@ -14,10 +15,14 @@ public class DamageSolver
     private Dictionary<ushort, int> statusStacksOverwrites = [];
 
     SimParty party;
+    private readonly EventScheduler? godmodeHealScheduler;
 
-    public DamageSolver(SimParty party)
+    // godmodeHealScheduler: ApplyDamage uses it to heal a member back after a godmode hit.
+    // Optional — only scenarios that call ApplyDamage pass one (P5 exaflares its timeline).
+    public DamageSolver(SimParty party, EventScheduler? godmodeHealScheduler = null)
     {
         this.party = party;
+        this.godmodeHealScheduler = godmodeHealScheduler;
     }
     
     
@@ -151,6 +156,28 @@ public class DamageSolver
             Plugin.Log.Info($"{(target as ISimPartyMember)?.Role} got lethal damage due to {statusId}");
         }
         return statusId != 0;
+    }
+
+    // Damage feedback: a flytext number sized off the target's own max HP, plus — when the hit
+    // is lethal — the KO via Die() (the same sink as every death). `lethal` is the caller's call
+    // (exaflare = always; spread = only on overlap); `context` is the death-message parenthetical.
+    // Non-party targets ignored. Bots empty their bar via their own OnKilled; the player's HP is
+    // left alone by OnKilled, so its bar is dropped to a sliver here. Godmode never kills but still
+    // shows the number + drop, then heals the player's bar back a beat later.
+    private const float GodmodeHealSeconds = 1.2f;
+    public void ApplyDamage(SimCharacter target, float fractionOfMaxHp, uint actionId, string context, bool lethal)
+    {
+        if (target is not ISimPartyMember) return;
+        var name = ActionLookup.Name(actionId);
+        DamageNumbers.ShowFraction(target, fractionOfMaxHp, name);
+        if (!lethal) return;
+        target.Die($"Died to {name} ({context})");
+        if (target is SimPlayer player)
+        {
+            player.DropHpBar();
+            if (Plugin.GameInstance.GodMode)
+                godmodeHealScheduler?.Add(GodmodeHealSeconds, player.RestoreHpBar);
+        }
     }
 
     public void SetStatuses(DamageType type, params ushort[] statuses)
