@@ -7,13 +7,14 @@
  
 Simulate FFXIV raid mechanics client-side for solo practice. Go to any Inn, open the plugin with `/anomech` and start practicing!
 
+
+Thanks to improvemnts by [WorstAquaPlayer](https://github.com/WorstAquaPlayer) plugin is quite stable now! No more 
+crashes after training session.
+
 **WARNING!!!**
 
-* This plugin is in beta and maybe be unstable. Thanks to improvemnts by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)
-it should not crash after practice sessions any more , but just to be safe **RESTART YOUR GAME AFTER USING PLUGIN**.  
-
-* **You are cut off from server traffic while in the sim zone.** To keep the
-fake zone stable, the plugin firewalls incoming packets from the server.
+**You are cut off from server traffic while in the sim zone.** To keep the
+fake zone stable, the plugin firewalls incoming packets from the server.  
 While simulating:
   * Players joining or leaving your party will not appear in the party list
   until you leave the sim zone.
@@ -30,7 +31,7 @@ See: https://github.com/anomek/MyDalamudPlugins
       - NA
         - [Kroxy-Rinon 341 (Center/N Stacks) melee adjust](https://raidplan.io/plan/UATE__aDcw1-bgVv)
         - [South Adjust 341](https://raidplan.io/plan/uq7zdjvuu7uuw8fj)
-        - you can choose between original positions and ones that use diamond markers
+        - diamond markers or week one positions
       - EU _by [Wydox](https://github.com/Wydox)_
         - [\[LPDU\] Buddies](https://raidplan.io/plan/142oXOZpPc_jh3dd)
         - [\[Old\] p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
@@ -43,6 +44,8 @@ See: https://github.com/anomek/MyDalamudPlugins
     - P5 Sigma
     - P5 Omega
     - P6 Exasquares / Wave Cannon 2
+- The Weapon's Refrain (Ultimate) _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
+    - Ultimate Predaction
 
 ## Details
 
@@ -74,8 +77,8 @@ See: https://github.com/anomek/MyDalamudPlugins
 #  Acknowledgments
 
 Thanks for contributors:
-* [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting backend and improving / fixing a lot of logic there, plus fixing lots of crashes in process
-* [Wydox](https://github.com/Wydox) - EU strats for Forskaen
+* [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting backend & fixing crashes, scenarios for uwu
+* [Wydox](https://github.com/Wydox) - EU strats for Forsaken
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:
