@@ -257,6 +257,30 @@ public sealed unsafe class SimEnemy : SimNpc
         manualInEnemyList = inEnemyList;
     }
 
+    /// <summary>
+    /// Sets the target of this <see cref="SimEnemy"/>.
+    /// </summary>
+    /// <remarks>For now, this is purely visual and does not contain any logic relating to auto-attacks or similar.</remarks>
+    /// <param name="target">The <see cref="SimCharacter.GameObjectId"/> will be retrieved and used as the TargetId. If <see langword="null"/>, then the target is cleared.</param>
+    /// <param name="follow">If <paramref name="target"/> is valid, this will determine if the <see cref="SimEnemy"/> should now follow <paramref name="target"/> or not.</param>
+    /// <param name="speed">If <paramref name="target"/> is valid and <paramref name="follow"/> is <see langword="true"/>, this will be the speed that the <see cref="SimEnemy"/> will follow the <paramref name="target"/></param>
+    public void SetTarget(SimCharacter? target, bool follow = true, float speed = 6f)
+    {
+        if (target == null)
+        {
+            BattleCharaPtr->TargetId = 0xE0000000;
+        }
+        else
+        {
+            BattleCharaPtr->TargetId = target.GameObjectId;
+
+            if (follow)
+            {
+                Follow(target);
+            }
+        }
+    }
+
     public void SetVisible(bool visible) => desiredVisible = visible;
 
     public void Follow(SimCharacter? target = null, float speed = 6f) => Movement.Follow(target, speed);

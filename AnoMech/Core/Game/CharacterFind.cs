@@ -202,6 +202,16 @@ public sealed class CharacterFind<T> where T : IPositioned
         return pool.Count == 0 ? default : pool[Random.Shared.Next(pool.Count)];
     }
 
+    public IReadOnlyList<T> FarestN(Vector3 from, int count)
+    {
+        var fromV2 = new Vector2(from.X, from.Z);
+
+        return source()
+            .OrderByDescending(x => Vector2.DistanceSquared(new Vector2(x.Position.X, x.Position.Z), fromV2))
+            .Take(count)
+            .ToList();
+    }
+
     // One member chosen uniformly at random from the live set. Null when empty.
     public T? RandomMember()
     {
