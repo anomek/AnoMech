@@ -4,6 +4,7 @@ using System.Linq;
 using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
@@ -151,6 +152,21 @@ public class DamageSolver
             Plugin.Log.Info($"{(target as ISimPartyMember)?.Role} got lethal damage due to {statusId}");
         }
         return statusId != 0;
+    }
+
+    // Damage feedback: a flytext number sized off the target's own max HP, plus — when the hit
+    // is lethal — the KO via Die() (the same sink as every death). `lethal` is the caller's call
+    // (exaflare = always; spread = only on overlap); `context` is the death-message parenthetical.
+    // Non-party targets ignored. The KO and all HP-bar handling — real-death drop in SimPlayer.OnKilled,
+    // and the godmode drop/heal preview in Game.Kill — live downstream of Die(), so this only shows the
+    // number and forwards the kill.
+    public void ApplyDamage(SimCharacter target, float fractionOfMaxHp, uint actionId, string context, bool lethal)
+    {
+        if (target is not ISimPartyMember) return;
+        var name = ActionLookup.Name(actionId);
+        DamageNumbers.ShowFraction(target, fractionOfMaxHp, name);
+        if (!lethal) return;
+        target.Die($"Died to {name} ({context})");
     }
 
     public void SetStatuses(DamageType type, params ushort[] statuses)

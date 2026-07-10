@@ -11,7 +11,22 @@ namespace AnoMech.Core.SimObjects;
 public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coordinates), ISimPartyMember
 {
     private const ushort StunStatusId = 896;  // "Down for the Count" (896) — IsPermanent + LockControl variant.
-    
+
+    // The player's HP bar (real bc->Health) is touched only on a scenario KO — dropped to a 1-HP
+    // sliver here (from OnKilled on a real death, and from Game.Kill for the godmode preview),
+    // restored in RestoreHpBar (revive / godmode heal-back).
+    public void DropHpBar()
+    {
+        var bc = BattleCharaPtr;
+        if (bc != null) bc->Health = 1;
+    }
+
+    public void RestoreHpBar()
+    {
+        var bc = BattleCharaPtr;
+        if (bc != null && bc->Health < bc->MaxHealth) bc->Health = bc->MaxHealth;
+    }
+
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
 
@@ -60,6 +75,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     {
         Dead = true;
         StopMoving();
+        DropHpBar(); // real-death bar drop (bots do the same in their own OnKilled); godmode skips this path
         AddStatus(StunStatusId);
         this.PlayKoActionTimeline();
         SyncInputLock(); // engage the lock now, not one frame later
@@ -69,6 +85,9 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     {
         base.Despawn();
         StopMoving();
+        // Undo any KO bar drop (no-op if already full). Unconditional so it also covers a godmode
+        // preview drop, where Dead is never set and a pending heal on Game.Events may be cleared by reset.
+        RestoreHpBar();
         if (Dead)
         {
             ResetActionTimeline();

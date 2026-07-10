@@ -14,6 +14,7 @@ using AnoMech.Scenarios.Top.P6WaveCannon2;
 using AnoMech.Scenarios.Umad.P2Forsaken;
 using AnoMech.Scenarios.Umad.P3BlackHole;
 using AnoMech.Scenarios.Umad.P4KefkaSays;
+using AnoMech.Scenarios.Umad.P5Exaflares;
 using AnoMech.Scenarios.Uwu.UltimatePredation;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
@@ -64,6 +65,7 @@ public sealed class Game : IDisposable
             new UmadP2ForsakenScenario(),
             new UmadP3BlackHoleScenario(),
             new UmadP4KefkaSaysScenario(),
+            new UmadP5ExaflaresScenario(),
             new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
@@ -176,6 +178,9 @@ public sealed class Game : IDisposable
         }
     }
 
+    // Godmode preview: how long a swallowed-death HP-bar drop stays down before healing back.
+    private const float GodmodeHealSeconds = 1.2f;
+
     // Single entry point for "this character died". Always posts the cause
     // to chat and, on the first call of a run, fires the on-screen overlay
     // — both happen even in godmode so the user can learn what would have
@@ -204,7 +209,18 @@ public sealed class Game : IDisposable
             ShowFirstDeathOverlay(target, cause);
         }
 
-        if (GodMode) return false;
+        if (GodMode)
+        {
+            // Godmode swallows the death but still previews it: drop the player's bar and heal it
+            // back a beat later. Done here rather than OnKilled (which godmode skips) so every
+            // scenario gets it. Rides Game.Events; the ~1.2s restore is cosmetic, so scaling is moot.
+            if (target is SimPlayer player)
+            {
+                player.DropHpBar();
+                Events.Add(GodmodeHealSeconds, player.RestoreHpBar);
+            }
+            return false;
+        }
         target.OnKilled();
         if (!firstFreezeScheduled)
         {

@@ -22,6 +22,7 @@ public static class UmadConstants
         public const uint ChaosP3     = 19508; // distinct row from Chaos 19507
         public const uint Exdeath     = 19509; // cf. NeoExdeath 19510
         public const uint NeoExdeath  = 19510;
+        public const uint KefkaP5     = 19511; // P5 exaflares boss (Simulant spawns 19511 / name 7131)
         public const uint BlackHole   = 19512;
         public const uint KefkaClone  = 19513;
     }
@@ -112,6 +113,11 @@ public static class UmadConstants
         public const uint StrayFlames_Donut            = 0xBB23U; // donut inner r=6, cast 5.0s
         public const uint StraySpray_Donut             = 0xBB24U; // donut inner r=6, cast 5.0s
         public const uint StraySpray_Chariot           = 0xBB25U; // circle r=6, cast 5.0s
+        public const uint ChaosEnd1                    = 0xBB3BU; // P5 body cast (Chaos End), launches the first exaflare set
+        public const uint ExaflareOmen                 = 0xBB3CU; // P5 exaflare line telegraph (omen only, no damage)
+        public const uint ExaflareHit                  = 0xBB3DU; // P5 exaflare explosion, circle r~6; snapshot resolves on this
+        public const uint ChaosEnd2                    = 0xBB3EU; // P5 second body cast
+        public const uint ExaflareSpread               = 0xBB3FU; // P5 final spread, circle r~5
         public const uint BlackSpark                   = 0xBCCDU; // single-target, instant
         public const uint WhiteHole                    = 0xBD66U; // circle r=80, cast 5.0s
         public const uint UltimaUpsurge                = 0xC24AU; // circle r=100, cast 5.0s
