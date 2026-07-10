@@ -13,7 +13,8 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     private const ushort StunStatusId = 896;  // "Down for the Count" (896) — IsPermanent + LockControl variant.
 
     // The player's HP bar (real bc->Health) is touched only on a scenario KO — dropped to a 1-HP
-    // sliver here, restored in RestoreHpBar (revive / godmode heal-back). Driven by DamageSolver.
+    // sliver here (from OnKilled on a real death, and from Game.Kill for the godmode preview),
+    // restored in RestoreHpBar (revive / godmode heal-back).
     public void DropHpBar()
     {
         var bc = BattleCharaPtr;
@@ -74,6 +75,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     {
         Dead = true;
         StopMoving();
+        DropHpBar(); // real-death bar drop (bots do the same in their own OnKilled); godmode skips this path
         AddStatus(StunStatusId);
         this.PlayKoActionTimeline();
         SyncInputLock(); // engage the lock now, not one frame later
@@ -83,9 +85,11 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     {
         base.Despawn();
         StopMoving();
+        // Undo any KO bar drop (no-op if already full). Unconditional so it also covers a godmode
+        // preview drop, where Dead is never set and a pending heal on Game.Events may be cleared by reset.
+        RestoreHpBar();
         if (Dead)
         {
-            RestoreHpBar(); // undo the KO bar drop (no-op if we never dropped it)
             ResetActionTimeline();
             PlayActionTimeline(77); // revive
             Dead = false;

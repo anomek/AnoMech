@@ -87,7 +87,7 @@ public sealed class UmadP5ExaflaresScenario : IScenario
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP5ExaflaresState(settingsWindow.Overrides, timeline);
-        damage = new DamageSolver(party, timeline); // ApplyDamage deals % of max HP; godmode heals via the scenario timeline
+        damage = new DamageSolver(party); // ApplyDamage deals % of max HP; godmode drop/heal handled in Game.Kill
         spreadHelpers.Clear();
 
         // Re-arm the scenario clock for this run (the scenario object is reused).
