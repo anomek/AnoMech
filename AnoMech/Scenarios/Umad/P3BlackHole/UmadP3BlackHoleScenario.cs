@@ -52,7 +52,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        UmadRsvStrings.Seed();
+        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP3BlackHoleState(world, settingsWindow.Overrides);

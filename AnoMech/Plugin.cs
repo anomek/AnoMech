@@ -108,6 +108,7 @@ public sealed class Plugin : IDalamudPlugin
         GameMainPointers.Initialize();
         ModelContainerPointers.Initialize();
         PacketDispatcherPointers.Initialize();
+        RsfPointers.Initialize();
         StatusManagerPointers.Initialize();
         TimelineContainerPointers.Initialize();
         VfxContainerPointers.Initialize();

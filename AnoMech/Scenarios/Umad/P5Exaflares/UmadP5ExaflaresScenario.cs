@@ -80,9 +80,9 @@ public sealed class UmadP5ExaflaresScenario : IScenario
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        // Resolve RSV names so cast bars read real action names (server-delivered in-duty only; we run
+        // Resolve RSV names/dialogue + RSF file paths (server-delivered in-duty only; we run
         // inn-only). The boss casts reuse the Stray Apocalypse / Stray Entropy rows - see UmadConstants.
-        UmadRsvStrings.Seed();
+        UmadReplayData.Seed();
 
         world = worldParam;
         party = worldParam.Party;

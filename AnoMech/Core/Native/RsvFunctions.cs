@@ -14,7 +14,7 @@ namespace AnoMech.Core.Native;
 // Dalamud hooks the same function (RsvResolver) — Dalamud's Lumina-side lookup.
 //
 // This is generic plumbing; the content-specific name table lives in the scenario
-// layer (e.g. Scenarios/Umad/UmadRsvStrings.cs). See memory reference_rsv_action_names.
+// layer (e.g. Scenarios/Umad/UmadReplayData.cs). See memory reference_rsv_action_names.
 internal static unsafe class RsvFunctions
 {
     // rsvKey is the placeholder token stored in the sheet (e.g.
@@ -33,6 +33,25 @@ internal static unsafe class RsvFunctions
         {
             // ...but the size the engine copies is the content length, excluding the null.
             lw->AddRsvString(keyPtr, valPtr, (nuint)(valBytes.Length - 1));
+        }
+    }
+
+    // Same as Add, but the resolved value is raw bytes rather than a UTF-8 string —
+    // for RSV values that carry embedded SeString payloads (e.g. status descriptions
+    // that link an action name) and so aren't valid UTF-8. Written to the native map
+    // verbatim; the game re-parses it as a SeString on display.
+    public static void AddRaw(string rsvKey, byte[] valueBytes)
+    {
+        var lw = LayoutWorld.Instance();
+        if (lw == null || valueBytes == null) return;
+
+        var keyBytes = Encoding.UTF8.GetBytes(rsvKey + "\0");
+        var valBuf = new byte[valueBytes.Length + 1]; // extra byte stays 0 = null terminator
+        valueBytes.CopyTo(valBuf, 0);
+        fixed (byte* keyPtr = keyBytes)
+        fixed (byte* valPtr = valBuf)
+        {
+            lw->AddRsvString(keyPtr, valPtr, (nuint)valueBytes.Length);
         }
     }
 }

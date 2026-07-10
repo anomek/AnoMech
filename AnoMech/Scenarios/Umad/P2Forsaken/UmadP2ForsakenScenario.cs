@@ -67,7 +67,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        UmadRsvStrings.Seed();
+        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);
