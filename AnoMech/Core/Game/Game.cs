@@ -11,6 +11,7 @@ using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
 using AnoMech.Scenarios.Top.P6WaveCannon2;
+using AnoMech.Scenarios.Umad;
 using AnoMech.Scenarios.Umad.P2Forsaken;
 using AnoMech.Scenarios.Umad.P3BlackHole;
 using AnoMech.Scenarios.Umad.P4KefkaSays;
@@ -66,6 +67,7 @@ public sealed class Game : IDisposable
             new UmadP3BlackHoleScenario(),
             new UmadP4KefkaSaysScenario(),
             new UmadP5ExaflaresScenario(),
+            new UmadP5ForsakenNull(),
             new TopP2PartySynergyScenario(),
             new TopP5DeltaScenario(),
             new TopP5SigmaScenario(),
