@@ -11,6 +11,7 @@ using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Windows;
 using AnoMech.Pointers;
+using CSFramework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework;
 
 namespace AnoMech;
 
@@ -145,9 +146,14 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandAlias);
     }
 
-    private void OnFrameworkUpdate(IFramework framework)
+    private unsafe void OnFrameworkUpdate(IFramework framework)
     {
-        Game.Tick((float)framework.UpdateDelta.TotalSeconds);
+        // FrameDeltaTime, not framework.UpdateDelta: UpdateDelta is wall-clock
+        // truncated to whole ms, so summing it drifts. FrameDeltaTime is the
+        // full-precision delta the game ticks its own animations with.
+        var fw = CSFramework.Instance();
+        if (fw == null) return;
+        Game.Tick(fw->FrameDeltaTime);
     }
 
     private void OnTerritoryChanged(uint territory)
