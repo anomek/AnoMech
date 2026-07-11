@@ -12,19 +12,8 @@ namespace AnoMech.Scenarios.Top.P5Sigma;
 
 public sealed class TopP5SigmaScenario : IScenario
 {
-    public string Name => "TOP P5 Sigma";
-
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1122,
-        Origin: new Vector3(100f, 0f, 100f),
-        PlayerPosition: new Vector3(100f, 0f, 116f),
-        WeatherId: 174);
-
-    public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
-
-    public ushort Bgm => BgmId.TopP5;
-    public byte Level => 90;
-    public ushort ItemLevel => 365;
+    public string Name => "Sigma";
+    public IPhase Phase => TopZone.P5;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5SigmaSettingsWindow settingsWindow = new();
@@ -46,9 +35,6 @@ public sealed class TopP5SigmaScenario : IScenario
             ((IScenarioAi<TopP5SigmaState>)AiStrats[idx]).Run(state, world);
         topUtils = new TopUtils(world);
 
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
-
-        world.Events.Add(1f, () => topUtils.InitTopArena());
         Run_Omega_M_4000A63C();
         Run_Omega_4000A68F();
         Run_Omega_4000A690();

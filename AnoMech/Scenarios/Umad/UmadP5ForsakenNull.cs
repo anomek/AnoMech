@@ -23,48 +23,18 @@ namespace AnoMech.Scenarios.Umad;
 
 public sealed class UmadP5ForsakenNull : IScenario
 {
-    public string Name => "UMAD P5 Forsaken Null";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1363,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 112.000f),
-        WeatherId: 175);
-    
-    public IReadOnlyList<Waymark> Waymarks { get; } = UmadConstants.UmadWaymarks;
-    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
-    public ushort Bgm => 20294;
+    public string Name => "Forsaken Null";
+    public IPhase Phase => UmadZone.P5;
 
     private SimWorld world = null!;
     private SimParty party = null!;
-    
-    private void InitArena()
-    {
-        var s = new ushort[0x24];
-        for (var i = 0; i < s.Length; i++) s[i] = 0x4; // base default (hide/empty)
-        s[0x11] = 0x1; s[0x12] = 0x1;                  // base lit holes
-        s[0x00] = 0x40;                                // P5
-        s[0x14] = 0x200;                               // P5 centerpiece ("nine holes")
-        for (var i = 0x15; i <= 0x1C; i++) s[i] = 0x1; // P5 nine holes
-        for (var i = 0x1D; i <= 0x21; i++) s[i] = 0x2; // P5 towers of rubble
-
-        for (byte slot = 0; slot < s.Length; slot++)
-        {
-            var state = s[slot];
-            var flags = (byte)(state & 0xFF);
-            if (flags == 0) flags = 0x01;                 // e.g. 0x200: no action bit -> "show"
-            world.Map.AddEffect(((uint)state << 16) | flags, slot);
-        }
-    }
 
     public IReadOnlyList<IScenarioAi> AiStrats => [];
 
     public void Run(SimWorld worldParam, int? selectAi)
     {
-        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
-        
-        world.Events.Add(1f, InitArena); // set the arena to its P5 state once the zone has settled
 
         Run_Kefka_4001DE6B();
         Run_Kefka_4001D7AD();

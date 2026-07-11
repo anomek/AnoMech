@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.Native;
@@ -35,8 +36,16 @@ public sealed class Game : IDisposable
     public EventScheduler Events { get; } = new();
     public SimWorld World { get; }
     public SimPlayer? Player => World.Party.Player;
+    // Flat registry; the zone -> phase -> scenario tree is derived from it in
+    // first-appearance order.
     public IReadOnlyList<IScenario> Scenarios { get; }
+    public IReadOnlyList<IZone> Zones { get; }
+    private readonly Dictionary<IZone, List<IPhase>> phasesByZone = new();
+    private readonly Dictionary<IPhase, List<IScenario>> scenariosByPhase = new();
     public Bgm Bgm { get; } = new();
+
+    // Fixed scenario-local player spawn (16y south of centre).
+    public static readonly Vector3 PlayerSpawnLocal = new(0f, 0f, 16f);
 
     // Multiplier applied only to the EventScheduler's delta. Intentionally does not
     // scale enemy/party/tether/status ticks so cast bars, animations, and movement
@@ -75,7 +84,33 @@ public sealed class Game : IDisposable
             new TopP6WaveCannon2Scenario(),
             new UltimatePredationScenario()
         };
+
+        // Derive the zone tree from the flat registry (first-appearance order).
+        var zoneOrder = new List<IZone>();
+        foreach (var scenario in Scenarios)
+        {
+            var phase = scenario.Phase;
+            var zone = phase.Zone;
+            if (!phasesByZone.TryGetValue(zone, out var phases))
+            {
+                phases = new List<IPhase>();
+                phasesByZone[zone] = phases;
+                zoneOrder.Add(zone);
+            }
+            if (!phases.Contains(phase)) phases.Add(phase);
+            if (!scenariosByPhase.TryGetValue(phase, out var phaseScenarios))
+            {
+                phaseScenarios = new List<IScenario>();
+                scenariosByPhase[phase] = phaseScenarios;
+            }
+            phaseScenarios.Add(scenario);
+        }
+        Zones = zoneOrder;
     }
+
+    // Derived zone-tree accessors, in registry order.
+    public IReadOnlyList<IPhase> PhasesOf(IZone zone) => phasesByZone[zone];
+    public IReadOnlyList<IScenario> ScenariosOf(IPhase phase) => scenariosByPhase[phase];
 
     // selectedAi: index into the scenario's AiStrats of the strat to run, or null for
     // solo (no doppels, no AI). Defaults to 0 = run the first strat with a full party.
@@ -85,19 +120,20 @@ public sealed class Game : IDisposable
         Plugin.Framework.Run(() => RunScenarioInternal(scenario, roleOverride, selectedAi, selectedWaymark));
     }
 
-    // The waymark layout to place: the selected preset when the scenario defines any,
-    // otherwise the scenario's default Waymarks (back-compat for preset-less scenarios).
-    private static IReadOnlyList<Waymark> ResolveWaymarks(IScenario scenario, int selectedWaymark)
+    // The selected preset, or [0] as the default.
+    private static IReadOnlyList<Waymark> ResolveWaymarks(IZone zone, int selectedWaymark)
     {
-        var presets = scenario.WaymarkPresets;
-        if (presets.Count > 0 && selectedWaymark >= 0 && selectedWaymark < presets.Count)
+        var presets = zone.WaymarkPresets;
+        if (selectedWaymark >= 0 && selectedWaymark < presets.Count)
             return presets[selectedWaymark].Markers;
-        return scenario.Waymarks;
+        return presets[0].Markers;
     }
 
     private void RunScenarioInternal(IScenario scenario, PartyRole? roleOverride, int? selectedAi, int selectedWaymark)
     {
         var solo = selectedAi is null;
+        var phase = scenario.Phase;
+        var zone = phase.Zone;
         // Hard gate: scenarios are only ever run from an inn. Everything
         // downstream (CharacterManager registration, zone load, doppel spawn)
         // assumes that invariant.
@@ -121,18 +157,23 @@ public sealed class Game : IDisposable
         var freshLoad = !World.Map.IsZoneLoaded;
 
         World.HideObject(ExitObjectBaseId);
-        World.Map.TryLoad(scenario.TargetInstance, scenario.Level, scenario.ItemLevel);
-        World.ScenarioOrigin = scenario.TargetInstance.Origin;
-        World.Map.ArmColliderDrops(scenario.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
-        World.PlaceWaymarks(ResolveWaymarks(scenario, selectedWaymark));
+        World.Map.TryLoad(
+            new TargetInstance(zone.TerritoryId, zone.Origin, zone.Origin + PlayerSpawnLocal, phase.Weather),
+            zone.Level, zone.ItemLevel);
+        World.ScenarioOrigin = zone.Origin;
+        World.Map.ArmColliderDrops(zone.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
+        World.PlaceWaymarks(ResolveWaymarks(zone, selectedWaymark));
         World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
-        scenario.Run(World, selectedAi);   // creates the SimArenaBoundary the out-of-arena check reads
+        // zone.Run creates the SimArenaBoundary the out-of-arena check below reads.
+        zone.Run(World);
+        phase.Run(World);
+        scenario.Run(World, selectedAi);
         // Entering the zone always starts at spawn; a restart only recenters the player
         // if they're standing outside the arena ring (otherwise they keep their position).
         if (freshLoad)
-            TeleportPlayerToSpawn(scenario);
+            TeleportPlayerToSpawn();
         else
-            TeleportPlayerToSpawnIfOutsideArena(scenario);
+            TeleportPlayerToSpawnIfOutsideArena();
         ResetSprintCooldown();
         activeScenario = scenario;
         scenarioElapsed = 0f;
@@ -140,15 +181,15 @@ public sealed class Game : IDisposable
         // Reconcile BGM to the new scenario. Bgm.Play is idempotent, so switching
         // between same-track scenarios (e.g. the P5 phases) keeps playing without
         // restarting the song; a different track swaps; suppressed/no-track reverts.
-        if (Plugin.Config.SuppressBgm || scenario.Bgm == 0)
+        if (Plugin.Config.SuppressBgm || phase.Bgm == 0)
             Bgm.Reset();
         else
-            Bgm.Play(scenario.Bgm);
+            Bgm.Play(phase.Bgm);
 
         Plugin.ChatGui.Print(new XivChatEntry
         {
             Type = XivChatType.SystemMessage,
-            Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {scenario.Name}{(solo ? " (Solo)" : "")}").Build(),
+            Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {FullName(scenario)}{(solo ? " (Solo)" : "")}").Build(),
         });
     }
 
@@ -260,8 +301,8 @@ public sealed class Game : IDisposable
 
     public void Reset() => Plugin.Framework.Run(() =>
     {
-        if (activeScenario is { } scenario)
-            TeleportPlayerToSpawnIfOutsideArena(scenario);
+        if (activeScenario is not null)
+            TeleportPlayerToSpawnIfOutsideArena();
         ResetInternal();
         Bgm.Reset();
     });
@@ -272,18 +313,26 @@ public sealed class Game : IDisposable
     // at scenario start the SimPlayer was just created and hasn't ticked, so its
     // cached Position is still zero. At reset this must run before ResetInternal
     // clears Party / ScenarioOrigin.
-    private void TeleportPlayerToSpawnIfOutsideArena(IScenario scenario)
+    private void TeleportPlayerToSpawnIfOutsideArena()
     {
         var lp = Plugin.ObjectTable.LocalPlayer;
         if (lp == null) return;
         if (!World.IsOutsideArena(World.Coordinates.ToLocal(lp.Position))) return;
-        TeleportPlayerToSpawn(scenario);
+        TeleportPlayerToSpawn();
     }
 
-    // Place the local player at the scenario's spawn point. ScenarioOrigin must already
-    // be set so the world<->local conversion resolves correctly.
-    private void TeleportPlayerToSpawn(IScenario scenario)
-        => Player?.SetPosition(World.Coordinates.ToLocal(scenario.TargetInstance.PlayerPosition));
+    // ScenarioOrigin must already be set (SetPosition resolves local -> world through it).
+    private void TeleportPlayerToSpawn() => Player?.SetPosition(PlayerSpawnLocal);
+
+    // Menu label, e.g. "P5 Delta".
+    public static string DisplayName(IScenario scenario)
+    {
+        var phase = scenario.Phase;
+        return string.IsNullOrEmpty(phase.Name) ? scenario.Name : $"{phase.Name} {scenario.Name}";
+    }
+
+    public static string FullName(IScenario scenario)
+        => $"{scenario.Phase.Zone.Name} — {DisplayName(scenario)}";
 
     // Leave returns to the inn. Only meaningful when IsInInstance is true.
     // Resets the encounter first, then reverts the zone — Reset stays in-zone.

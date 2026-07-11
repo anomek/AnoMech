@@ -13,20 +13,9 @@ namespace AnoMech.Scenarios.Top.P6WaveCannon2;
 
 public sealed class TopP6WaveCannon2Scenario : IScenario
 {
-    public string Name => "TOP P6 Exasquares/WC2";
-
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1122,
-        Origin: new Vector3(100f, 0f, 100f),
-        PlayerPosition: new Vector3(100f, 0f, 116f),
-        WeatherId: 175);
-
-    public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
-
-    public ushort Bgm => BgmId.TopP6;
+    public string Name => "Exasquares/WC2";
+    public IPhase Phase => TopZone.P6;
     public bool SupportsSolo => true;
-    public byte Level => 90;
-    public ushort ItemLevel => 365;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP6WaveCannon2SettingsWindow settingsWindow = new();
@@ -51,9 +40,6 @@ public sealed class TopP6WaveCannon2Scenario : IScenario
         topUtils = new TopUtils(world);
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Magic, StatusId.MagicVulnerabilityUp);
-
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
-        world.Events.Add(1f, () => topUtils.InitTopArena());
 
         world.Events.Add(1f, () => state.ProteanOrder.ForEach(c => c.AddStatus(StatusId.BrilliantDynamis)));
         Run_Alpha_Omega_4000A771(solo);

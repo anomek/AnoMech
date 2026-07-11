@@ -28,17 +28,8 @@ namespace AnoMech.Scenarios.Umad.P2Forsaken;
 
 public sealed class UmadP2ForsakenScenario : IScenario
 {
-    public string Name => "UMAD P2 Forsaken";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1363,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
-        WeatherId: 79);
-    public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
-    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
-    public ushort Bgm => 533;
-    
-    public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
+    public string Name => "Forsaken";
+    public IPhase Phase => UmadZone.P2;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly UmadP2ForsakenSettingsWindow settingsWindow = new();
@@ -56,8 +47,7 @@ public sealed class UmadP2ForsakenScenario : IScenario
 
     // NA holds the existing strats; EU holds this branch's new strats — isolated copies
     // of NA strats over their own forked helpers ("p3Z Buddy Meow" from Kroxy-Rinon 341,
-    // "zP6 South adjust" from South Flex 341) — more to come.
-    public IReadOnlyList<string> StratGroups { get; } = ["NA", "EU"];
+    // "zP6 South adjust" from South Flex 341).
 
     private UmadP2ForsakenState state = null!;
     private SimWorld world = null!;
@@ -67,7 +57,6 @@ public sealed class UmadP2ForsakenScenario : IScenario
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);

@@ -17,17 +17,8 @@ namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 //   10018AEA M1, 100AF82E M2, 100A7A8F R1, 1009061B C.
 public sealed class UmadP4KefkaSaysScenario : IScenario
 {
-    public string Name => "UMAD P4 Kefka Says";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1363,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
-        WeatherId: 174);
-    public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
-    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
-    public ushort Bgm => 20293;
-    
-    public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
+    public string Name => "Kefka Says";
+    public IPhase Phase => UmadZone.P4;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly UmadP4KefkaSaysSettingsWindow settingsWindow = new();
@@ -46,7 +37,6 @@ public sealed class UmadP4KefkaSaysScenario : IScenario
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP4KefkaSaysState(party, settingsWindow.Overrides);

@@ -23,18 +23,12 @@ namespace AnoMech.Scenarios.Umad.P5Exaflares;
 // UpdateDelta, so events fire drift-free and ignore the Speed buttons.
 public sealed class UmadP5ExaflaresScenario : IScenario
 {
-    public string Name => "UMAD P5 Exaflares";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1363,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
-        WeatherId: 175); // P5 weather (P3-4 used 174)
-    public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
-    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
-    public ushort Bgm => 20294; // P5 BGM (P3-4 used 20293)
-    public byte Level => 100;
+    public string Name => "Exaflares";
+    public IPhase Phase => UmadZone.P5;
     public bool SupportsSolo => true;
-    public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
+
+    // Enemy spawn level.
+    private const byte Level = 100;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new UmadP5ExaflaresAi()];
 
@@ -80,10 +74,6 @@ public sealed class UmadP5ExaflaresScenario : IScenario
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        // Resolve RSV names/dialogue + RSF file paths (server-delivered in-duty only; we run
-        // inn-only). The boss casts reuse the Stray Apocalypse / Stray Entropy rows - see UmadConstants.
-        UmadReplayData.Seed();
-
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP5ExaflaresState(settingsWindow.Overrides, timeline);
@@ -99,7 +89,6 @@ public sealed class UmadP5ExaflaresScenario : IScenario
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<UmadP5ExaflaresState>)AiStrats[idx]).Run(state, world);
 
-        timeline.Add(1f, InitArena); // set the arena to its P5 state once the zone has settled
         timeline.Add(0f, SpawnKefka);
         timeline.Add(3.0f, () => kefka?.Cast(ActionId.ChaosEnd1));
 
@@ -134,27 +123,6 @@ public sealed class UmadP5ExaflaresScenario : IScenario
         {
             timeline.Tick((float)wallDelta);
             state?.SpreadTick?.Invoke((float)wallDelta); // bot spread relaxation, also 1x (no-op in solo)
-        }
-    }
-
-    // Set the arena to its P5 state (MapEffect table): 36 SGB slots, base 0x4 with P5 deviations, each
-    // replayed as AddEffect((state<<16)|flags, slot).
-    private void InitArena()
-    {
-        var s = new ushort[0x24];
-        for (var i = 0; i < s.Length; i++) s[i] = 0x4;   // base default (hide/empty)
-        s[0x11] = 0x1; s[0x12] = 0x1;                     // base lit holes
-        s[0x00] = 0x40;                                   // P5
-        s[0x14] = 0x200;                                  // P5 centerpiece ("nine holes")
-        for (var i = 0x15; i <= 0x1C; i++) s[i] = 0x1;    // P5 nine holes
-        for (var i = 0x1D; i <= 0x21; i++) s[i] = 0x2;    // P5 towers of rubble
-
-        for (byte slot = 0; slot < s.Length; slot++)
-        {
-            var state = s[slot];
-            var flags = (byte)(state & 0xFF);
-            if (flags == 0) flags = 0x01;                 // e.g. 0x200: no action bit -> "show"
-            world.Map.AddEffect(((uint)state << 16) | flags, slot);
         }
     }
 

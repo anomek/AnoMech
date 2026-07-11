@@ -19,18 +19,7 @@ namespace AnoMech.Scenarios.Uwu.UltimatePredation;
 public unsafe class UltimatePredationScenario : IScenario
 {
     public string Name => "Ultimate Predation";
-
-    public TargetInstance TargetInstance => new(
-        TerritoryId: 777,
-        Origin: new Vector3(100, 0, 100),
-        PlayerPosition: new Vector3(100, 0, 116),
-        WeatherId: 95
-        );
-
-    public IReadOnlyList<Waymark> Waymarks => NaurWaymarks;
-    public ushort Bgm => 547;
-    public byte Level => UwuConstants.Level;
-    public ushort ItemLevel => UwuConstants.ItemLevel;
+    public IPhase Phase => UwuZone.Ultima;
     public IReadOnlyList<IScenarioAi> AiStrats => [new UltimatePredationAi()];
     public void DrawSettings() => settingsWindow.Draw();
 
@@ -164,8 +153,6 @@ public unsafe class UltimatePredationScenario : IScenario
 
     private void Arena()
     {
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
-
         world.Events.Add(0, () =>
         {
             var config = new EventObjectSpawnConfig

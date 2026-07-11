@@ -13,18 +13,8 @@ namespace AnoMech.Scenarios.Top.P5Delta;
 
 public sealed class TopP5DeltaScenario : IScenario
 {
-    public string Name => "TOP P5 Delta";
-    // TerritoryId 1122 = The Omega Protocol (Ultimate). Origin and PlayerPosition Y
-    // values are placeholders — tune after first in-game test once zone loads.
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1122,
-        Origin: new Vector3(100f, 0f, 100f),
-        PlayerPosition: new Vector3(100f, 0f, 116f),
-        WeatherId: 174);
-    public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
-    public ushort Bgm => BgmId.TopP5;
-    public byte Level => 90;
-    public ushort ItemLevel => 365;
+    public string Name => "Delta";
+    public IPhase Phase => TopZone.P5;
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 
@@ -57,13 +47,6 @@ public sealed class TopP5DeltaScenario : IScenario
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP5DeltaState>)AiStrats[idx]).Run(state, world);
         topUtils = new TopUtils(world);
-
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
-
-        // Replay the server MapEffect IPC that sets up the TOP arena for P5.
-        // Only has visible effect when physically inside TOP (ContentDirector must exist
-        // with the territory's layout rows loaded). Safe to call elsewhere — no-ops.
-        world.Events.Add(1f, () => topUtils.InitTopArena());
 
         world.Events.Add(0.1f, SpawnOmega);
         world.Events.Add(2f, () => omega?.Cast(ActionId.RunMiDeltaVersion));
@@ -151,7 +134,7 @@ public sealed class TopP5DeltaScenario : IScenario
         omega = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.OmegaMDynamis,
             NameId: BNpcNameId.OmegaMDynamis,
-            Level: Level,
+            Level: 90,
             Targetable: true,
             InitialModeAttributeFlags: 0x10,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
@@ -162,7 +145,7 @@ public sealed class TopP5DeltaScenario : IScenario
         beetle = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.BeetleHelper,
             NameId: BNpcNameId.OmegaBeetle,
-            Level: Level,
+            Level: 90,
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
@@ -171,7 +154,7 @@ public sealed class TopP5DeltaScenario : IScenario
         opticalUnit = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.OpticalUnit,
             NameId: BNpcNameId.OpticalUnit,
-            Level: Level,
+            Level: 90,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
             Placement: new Placement(new Vector3(0f, 0f, -45f) * state.EyeSpawn.Mul, MathF.PI / 2f - MathF.PI / 2 * state.EyeSpawn.Mul)));
@@ -179,7 +162,7 @@ public sealed class TopP5DeltaScenario : IScenario
         finalHelper = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.FinalHelper,
             NameId: BNpcNameId.OmegaFinal,
-            Level: Level,
+            Level: 90,
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul, -MathF.PI / 2f * state.EyeSpawn.Mul)));
@@ -209,7 +192,7 @@ public sealed class TopP5DeltaScenario : IScenario
             var punch = world.SpawnEnemy(new EnemySpawnConfig(
                                              BNpcBaseId: state.FistColors[i],
                                              NameId: BNpcNameId.RocketPunch,
-                                             Level: Level,
+                                             Level: 90,
                                              Targetable: false,
                                              EnemyList: EnemyListMode.Always,
                                              Placement: placement));
@@ -228,7 +211,7 @@ public sealed class TopP5DeltaScenario : IScenario
             var unit = world.SpawnEnemy(new EnemySpawnConfig(
                 BNpcBaseId: state.ArmHandedness[i].ArmUnitId,
                 NameId: state.ArmHandedness[i].ArmUnitNameId,
-                Level: Level,
+                Level: 90,
                 Targetable: false,
                 EnemyList: EnemyListMode.Always,
                 Placement: new Placement(Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1), Geometry.ArmUnitPlacements[i].Rotation)));

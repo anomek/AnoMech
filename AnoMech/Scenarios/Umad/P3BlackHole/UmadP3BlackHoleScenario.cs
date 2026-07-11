@@ -20,17 +20,8 @@ namespace AnoMech.Scenarios.Umad.P3BlackHole;
 
 public sealed class UmadP3BlackHoleScenario : IScenario
 {
-    public string Name => "UMAD P3 Black Hole (WIP)";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1363,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
-        WeatherId: 174);
-    public IReadOnlyList<Waymark> Waymarks { get; } = UmadWaymarks;
-    public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } = UmadConstants.WaymarkPresets;
-    public ushort Bgm => 533;
-
-    public IReadOnlyList<Vector3> ColliderRemovalPoints => [new(0, 0, -10)];
+    public string Name => "Black Hole (WIP)";
+    public IPhase Phase => UmadZone.P3;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly UmadP3BlackHoleSettingsWindow settingsWindow = new();
@@ -52,7 +43,6 @@ public sealed class UmadP3BlackHoleScenario : IScenario
     
     public void Run(SimWorld worldParam, int? selectedAi)
     {
-        UmadReplayData.Seed();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP3BlackHoleState(world, settingsWindow.Overrides);

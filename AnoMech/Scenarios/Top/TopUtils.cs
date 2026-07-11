@@ -11,15 +11,6 @@ using static AnoMech.Scenarios.Top.TopConstants;
 
 public record TopUtils(SimWorld World)
 {
-    public void InitTopArena()
-    {
-        for (byte i = 1; i <= 8; i++)
-        {
-            World.Map.AddEffect(0x00040004, i); // hide eyes
-        }
-
-        World.Map.AddEffect(0x00020002, 0x00); // show death wall
-    }
     
     public void CheckHelloWorldDeath()
     {

@@ -12,17 +12,9 @@ namespace AnoMech.Scenarios.Top.P2PartySynergy;
 
 public sealed class TopP2PartySynergyScenario : IScenario
 {
-    public string Name => "TOP P2 Party Synergy";
-    public TargetInstance TargetInstance { get; } = new(
-        TerritoryId: 1122,
-        Origin: new Vector3(100.000f, 0f, 100.000f),
-        PlayerPosition: new Vector3(100.000f, 0f, 116.000f),
-        WeatherId: 78);
-    public IReadOnlyList<Waymark> Waymarks { get; } = TopUtils.TopWaymarks;
-    public ushort Bgm => BgmId.TopP2;
+    public string Name => "Party Synergy";
+    public IPhase Phase => TopZone.P2;
     public bool SupportsSolo => true;
-    public byte Level => 90;
-    public ushort ItemLevel => 365;
 
     public void DrawSettings() => settingsWindow.Draw();
     private readonly TopP2PartySynergySettingsWindow settingsWindow = new();
@@ -48,9 +40,6 @@ public sealed class TopP2PartySynergyScenario : IScenario
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP2PartySynergyState>)AiStrats[idx]).Run(state, world);
 
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
-        world.Events.Add(1f, () => topUtils.InitTopArena());
-        
         Run_Omega_4000A4E9();
         Run_Omega_4000A4E8();
         Run_Omega_F_4000A4FD();

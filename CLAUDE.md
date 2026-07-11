@@ -15,6 +15,17 @@ The reference scenario is **TOP P5 Delta** (`Scenarios/Top/P5Delta/`). Treat it 
 - **There are no automated tests.** Verification is "build clean → load DLL via Dalamud Dev Plugins → run a scenario in-game and watch." For UI / behavior changes, ask the user to run the plugin; you cannot.
 - In-game entry point: chat command `/anomech` (alias `/ano`) opens the main window. Subcommands: `config`, `start`, `reset`, `leave`. Buttons in the main window run scenarios and despawn/reset.
 
+## Comments
+
+Write a comment only for what the code cannot say itself — rationale, a non-obvious constraint, why the obvious approach was avoided. Delete comments that:
+- restate a symbol's name in prose (`// P5 arena state` above `InitP5Arena`);
+- restate literals or contract visible at a glance (`// TerritoryId 1363` beside `TerritoryId => 1363`);
+- narrate what an edit changed (git records that);
+- re-explain what an interface member's own doc already says;
+- pile on examples for something trivial.
+
+When unsure, cut it — sparse and load-bearing beats thorough. Scenario AI strats (`*Ai.cs`) go stricter: no comments, intent carried entirely by descriptive method names.
+
 ## Architecture
 
 ### Frame loop

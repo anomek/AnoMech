@@ -11,6 +11,7 @@ using AnoMech.Core;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
+using static AnoMech.Core.Game.Game;
 
 namespace AnoMech.Windows;
 
@@ -145,8 +146,13 @@ public unsafe class MainWindow : Window, IDisposable
     {
         var style = ImGui.GetStyle();
         var widest = 0f;
-        foreach (var scenario in plugin.Game.Scenarios)
-            widest = Math.Max(widest, ImGui.CalcTextSize(scenario.Name).X);
+        foreach (var zone in plugin.Game.Zones)
+        {
+            widest = Math.Max(widest, ImGui.CalcTextSize(zone.Name).X);
+            foreach (var phase in plugin.Game.PhasesOf(zone))
+                foreach (var scenario in plugin.Game.ScenariosOf(phase))
+                    widest = Math.Max(widest, ImGui.CalcTextSize(DisplayName(scenario)).X);
+        }
         var measured = widest + style.FramePadding.X * 2 + style.CellPadding.X * 2;
         return Math.Max(180f, measured);
     }
@@ -160,27 +166,47 @@ public unsafe class MainWindow : Window, IDisposable
             if (ImGui.SmallButton("<##collapse")) _leftPanelOpen = false;
             ImGui.Separator();
 
-            foreach (var scenario in plugin.Game.Scenarios)
+            foreach (var zone in plugin.Game.Zones)
             {
-                var selected = _selectedScenario == scenario;
-                if (selected) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
-                ImGui.PushID(scenario.Name);
-                if (ImGui.Button(scenario.Name, new Vector2(-1, 0)))
-                {
-                    _selectedScenario = scenario;
-                    _selectedStrat = 0;
-                    _selectedWaymark = 0;
-                    // Restore the last region picked for this scenario; null self-heals to its first region when drawn.
-                    _selectedStratGroup = _stratGroupMemory.GetValueOrDefault(scenario);
-                }
-                ImGui.PopID();
-                if (selected) ImGui.PopStyleColor();
+                if (!ImGui.CollapsingHeader(zone.Name, ImGuiTreeNodeFlags.DefaultOpen)) continue;
+                ImGui.Indent();
+                foreach (var phase in plugin.Game.PhasesOf(zone))
+                    foreach (var scenario in plugin.Game.ScenariosOf(phase))
+                    {
+                        var selected = _selectedScenario == scenario;
+                        if (selected) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
+                        ImGui.PushID(scenario.Name);
+                        if (ImGui.Button(DisplayName(scenario), new Vector2(-1, 0)))
+                            SelectScenario(scenario);
+                        ImGui.PopID();
+                        if (selected) ImGui.PopStyleColor();
+                    }
+                ImGui.Unindent();
             }
         }
         else
         {
             if (ImGui.Button(">##expand")) _leftPanelOpen = true;
         }
+    }
+
+    // Select a scenario and reset its per-scenario UI state (strat, waymark, remembered region).
+    private void SelectScenario(IScenario scenario)
+    {
+        _selectedScenario = scenario;
+        _selectedStrat = 0;
+        _selectedWaymark = 0;
+        // Restore the last region picked for this scenario; null self-heals to its first region when drawn.
+        _selectedStratGroup = _stratGroupMemory.GetValueOrDefault(scenario);
+    }
+
+    // Distinct, ordered region labels from the strats' IScenarioAi.Group; empty = ungrouped.
+    private static IReadOnlyList<string> StratGroups(IScenario scenario)
+    {
+        var groups = new List<string>();
+        foreach (var ai in scenario.AiStrats)
+            if (ai.Group is { } g && !groups.Contains(g)) groups.Add(g);
+        return groups;
     }
 
     private void DrawMainContent()
@@ -193,7 +219,7 @@ public unsafe class MainWindow : Window, IDisposable
 
         var game = plugin.Game;
 
-        ImGui.TextUnformatted(_selectedScenario.Name);
+        ImGui.TextUnformatted(FullName(_selectedScenario));
         ImGui.Separator();
         DrawLocationHint();
 
@@ -270,7 +296,7 @@ public unsafe class MainWindow : Window, IDisposable
     private void DrawWaymarkSelector()
     {
         if (_selectedScenario is null) return;
-        var presets = _selectedScenario.WaymarkPresets;
+        var presets = _selectedScenario.Phase.Zone.WaymarkPresets;
         if (presets.Count == 0) return;
         if (_selectedWaymark < 0 || _selectedWaymark >= presets.Count) _selectedWaymark = 0;
 
@@ -302,7 +328,7 @@ public unsafe class MainWindow : Window, IDisposable
     {
         if (_selectedScenario is null) return;
         var strats = _selectedScenario.AiStrats;
-        var groups = _selectedScenario.StratGroups;
+        var groups = StratGroups(_selectedScenario);
         if (groups.Count > 0)
         {
             DrawGroupedStratSelector(strats, groups);
@@ -371,7 +397,7 @@ public unsafe class MainWindow : Window, IDisposable
     private bool HasStartableStrat()
     {
         if (_selectedScenario is not { } scenario) return false;
-        if (scenario.StratGroups.Count == 0) return true;
+        if (StratGroups(scenario).Count == 0) return true;
         var strats = scenario.AiStrats;
         return _selectedStrat >= 0 && _selectedStrat < strats.Count
             && strats[_selectedStrat].Group == _selectedStratGroup;
