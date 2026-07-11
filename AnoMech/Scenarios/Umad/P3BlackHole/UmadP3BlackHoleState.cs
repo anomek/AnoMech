@@ -27,7 +27,6 @@ public sealed class UmadP3BlackHoleState
     public IReadOnlyList<Direction> KefkaPosition { get; }
     
     public IReadOnlyList<Direction> BlackHoleDirections { get; }
-    public IReadOnlyList<bool> SwapActiveBlackHoles { get; }
     
     public int MiniBlackHoleInitialAngle { get; }
     public int MiniBlackHoleChirality { get; }
@@ -50,7 +49,6 @@ public sealed class UmadP3BlackHoleState
         BlackHoleDirections = Enumerable.Range(0, 4).Select(_ => rng.NextCardinal()).ToList();
         MiniBlackHoleInitialAngle = rng.NextInt(2);
         MiniBlackHoleChirality = rng.NextSign();
-        SwapActiveBlackHoles = Enumerable.Range(0, 4).Select(_ => rng.NextBool()).ToList();
     }
     
     // Final-slot (post-swap) line number and Accretion, mirroring the per-index status

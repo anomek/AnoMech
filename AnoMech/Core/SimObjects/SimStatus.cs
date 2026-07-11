@@ -26,8 +26,6 @@ public sealed unsafe class SimStatus : ISimObject
 
     public void Reapply(float duration, int stacks)
     {
-        // Only a positive duration refreshes the timer; a bare stack change
-        // (default duration 0) preserves the existing countdown.
         if (duration > 0f)
         {
             this.duration = duration;
@@ -49,8 +47,7 @@ public sealed unsafe class SimStatus : ISimObject
         {
             if (duration > 0f)
                 elapsed += deltaSeconds;
-            // this should be done only for player status, but just for simplicity doing it always
-            // This also incidentally updates timers on debuffs, which is needed for party members
+            // Update duration
             Statuses.Apply((Character*)target.BattleCharaPtr, StatusId, duration - elapsed, Stacks);
         }
     }

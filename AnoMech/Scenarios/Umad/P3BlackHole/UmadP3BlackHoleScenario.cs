@@ -476,9 +476,6 @@ public sealed class UmadP3BlackHoleScenario : IScenario
                 active.Add(activeDir.Apply(outer));
             }
         }
-        if (state.SwapActiveBlackHoles[wave])
-            (active[0], active[2]) = (active[2], active[0]);
-        
         return active.Concat(passive).ToList();
     }
     
@@ -562,9 +559,9 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         world.Events.Add(89.95f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[2]);
         world.Events.Add(123.34f, () => state.ScenarioObjects.TetherSortFrom = state.KefkaPosition[3]);
 
-        RunActiveBlackHole(BlackHolePositions[0][0], 25.17f, 25.17f, 32.27f, 1);
+        RunActiveBlackHole(BlackHolePositions[0][2], 25.17f, 25.17f, 32.27f, 1);
         RunActiveBlackHole(BlackHolePositions[0][1], 25.17f, 32.27f, 39.33f, 1);
-        RunActiveBlackHole(BlackHolePositions[0][2], 25.17f, 32.27f, 39.33f, 1);
+        RunActiveBlackHole(BlackHolePositions[0][0], 25.17f, 32.27f, 39.33f, 1);
         
         for (var i = 0; i < 3; i++)
         {
