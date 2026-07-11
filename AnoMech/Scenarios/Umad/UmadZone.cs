@@ -8,8 +8,8 @@ namespace AnoMech.Scenarios.Umad;
 public sealed class UmadZone : IZone
 {
     public static readonly UmadZone Instance = new();
-    public static readonly Phase P2 = new(Instance, "P2", 79, 533);
-    public static readonly Phase P3 = new(Instance, "P3", 174, 533);
+    public static readonly Phase P2 = new(Instance, "P2", 79, 20292);
+    public static readonly Phase P3 = new(Instance, "P3", 174, 20293);
     public static readonly Phase P4 = new(Instance, "P4", 174, 20293);
     public static readonly Phase P5 = new(Instance, "P5", 175, 20294, InitP5Arena);
 
