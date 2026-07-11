@@ -82,6 +82,7 @@ public static class UmadConstants
         public const uint LookUponMeAndDespair_Omen    = 0xBAEEU; // rect 100x16 (len x width), cast 5.0s
         public const uint StompAMole_Cast              = 0xBAEFU; // single-target, cast 5.0s (cf. StompAMole 0xBAF0)
         public const uint StompAMole                   = 0xBAF0U; // circle r=5, cast 1.5s
+        public const uint UnmitigatedImpact            = 0xBAF1U; // circle r=100, instant; StompAMole (0xBAF0) failure resolution
         public const uint Cyclone                      = 0xBAF8U; // circle r=6, instant
         public const uint Earthquake_Cleanse           = 0xBAFAU; // circle r=100, instant (cf. Earthquake 0xC571)
         public const uint BlackHole                    = 0xBAFBU; // single-target, cast 3.0s
@@ -97,7 +98,7 @@ public static class UmadConstants
         public const uint ThunderIII_Cast              = 0xBB09U; // single-target, cast 5.0s
         public const uint ThunderIII_Resolve           = 0xBB0CU; // circle r=5, instant
         public const uint BlizzardIII                  = 0xBB0DU; // circle r=6, cast 3.0s
-        public const uint BlizzardIII_PuddlesQM        = 0xBB0FU; // single-target, cast 3.0s (cf. BlizzardIII 0xBB0D)
+        public const uint BlizzardIII_Cast             = 0xBB0FU; // single-target, cast 3.0s (cf. BlizzardIII 0xBB0D)
         public const uint BlizzardIII_Raidwide         = 0xBB11U; // circle r=100, cast 4.0s
         public const uint GrandCross                   = 0xBB14U; // circle r=100, cast 9.0s
         public const uint DeathBomb                    = 0xBB15U; // single-target, instant

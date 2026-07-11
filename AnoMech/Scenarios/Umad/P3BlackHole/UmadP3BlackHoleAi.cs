@@ -73,7 +73,11 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         world.Events.Add(129f, () => PullTether(playerIndex: 2));
         world.Events.Add(132f, () => GrabTether(tetherIndex: 0, playerIndex: 2));
         world.Events.Add(134f, () => DodgeLookUponSplit(tetherPlayerIndex: 2, lookKefkaIndex: 4));
-        ai.Move(139f, StackCentre);
+        ai.Move(139f, PrepositionForStomp);
+        ai.Move(147f, StompBlizzardCorners);
+        ai.Move(149.8f, StompStackAndTowers);
+        ai.Move(152.4f, StompSwapWest);
+        ai.Move(153.7f, StompSwapEast);
     }
 
     private static IAiMove StackCentreTanksHoldBossesCentred() =>
@@ -399,5 +403,75 @@ public sealed class UmadP3BlackHoleAi : IScenarioAi<UmadP3BlackHoleState>
         var c = MathF.Cos(MathF.PI / 3f);
         var s = MathF.Sin(MathF.PI / 3f);
         return new Vector2(dir.X * c - dir.Y * s, dir.X * s + dir.Y * c) * 8f;
+    }
+
+    // Stomp a Mole resolves in Kefka's spawn frame (KefkaPosition[4]): the two towers
+    // sit ±10 along Kefka's east-west, the spreads/stacks along its north-south. All the
+    // formations below are authored in that frame and rotated onto it. Roles split into a
+    // support group (0-3) and a DPS group (4-7); within each, even indices are the "west"
+    // pair and odd indices the "east" pair, so a role's side is consistent from the
+    // preposition through the corner spread to the towers.
+    private static readonly int[] SupportGroup = [0, 1, 2, 3];
+    private static readonly int[] DpsGroup = [4, 5, 6, 7];
+    private const float StompTowerX = 10f;        // tower offset along Kefka's east-west axis
+    private const float StompTowerPairGap = 1.5f; // the two soakers straddle the tower centre
+
+    // Whichever group owns the first stack marker (StackTargets[0], always one support +
+    // one DPS) stacks first; the other group takes the towers first, then they trade.
+    private bool SupportsStackFirst() => !state.StackTargets[0].IsDps();
+
+    // Supports gather north of centre, DPS south, ready for the first spread.
+    private IAiMove PrepositionForStomp() =>
+        AiMove.Create(new(0, -5), new (0, -5), new (0, -5), new (0, -5),
+                    new (0, 5), new(0, 5), new (0, 5), new (0, 5))
+              .NaturalOrder()
+              .ApplyPositions(state.KefkaPosition[4].Apply);
+
+    // First BlizzardIII spreads drop on the prepositioned spots; step out to the four
+    // intercardinal corners two-per-corner (supports north, DPS south, west pair vs east).
+    private IAiMove StompBlizzardCorners() =>
+        AiMove.Create(
+                  new(-8f, -10f), new(8f, -10f), new(-10f, -8f), new(10f, -8f),
+                  new(-8f, 10f), new(8f, 10f), new(-10f, 8f), new(10f, 8f))
+              .NaturalOrder()
+              .ApplyPositions(state.KefkaPosition[4].Apply);
+
+    // Second spread has dropped on the corners: the stacking group collapses to centre
+    // for the first knockback stack, the other group pairs onto the two towers.
+    private IAiMove StompStackAndTowers()
+    {
+        var coords = new Vector2?[8];
+        foreach (var r in SupportsStackFirst() ? SupportGroup : DpsGroup) coords[r] = Vector2.Zero;
+        PlaceOnTowers(coords, SupportsStackFirst() ? DpsGroup : SupportGroup);
+        return AiMove.Create(coords).NaturalOrder().ApplyPositions(state.KefkaPosition[4].Apply);
+    }
+
+    // The swap is staggered by side because the west tower resolves ~1.3s before the east:
+    // the west pairs trade the moment the first stack and the west tower are done, the east
+    // pairs only once the east tower has resolved (StompSwapEast). Each half sends the old
+    // tower pair back to centre for the second stack and the old stack pair out to its tower.
+    private IAiMove StompSwapWest() => StompSwapHalf(0, 2, -StompTowerX);
+    private IAiMove StompSwapEast() => StompSwapHalf(1, 3, StompTowerX);
+
+    // pairA/pairB are the two group-array indices making up this side's pair; towerX is
+    // the tower they trade onto/off of.
+    private IAiMove StompSwapHalf(int pairA, int pairB, float towerX)
+    {
+        var newTower = SupportsStackFirst() ? SupportGroup : DpsGroup; // old stackers now soak
+        var newStack = SupportsStackFirst() ? DpsGroup : SupportGroup; // old soakers now stack
+        var coords = new Vector2?[8];
+        coords[newTower[pairA]] = new Vector2(towerX, -StompTowerPairGap);
+        coords[newTower[pairB]] = new Vector2(towerX, StompTowerPairGap);
+        coords[newStack[pairA]] = Vector2.Zero;
+        coords[newStack[pairB]] = Vector2.Zero;
+        return AiMove.Create(coords).NaturalOrder().ApplyPositions(state.KefkaPosition[4].Apply);
+    }
+
+    private static void PlaceOnTowers(Vector2?[] coords, int[] group)
+    {
+        coords[group[0]] = new Vector2(-StompTowerX, -StompTowerPairGap);
+        coords[group[2]] = new Vector2(-StompTowerX, StompTowerPairGap);
+        coords[group[1]] = new Vector2(StompTowerX, -StompTowerPairGap);
+        coords[group[3]] = new Vector2(StompTowerX, StompTowerPairGap);
     }
 }

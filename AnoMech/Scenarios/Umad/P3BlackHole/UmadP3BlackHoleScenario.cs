@@ -20,7 +20,7 @@ namespace AnoMech.Scenarios.Umad.P3BlackHole;
 
 public sealed class UmadP3BlackHoleScenario : IScenario
 {
-    public string Name => "Black Hole (WIP)";
+    public string Name => "Black Hole";
     public IPhase Phase => UmadZone.P3;
 
     public void DrawSettings() => settingsWindow.Draw();
@@ -71,28 +71,10 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         Run_BlackHoleObstacles();
         Run_Kefka_400040E9_6();
         Run_Exdeath_400040E2();
-        Run_Exdeath_400040E3();
-        Run_Exdeath_400040E4_1();
-        Run_Exdeath_400040E5_3();
-        Run_Exdeath_400040E6_2();
-        Run_Exdeath_400040E7_2();
-        Run_Exdeath_400040E8_5();
-        Run_Exdeath_400040E9_11();
-        Run_Chaos_400040E0();
         Run_Chaos_400040E1();
         Run_Exdeath_400040D8_1();
-        Run_Exdeath_400040D9_1();
-        Run_Exdeath_400040DA_1();
-        Run_Exdeath_400040DB_1();
-        Run_Exdeath_400040DC_1();
-        Run_Exdeath_400040DD_1();
-        Run_Exdeath_400040DE_1();
-        Run_Exdeath_400040DF_1();
-        Run_Kefka_400040D7();
         Run_Kefka_400040D6();
-        Run_Kefka_400040E9_12();
         Run_Chaos_400040E8_6();
-        Run_Kefka_400040E7_3();
         Run_InstanceEvents();
         Run_OtherDebuffs();
         Run_PlayerLockons();
@@ -304,7 +286,7 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         world.Events.Add(122.45f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(125.48f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
         world.Events.Add(141.51f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.OffTank)?.GameObjectId));
-        world.Events.Add(143.61f, () => exdeath_4000414C?.Cast(ActionId.BlizzardIII_PuddlesQM));
+        world.Events.Add(143.61f, () => exdeath_4000414C?.Cast(ActionId.BlizzardIII_Cast));
         world.Events.Add(150.66f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.RegenHealer)?.GameObjectId));
         world.Events.Add(153.69f, () => exdeath_4000414C?.Cast(ActionId.AutoAttack2, castSeconds: 0f, targetId: party.Get(PartyRole.RegenHealer)?.GameObjectId));
         world.Events.Add(156.95f, () => exdeath_4000414C?.Cast(ActionId.BlizzardIII_Raidwide));
@@ -608,322 +590,70 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         world.Events.Add(137.35f, () => damage.Resolve(kefka_400040E9_6, ActionId.LookUponMeAndDespair_Omen, [DamageType.Lethal], []));
     }
 
+    private void RunBlizzard(SimEnemy? enemy, float offset, PartyRole role)
+    {
+        Vector3 target = new(); 
+        world.Events.Add(offset, () => 
+        {
+            target = party.Get(role)?.Position ?? target;
+            enemy?.Cast(ActionId.BlizzardIII, targetLocation: target);
+        });
+        world.Events.Add(offset + 3, () => damage.Resolve(IPositioned.From(target), ActionId.BlizzardIII, [DamageType.Lethal], []));
+        
+    }
+    
     private void Run_Exdeath_400040E2()
     {
-        SimEnemy? exdeath_400040E2 = null;
-        // [-1158.08s] 261|Add|400040E2|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|564c9ef6032c55d5
-        // [146.30s] 261|Change|400040E2|BNpcNameID|17A4|Name|Exdeath|b9748039fd178bfd
-        // [146.30s] 03|400040E2|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||90.10|109.90|0.00|0.00|88fa07ea2f5f348d
-        world.Events.Add(146.30f, () => exdeath_400040E2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-9.900f, 0.000f, 9.900f), 0.000f))));
-        // [146.68s] 20|400040E2|Exdeath|BB0D|Blizzard III|E0000000||2.700|90.10|109.90|0.00|0.00|31f8b7418eb469f0
-        world.Events.Add(146.68f, () => exdeath_400040E2?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-9.590f, -0.015f, -9.834f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E2|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||90.10|109.90|0.00|0.00|000088A4|0|0|00||01|BB0D|BB0D|1.100|7FFF|5a35d7ec09ff8758
-        // [149.68s] 264|400040E2|BB0D|000088A4|1|90.410|90.166|-0.015|0.000|E0000000|031337ed9468313c
-    }
-
-    private void Run_Exdeath_400040E3()
-    {
-        SimEnemy? exdeath_400040E3 = null;
-        // [-1158.08s] 261|Add|400040E3|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|af5d85afd40a0a7c
-        // [146.30s] 261|Change|400040E3|BNpcNameID|17A4|Name|Exdeath|a8f91626c99eaa86
-        // [146.30s] 03|400040E3|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||90.10|109.90|0.00|0.00|d7470240207a8b06
-        world.Events.Add(146.30f, () => exdeath_400040E3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-9.900f, 0.000f, 9.900f), 0.000f))));
-        // [146.68s] 20|400040E3|Exdeath|BB0D|Blizzard III|E0000000||2.700|90.10|109.90|0.00|0.00|9c2c38172d374141
-        world.Events.Add(146.68f, () => exdeath_400040E3?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-10.872f, -0.015f, -9.651f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E3|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||90.10|109.90|0.00|0.00|000088A5|0|0|00||01|BB0D|BB0D|1.100|7FFF|95e28b4160078af6
-        // [149.68s] 264|400040E3|BB0D|000088A5|1|89.128|90.349|-0.015|0.000|E0000000|15357c64075b10a5
-    }
-
-    private void Run_Exdeath_400040E4_1()
-    {
-        SimEnemy? exdeath_400040E4_1 = null;
-        // [146.30s] 261|Change|400040E4|BNpcNameID|17A4|Heading|-1.5876|Name|Exdeath|924127bea8c77c06
-        // [146.30s] 03|400040E4|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.74|100.65|0.00|-1.59|a8e96e824d820aa6
-        world.Events.Add(146.30f, () => exdeath_400040E4_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.740f, 0.000f, 0.650f), -1.590f))));
-        // [146.68s] 20|400040E4|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.74|100.65|0.00|-1.59|53ad86ed3bf26571
-        world.Events.Add(146.68f, () => exdeath_400040E4_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(9.972f, -0.015f, 9.178f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E4|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.74|100.65|0.00|-1.59|000088A6|0|0|00||01|BB0D|BB0D|1.100|3F50|036d4da0c4598ed8
-        // [149.68s] 264|400040E4|BB0D|000088A6|1|109.972|109.178|-0.015|-1.588|E0000000|f9c9b3875a2d153f
-    }
-
-    private void Run_Exdeath_400040E5_3()
-    {
-        SimEnemy? exdeath_400040E5_3 = null;
-        // [146.30s] 261|Change|400040E5|BNpcNameID|17A4|Heading|1.5539|Name|Exdeath|b97bef97e65bb559
-        // [146.30s] 03|400040E5|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.74|100.65|0.00|1.55|2f9d1211f5b8037b
-        world.Events.Add(146.30f, () => exdeath_400040E5_3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.740f, 0.000f, 0.650f), 1.550f))));
-        // [146.68s] 20|400040E5|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.74|100.65|0.00|1.55|a945cdead050f1a6
-        world.Events.Add(146.68f, () => exdeath_400040E5_3?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(10.246f, -0.015f, 9.728f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E5|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.74|100.65|0.00|1.55|000088A7|0|0|00||01|BB0D|BB0D|1.100|BF4F|5c88aab18069fc60
-        // [149.68s] 264|400040E5|BB0D|000088A7|1|110.246|109.728|-0.015|1.554|E0000000|28f22961a30a69d8
-    }
-
-    private void Run_Exdeath_400040E6_2()
-    {
-        SimEnemy? exdeath_400040E6_2 = null;
-        // [146.30s] 261|Change|400040E6|BNpcNameID|17A4|Name|Exdeath|c05dd66c49c15168
-        // [146.30s] 03|400040E6|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|100.00|0.00|0.00|00dbd67708b7b675
-        world.Events.Add(146.30f, () => exdeath_400040E6_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f))));
-        // [146.68s] 20|400040E6|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|100.00|0.00|0.00|5f1cf4441e34eeef
-        world.Events.Add(146.68f, () => exdeath_400040E6_2?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(9.178f, -0.015f, 9.911f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E6|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|100.00|0.00|0.00|000088A8|0|0|00||01|BB0D|BB0D|1.100|7FFF|f3a63d2b2cd275e4
-        // [149.68s] 264|400040E6|BB0D|000088A8|1|109.178|109.911|-0.015|0.000|E0000000|d8a6031cccce35dd
-    }
-
-    private void Run_Exdeath_400040E7_2()
-    {
-        SimEnemy? exdeath_400040E7_2 = null;
-        // [146.30s] 261|Change|400040E7|BNpcNameID|17A4|Name|Exdeath|38238309b1dfa96b
-        // [146.30s] 03|400040E7|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|100.00|0.00|2.39|ef98e0115d045b0e
-        world.Events.Add(146.30f, () => exdeath_400040E7_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 2.390f))));
-        // [146.68s] 20|400040E7|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|100.00|0.00|2.39|ee288b4a8e961347
-        world.Events.Add(146.68f, () => exdeath_400040E7_2?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-9.896f, -0.015f, -10.109f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E7|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|100.00|0.00|2.39|000088A9|0|0|00||01|BB0D|BB0D|1.100|E175|3e4b4e293e673262
-        // [149.68s] 264|400040E7|BB0D|000088A9|1|90.104|89.891|-0.015|2.392|E0000000|95f722a0d0a927e8
-        // [152.83s] 261|Change|400040E7|BNpcNameID|1BDB|CastGroundTargetX|90.1045|CastGroundTargetY|89.8909|CastGroundTargetZ|-0.0153|Heading|-0.7855|Name|Kefka|PosX|107.0711|PosY|92.9289|PosZ|0.0000|9a69c71c470f80a1
-        // [152.83s] 261|Change|400040E7|BNpcNameID|1BDB|CastGroundTargetX|90.1045|CastGroundTargetY|89.8909|CastGroundTargetZ|-0.0153|Heading|-0.7855|Name|Kefka|PosX|107.0711|PosY|92.9289|PosZ|0.0000|e5a0040321112e4f
-    }
-
-    private void Run_Exdeath_400040E8_5()
-    {
-        SimEnemy? exdeath_400040E8_5 = null;
-        // [146.30s] 261|Change|400040E8|BNpcNameID|17A4|Name|Exdeath|5c022cae8a20cb8f
-        // [146.30s] 03|400040E8|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|100.00|0.00|0.79|424a2ba847ccb68b
-        world.Events.Add(146.30f, () => exdeath_400040E8_5 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.790f))));
-        // [146.68s] 20|400040E8|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|100.00|0.00|0.79|65fbf93fdc051049
-        world.Events.Add(146.68f, () => exdeath_400040E8_5?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-9.743f, -0.015f, -9.316f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E8|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|100.00|0.00|0.79|000088AA|0|0|00||01|BB0D|BB0D|1.100|9FFF|f10ce4c1a88074a5
-        // [149.68s] 264|400040E8|BB0D|000088AA|1|90.257|90.684|-0.015|0.785|E0000000|ce611e4574ec864c
-        // [152.29s] 261|Change|400040E8|BNpcNameID|1E0B|CastGroundTargetX|90.2571|CastGroundTargetY|90.6843|CastGroundTargetZ|-0.0153|Heading|-2.2196|Name|Chaos|PosX|95.5477|PosY|94.7008|PosZ|0.0000|69a4cf292f9988a1
-        // [152.29s] 261|Change|400040E8|BNpcNameID|1E0B|CastGroundTargetX|90.2571|CastGroundTargetY|90.6843|CastGroundTargetZ|-0.0153|Heading|-2.2196|Name|Chaos|PosX|95.5477|PosY|94.7008|PosZ|0.0000|95fd410a9523ace8
-    }
-
-    private void Run_Exdeath_400040E9_11()
-    {
-        SimEnemy? exdeath_400040E9_11 = null;
-        // [146.30s] 261|Change|400040E9|BNpcNameID|17A4|Name|Exdeath|926e6848ca18f8a1
-        // [146.30s] 03|400040E9|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|104.00|0.00|0.00|7391277c04d50b94
-        world.Events.Add(146.30f, () => exdeath_400040E9_11 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 4.000f), 0.000f))));
-        // [146.68s] 20|400040E9|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|104.00|0.00|0.00|54f6d406da409e8b
-        world.Events.Add(146.68f, () => exdeath_400040E9_11?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(10.491f, -0.015f, 9.880f), castSeconds: 2.700f));
-        // [149.68s] 21|400040E9|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|104.00|0.00|0.00|000088AB|0|0|00||01|BB0D|BB0D|1.100|7FFF|d998384db5cc7be9
-        // [149.68s] 264|400040E9|BB0D|000088AB|1|110.491|109.880|-0.015|0.000|E0000000|09e02623a6131206
-    }
-
-    private void Run_Chaos_400040E0()
-    {
-        SimEnemy? chaos_400040E0 = null;
-        // [-1158.08s] 261|Add|400040E0|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|1e2a55bbc95d6f68
-        // [147.09s] 271|400040E0|-2.2196|00|00|95.5477|94.7008|0.2000|127532ef39b42b1c
-        world.Events.Add(147.09f, () => chaos_400040E0?.SetPosition(new Placement(new Vector3(-4.452f, 0.200f, -5.299f), -2.220f)));
-        // [146.83s] 261|Change|400040E0|BNpcNameID|1E0B|Heading|-2.2196|Name|Chaos|PosX|95.5477|PosY|94.7008|PosZ|0.0000|61ecf71148a4a31c
-        // [146.83s] 03|400040E0|Chaos|00|1|0000|00||7691|9020|44|44|0|10000|||95.55|94.70|0.00|-2.22|f69e1c4aa16f11ce
-        world.Events.Add(146.83f, () => chaos_400040E0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Chaos, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-4.450f, 0.000f, -5.300f), -2.220f))));
+        for (int i = 0; i < 8; i++)
+        {
+            SimEnemy? exdeath_400040E2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-9.900f, 0.000f, 9.900f), 0.000f)));
+            RunBlizzard(exdeath_400040E2, 146.68f, (PartyRole)i);
+        }
     }
 
     private void Run_Chaos_400040E1()
     {
         SimEnemy? chaos_400040E1 = null;
-        // [-1158.08s] 261|Add|400040E1|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|cad52e7562bb811a
-        // [147.09s] 271|400040E1|-2.2196|00|00|95.5477|94.7008|0.2000|7e6a4a502abd5856
         world.Events.Add(147.09f, () => chaos_400040E1?.SetPosition(new Placement(new Vector3(-4.452f, 0.200f, -5.299f), -2.220f)));
-        // [146.83s] 261|Change|400040E1|BNpcNameID|1E0B|Heading|-2.2196|Name|Chaos|PosX|95.5477|PosY|94.7008|PosZ|0.0000|aede0fb7f43afa2d
-        // [146.83s] 03|400040E1|Chaos|00|1|0000|00||7691|9020|44|44|0|10000|||95.55|94.70|0.00|-2.22|3118d396e4ac51aa
         world.Events.Add(146.83f, () => chaos_400040E1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Chaos, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-4.450f, 0.000f, -5.300f), -2.220f))));
-        // [152.13s] 22|400040E1|Chaos|BB03|Knock Down|10066D86|ShieldHealer|750603|FEE30000|E80E|B7D0000|1B|BB038000|0|0|0|0|0|0|0|0|0|0|205177|205177|9360|10000|||100.14|100.27|0.00|-2.86|44|44|0|10000|||95.55|94.70|0.00|-2.22|000088C1|0|4|00||01|BB03|BB03|1.100|2591|b755834cc74794db
-        world.Events.Add(152.13f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: party.Get(PartyRole.ShieldHealer)?.GameObjectId));
-        // [152.13s] 22|400040E1|Chaos|BB03|Knock Down|100AF82E|MainTank|750003|5ADA4001|E80E|B7D0000|1B|BB038000|0|0|0|0|0|0|0|0|0|0|325133|325133|7800|10000|||101.93|97.79|0.00|0.48|44|44|0|10000|||95.55|94.70|0.00|-2.22|000088C1|1|4|00||01|BB03|BB03|1.100|2591|b694f47153d639a8
-        world.Events.Add(152.13f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: party.Get(PartyRole.MainTank)?.GameObjectId));
-        // [152.13s] 22|400040E1|Chaos|BB03|Knock Down|1009061B|MeleeDpsA|750603|AA5B4001|E80E|B7D0000|1B|BB038000|0|0|0|0|0|0|0|0|0|0|205177|205177|7060|10000|||100.95|101.93|0.00|-2.45|44|44|0|10000|||95.55|94.70|0.00|-2.22|000088C1|2|4|00||01|BB03|BB03|1.100|2591|8c6b11b77bebf9a5
-        world.Events.Add(152.13f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: party.Get(PartyRole.MeleeDpsA)?.GameObjectId));
-        // [152.13s] 22|400040E1|Chaos|BB03|Knock Down|100AE96C|RegenHealer|EC750005|1E214001|E80E|B7D0000|1B|BB038000|0|0|0|0|0|0|0|0|0|0|311227|325047|8900|10000|||99.14|98.82|0.00|-0.37|44|44|0|10000|||95.55|94.70|0.00|-2.22|000088C1|3|4|00||01|BB03|BB03|1.100|2591|f565a4ccafc6b084
-        world.Events.Add(152.13f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: party.Get(PartyRole.RegenHealer)?.GameObjectId));
-        // [152.13s] 26|B7D|Magic Vulnerability Up|1.96|400040E1|Chaos|1009061B|MeleeDpsA|00|205177|44|958fb3e49de98b3c
-        world.Events.Add(152.13f, () => party.Get(PartyRole.MeleeDpsA)?.AddStatus(StatusId.MagicVulnerabilityUp, 1.960f));
-        // [152.13s] 264|400040E1|BB03|000088C1|1|-0.015|-0.015|-0.015|-2.220|10066D86|146f92a3e557993b
-        // [152.13s] 26|B7D|Magic Vulnerability Up|1.96|400040E1|Chaos|100AF82E|MainTank|00|325133|44|02fe0bcdc851c6b2
-        world.Events.Add(152.13f, () => party.Get(PartyRole.MainTank)?.AddStatus(StatusId.MagicVulnerabilityUp, 1.960f));
-        // [152.13s] 26|B7D|Magic Vulnerability Up|1.96|400040E1|Chaos|100AE96C|RegenHealer|00|325047|44|164ef54c512939d8
-        world.Events.Add(152.13f, () => party.Get(PartyRole.RegenHealer)?.AddStatus(StatusId.MagicVulnerabilityUp, 1.960f));
-        // [152.13s] 26|B7D|Magic Vulnerability Up|1.96|400040E1|Chaos|10066D86|ShieldHealer|00|205177|44|d8d5243e9291dba5
-        world.Events.Add(152.13f, () => party.Get(PartyRole.ShieldHealer)?.AddStatus(StatusId.MagicVulnerabilityUp, 1.960f));
-        // [154.10s] 30|B7D|Magic Vulnerability Up|0.00|400040E1|Chaos|1009061B|MeleeDpsA|00|205177|44|0d0ce49784fb14e8
-        world.Events.Add(154.10f, () => party.Get(PartyRole.MeleeDpsA)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [154.10s] 30|B7D|Magic Vulnerability Up|0.00|400040E1|Chaos|100AF82E|MainTank|00|325133|44|b623950315dfe2a6
-        world.Events.Add(154.10f, () => party.Get(PartyRole.MainTank)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [154.10s] 30|B7D|Magic Vulnerability Up|0.00|400040E1|Chaos|100AE96C|RegenHealer|00|325047|44|ca53eb2142e27c04
-        world.Events.Add(154.10f, () => party.Get(PartyRole.RegenHealer)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [154.10s] 30|B7D|Magic Vulnerability Up|0.00|400040E1|Chaos|10066D86|ShieldHealer|00|205177|44|54d2295d0c1b0e23
-        world.Events.Add(154.10f, () => party.Get(PartyRole.ShieldHealer)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
+        world.Events.Add(152.13f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: state.StackTargets.Get(0)?.GameObjectId));
+        world.Events.Add(152.13f, () => damage.Resolve(state.StackTargets.Get(0), ActionId.KnockDown, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 1.960f)], stackMinTargets: 4));
+        world.Events.Add(157.67f, () => chaos_400040E1?.Cast(ActionId.KnockDown, castSeconds: 0f, targetId: state.StackTargets.Get(1)?.GameObjectId));
+        world.Events.Add(157.67f, () => damage.Resolve(state.StackTargets.Get(1), ActionId.KnockDown, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 1.960f)], stackMinTargets: 4));
     }
 
 
     private void Run_Exdeath_400040D8_1()
     {
-        SimEnemy? exdeath_400040D8_1 = null;
-        // [149.34s] 03|400040D8|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|52bee4d181520609
-        world.Events.Add(149.34f, () => exdeath_400040D8_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040D8|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|cd649cb6b144a9b2
-        world.Events.Add(149.73f, () => exdeath_400040D8_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-11.330f, -0.015f, -1.137f), castSeconds: 2.700f));
-        // [152.71s] 21|400040D8|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088C8|0|0|00||01|BB0D|BB0D|1.100|7FFF|b3e77291fb03a81e
-        // [152.71s] 264|400040D8|BB0D|000088C8|1|88.670|98.863|-0.015|0.000|E0000000|c006bf59d75d4d1a
+        for(int i = 0; i < 8; i++)
+        {
+            SimEnemy? exdeath_400040D8_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f)));
+            RunBlizzard(exdeath_400040D8_1, 149.73f,(PartyRole)i);
+        }
     }
 
-    private void Run_Exdeath_400040D9_1()
-    {
-        SimEnemy? exdeath_400040D9_1 = null;
-        // [149.34s] 03|400040D9|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|19df72dfb8bdd4cb
-        world.Events.Add(149.34f, () => exdeath_400040D9_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040D9|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|40289ec0408d57cc
-        world.Events.Add(149.73f, () => exdeath_400040D9_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-10.811f, -0.015f, 0.481f), castSeconds: 2.700f));
-        // [152.71s] 21|400040D9|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088C9|0|0|00||01|BB0D|BB0D|1.100|7FFF|2b19d1dc0de3c303
-        // [152.71s] 264|400040D9|BB0D|000088C9|1|89.189|100.481|-0.015|0.000|E0000000|407f1d7206bf507d
-    }
-
-    private void Run_Exdeath_400040DA_1()
-    {
-        SimEnemy? exdeath_400040DA_1 = null;
-        // [149.34s] 03|400040DA|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|cf1e8475af5c2bc8
-        world.Events.Add(149.34f, () => exdeath_400040DA_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DA|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|bb834ade4930f105
-        world.Events.Add(149.73f, () => exdeath_400040DA_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(13.176f, -0.015f, 2.251f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DA|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CA|0|0|00||01|BB0D|BB0D|1.100|7FFF|1b1c0a27eb5ff8e7
-        // [152.71s] 264|400040DA|BB0D|000088CA|1|113.176|102.251|-0.015|0.000|E0000000|d0c0961aa9aa3a65
-    }
-
-    private void Run_Exdeath_400040DB_1()
-    {
-        SimEnemy? exdeath_400040DB_1 = null;
-        // [149.34s] 03|400040DB|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|0f2a7ff4e8d60380
-        world.Events.Add(149.34f, () => exdeath_400040DB_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DB|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|6bf7a7813a46ca8d
-        world.Events.Add(149.73f, () => exdeath_400040DB_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(12.627f, -0.015f, 0.420f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DB|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CB|0|0|00||01|BB0D|BB0D|1.100|7FFF|d02f992b7e969258
-        // [152.71s] 264|400040DB|BB0D|000088CB|1|112.627|100.420|-0.015|0.000|E0000000|22d14c4696c5d567
-    }
-
-    private void Run_Exdeath_400040DC_1()
-    {
-        SimEnemy? exdeath_400040DC_1 = null;
-        // [149.34s] 03|400040DC|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|22c182591ee91068
-        world.Events.Add(149.34f, () => exdeath_400040DC_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DC|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|adbec99629e74602
-        world.Events.Add(149.73f, () => exdeath_400040DC_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(2.403f, -0.015f, 12.474f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DC|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CC|0|0|00||01|BB0D|BB0D|1.100|7FFF|186c0648f9312a70
-        // [152.71s] 264|400040DC|BB0D|000088CC|1|102.403|112.474|-0.015|0.000|E0000000|c682199519d229e8
-    }
-
-    private void Run_Exdeath_400040DD_1()
-    {
-        SimEnemy? exdeath_400040DD_1 = null;
-        // [149.34s] 03|400040DD|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|73d06fddb58f4b2b
-        world.Events.Add(149.34f, () => exdeath_400040DD_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DD|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|80e3a2285c599d61
-        world.Events.Add(149.73f, () => exdeath_400040DD_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-2.388f, -0.015f, -14.534f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DD|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CD|0|0|00||01|BB0D|BB0D|1.100|7FFF|c1e6eae8fe36454d
-        // [152.71s] 264|400040DD|BB0D|000088CD|1|97.612|85.466|-0.015|0.000|E0000000|f33349587ba024d1
-    }
-
-    private void Run_Exdeath_400040DE_1()
-    {
-        SimEnemy? exdeath_400040DE_1 = null;
-        // [149.34s] 03|400040DE|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|fd353c1df54ad619
-        world.Events.Add(149.34f, () => exdeath_400040DE_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DE|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|29ddc05c5fc94567
-        world.Events.Add(149.73f, () => exdeath_400040DE_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(-1.686f, -0.015f, -13.130f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DE|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CE|0|0|00||01|BB0D|BB0D|1.100|7FFF|de12ddcba3c46424
-        // [152.71s] 264|400040DE|BB0D|000088CE|1|98.314|86.870|-0.015|0.000|E0000000|2866a351b48de195
-    }
-
-    private void Run_Exdeath_400040DF_1()
-    {
-        SimEnemy? exdeath_400040DF_1 = null;
-        // [149.34s] 03|400040DF|Exdeath|00|1|0000|00||6052|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|90973910f7b33432
-        world.Events.Add(149.34f, () => exdeath_400040DF_1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Exdeath, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [149.73s] 20|400040DF|Exdeath|BB0D|Blizzard III|E0000000||2.700|100.00|90.00|0.00|0.00|59e530b7866da6d9
-        world.Events.Add(149.73f, () => exdeath_400040DF_1?.Cast(ActionId.BlizzardIII, targetLocation: new Vector3(2.190f, -0.015f, 11.589f), castSeconds: 2.700f));
-        // [152.71s] 21|400040DF|Exdeath|BB0D|Blizzard III|E0000000||0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|||||||||||44|44|0|10000|||100.00|90.00|0.00|0.00|000088CF|0|0|00||01|BB0D|BB0D|1.100|7FFF|e267b993fe5c6d5d
-        // [152.71s] 264|400040DF|BB0D|000088CF|1|102.190|111.589|-0.015|0.000|E0000000|4a676afc0f1ec812
-    }
-
-    private void Run_Kefka_400040D7()
+    private void RunStomp(float offset, int mul)
     {
         SimEnemy? kefka_400040D7 = null;
-        // [-1158.34s] 03|400040D7|Kefka|00|1|0000|00||7131|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|c8006d0ede2badd1
-        // world.Events.Add(-1158.34f, () => kefka_400040D7 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [-1158.34s] 261|Add|400040D7|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|cb7e88037534751a
-        // [-1157.24s] 261|Change|400040D7|ModelStatus|0|42ab55ce0977baad
-        // world.Events.Add(-1157.24f, () => kefka_400040D7?.SetVisible(true));
-        // [150.48s] 271|400040D7|2.3562|00|00|92.9289|107.0711|0.0000|96c25aaa3ce2c3ab
-        world.Events.Add(150.48f, () => kefka_400040D7?.SetPosition(new Placement(new Vector3(-7.071f, 0.000f, 7.071f), 2.356f)));
-        // [150.71s] 20|400040D7|Kefka|BAF0|Stomp-a-Mole|400040D7|Kefka|1.200|92.93|107.07|0.00|2.36|3f132f26e7358fbf
-        world.Events.Add(150.71f, () => kefka_400040D7?.Cast(ActionId.StompAMole, targetLocation: new Vector3(-7.088f, -0.015f, 7.042f), castSeconds: 1.200f, targetId: kefka_400040D7?.GameObjectId));
-        // [152.18s] 22|400040D7|Kefka|BAF0|Stomp-a-Mole|100AC8F1|CasterDps|750603|65CE4002|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|227550|227550|10000|10000|||94.05|106.46|-0.02|1.51|44|44|0|10000|||92.93|107.07|0.00|2.36|000088C2|0|2|00||01|BAF0|BAF0|1.100|DFFF|34a564a8e43e05ce
-        // [152.18s] 22|400040D7|Kefka|BAF0|Stomp-a-Mole|10018AEA|MeleeDpsB|750603|72664002|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|226668|226668|10000|10000|||94.74|107.47|0.00|-3.02|44|44|0|10000|||92.93|107.07|0.00|2.36|000088C2|1|2|00||01|BAF0|BAF0|1.100|DFFF|89c7b890603bcf35
-        world.Events.Add(152.18f, () => kefka_400040D7?.Cast(ActionId.StompAMole, castSeconds: 0f, targetId: party.Get(PartyRole.MeleeDpsB)?.GameObjectId));
-        // [152.18s] 264|400040D7|BAF0|000088C2|1|-0.015|-0.015|-0.015|2.356|400040D7|bc2fd4320295b574
-        // [152.18s] 26|B7D|Magic Vulnerability Up|3.00|400040D7|Kefka|10018AEA|MeleeDpsB|00|226668|44|840ec347a4f2d81d
-        world.Events.Add(152.18f, () => party.Get(PartyRole.MeleeDpsB)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [152.18s] 26|B7D|Magic Vulnerability Up|3.00|400040D7|Kefka|100AC8F1|CasterDps|00|227550|44|af50c037a24da19a
-        world.Events.Add(152.18f, () => party.Get(PartyRole.CasterDps)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [155.21s] 30|B7D|Magic Vulnerability Up|0.00|400040D7|Kefka|10018AEA|MeleeDpsB|00|226668|44|e323c64f92f575e8
-        world.Events.Add(155.21f, () => party.Get(PartyRole.MeleeDpsB)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [155.21s] 30|B7D|Magic Vulnerability Up|0.00|400040D7|Kefka|100AC8F1|CasterDps|00|227550|44|762b6041cc5b1e0c
-        world.Events.Add(155.21f, () => party.Get(PartyRole.CasterDps)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
+        world.Events.Add(0f, () => kefka_400040D7 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
+        world.Events.Add(offset - 1, () => kefka_400040D7?.SetPosition(state.KefkaPosition[4].Apply(new Placement(new Vector3(mul * 10, 0, 0), 0))));
+        world.Events.Add(offset, () => kefka_400040D7?.Cast(ActionId.StompAMole));
+        world.Events.Add(offset + 1.5f, () =>
+        {
+            if (damage.Resolve(kefka_400040D7, ActionId.StompAMole, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 3)], stackMinTargets: 2).Count == 0)
+            {
+               kefka_400040D7?.Cast(ActionId.UnmitigatedImpact); 
+               damage.Resolve(kefka_400040D7, ActionId.UnmitigatedImpact, [DamageType.Lethal], []);
+            }
+        });
     }
 
     private void Run_Kefka_400040D6()
     {
-        SimEnemy? kefka_400040D6 = null;
-        // [-1158.34s] 03|400040D6|Kefka|00|1|0000|00||7131|9020|44|44|0|10000|||100.00|90.00|0.00|0.00|d07eed45a4fd970f
-        // world.Events.Add(-1158.34f, () => kefka_400040D6 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
-        // [-1158.34s] 261|Add|400040D6|BNpcID|233C|BNpcNameID|1BDB|CastTargetID|E0000000|CurrentWorldID|65535|Heading|0.0000|Level|1|MaxHP|44|ModelStatus|2048|Name|Kefka|NPCTargetID|E0000000|PosX|100.0000|PosY|90.0000|PosZ|0.0000|Radius|0.5000|Type|2|WorldID|65535|7379f868dd49aac7
-        // [-1157.24s] 261|Change|400040D6|ModelStatus|0|3172d3ab975f9697
-        // world.Events.Add(-1157.24f, () => kefka_400040D6?.SetVisible(true));
-        // [150.62s] 271|400040D6|-0.7855|00|00|107.0711|92.9289|0.0000|e50b4b7bcfc66abc
-        world.Events.Add(150.62f, () => kefka_400040D6?.SetPosition(new Placement(new Vector3(7.071f, 0.000f, -7.071f), -0.785f)));
-        // [152.00s] 20|400040D6|Kefka|BAF0|Stomp-a-Mole|400040D6|Kefka|1.200|107.07|92.93|0.00|-0.79|fe4326de83098878
-        world.Events.Add(152.00f, () => kefka_400040D6?.Cast(ActionId.StompAMole, targetLocation: new Vector3(7.042f, -0.015f, -7.088f), castSeconds: 1.200f, targetId: kefka_400040D6?.GameObjectId));
-        // [151.71s] 261|Change|400040D6|CastBuffID|47856|CastDurationCurrent|0.0161|CastDurationMax|1.2000|CastTargetID|400040D6|IsCasting1|1|IsCasting2|1|7a0087ae6be3c6b5
-        // [153.47s] 22|400040D6|Kefka|BAF0|Stomp-a-Mole|100A7A8F|OffTank|750603|20DC4002|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|217488|217488|10000|10000|||107.09|92.89|0.00|-1.58|44|44|0|10000|||107.07|92.93|0.00|-0.79|000088D5|0|2|00||01|BAF0|BAF0|1.100|5FFF|3b89b4b390477170
-        // [153.47s] 22|400040D6|Kefka|BAF0|Stomp-a-Mole|100702A3|Player|750603|F1954001|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|205207|205207|5800|10000|||107.38|93.52|0.00|-2.43|44|44|0|10000|||107.07|92.93|0.00|-0.79|000088D5|1|2|00||01|BAF0|BAF0|1.100|5FFF|de427ec61f26d32c
-        world.Events.Add(153.47f, () => kefka_400040D6?.Cast(ActionId.StompAMole, castSeconds: 0f, targetId: party.Get(PartyRole.PhysRangedDps)?.GameObjectId));
-        // [153.47s] 264|400040D6|BAF0|000088D5|1|-0.015|-0.015|-0.015|-0.785|400040D6|48e84bc267fc13c1
-        // [153.47s] 26|B7D|Magic Vulnerability Up|3.00|400040D6|Kefka|100A7A8F|OffTank|00|217488|44|95572573b329f740
-        world.Events.Add(153.47f, () => party.Get(PartyRole.OffTank)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [153.47s] 26|B7D|Magic Vulnerability Up|3.00|400040D6|Kefka|100702A3|Player|00|205207|44|f134a51f767d7235
-        world.Events.Add(153.47f, () => party.Get(PartyRole.PhysRangedDps)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [153.03s] 261|Change|400040D6|CastBuffID|0|CastDurationCurrent|0.0000|CastDurationMax|0.0000|CastTargetID|E0000000|IsCasting1|0|IsCasting2|0|f6177ead0076f70f
-        // [156.50s] 30|B7D|Magic Vulnerability Up|0.00|400040D6|Kefka|100A7A8F|OffTank|00|217488|44|3eaea0aafe9ab456
-        world.Events.Add(156.50f, () => party.Get(PartyRole.OffTank)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [156.50s] 30|B7D|Magic Vulnerability Up|0.00|400040D6|Kefka|100702A3|Player|00|205207|44|305cb4a313229d83
-        world.Events.Add(156.50f, () => party.Get(PartyRole.PhysRangedDps)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-    }
-
-    private void Run_Kefka_400040E9_12()
-    {
-        SimEnemy? kefka_400040E9_12 = null;
-        // [151.91s] 271|400040E9|2.3562|00|00|92.9289|107.0711|0.0000|242cd3d347f25360
-        world.Events.Add(151.91f, () => kefka_400040E9_12?.SetPosition(new Placement(new Vector3(-7.071f, 0.000f, 7.071f), 2.356f)));
-        // [151.71s] 261|Change|400040E9|BNpcNameID|1BDB|CastGroundTargetX|110.4905|CastGroundTargetY|109.8801|CastGroundTargetZ|-0.0153|Heading|2.3562|Name|Kefka|PosX|92.9289|PosY|107.0711|PosZ|0.0000|6287b148ec20c8fd
-        // [151.71s] 03|400040E9|Kefka|00|1|0000|00||7131|9020|44|44|0|10000|||92.93|107.07|0.00|2.36|554d83b81ea14baf
-        world.Events.Add(151.71f, () => kefka_400040E9_12 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(-7.070f, 0.000f, 7.070f), 2.360f))));
-        // [153.29s] 20|400040E9|Kefka|BAF0|Stomp-a-Mole|400040E9|Kefka|1.200|92.93|107.07|0.00|2.36|27fd6ad1a49a6451
-        world.Events.Add(153.29f, () => kefka_400040E9_12?.Cast(ActionId.StompAMole, targetLocation: new Vector3(-7.088f, -0.015f, 7.042f), castSeconds: 1.200f, targetId: kefka_400040E9_12?.GameObjectId));
-        // [152.92s] 261|Change|400040E9|CastBuffID|47856|CastDurationCurrent|0.0170|CastDurationMax|1.2000|CastTargetID|400040E9|IsCasting1|1|IsCasting2|1|3ae89d393aa4d931
-        // [154.77s] 22|400040E9|Kefka|BAF0|Stomp-a-Mole|1009061B|MeleeDpsA|750603|2B054002|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|149526|205177|6395|10000|||94.59|108.20|0.00|-2.35|44|44|0|10000|||92.93|107.07|0.00|2.36|000088DE|0|2|00||01|BAF0|BAF0|1.100|DFFF|51fbc859270a5890
-        // [154.77s] 22|400040E9|Kefka|BAF0|Stomp-a-Mole|10066D86|ShieldHealer|750603|B65A4001|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|197585|205177|8410|10000|||95.22|106.54|0.00|-2.31|44|44|0|10000|||92.93|107.07|0.00|2.36|000088DE|1|2|00||01|BAF0|BAF0|1.100|DFFF|64d0748975b78e96
-        world.Events.Add(154.77f, () => kefka_400040E9_12?.Cast(ActionId.StompAMole, castSeconds: 0f, targetId: party.Get(PartyRole.ShieldHealer)?.GameObjectId));
-        // [154.77s] 264|400040E9|BAF0|000088DE|1|-0.015|-0.015|-0.015|2.356|400040E9|acff8d32d83fb137
-        // [154.77s] 26|B7D|Magic Vulnerability Up|3.00|400040E9|Kefka|1009061B|MeleeDpsA|00|205177|44|cc6c65c004f956ac
-        world.Events.Add(154.77f, () => party.Get(PartyRole.MeleeDpsA)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [154.77s] 26|B7D|Magic Vulnerability Up|3.00|400040E9|Kefka|10066D86|ShieldHealer|00|205177|44|545c705f2d21f754
-        world.Events.Add(154.77f, () => party.Get(PartyRole.ShieldHealer)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [154.42s] 261|Change|400040E9|CastBuffID|0|CastDurationCurrent|0.0000|CastDurationMax|0.0000|CastTargetID|E0000000|IsCasting1|0|IsCasting2|0|b3f2b6ca3d56edaa
-        // [157.80s] 30|B7D|Magic Vulnerability Up|0.00|400040E9|Kefka|1009061B|MeleeDpsA|00|205177|44|2d4351cdf934e78b
-        world.Events.Add(157.80f, () => party.Get(PartyRole.MeleeDpsA)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [157.80s] 30|B7D|Magic Vulnerability Up|0.00|400040E9|Kefka|10066D86|ShieldHealer|00|205177|44|34b248927aecfda2
-        world.Events.Add(157.80f, () => party.Get(PartyRole.ShieldHealer)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
+        RunStomp(150.71f, -1);
+        RunStomp(152.00f, 1);
+        RunStomp(153.29f, -1);
+        RunStomp(154.63f, 1);
     }
 
     private void Run_Chaos_400040E8_6()
@@ -958,30 +688,5 @@ public sealed class UmadP3BlackHoleScenario : IScenario
         world.Events.Add(159.63f, () => party.Get(PartyRole.MeleeDpsB)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
         // [159.63s] 30|B7D|Magic Vulnerability Up|0.00|400040E8|Chaos|100AC8F1|CasterDps|00|227550|44|8ea67f20190b40b7
         world.Events.Add(159.63f, () => party.Get(PartyRole.CasterDps)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-    }
-
-    private void Run_Kefka_400040E7_3()
-    {
-        SimEnemy? kefka_400040E7_3 = null;
-        // [153.20s] 271|400040E7|-0.7855|00|00|107.0711|92.9289|0.0000|58dfb4b9df46eec7
-        world.Events.Add(153.20f, () => kefka_400040E7_3?.SetPosition(new Placement(new Vector3(7.071f, 0.000f, -7.071f), -0.785f)));
-        // [152.92s] 03|400040E7|Kefka|00|1|0000|00||7131|9020|44|44|0|10000|||107.07|92.93|0.00|-0.79|9c7ad75052833cd5
-        world.Events.Add(152.92f, () => kefka_400040E7_3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(7.070f, 0.000f, -7.070f), -0.790f))));
-        // [154.63s] 20|400040E7|Kefka|BAF0|Stomp-a-Mole|400040E7|Kefka|1.200|107.07|92.93|0.00|-0.79|226daed647e316bd
-        world.Events.Add(154.63f, () => kefka_400040E7_3?.Cast(ActionId.StompAMole, targetLocation: new Vector3(7.042f, -0.015f, -7.088f), castSeconds: 1.200f, targetId: kefka_400040E7_3?.GameObjectId));
-        // [154.31s] 261|Change|400040E7|CastBuffID|47856|CastDurationCurrent|0.0168|CastDurationMax|1.2000|CastTargetID|400040E7|IsCasting1|1|IsCasting2|1|27efd493f0fb7092
-        // [156.11s] 22|400040E7|Kefka|BAF0|Stomp-a-Mole|100AF82E|MainTank|750003|C33B4001|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|260660|325133|8000|10000|||107.68|92.91|0.00|-2.77|44|44|0|10000|||107.07|92.93|0.00|-0.79|000088EB|0|2|00||01|BAF0|BAF0|1.100|5FFF|4904ab2945c61790
-        // [156.11s] 22|400040E7|Kefka|BAF0|Stomp-a-Mole|100AE96C|RegenHealer|750603|61394001|E80E|B7D0000|1B|BAF08000|0|0|0|0|0|0|0|0|0|0|259563|325047|9500|10000|||105.57|91.66|0.00|-2.83|44|44|0|10000|||107.07|92.93|0.00|-0.79|000088EB|1|2|00||01|BAF0|BAF0|1.100|5FFF|c0038e183c0a53ef
-        world.Events.Add(156.11f, () => kefka_400040E7_3?.Cast(ActionId.StompAMole, castSeconds: 0f, targetId: party.Get(PartyRole.RegenHealer)?.GameObjectId));
-        // [156.11s] 264|400040E7|BAF0|000088EB|1|-0.015|-0.015|-0.015|-0.785|400040E7|d56f69bb7b4a2795
-        // [156.11s] 26|B7D|Magic Vulnerability Up|3.00|400040E7|Kefka|100AF82E|MainTank|00|325133|44|64f4c7d1789232b0
-        world.Events.Add(156.11f, () => party.Get(PartyRole.MainTank)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [156.11s] 26|B7D|Magic Vulnerability Up|3.00|400040E7|Kefka|100AE96C|RegenHealer|00|325047|44|a12131b6e4d193d8
-        world.Events.Add(156.11f, () => party.Get(PartyRole.RegenHealer)?.AddStatus(StatusId.MagicVulnerabilityUp, 3.000f));
-        // [155.80s] 261|Change|400040E7|CastBuffID|0|CastDurationCurrent|0.0000|CastDurationMax|0.0000|CastTargetID|E0000000|IsCasting1|0|IsCasting2|0|a429fad9025f73e8
-        // [159.14s] 30|B7D|Magic Vulnerability Up|0.00|400040E7|Kefka|100AF82E|MainTank|00|325133|44|d5379a6a95bd67b6
-        world.Events.Add(159.14f, () => party.Get(PartyRole.MainTank)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-        // [159.14s] 30|B7D|Magic Vulnerability Up|0.00|400040E7|Kefka|100AE96C|RegenHealer|00|325047|44|10ae5835bc7f93ae
-        world.Events.Add(159.14f, () => party.Get(PartyRole.RegenHealer)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
     }
 }
