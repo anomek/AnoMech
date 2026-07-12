@@ -36,8 +36,10 @@ See: https://github.com/anomek/MyDalamudPlugins
         - [\[LPDU\] Buddies](https://raidplan.io/plan/142oXOZpPc_jh3dd)
         - [\[Old\] p3Z Buddy Meow](https://raidplan.io/plan/lZWqxfxvyhF9sp3Z)
         - [\[Old\] zP6 South adjust](https://raidplan.io/plan/rtc1FcuZFMuyBzP6)
-    - P3 Black Hole (Work in Pogress) _old bh (DSA, single tethers)_
+    - P3 Black Hole _old bh (DSA, single tethers, n/s stomps)_
     - P4 Kefka Says _kefkabin_
+    - P5 Exaflares _by [Wydox](https://github.com/Wydox)_
+    - P5 Forsaken Null _no ai or damage_
 - The Omega Protocol (Ultimate): _NA pf strats_
     - P2 Party Synergy
     - P5 Delta
@@ -65,20 +67,16 @@ See: https://github.com/anomek/MyDalamudPlugins
 
 
 ## Known issues
-* May still crash sometimes
 * Minor visual and timing issues may occur
 * In scenarios for Top Omega Protocol (Ultimate):
   * Tether distance threshold are very rough estimations
   * Line AOE from Optiocal Unit (eye) doesn't render
-* Dancing Mad (Ultimate) P3 Black Hole is still work in progress and will get more polish
-  * Stomp a Mole is not yet implemeneted
-  * It should be quite accurate up to Stomp a Mole
 
 #  Acknowledgments
 
 Thanks for contributors:
-* [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting backend & fixing crashes, scenarios for uwu
-* [Wydox](https://github.com/Wydox) - EU strats for Forsaken
+* [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting core & fixing crashes, scenarios for uwu
+* [Wydox](https://github.com/Wydox) - EU strats for Forsaken, UMAD Exaflares, core improvements
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:
