@@ -26,6 +26,9 @@ public static class FruConstants
         public const byte PandoraArena = 47; // sgbg_n4gw_a6_gmc01.sgb
         public const uint Show = 0x00010001;
         public const uint Hide = 0x00040004;
+        // P5 two-person towers: ContentDirectorManagedSG 181, slots 51..53,
+        // sgvf_n4gw_b3559.sgb. Replay the native two-person activation state.
+        public const uint ParadiseTowerShow = 0x00020001;
     }
 
     public static class BNpcBaseId
@@ -49,6 +52,27 @@ public static class FruConstants
         public const uint AkhMornPandora = 40310;
         public const uint AkhMornPandoraAoe1 = 40311;
         public const uint AkhMornPandoraAoe2 = 40312;
+        public const uint ParadiseRegained = 40319;
+        public const uint WingsDarkThenLight = 40233;
+        public const uint WingsLightThenDark = 40313;
+        public const uint WingsCleaveLight = 40314;
+        public const uint WingsCleaveDark = 40315;
+        public const uint WingsBusterLight = 39879;
+        public const uint WingsBusterDark = 39880;
+        public const uint ParadiseTowerExplosion = 40320;
+        public const uint ParadiseTowerFailure = 40321;
+        public const uint PolarizingStrikes = 40316;
+        public const uint PolarizingPaths = 40234;
+        public const uint CruelPathOfLight = 40317;
+        public const uint CruelPathOfDarkness = 40318;
+        public const uint CruelPathOfLightEcho = 40119;
+        public const uint CruelPathOfDarknessEcho = 40120;
+    }
+
+    public static class StatusId
+    {
+        public const ushort LightResistanceDown = 4164;
+        public const ushort DarkResistanceDown = 3323;
     }
 
     public static class Vfx

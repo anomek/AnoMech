@@ -82,6 +82,13 @@ public sealed class SimWorld : ISimObject, IDisposable
         return enemy;
     }
 
+    public SimMapEffect SpawnMapEffect(byte index, uint show, uint hide)
+    {
+        var effect = new SimMapEffect(Map, index, show, hide);
+        children.Add(effect);
+        return effect;
+    }
+
     // Allocates an EventObject actor in EventObjectManager's 40-slot pool and
     // wires it to the given EObj sheet row. Mirror of SpawnEnemy for the EObj
     // side of the engine — see SimEventObject / EventObjectSpawn for details.

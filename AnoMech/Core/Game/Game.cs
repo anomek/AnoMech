@@ -8,6 +8,7 @@ using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Fru.FulgentBlade;
+using AnoMech.Scenarios.Fru.ParadiseRegained;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
@@ -84,7 +85,8 @@ public sealed class Game : IDisposable
             new TopP5OmegaScenario(),
             new TopP6WaveCannon2Scenario(),
             new UltimatePredationScenario(),
-            new FruFulgentBladeScenario()
+            new FruFulgentBladeScenario(),
+            new FruParadiseRegainedScenario()
         };
 
         // Derive the zone tree from the flat registry (first-appearance order).

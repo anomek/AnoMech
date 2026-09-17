@@ -88,6 +88,8 @@ Console.WriteLine($"PASS: all 32 patterns; {safeChecks} reference dodge checks; 
 AiIntegrationChecks.Run();
 SoloPartyChecks.Run();
 StaticVfxTriggerChecks.Run();
+ParadiseRegainedChecks.Run();
+PolarizingStrikesChecks.Run();
 
 static int CheckPartyMovement(FulgentBladePattern pattern, FulgentBladePartyPlan plan)
 {

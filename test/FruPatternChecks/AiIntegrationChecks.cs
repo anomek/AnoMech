@@ -104,7 +104,7 @@ internal static class AiIntegrationChecks
 // They do not pretend to test the native client or the real SimWorld lifecycle.
 namespace AnoMech.Core.SimObjects
 {
-    public class SimCharacter
+    public partial class SimCharacter
     {
         public bool IsActive { get; set; } = true;
         public bool Dead { get; set; }
@@ -119,7 +119,7 @@ namespace AnoMech.Core.SimObjects
     {
         public byte Level { get; set; }
     }
-    public sealed class SimEnemy
+    public sealed partial class SimEnemy
     {
         public bool IsActive { get; set; } = true;
         public Vector3 Position { get; set; }
@@ -140,7 +140,7 @@ namespace AnoMech.Core.SimObjects
         public SimCharacter? Get(PartyRole role) => Members.FirstOrDefault(member => member.Role == role);
         public IEnumerable<SimCharacter> ActiveMembers() => Members.Where(member => !member.Dead);
     }
-    public sealed class SimWorld
+    public sealed partial class SimWorld
     {
         public EventScheduler Events { get; } = new();
         public SimParty Party { get; } = new();

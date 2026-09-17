@@ -7,6 +7,16 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/ParadiseRegainedPattern.cs" Link="ParadiseRegainedPattern.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/ParadiseRegainedSnapshot.cs" Link="ParadiseRegainedSnapshot.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/ParadiseRegainedAi.cs" Link="ParadiseRegainedAi.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/PolarizingStrikesPlan.cs" Link="PolarizingStrikesPlan.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/PolarizingStrikesSnapshot.cs" Link="PolarizingStrikesSnapshot.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/PolarizingStrikesSequence.cs" Link="PolarizingStrikesSequence.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/FruParadiseRegainedScenario.cs" Link="FruParadiseRegainedScenario.cs" />
+    <Compile Include="../../AnoMech/Scenarios/IScenario.cs" Link="IScenario.cs" />
+    <Compile Include="../../AnoMech/Core/SimObjects/ISimObject.cs" Link="ISimObject.cs" />
+    <Compile Include="../../AnoMech/Core/SimObjects/SimMapEffect.cs" Link="SimMapEffect.cs" />
     <Compile Include="../../AnoMech/Core/Native/StaticVfxTrigger.cs" Link="StaticVfxTrigger.cs" />
     <Compile Include="../../AnoMech/Scenarios/Fru/FruConstants.cs" Link="FruConstants.cs" />
     <Compile Include="../../AnoMech/Scenarios/Fru/FulgentBlade/FulgentBladePattern.cs" Link="FulgentBladePattern.cs" />
