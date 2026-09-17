@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../AnoMech/Core/Native/StaticVfxTrigger.cs" Link="StaticVfxTrigger.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FruConstants.cs" Link="FruConstants.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FulgentBlade/FulgentBladePattern.cs" Link="FulgentBladePattern.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FulgentBlade/FulgentBladePartyPlan.cs" Link="FulgentBladePartyPlan.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FulgentBlade/FulgentBladeAi.cs" Link="FulgentBladeAi.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Ai/IScenarioAi.cs" Link="IScenarioAi.cs" />
+    <Compile Include="../../AnoMech/Core/Game/EventScheduler.cs" Link="EventScheduler.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Placement.cs" Link="Placement.cs" />
+    <Compile Include="../../AnoMech/Core/SimObjects/IPositioned.cs" Link="IPositioned.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Party/PartyRole.cs" Link="PartyRole.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Party/PartyPresets.cs" Link="PartyPresets.cs" />
+  </ItemGroup>
+</Project>

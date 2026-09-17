@@ -10,14 +10,15 @@ namespace AnoMech.Core.Game.Party;
 // fills is null, so role indices stay stable across the skip.
 public static class PartyPresets
 {
-    public static IReadOnlyList<PartyMemberPreset?> ForPlayerJob(uint playerJob) =>
-        ForRole(SkipRoleForJob(playerJob));
+    public static IReadOnlyList<PartyMemberPreset?> ForPlayerJob(uint playerJob, byte? levelOverride = null) =>
+        ForRole(SkipRoleForJob(playerJob), levelOverride);
 
-    public static IReadOnlyList<PartyMemberPreset?> ForRole(PartyRole skip)
+    public static IReadOnlyList<PartyMemberPreset?> ForRole(PartyRole skip, byte? levelOverride = null)
     {
         var result = new PartyMemberPreset?[Standard.Length];
         for (int i = 0; i < Standard.Length; i++)
-            result[i] = (PartyRole)i == skip ? null : Standard[i];
+            result[i] = (PartyRole)i == skip ? null
+                : levelOverride is { } level ? Standard[i] with { Level = level } : Standard[i];
         return result;
     }
 

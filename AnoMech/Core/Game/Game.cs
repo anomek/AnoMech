@@ -7,6 +7,7 @@ using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
+using AnoMech.Scenarios.Fru.FulgentBlade;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
@@ -82,7 +83,8 @@ public sealed class Game : IDisposable
             new TopP5SigmaScenario(),
             new TopP5OmegaScenario(),
             new TopP6WaveCannon2Scenario(),
-            new UltimatePredationScenario()
+            new UltimatePredationScenario(),
+            new FruFulgentBladeScenario()
         };
 
         // Derive the zone tree from the flat registry (first-appearance order).
@@ -113,7 +115,8 @@ public sealed class Game : IDisposable
     public IReadOnlyList<IScenario> ScenariosOf(IPhase phase) => scenariosByPhase[phase];
 
     // selectedAi: index into the scenario's AiStrats of the strat to run, or null for
-    // solo (no doppels, no AI). Defaults to 0 = run the first strat with a full party.
+    // solo (no initial doppels; scenarios may add late support for party mechanics).
+    // Defaults to 0 = run the first strat with a full party.
     // selectedWaymark: index into the scenario's WaymarkPresets; ignored when it has none.
     public void RunScenario(IScenario scenario, PartyRole? roleOverride = null, int? selectedAi = 0, int selectedWaymark = 0)
     {
@@ -163,7 +166,9 @@ public sealed class Game : IDisposable
         World.ScenarioOrigin = zone.Origin;
         World.Map.ArmColliderDrops(zone.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
         World.PlaceWaymarks(ResolveWaymarks(zone, selectedWaymark));
-        World.CreateParty(player.ClassJob.RowId, roleOverride, solo);
+        // Bots are spawned at the duty's level, independently of the player's
+        // real job level. Unspecified zones retain the preset's default level.
+        World.CreateParty(player.ClassJob.RowId, roleOverride, solo, levelOverride: zone.Level == 0 ? null : zone.Level);
         // zone.Run creates the SimArenaBoundary the out-of-arena check below reads.
         zone.Run(World);
         phase.Run(World);
