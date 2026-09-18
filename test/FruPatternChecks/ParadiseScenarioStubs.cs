@@ -106,5 +106,6 @@ namespace AnoMech.Scenarios.Fru
         private sealed class StubPhase : IPhase { }
         public static IPhase P5 { get; } = new StubPhase();
         public static IPhase P4 { get; } = new StubPhase();
+        public static IPhase P3 { get; } = new StubPhase();
     }
 }

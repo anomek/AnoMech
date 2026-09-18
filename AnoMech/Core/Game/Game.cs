@@ -7,6 +7,7 @@ using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
+using AnoMech.Scenarios.Fru.Apocalypse;
 using AnoMech.Scenarios.Fru.FulgentBlade;
 using AnoMech.Scenarios.Fru.ParadiseRegained;
 using AnoMech.Scenarios.Fru.CrystallizeTime;
@@ -86,6 +87,7 @@ public sealed class Game : IDisposable
             new TopP5OmegaScenario(),
             new TopP6WaveCannon2Scenario(),
             new UltimatePredationScenario(),
+            new FruApocalypseScenario(),
             new FruCrystallizeTimeScenario(),
             new FruFulgentBladeScenario(),
             new FruParadiseRegainedScenario()

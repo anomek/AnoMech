@@ -2,6 +2,8 @@ using System.Numerics;
 using AnoMech.Scenarios.Fru.FulgentBlade;
 using static AnoMech.Scenarios.Fru.FruConstants;
 
+if (args.Contains("--apocalypse")) { ApocalypseChecks.Run(); return; }
+
 // Regression oracle: FRU-Sim fb_positions.gd's six dodges, evaluated at the
 // snapshots in exawave_controller.tscn + exawave.tscn. No game client required.
 Vector2[] roots = [new(0, 17), new(0, -17), new(17, 0), new(-17, 0)];
@@ -91,6 +93,7 @@ StaticVfxTriggerChecks.Run();
 ParadiseRegainedChecks.Run();
 PolarizingStrikesChecks.Run();
 CrystallizeTimeChecks.Run();
+ApocalypseChecks.Run();
 
 static int CheckPartyMovement(FulgentBladePattern pattern, FulgentBladePartyPlan plan)
 {

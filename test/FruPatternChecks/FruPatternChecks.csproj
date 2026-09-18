@@ -7,6 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../AnoMech/Scenarios/Fru/Apocalypse/*.cs" Link="Apocalypse/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Scenarios/Fru/CrystallizeTime/*.cs" Exclude="../../AnoMech/Scenarios/Fru/CrystallizeTime/FruCrystallizeTimeSettings.cs" Link="CrystallizeTime/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/ParadiseRegainedPattern.cs" Link="ParadiseRegainedPattern.cs" />
     <Compile Include="../../AnoMech/Scenarios/Fru/ParadiseRegained/ParadiseRegainedSnapshot.cs" Link="ParadiseRegainedSnapshot.cs" />

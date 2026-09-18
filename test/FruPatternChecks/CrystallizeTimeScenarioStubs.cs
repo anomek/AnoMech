@@ -9,9 +9,10 @@ public partial class SimCharacter
 {
     public List<(string Path, bool Persistent)> ActorVfx { get; } = [];
     public HashSet<string> ActiveActorVfx { get; } = [];
+    public List<string> RemovedActorVfx { get; } = [];
     public void AddVfx(string path, float duration = 0, bool persistent = true)
     { ActorVfx.Add((path, persistent)); if (persistent) ActiveActorVfx.Add(path); }
-    public void RemoveVfx(string path) => ActiveActorVfx.Remove(path);
+    public void RemoveVfx(string path) { RemovedActorVfx.Add(path); ActiveActorVfx.Remove(path); }
     public sealed class StatusHandle { public void Reapply(float duration, int stacks) { } }
     public StatusHandle? FindStatus(ushort status) => HasStatus(status) ? new() : null;
     public (Vector3 Position, float Speed)? ForcedMove { get; set; }
@@ -86,6 +87,8 @@ public sealed partial class SimWorld
 }
 public sealed class SimOmen(string path, Placement placement, Vector3 scale) : ISimObject
 {
+    public uint? StartTrigger { get; private set; }
+    public void Trigger(uint trigger) => StartTrigger = trigger;
     public string Path => path;
     public Placement Placement => placement;
     public Vector3 Scale => scale;
