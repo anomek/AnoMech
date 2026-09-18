@@ -29,6 +29,14 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
 
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
+    private bool mechanicInputLock;
+
+    // Mechanic-owned freeze (e.g. CT's Return), cleared unconditionally on reset.
+    public void SetMechanicInputLock(bool locked)
+    {
+        mechanicInputLock = locked;
+        SyncInputLock();
+    }
 
     // Player activity for stillness/movement mechanics (e.g. Pyretic, Acceleration Bomb).
     // IsMoving = locomotion input (the engine's own RMIWalk movement sample, the same signal
@@ -47,7 +55,8 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
 
     // The player's input lock is a pure function of its own state, re-derived
     // every tick: movement is frozen while KO'd or being force-slid by a
-    // knockback; actions are blocked only while KO'd. base.Tick advances Movement
+    // knockback, or under a mechanic freeze; actions are blocked while KO'd or
+    // mechanic-frozen. base.Tick advances Movement
     // first, so a slide that arrives this frame has already cleared IsMoving.
     public override void Tick(float deltaSeconds)
     {
@@ -83,6 +92,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
 
     public override void Despawn()
     {
+        mechanicInputLock = false;
         base.Despawn();
         StopMoving();
         // Undo any KO bar drop (no-op if already full). Unconditional so it also covers a godmode
@@ -103,7 +113,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     private void SyncInputLock()
     {
         var hooks = Plugin.PlayerInputHooks;
-        hooks.ZeroMovement = Dead || Movement.IsMoving;
-        hooks.DisableAllActions = Dead;
+        hooks.ZeroMovement = Dead || mechanicInputLock || Movement.IsMoving;
+        hooks.DisableAllActions = Dead || mechanicInputLock;
     }
 }

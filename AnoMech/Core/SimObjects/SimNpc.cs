@@ -18,6 +18,7 @@ public unsafe class SimNpc : SimCharacter
 
     private int index;
     private bool pendingDraw;
+    private float? visualHeight;
 
     private protected override Movement Movement => field ??= new Movement(this);
     
@@ -31,6 +32,22 @@ public unsafe class SimNpc : SimCharacter
 
     public override bool IsActive => index != InvalidIndex && BattleCharaPtr != null;
 
+    // Elevates the native model independently of the actor's ground position.
+    // Retained across asynchronous draw creation/rebuilds and reapplied after
+    // movement: SetPosition alone is not a persistent visual suspension.
+    public void SetVisualHeight(float height)
+    {
+        if (!float.IsFinite(height)) throw new ArgumentOutOfRangeException(nameof(height));
+        visualHeight = height;
+        ApplyVisualHeight();
+    }
+
+    private void ApplyVisualHeight()
+    {
+        var obj = BattleCharaPtr;
+        if (obj == null || visualHeight is not { } height) return;
+        obj->SetDrawOffset(0, height, 0);
+    }
 
     public void SetModelState(byte value)
     {
@@ -54,6 +71,19 @@ public unsafe class SimNpc : SimCharacter
         var chara = BattleCharaPtr;
         if (chara == null) return;
         chara->ModelContainer.ModeAttributeFlags = value;
+        ReloadModel();
+    }
+
+    // Keep the native actor and its object-table entry alive during a size
+    // transition. Despawning and reusing its slot in the same frame can leave
+    // other object-table readers observing the old, terminated actor.
+    public void SetScale(float scale)
+    {
+        if (!float.IsFinite(scale) || scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale));
+        var chara = BattleCharaPtr;
+        if (chara == null) return;
+        chara->Scale = scale;
+        chara->HitboxRadius = scale * chara->ModelContainer.UnscaledRadius;
         ReloadModel();
     }
 
@@ -95,6 +125,7 @@ public unsafe class SimNpc : SimCharacter
                 pendingDraw = false;
             }
         }
+        ApplyVisualHeight();
     }
 
     public override void Despawn()
@@ -132,5 +163,6 @@ public unsafe class SimNpc : SimCharacter
         }
         index = InvalidIndex;
         pendingDraw = false;
+        visualHeight = null;
     }
 }

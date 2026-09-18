@@ -43,13 +43,16 @@ public record struct EnemySpawnConfig(
     uint ModelCharaId = 0,
     float Scale = 0f,    // 0 = use BNpcBase.Scale
     float HitboxRadius = 0f,    // 0 = ModelChara unscaled radius × Scale
-    byte? InitialModeAttributeFlags = null); // null = leave at engine default (0x00); set when the boss's canonical idle sub-mesh variant differs (e.g. Omega-M = 0x10)
+    byte? InitialModeAttributeFlags = null, // null = leave at engine default (0x00); set when the boss's canonical idle sub-mesh variant differs (e.g. Omega-M = 0x10)
+    bool IsHostile = true,
+    ushort SpawnTimeline = 0); // Played once after the native model is ready.
 
 public sealed unsafe class SimEnemy : SimNpc
 {
     // Cast bar, action-effect release, omen telegraph, and animation lock live in
     // SimCast. SimEnemy just converts target coords to world space and reads IsBusy.
     private readonly SimCast cast;
+    private ushort pendingSpawnTimeline;
 
     // Visibility runs through the DrawObject lifecycle: SetVisible records a desired
     // state; Tick's reconciler fires EnableDraw/DisableDraw once per change, gated on
@@ -183,8 +186,8 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->BattleNpcSubKind = BattleNpcSubKind.Combatant;
         chara->MaxHealth = 1_000_000;
         chara->Health = 1_000_000;
-        chara->Battalion = 4;
-        chara->IsHostile = true;
+        chara->Battalion = config.IsHostile ? (byte)4 : checked((byte)bnpc.Battalion.RowId);
+        chara->IsHostile = config.IsHostile;
         chara->InCombat = true;
         chara->CombatTagType = 1;
         chara->CombatTaggerId = ((GameObject*)player.Address)->GetGameObjectId();
@@ -198,6 +201,7 @@ public sealed unsafe class SimEnemy : SimNpc
 
         Plugin.Log.Info($"SimEnemy: spawned BNpcBase {config.BNpcBaseId} (ModelChara {bnpc.ModelChara.RowId}, scale {bnpc.Scale}) at index {idx}");
         var enemy = new SimEnemy(idx, config.BNpcBaseId, displayName, config.EnemyList, world.Coordinates);
+        enemy.pendingSpawnTimeline = config.SpawnTimeline;
         // Mirror the native position/rotation writes above into the C#-side fields.
         enemy.SetPosition(config.Placement);
         enemy.SetTargetable(config.Targetable);
@@ -217,6 +221,7 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Despawn()
     {
+        pendingSpawnTimeline = 0;
         Movement.Follow(null);
         cast.Despawn();
         base.Despawn();
@@ -241,6 +246,15 @@ public sealed unsafe class SimEnemy : SimNpc
         {
             chara->TargetableStatus &= ~((ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable);
         }
+    }
+
+    public void SetHealth(uint current, uint maximum)
+    {
+        if (maximum == 0) throw new System.ArgumentOutOfRangeException(nameof(maximum));
+        var chara = BattleCharaPtr;
+        if (chara == null) return;
+        chara->MaxHealth = maximum;
+        chara->Health = System.Math.Min(current, maximum);
     }
 
     /// <summary>
@@ -339,6 +353,13 @@ public sealed unsafe class SimEnemy : SimNpc
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        var chara = BattleCharaPtr;
+        if (pendingSpawnTimeline != 0 && desiredVisible && chara != null && chara->DrawObject != null
+            && chara->IsReadyToDraw() && chara->Timeline.TimelineSequencer.Parent != null)
+        {
+            PlayActionTimeline(pendingSpawnTimeline);
+            pendingSpawnTimeline = 0;
+        }
         ReconcileVisibility();
         cast.Tick(deltaSeconds);
     }

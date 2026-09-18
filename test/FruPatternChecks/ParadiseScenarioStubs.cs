@@ -38,20 +38,21 @@ namespace AnoMech.Core.SimObjects
 
     public enum EnemyListMode { Always, Never }
     public record struct EnemySpawnConfig(uint BNpcBaseId, uint NameId = 0, byte Level = 0,
-        bool Targetable = false, EnemyListMode EnemyList = EnemyListMode.Always, Placement Placement = default);
+        bool Targetable = false, EnemyListMode EnemyList = EnemyListMode.Always, Placement Placement = default, float Scale = 0,
+        bool IsHostile = true, ushort SpawnTimeline = 0, uint ModelCharaId = 0);
 
     public sealed partial class SimEnemy : ISimObject
     {
         public EnemySpawnConfig Config { get; set; }
         public List<(uint Action, float? CastSeconds, uint? Target)> Casts { get; } = [];
-        public bool Cast(uint action, float? castSeconds = null, uint? targetId = null)
+        public bool Cast(uint action, float? castSeconds = null, uint? targetId = null, Vector3? targetLocation = null)
         {
             Casts.Add((action, castSeconds, targetId));
             return true;
         }
         public void SetPosition(Vector3 position) => Position = position;
         public void SetRotation(float rotation) => Rotation = rotation;
-        public void Despawn() => IsActive = false;
+        public void Despawn() { ActiveActorVfx.Clear(); IsActive = false; }
         public void Tick(float deltaSeconds) { }
     }
 
@@ -64,6 +65,7 @@ namespace AnoMech.Core.SimObjects
         {
             if (FailEnemySpawns) return null;
             var enemy = new SimEnemy { Config = config, Position = config.Placement.Position, Rotation = config.Placement.Rotation };
+            if (config.Scale > 0) enemy.SetScale(config.Scale);
             Spawned.Add(enemy);
             return enemy;
         }
@@ -77,6 +79,8 @@ namespace AnoMech.Core.SimObjects
         {
             foreach (var spawned in Spawned) spawned.Despawn();
             Spawned.Clear();
+            foreach (var member in Party.Members) { member.Statuses.Clear(); member.ActiveActorVfx.Clear(); member.StopMoving(); }
+            Party.Player?.SetMechanicInputLock(false);
         }
     }
 }
@@ -101,5 +105,6 @@ namespace AnoMech.Scenarios.Fru
     {
         private sealed class StubPhase : IPhase { }
         public static IPhase P5 { get; } = new StubPhase();
+        public static IPhase P4 { get; } = new StubPhase();
     }
 }

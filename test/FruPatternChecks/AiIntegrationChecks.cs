@@ -114,16 +114,13 @@ namespace AnoMech.Core.SimObjects
         public List<(Vector3 Target, float Speed)> Moves { get; } = [];
         public void MoveTo(Vector3 target, float speed) => Moves.Add((target, speed));
     }
-    public sealed class SimPlayer : SimCharacter { }
-    public sealed class SimPartyNpc : SimCharacter
+    public sealed partial class SimPlayer : SimCharacter, ISimPartyMember { }
+    public sealed class SimPartyNpc : SimCharacter, ISimPartyMember
     {
         public byte Level { get; set; }
     }
-    public sealed partial class SimEnemy
+    public sealed partial class SimEnemy : SimCharacter
     {
-        public bool IsActive { get; set; } = true;
-        public Vector3 Position { get; set; }
-        public float Rotation { get; set; }
         public SimCharacter? Target { get; private set; }
         public bool Following { get; private set; }
         public void SetTarget(SimCharacter? target, bool follow = true)

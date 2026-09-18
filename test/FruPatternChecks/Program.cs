@@ -90,6 +90,7 @@ SoloPartyChecks.Run();
 StaticVfxTriggerChecks.Run();
 ParadiseRegainedChecks.Run();
 PolarizingStrikesChecks.Run();
+CrystallizeTimeChecks.Run();
 
 static int CheckPartyMovement(FulgentBladePattern pattern, FulgentBladePartyPlan plan)
 {

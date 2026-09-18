@@ -96,7 +96,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     public void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null)
         => Movement.MoveTo(target, speed, finalRotation);
     public void MoveTo(Placement p) => MoveTo(p.Position);
-    protected void StopMoving() => Movement.Stop();
+    public void StopMoving() => Movement.Stop();
 
     public void Intercept(SimTether? tether, float margin = 3f) => Movement.Intercept(tether, margin);
 
