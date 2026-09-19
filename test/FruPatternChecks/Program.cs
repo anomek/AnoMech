@@ -3,7 +3,9 @@ using AnoMech.Scenarios.Fru.FulgentBlade;
 using static AnoMech.Scenarios.Fru.FruConstants;
 
 if (args.Contains("--apocalypse")) { ApocalypseChecks.Run(); return; }
+if (args.Contains("--light-rampant")) { LightRampantChecks.Run(); return; }
 if (args.Contains("--diamond-dust")) { DiamondDustChecks.Run(); return; }
+LightRampantChecks.Run();
 DiamondDustChecks.Run();
 
 // Regression oracle: FRU-Sim fb_positions.gd's six dodges, evaluated at the

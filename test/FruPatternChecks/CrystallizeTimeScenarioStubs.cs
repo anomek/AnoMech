@@ -15,6 +15,7 @@ public partial class SimCharacter
     public void RemoveVfx(string path) { RemovedActorVfx.Add(path); ActiveActorVfx.Remove(path); }
     public sealed class StatusHandle(SimCharacter owner, ushort status)
     {
+        public ushort Stacks => (ushort)owner.StatusParams.GetValueOrDefault(status);
         public void Reapply(float duration, int stacks)
             => owner.StatusParams[status] = Math.Max(0, owner.StatusParams.GetValueOrDefault(status) + stacks);
     }

@@ -9,6 +9,7 @@ using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Fru.Apocalypse;
 using AnoMech.Scenarios.Fru.DiamondDust;
+using AnoMech.Scenarios.Fru.LightRampant;
 using AnoMech.Scenarios.Fru.FulgentBlade;
 using AnoMech.Scenarios.Fru.ParadiseRegained;
 using AnoMech.Scenarios.Fru.CrystallizeTime;
@@ -89,6 +90,7 @@ public sealed class Game : IDisposable
             new TopP6WaveCannon2Scenario(),
             new UltimatePredationScenario(),
             new FruDiamondDustScenario(),
+            new FruLightRampantScenario(),
             new FruApocalypseScenario(),
             new FruCrystallizeTimeScenario(),
             new FruFulgentBladeScenario(),
