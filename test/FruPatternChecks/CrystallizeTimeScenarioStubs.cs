@@ -95,8 +95,13 @@ public sealed partial class SimWorld
 {
     public SimVoiceLine SpawnVoiceLine(uint voiceId)
     { var result = new SimVoiceLine(voiceId, Events.Elapsed); Spawned.Add(result); return result; }
-    public SimOmen SpawnOmen(string path, Placement placement, Vector3 scale)
-    { var result = new SimOmen(path, placement, scale); Spawned.Add(result); return result; }
+    public SimOmen SpawnOmen(string path, Placement placement, Vector3 scale, float? durationSeconds = null, uint? startTrigger = null)
+    {
+        var result = new SimOmen(path, placement, scale);
+        if (startTrigger is { } trigger) result.Trigger(trigger);
+        if (durationSeconds is { } duration) Events.Add(duration, result.Despawn);
+        Spawned.Add(result); return result;
+    }
     public SimEventObject SpawnEventObject(EventObjectSpawnConfig config)
     { var result = new SimEventObject(config); Spawned.Add(result); return result; }
     public SimTether Tether(SimCharacter? from, SimCharacter? to, ushort id)

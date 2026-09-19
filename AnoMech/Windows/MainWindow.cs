@@ -220,6 +220,9 @@ public unsafe class MainWindow : Window, IDisposable
         var game = plugin.Game;
 
         ImGui.TextUnformatted(FullName(_selectedScenario));
+        if (plugin.Game.SequenceProgress is { } progress) ImGui.TextWrapped(progress);
+        else if (_selectedScenario is IScenarioSequence)
+            ImGui.TextWrapped("Run every FRU scenario from P2 onward, with two seconds between scenarios.");
         ImGui.Separator();
         DrawLocationHint();
 

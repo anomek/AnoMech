@@ -30,6 +30,49 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
     private bool mechanicInputLock;
+    private const ushort SprintStatusId = 50;
+    private const ushort SprintSpeedParam = 30;
+    private const float SprintDuration = 10f; // Combat duration for scenario practice.
+    private float sprintRemaining;
+
+    internal void StartSprint()
+    {
+        if (Dead || mechanicInputLock || BattleCharaPtr == null) return;
+        sprintRemaining = SprintDuration;
+        ApplySprint();
+    }
+
+    private void ApplySprint()
+    {
+        var bc = BattleCharaPtr;
+        if (bc == null) return;
+        var sm = &bc->StatusManager;
+        var slot = sm->GetStatusIndex(SprintStatusId);
+        if (slot < 0)
+            for (var i = 0; i < sm->Status.Length; i++)
+                if (sm->Status[i].StatusId == 0) { slot = i; break; }
+        if (slot < 0) return;
+        // Direct status-slot writes only draw an icon. Refresh the native flags
+        // as well so status 50's movement-speed effect actually takes effect.
+        sm->SetStatus(slot, SprintStatusId, sprintRemaining, SprintSpeedParam, bc->GetGameObjectId(), refreshFlags: true);
+        if (sm->NumValidStatuses <= slot) sm->NumValidStatuses = (byte)(slot + 1);
+    }
+
+    private void TickSprint(float deltaSeconds)
+    {
+        if (sprintRemaining <= 0) return;
+        sprintRemaining = MathF.Max(0, sprintRemaining - deltaSeconds);
+        if (sprintRemaining == 0) Statuses.Remove((Character*)BattleCharaPtr, SprintStatusId);
+        else ApplySprint();
+    }
+
+    private void ClearSprint()
+    {
+        // Only remove a Sprint owned by this simulation.
+        if (sprintRemaining <= 0) return;
+        sprintRemaining = 0;
+        Statuses.Remove((Character*)BattleCharaPtr, SprintStatusId);
+    }
 
     // Mechanic-owned freeze (e.g. CT's Return), cleared unconditionally on reset.
     public void SetMechanicInputLock(bool locked)
@@ -61,6 +104,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        TickSprint(deltaSeconds);
         SampleActivity();
         SyncInputLock();
     }
@@ -83,6 +127,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public void OnKilled()
     {
         Dead = true;
+        ClearSprint();
         StopMoving();
         DropHpBar(); // real-death bar drop (bots do the same in their own OnKilled); godmode skips this path
         AddStatus(StunStatusId);
@@ -93,6 +138,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
     public override void Despawn()
     {
         mechanicInputLock = false;
+        ClearSprint();
         base.Despawn();
         StopMoving();
         // Undo any KO bar drop (no-op if already full). Unconditional so it also covers a godmode

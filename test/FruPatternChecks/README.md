@@ -611,3 +611,176 @@ cues, status/tether presentation, and snapshot timing. The 1.2-second puddle
 exit grace is a simulator allowance. House of Light uses a 30-degree half-angle
 from BossMod's provisional geometry; the native action sheet does not expose
 an independently verified angle.
+
+## P3 Ultimate Relativity (NA)
+
+Run `dotnet run --project test/FruPatternChecks -- --ultimate-relativity` for
+focused checks. The production scenario covers all three fire/Unholy Darkness
+waves, the middle Dark Blizzard, eight rotating hourglasses, two Return
+snapshots, the final gazes/eruptions/water, and Shell Crusher. It follows the
+[FRU-Sim sequence](https://github.com/WCGH/FRU-Sim/blob/2a77c857ce1bb6eb472a59a95c7544faba01c55a/scenes/p3/sequences/ult_relativity_seq.gd),
+its NA waypoint file, and the actual animation events in `p3_ur_main.tscn`.
+The first Return snapshot uses 27.7s and the rewind starts at 53.3s, matching
+the scene rather than the script's 27.6s/53.4s comments.
+
+NA priorities are H2 > H1 > MT > OT for the long support pair and
+R2 > R1 > M1 > M2 for the short DPS pair, with higher priority taking west.
+The short support or long DPS can have ice. Each hourglass independently
+randomizes clockwise/counterclockwise, and relative north has eight possible
+orientations. Unholy Darkness selects distinct eligible targets per wave;
+Shell Crusher selects a random party member. The player has normal movement
+and Sprint, with the mechanic's input lock only during Return.
+
+Source positions are converted from its 2.358-scale arena, with +X north
+mapped to AnoMech's -Z north. Hourglass positions use the native scenery
+instead: ContentDirectorManagedSG 181 slots 26–33 place their SGB roots at
+radius 10.5, and the model's local Z=-20 offset produces a 9.5-yalm ring on
+the opposite side. Slot 26 is therefore the north hourglass. The invisible
+BNpc 17832 anchors tethers and casts at the visible model's horizontal position.
+All eight hourglasses stay visible after their lasers finish and are removed
+only by scenario completion or reset.
+
+Every laser snapshots the nearest living player; the first hit may strike
+that baiter alone, and any overlap or subsequent hit is lethal. Each hourglass
+fires ten shots, with a 2.1s initial repeat delay then one-second intervals,
+rotating fifteen degrees per shot. Native actions supply the 60/50-yalm
+beam lengths and five-yalm width. Fire is radius eight; Darkness, Water,
+Eruption and Shell Crusher are radius six. Ice uses the native outer radius
+twelve and a provisional three-yalm inner safe radius, corroborated by the
+reference sim and BossMod but not independently verified in a live encounter.
+
+Return stores actual party positions and draws eight native world-space
+traces. The rewind is a single forced movement preserving facing; it never
+uses an assigned bot waypoint as the saved position. A 0.4-second rewind
+and the 51.9–54.8s input lock follow the supplied reference. Native status
+parameters select clockwise/right StatusLoopVFX 348 or counterclockwise/left
+269 on hourglasses. These resolve to `m0489_stlp_right_c0d1` and
+`m0489_stlp_left01f_c0d1`, respectively. The engine's status-gain path owns
+those loops, while scenario time controls their release at the first shot.
+
+Checks cover:
+
+- 288 complete runs for every unique support/DPS assignment and ice role;
+  independent NA priority, valid stack-target and native placement checks.
+- 4,096 complete runs covering all 256 hourglass direction masks, eight arena
+  orientations and two ice-role variants. Frame rate cycles through 15/30/60
+  FPS across masks; this is not every mask at every frame rate.
+- 128 manual-player runs at 15/60 FPS; no AI MoveTo calls, actual Return
+  movement, preserved facing supplied by the harness, and input-lock release.
+- Changed saved Return positions, bad fire and ice, insufficient Darkness,
+  incorrect initial laser baits, rotating-beam hits, gaze facing, overlapping
+  final eruptions, underfilled water/Shell Crusher, deathwall and missing targets.
+- Seven interrupted resets, two player resets during the stun/rewind, failed
+  native actor creation, eighty beam shots, all eight hourglass map slots,
+  waiting-clock ownership and final cleanup.
+
+Native resources were inspected from game build `2026.09.15.0000.0000` using
+Dalamud reference build `15.0.3.5`. The plugin uses SDK `15.0.0`. Headless
+checks establish managed simulation behavior only. Native hourglass animation,
+rotation arrows, Return VFX, actual player facing/input, and visual timing need
+an in-game pass. The reference cast durations (9.7/5.3/3.7–3.8/2.8 seconds)
+are retained even where the action sheet rounds them to 10/5.5/4/3 seconds.
+Native animation playback does not inherit event-speed scaling.
+
+## P4 Darklit Dragonsong (NA)
+
+Run `dotnet run --project test/FruPatternChecks -- --darklit` for focused checks.
+The scenario follows the supplied FRU-Sim `darklit_seq.gd`, `dd_positions.gd`
+and the actual events in `p4_dd_main.tscn`, at revision
+`2a77c857ce1bb6eb472a59a95c7544faba01c55a`.
+
+It includes the opening Akh Rhai baits, Darklit raidwide, four-player bowtie,
+water flex, two two-person towers, nearest-four proteans, Spirit Taker,
+water stacks/Hallowed Wings, single-tank Somber Dance (both hits), and four
+7+1 Akh Morn hits (seven with MT, OT solo). All eight party roles remain playable without AI moving the
+human player. Sprint continues through the shared player-input implementation.
+
+The tethered healer anchors NW. Tether DPS use R1 > R2 > M1 > M2 in the lineup;
+non-tether DPS use R2 > R1 > M1 > M2 for west/east baits. Box and hourglass
+chains resolve into a bowtie. When waters share a north/south group, only the
+water-bearing non-tether and the other bait on that same east/west side swap.
+Their support/DPS identities are retained for Spirit Taker spreads.
+
+Native inspection used game `2026.09.15.0000.0000` and Dalamud `15.0.3.5`.
+ContentDirectorManagedSG 181 slots 42/43 use two-person tower scenery `b1845`
+at world (100,0,92/108). Slot 46 supplies the Fragment of Fate. Statuses
+4157/4158 transition to active chains; 2257 is Lightsteeped, and 2461 is water.
+ActionCastVFX 151/152 selects `m0640_cst_d_2lp_c0v/c1v` for the left/right wing
+warning, with the boss facing north. Native casts own these effects.
+
+Native radii are Akh Rhai 4, Spirit Taker 5, water 6, Somber Dance 8, and
+Akh Morn/towers 4. Somber Dance's eight-yalm radius exceeds the reference sim's
+scaled radius. By default MT takes both hits, or the OT bot does when the player
+occupies MT. The assigned tank baits far, then moves to the Oracle for the near
+hit while the other tank stays with the party. The optional "Player takes both
+Somber Dance hits" setting assigns a tank player instead; for non-tank players
+it retains the bot assignment. This setting is captured on Start, also in All.
+Actual farthest/nearest targeting and overlap failures still apply. Survival of
+both correct hits is assumed without requiring an invulnerability input.
+Chain limits 22/2.358–61/2.358 and protean half-angle 30 degrees are reference
+values (the latter from BossMod), not independently measured encounter geometry.
+The actual scene moves to water at 36.9s and Akh Morn at 50s, and returns the
+bosses at 52.2s. These events take precedence over differing script comments.
+The reference's eleven Akh Rhai pulses and 0.6s Akh Morn hit spacing are retained.
+Eight initial Akh Rhai casts release their visual before ten hit-only repeats;
+the first pulse must not replace the pending cast on the same frame.
+
+Checks execute 1,152 full assignment runs across all tether parties, three
+chain shapes and sixteen water pairings, cycling 15/30/60 FPS. Another 768
+runs combine every Spirit target, both wings and the chain/water patterns for
+a fixed tether party. There are 192 manual-player runs covering both default and opt-in settings, plus failed puddles,
+towers, proteans, chains, Spirit spreads, water, wings, fragment hits, both
+Somber baits, Akh Morn, deathwall, seven resets, missing actors, and water-marker
+handoffs. Native rendering, actor animation and actual player controls require
+an in-game pass. These checks do not simulate mitigation or boss HP balancing.
+
+Darklit Akh Morn uses a fixed 7+1 split independently of the Somber Dance option.
+MT and all six non-tanks gather north; OT stays south and is assumed to survive
+solo without a mitigation input. Every pulse enforces seven within four yalms
+of MT and only OT within four yalms of OT. Successful bot/manual runs verify
+all four damage events per player and the correct boss action; negative checks
+reject the old 4+4 split, OT joining MT, and a later-pulse player joining OT.
+
+Darklit begins with the hooded Usurper model 4375 (the native P4 BNpcBase
+17833 default), not P2's ice form 4374. After baits snapshot at 6.6s, the full
+Redress spin starts at 8.8s, half a second before the first Akh Rhai hit at
+9.3s, using outgoing timeline 4574 (hide/mon_sp002)
+and incoming timeline 4562 (show/mon_sp002) on dragon model 4376. Its native
+animation, temporary model, VFX and sound remain owned by the timeline.
+The incoming timeline waits for the skeleton to be ready. The outgoing actor
+becomes untargetable/unlisted immediately and stays allocated another 5.2s,
+covering the 154-frame sequence. Puddle damage/cleanup keeps its original
+timing; the transformation finishes before the 16.4s Darklit cast.
+
+The supplied video https://www.youtube.com/watch?v=T4X8gLzTdcg shows the spin
+around 2:21–2:25. Native cbbm_show_sp02 was identified by comparing decoded
+Havok n_hara translation samples with the reference simulator's spin_wings_out
+animation (about 0.0012 RMS error after time-scale alignment, versus 0.088 or
+more for show_sp03/04). This replaces the incorrect inferred 4580/7780 pair.
+Checks enforce the hooded model until just before Akh Rhai releases, the specific Redress IDs,
+completion before later casts, four reset timings and failed replacement
+creation. Rendered fade/VFX synchronization still needs a live in-game check.
+
+## Futures Rewritten: All
+
+Run `dotnet run --project test/FruPatternChecks -- --fru-all` for focused checks.
+The production catalog exposes `All` before the individual entries, using
+the same scenario objects so their settings apply in either mode. Order is:
+Diamond Dust, Light Rampant, Ultimate Relativity, Apocalypse, Darklit Dragonsong,
+Crystallize Time, Fulgent Blade, Paradise Regained (including Polarizing Strikes).
+
+Each FRU scenario declares its event-clock cleanup time through `IScenario.Duration`.
+`ScenarioSequence` waits until that time, then waits two real seconds before
+advancing. `Game` transitions after its event/world tick has finished; it clears
+old events, actors and statuses, creates the party with the selected role and
+waymarks, reapplies the next phase's arena/weather/music, resets Sprint cooldown,
+and returns the player to the scenario spawn. NA AI is selected where available;
+the standard P5 AI is retained. Reset, leave, a new Start, and a real simulated
+death cancel progression. Godmode damage previews do not count as deaths.
+
+Tests cover the actual eight-entry catalog, phase order, shared settings objects,
+cleanup durations, AI selection, complete progression at 15/30/60/144 FPS and
+0.5x/1x/3x event speeds, two-second gaps, final completion, failure cancellation,
+invalid durations and Fulgent seams spawning at cast completion. The scheduler
+tests are managed tests; native zone transitions and the ImGui menu need a live
+pass. Other raid scenarios default to an undeclared duration and are unaffected.

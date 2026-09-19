@@ -7,6 +7,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../AnoMech/Core/Game/ScenarioSequence.cs" Link="ScenarioSequence.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FruAllScenario.cs" Link="FruAllScenario.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/FulgentBlade/FruFulgentBladeScenario.cs" Link="FruFulgentBladeScenario.cs" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/DarklitDragonsong/*.cs" Exclude="../../AnoMech/Scenarios/Fru/DarklitDragonsong/FruDarklitSettings.cs" Link="DarklitDragonsong/%(Filename)%(Extension)" />
+    <Compile Include="../../AnoMech/Scenarios/Fru/UltimateRelativity/*.cs" Link="UltimateRelativity/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Scenarios/Fru/LightRampant/*.cs" Link="LightRampant/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Scenarios/Fru/DiamondDust/*.cs" Exclude="../../AnoMech/Scenarios/Fru/DiamondDust/FruDiamondDustSettings.cs" Link="DiamondDust/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Scenarios/Fru/Apocalypse/*.cs" Link="Apocalypse/%(Filename)%(Extension)" />

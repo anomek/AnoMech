@@ -13,6 +13,7 @@ namespace AnoMech.Scenarios.Fru.Apocalypse;
 public sealed class FruApocalypseScenario : IScenario
 {
     public string Name => "Apocalypse";
+    public float Duration => 57f;
     public IPhase Phase => FruZone.P3;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new ApocalypseAi()];
     private SimWorld world = null!;
@@ -111,7 +112,7 @@ public sealed class FruApocalypseScenario : IScenario
         });
         CastAt(51.2f, Pulsar, 4.7f);
         At(55.9f, () => { foreach (var member in Members()) Hit(member, Pulsar, "Shockwave Pulsar", false); });
-        At(57, Finish);
+        At(Duration, Finish);
         ((ApocalypseAi)AiStrats[0]).Run(pattern, world, () => running ? oracle : null);
     }
     private void At(float time, Action action) => world.Events.Add(time, () => { if (running) action(); });

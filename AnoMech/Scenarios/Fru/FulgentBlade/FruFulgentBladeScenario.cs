@@ -13,6 +13,7 @@ namespace AnoMech.Scenarios.Fru.FulgentBlade;
 public sealed class FruFulgentBladeScenario : IScenario
 {
     public string Name => "Fulgent Blade";
+    public float Duration => 43.5f;
     public IPhase Phase => FruZone.P5;
     public bool SupportsSolo => true;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new FulgentBladeAi()];
@@ -50,8 +51,11 @@ public sealed class FruFulgentBladeScenario : IScenario
         // FRU-Sim's FB sequence starts after the opening raidwide (here at 7.5s).
         world.Events.Add(0.5f, SpawnPandora);
         world.Events.Add(1.5f, () => pandora?.Cast(ActionId.FulgentBlade, castSeconds: 6f));
-        world.Events.Add(7.5f, ResolveRaidwide);
-        world.Events.Add(11.5f, SpawnExalines);
+        world.Events.Add(7.5f, () =>
+        {
+            ResolveRaidwide();
+            SpawnExalines(); // Reveal the seams when the opening cast resolves.
+        });
         // Advance each randomized seam group into its native charging stage.
         world.Events.Add(13.5f, () => BeginExalineGroup(0));
         world.Events.Add(17.5f, () => BeginExalineGroup(1));
@@ -63,7 +67,7 @@ public sealed class FruFulgentBladeScenario : IScenario
         world.Events.Add(28.5f - ArrowLeadTime, () => TelegraphGroup(2));
         world.Events.Add(FulgentBladePartyPlan.AkhMornCastTime, CastAkhMorn);
         world.Events.Add(36f, ResolveAkhMorn);
-        world.Events.Add(43.5f, DespawnHelpers);
+        world.Events.Add(Duration, DespawnHelpers);
 
         // Schedule every snapshot up front so low frame rates cannot accumulate
         // drift between the three overlapping, two-second wave trains.

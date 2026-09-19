@@ -12,6 +12,7 @@ namespace AnoMech.Scenarios.Fru.DiamondDust;
 public sealed partial class FruDiamondDustScenario : IScenario
 {
     public string Name => "Diamond Dust";
+    public float Duration => 54f;
     public IPhase Phase => FruZone.P2;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new DiamondDustAi()];
     internal DiamondDustSettings PatternSettings { get; } = new();
@@ -142,7 +143,7 @@ public sealed partial class FruDiamondDustScenario : IScenario
             boss?.SetVisible(true);
             boss?.SetTargetable(true);
         });
-        At(54, Finish);
+        At(Duration, Finish);
         ((DiamondDustAi)AiStrats[0]).Run(pattern, world, () => running && boss is { IsActive: true },
             () => puddles.Select(p => p.Position).ToArray());
     }

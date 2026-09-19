@@ -13,6 +13,7 @@ namespace AnoMech.Scenarios.Fru.CrystallizeTime;
 public sealed partial class FruCrystallizeTimeScenario : IScenario
 {
     public string Name => "Crystallize Time";
+    public float Duration => 67f;
     public IPhase Phase => FruZone.P4;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new CrystallizeTimeAi()];
     internal CrystallizeTimePlayerPattern SelectedPlayerPattern { get; set; }
@@ -171,7 +172,7 @@ public sealed partial class FruCrystallizeTimeScenario : IScenario
         });
         for (var hit = 0; hit < 4; hit++) At(61.9f + 1.1f * hit, AkhMorn);
         At(65.5f, () => world.Party.Get(PartyRole.MainTank)?.RemoveStatus(SoloTankInvulnerability));
-        At(67, Finish);
+        At(Duration, Finish);
     }
 
     private void At(float seconds, Action action) => world.Events.Add(seconds, () => { if (running) action(); });

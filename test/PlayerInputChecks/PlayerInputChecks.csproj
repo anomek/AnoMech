@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../AnoMech/Core/Native/LocalPlayerInputHooks.cs" Link="LocalPlayerInputHooks.cs" />
+    <Compile Include="../../AnoMech/Core/SimObjects/SimPlayer.cs" Link="SimPlayer.cs" />
+  </ItemGroup>
+</Project>

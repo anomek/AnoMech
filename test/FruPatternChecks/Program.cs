@@ -2,9 +2,15 @@ using System.Numerics;
 using AnoMech.Scenarios.Fru.FulgentBlade;
 using static AnoMech.Scenarios.Fru.FruConstants;
 
+if (args.Contains("--fru-all")) { FruSequenceChecks.Run(); return; }
+if (args.Contains("--darklit")) { DarklitChecks.Run(); return; }
+if (args.Contains("--ultimate-relativity")) { UltimateRelativityChecks.Run(); return; }
 if (args.Contains("--apocalypse")) { ApocalypseChecks.Run(); return; }
 if (args.Contains("--light-rampant")) { LightRampantChecks.Run(); return; }
 if (args.Contains("--diamond-dust")) { DiamondDustChecks.Run(); return; }
+FruSequenceChecks.Run();
+DarklitChecks.Run();
+UltimateRelativityChecks.Run();
 LightRampantChecks.Run();
 DiamondDustChecks.Run();
 

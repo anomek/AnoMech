@@ -12,6 +12,7 @@ namespace AnoMech.Scenarios.Fru.LightRampant;
 public sealed class FruLightRampantScenario : IScenario
 {
     public string Name => "Light Rampant";
+    public float Duration => 48f;
     public IPhase Phase => FruZone.P2;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new LightRampantAi()];
     private SimWorld world = null!;
@@ -59,7 +60,7 @@ public sealed class FruLightRampantScenario : IScenario
         At(BanishTime, Banish);
         At(40, () => boss?.Cast(HouseCast, castSeconds: 5));
         At(HouseTime, House);
-        At(48, Finish);
+        At(Duration, Finish);
         ((LightRampantAi)AiStrats[0]).Run(pattern, world, () => running && boss is { IsActive: true }, Stacks);
     }
     private void At(float time, Action action) => world.Events.Add(time, () => { if (running) action(); });

@@ -13,6 +13,7 @@ namespace AnoMech.Scenarios.Fru.ParadiseRegained;
 public sealed class FruParadiseRegainedScenario : IScenario
 {
     public string Name => "Paradise Regained";
+    public float Duration => PolarizingStrikesPlan.CleanupTime;
     public IPhase Phase => FruZone.P5;
     public IReadOnlyList<IScenarioAi> AiStrats { get; } = [new ParadiseRegainedAi()];
 

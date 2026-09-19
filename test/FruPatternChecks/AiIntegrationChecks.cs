@@ -131,11 +131,29 @@ namespace AnoMech.Core.SimObjects
     }
     public sealed class SimParty
     {
+        public PartyFinder Find => new(this);
+        public void WipeAllPlayers(string cause) {
+            foreach (var m in Members) { m.Damage.Add((0, cause, true)); m.Dead = true; }
+        }
         public List<SimCharacter> Members { get; } = [];
         public SimPlayer? Player => Members.OfType<SimPlayer>().SingleOrDefault();
         public PartyRole PlayerRole => Player?.Role ?? PartyRole.MainTank;
         public SimCharacter? Get(PartyRole role) => Members.FirstOrDefault(member => member.Role == role);
         public IEnumerable<SimCharacter> ActiveMembers() => Members.Where(member => !member.Dead);
+    }
+    public sealed class PartyFinder(SimParty party)
+    {
+        public List<SimCharacter> InsideCircle(Vector3 center, float radius)
+            => party.ActiveMembers().Where(m => Vector3.Distance(m.Position, center) <= radius).ToList();
+        public List<SimCharacter> InsideRect(Placement p, float halfWidth, float length)
+        {
+            var forward = new Vector3(MathF.Sin(p.Rotation), 0, MathF.Cos(p.Rotation));
+            var right = new Vector3(forward.Z, 0, -forward.X);
+            return party.ActiveMembers().Where(m => {
+                var d = m.Position - p.Position; var z = Vector3.Dot(d, forward);
+                return z >= 0 && z <= length && MathF.Abs(Vector3.Dot(d, right)) <= halfWidth;
+            }).ToList();
+        }
     }
     public sealed partial class SimWorld
     {

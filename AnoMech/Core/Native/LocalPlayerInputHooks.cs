@@ -158,6 +158,11 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
         var result = useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
         if (result) actionUsedSincePoll = true;
+        // UseAction can merely queue a press. This path runs when the adjusted
+        // action actually executes, including GeneralAction Sprint from a hotbar.
+        // The zone firewall drops its server response, so supply the buff locally.
+        if (result && actionType == ActionType.Action && actionId == SprintActionId)
+            Plugin.GameInstance?.Player?.StartSprint();
         return result;
     }
 

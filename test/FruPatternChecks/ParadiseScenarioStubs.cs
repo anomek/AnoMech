@@ -38,16 +38,18 @@ namespace AnoMech.Core.SimObjects
         public void RemoveStatus(ushort status) { Statuses.Remove(status); StatusParams.Remove(status); }
     }
 
-    public enum EnemyListMode { Always, Never, OnlyWhenVisible }
+    public enum EnemyListMode { Always, Never, OnlyWhenVisible, Manual }
     public record struct EnemySpawnConfig(uint BNpcBaseId, uint NameId = 0, byte Level = 0,
         bool Targetable = false, EnemyListMode EnemyList = EnemyListMode.Always, Placement Placement = default, float Scale = 0,
-        bool IsHostile = true, ushort SpawnTimeline = 0, uint ModelCharaId = 0);
+        bool IsHostile = true, ushort SpawnTimeline = 0, uint ModelCharaId = 0, bool IsVisible = true);
 
     public sealed partial class SimEnemy : ISimObject
     {
         public EnemySpawnConfig Config { get; set; }
+        public bool ManualEnemyListVisible { get; private set; }
+        public void SetVisibleInEnemyList(bool visible) => ManualEnemyListVisible = visible;
         public List<(uint Action, float? CastSeconds, uint? Target)> Casts { get; } = [];
-        public bool Cast(uint action, float? castSeconds = null, uint? targetId = null, Vector3? targetLocation = null)
+        public bool Cast(uint action, float? castSeconds = null, uint? targetId = null, Vector3? targetLocation = null, float animationLock = 0.6f)
         {
             Casts.Add((action, castSeconds, targetId));
             return true;
