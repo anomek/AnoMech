@@ -22,7 +22,10 @@ public class EventObjectSpawnConfig
     public sbyte ObjectIndex { get; init; } = -1;
     public byte TargetableStatus { get; init; } = 1; // 1 - untargettable
     public byte VisibilityFlag { get; init; } = 0;
-    public uint EntityId { get; init; } = 0;
+    // Local scenery has no server entity. The engine uses this sentinel and
+    // its object index for identity; zero produces invalid/duplicate actors
+    // for plugins that synchronize the game object table (e.g. Boss Mod).
+    public uint EntityId { get; init; } = 0xE0000000;
     public uint LayoutId { get; init; } = 0;
     public EventId EventId { get; init; } = 0;
     public uint OwnerId { get; init; } = 0xE0000000;

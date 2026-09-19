@@ -37,6 +37,8 @@ public sealed unsafe class SimOmen : ISimObject
     // null = persistent (cleared explicitly by the owner); otherwise seconds left
     // before this omen reports itself inactive for reaping.
     private float? remaining;
+    private uint? pendingTrigger;
+    private float triggerWait;
 
     // Telegraph for `actionId` centered at `origin` (scenario-local) and oriented at
     // `rotation` (radians, already including any per-cast offset). No-ops when the
@@ -51,7 +53,8 @@ public sealed unsafe class SimOmen : ISimObject
     // Telegraph from an explicit omen path + scale. Used by scenarios that want a
     // synthetic AOE not backed by an action's Omen sheet entry. `placement` is
     // scenario-local.
-    internal SimOmen(Coordinates coordinates, string omenPath, Placement placement, Vector3 scale, float? durationSeconds = null)
+    internal SimOmen(Coordinates coordinates, string omenPath, Placement placement, Vector3 scale,
+        float? durationSeconds = null, uint? startTrigger = null)
     {
         this.coordinates = coordinates;
         remaining = durationSeconds;
@@ -62,17 +65,38 @@ public sealed unsafe class SimOmen : ISimObject
             return;
         }
         primary = VfxFunctions.SpawnStaticVfx(resolved, coordinates.ToGlobal(placement), scale);
+        if (startTrigger is { } trigger) Trigger(trigger);
     }
 
     public bool IsActive => (primary != null || alt != null) && (remaining is not { } r || r > 0f);
 
+    // Advance a scenery effect through its authored stages without replacing
+    // the world-space object or applying a tint. The resource queue is serviced
+    // on Tick, exactly like initial activation; never call Apricot directly.
+    public void Trigger(uint triggerIndex)
+    {
+        if (triggerIndex >= 12) throw new ArgumentOutOfRangeException(nameof(triggerIndex));
+        if (!IsActive) return;
+        pendingTrigger = triggerIndex;
+        triggerWait = 0f;
+    }
+
     public void Tick(float deltaSeconds)
     {
         if (remaining is { } r) remaining = r - deltaSeconds;
+        if (!IsActive || pendingTrigger is not { } trigger) return;
+        if (StaticVfxTrigger.TryQueue(primary, trigger))
+            pendingTrigger = null;
+        else if ((triggerWait += deltaSeconds) >= 5f)
+        {
+            Plugin.Log.Warning($"SimOmen: scenery trigger {trigger} could not be queued within five seconds (no resource instance).");
+            pendingTrigger = null;
+        }
     }
 
     public void Despawn()
     {
+        pendingTrigger = null;
         if (primary != null)
         {
             VfxFunctions.RemoveStaticVfx(primary);
@@ -104,7 +128,7 @@ public sealed unsafe class SimOmen : ISimObject
 
         var range = action.EffectRange;
         if (range <= 0) range = 1;
-        // CastType 4/11/12 use XAxisModifier as the rectangle's full width along X.
+        // Rectangles use XAxisModifier for full width and EffectRange for depth.
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
         var scale = action.CastType switch
         {
