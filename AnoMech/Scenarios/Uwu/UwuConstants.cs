@@ -11,7 +11,7 @@ public class UwuConstants
     public const byte Level = 70;
     public const ushort ItemLevel = 375;
 
-    public static IReadOnlyList<Waymark> NaurWaymarks =>
+    public static IReadOnlyList<Waymark> NaWaymarks =>
     [
         new(WaymarkSlot.A, new Vector3(0, 0, -6.7f)),
         new(WaymarkSlot.B, new Vector3(6.7f, 0, 0)),

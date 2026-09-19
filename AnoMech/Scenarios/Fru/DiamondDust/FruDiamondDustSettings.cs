@@ -16,7 +16,7 @@ public sealed partial class FruDiamondDustScenario
             ImGui.Combo("##dd-kick", ref PatternSettings.Kick, KickLabels, KickLabels.Length);
             SettingsGrid.End();
         }
-        ImGui.TextDisabled("Applies on the next Start. Bots use NAUR partner swaps.");
+        ImGui.TextDisabled("Applies on the next Start. Bots use NA partner swaps.");
     }
 
 }

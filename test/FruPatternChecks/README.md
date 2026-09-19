@@ -519,19 +519,19 @@ status clocks, player knockback, and reset in-game. As with existing scenarios,
 native animations run in real time while the event-speed option scales scheduled
 events; the validated choreography is at normal speed.
 
-## Diamond Dust (P2, NAUR Partner Swap)
+## Diamond Dust (P2, NA Partner Swap)
 
 Run just this scenario with `dotnet run --project test/FruPatternChecks -- --diamond-dust`.
 It is also included in the full check suite. Strategy references are the
-[NAUR FRU resources](https://naurffxiv.com/ultimate/fru), their linked
+[NA FRU resources](https://naurffxiv.com/ultimate/fru), their linked
 [Partner Swap presentation](https://docs.google.com/presentation/d/1VqIifgNf8RzXIWb8EGGVdKvOtKk0HmhPcHIMpizYuig/edit),
-and the [NAUR P2 mechanic guide](https://naurffxiv.com/ultimate/fru/guide/p2).
+and the [NA P2 mechanic guide](https://naurffxiv.com/ultimate/fru/guide/p2).
 
 The production scenario and AI run in the headless harness. Checks cover:
 
 - 256 combinations of first icicles, marked role group, kick, Reflection
   direction, and twin combo, at 15/30/60 FPS: 768 complete bot runs.
-- Independent NAUR clock expectations: MT N, OT E, H1 W, H2 S, M1 SW,
+- Independent NA clock expectations: MT N, OT E, H1 W, H2 S, M1 SW,
   M2 SE, R1 NW, R2 NE; supports swap CCW and DPS CW only as necessary.
   G1 takes the red/purple knockback side and G2 blue/yellow.
 - The cursed pattern starts clockwise immediately after the stars, clearing

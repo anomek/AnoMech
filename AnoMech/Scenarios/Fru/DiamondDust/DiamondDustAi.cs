@@ -10,8 +10,8 @@ namespace AnoMech.Scenarios.Fru.DiamondDust;
 
 internal sealed class DiamondDustAi : IScenarioAi
 {
-    public string Name => "NAUR · Partner Swap";
-    public string Group => "NAUR";
+    public string Name => "NA · Partner Swap";
+    public string Group => "NA";
     internal void Run(DiamondDustPattern pattern, SimWorld world, Func<bool> active, Func<IReadOnlyList<Vector3>> puddles)
     {
         void Each(Action<SimPartyNpc, PartyRole> action)

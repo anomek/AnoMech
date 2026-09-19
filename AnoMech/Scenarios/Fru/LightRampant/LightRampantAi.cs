@@ -9,7 +9,7 @@ namespace AnoMech.Scenarios.Fru.LightRampant;
 internal sealed class LightRampantAi : IScenarioAi
 {
     public string Name => "NA · Conga";
-    public string Group => "NAUR";
+    public string Group => "NA";
     internal void Run(LightRampantPattern pattern, SimWorld world, Func<bool> active, Func<PartyRole, int> stacks)
     {
         void Move(float time, Func<PartyRole, Vector3> position, Func<PartyRole, bool>? include = null)

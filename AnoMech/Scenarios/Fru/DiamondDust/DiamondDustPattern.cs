@@ -7,7 +7,7 @@ using static AnoMech.Scenarios.Fru.DiamondDust.DiamondDustConstants;
 
 namespace AnoMech.Scenarios.Fru.DiamondDust;
 
-// NAUR's linked Partner Swap (Echo) presentation: retain P1 clocks, swap
+// NA Partner Swap (Echo) presentation: retain P1 clocks, swap
 // supports CCW / DPS CW only when needed, then G1 red/purple and G2 blue/yellow.
 internal sealed class DiamondDustPattern(int firstIcicle, bool supportsMarked, bool axe, int reflectionOctant, bool stillness, int gazeOctant)
 {

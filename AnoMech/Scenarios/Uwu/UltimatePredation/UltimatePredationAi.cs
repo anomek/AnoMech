@@ -12,7 +12,7 @@ namespace AnoMech.Scenarios.Uwu.UltimatePredation;
 
 public class UltimatePredationAi : IScenarioAi<UltimatePredationState>
 {
-    public string Name => "NAUR";
+    public string Name => "NA";
 
     private UltimatePredationState state = null!;
 

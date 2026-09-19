@@ -34,7 +34,7 @@ internal static class DiamondDustChecks
             Check(world.Party.Members.All(m => !m.HasStatus(ThinIce)), "Thin Ice removed on completion");
             runs++;
         }
-        Console.WriteLine($"PASS: Diamond Dust, {runs} complete NAUR bot runs at 15/30/60 FPS.");
+        Console.WriteLine($"PASS: Diamond Dust, {runs} complete NA bot runs at 15/30/60 FPS.");
         ManualPlayers();
         FailuresAndReset();
     }
@@ -53,7 +53,7 @@ internal static class DiamondDustChecks
                 var expectedParity = (first + (marked ? 1 : 0)) % 2;
                 var clock = original[(int)role];
                 if (clock % 2 != expectedParity) clock = (clock + (support ? 7 : 1)) % 8;
-                Check(p.Clock(role) == clock, "NAUR P1 clocks, supports CCW / DPS CW partner swap");
+                Check(p.Clock(role) == clock, "NA P1 clocks, supports CCW / DPS CW partner swap");
                 var kb = p.KnockbackSpot(role);
                 Check(MathF.Abs(kb.Length() - 6) < 0.001f, "Six-yalm knockback setup");
                 var redPurple = kb.X < -0.01f || kb.Z < -5.99f;

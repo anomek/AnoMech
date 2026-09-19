@@ -18,7 +18,7 @@ public sealed class UwuZone : IZone
     public ushort ItemLevel => UwuConstants.ItemLevel;
 
     public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } =
-        [new WaymarkLayout("Default", UwuConstants.NaurWaymarks)];
+        [new WaymarkLayout("Default", UwuConstants.NaWaymarks)];
 
     public void Run(SimWorld world) => world.EnforceArenaBoundary(UwuConstants.Geometry.ArenaRadius);
 }
