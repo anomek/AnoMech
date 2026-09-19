@@ -12,6 +12,7 @@ public sealed class EventScheduler
 {
     private readonly List<Entry> entries = new();
     private float elapsed;
+    public float Elapsed => elapsed;
 
     public void Add(float offset, Action action)
     {

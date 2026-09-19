@@ -19,7 +19,16 @@ public interface IScenario
     // from each strat's IScenarioAi.Group.
     IReadOnlyList<IScenarioAi> AiStrats { get; }
 
+    // Authored cleanup time on the event clock, used by sequential practice.
+    // Scenarios without a declared end cannot be included in a sequence.
+    float Duration => 0;
+
     void Run(SimWorld world, int? selectedAi);
     void Tick(float delta, float elapsed) { }
     void DrawSettings() { }
+}
+
+public interface IScenarioSequence : IScenario
+{
+    IReadOnlyList<IScenario> Scenarios { get; }
 }

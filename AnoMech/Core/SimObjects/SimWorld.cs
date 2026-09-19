@@ -82,6 +82,20 @@ public sealed class SimWorld : ISimObject, IDisposable
         return enemy;
     }
 
+    public SimMapEffect SpawnMapEffect(byte index, uint show, uint hide)
+    {
+        var effect = new SimMapEffect(Map, index, show, hide);
+        children.Add(effect);
+        return effect;
+    }
+
+    public SimVoiceLine SpawnVoiceLine(uint voiceId)
+    {
+        var voice = new SimVoiceLine(voiceId);
+        children.Add(voice);
+        return voice;
+    }
+
     // Allocates an EventObject actor in EventObjectManager's 40-slot pool and
     // wires it to the given EObj sheet row. Mirror of SpawnEnemy for the EObj
     // side of the engine — see SimEventObject / EventObjectSpawn for details.
@@ -130,8 +144,21 @@ public sealed class SimWorld : ISimObject, IDisposable
     // `durationSeconds` and is cleaned up on world reset. `placement` is scenario-local
     // (like the rest of the SimXxx API); SimOmen lifts it to world coords. `scale`
     // follows SimOmen's convention: scale.X = halfWidth, scale.Z = length for rect omens.
-    public void SpawnOmen(string path, Placement placement, Vector3 scale, float durationSeconds)
-        => children.Add(new SimOmen(Coordinates, path, placement, scale, durationSeconds));
+    // A null duration persists until the returned handle is despawned or reset.
+    // Scenery AVFX uses its authored world scale and may require a start trigger.
+    public SimOmen SpawnOmen(string path, Placement placement, Vector3 scale,
+        float? durationSeconds = null, uint? startTrigger = null)
+    {
+        var omen = new SimOmen(Coordinates, path, placement, scale, durationSeconds, startTrigger);
+        children.Add(omen);
+        return omen;
+    }
+
+    // Explicit action-backed omen. This is useful when the action's native cast
+    // packet would expose an incorrect client-side telegraph, but its authored
+    // Omen resource is still the correct visual to display.
+    public void SpawnOmen(uint actionId, Placement placement, float durationSeconds)
+        => children.Add(new SimOmen(Coordinates, actionId, placement.Position, placement.Rotation, durationSeconds));
 
     // Change the active weather mid-scenario. weatherId is a Weather-sheet row;
     // transition is the fade-in time in seconds. A scenario's default weather
@@ -143,13 +170,18 @@ public sealed class SimWorld : ISimObject, IDisposable
     // Spawns the eight party slots and wires in the local player. Must be called
     // after ScenarioOrigin is set. Party is added first so it despawns last in
     // Reset's reverse-order teardown (tethers and enemies reference slot positions).
-    public void CreateParty(uint playerJob, PartyRole? roleOverride = null, bool solo = false)
+    public void CreateParty(uint playerJob, PartyRole? roleOverride = null, bool solo = false, byte? levelOverride = null)
     {
         var party = new SimParty();
-        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride, solo);
+        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride, solo, levelOverride);
         children.Add(party);
         Party = party;
     }
+
+    // Add late support bots to the existing party so damage, HUD, arena bounds,
+    // and reset all retain the same party owner and player slot.
+    public void FillMissingPartyMembers(Func<PartyRole, Placement> placement, byte? levelOverride = null)
+        => PartyCreator.FillMissing(Party, this, placement, levelOverride);
 
     public void Tick(float deltaSeconds)
     {

@@ -36,6 +36,9 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     // that simulate casts (SimEnemy) override it.
     public virtual bool AnimationLock => false;
 
+    public bool IsForcedMoving => Movement.IsForcedMoving;
+    public void Slide(Vector3 direction, float distance, float speed) => Movement.Slide(direction, distance, speed);
+
     public GameObjectId GameObjectId => BattleCharaPtr == null ? default : BattleCharaPtr->GetGameObjectId();
     public float HitboxRadius => BattleCharaPtr == null ? 0f : BattleCharaPtr->HitboxRadius;
     
@@ -96,7 +99,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     public void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null)
         => Movement.MoveTo(target, speed, finalRotation);
     public void MoveTo(Placement p) => MoveTo(p.Position);
-    protected void StopMoving() => Movement.Stop();
+    public void StopMoving() => Movement.Stop();
 
     public void Intercept(SimTether? tether, float margin = 3f) => Movement.Intercept(tether, margin);
 

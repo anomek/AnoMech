@@ -26,9 +26,6 @@ namespace AnoMech.Core.Native;
 public sealed unsafe class LocalPlayerInputHooks : IDisposable
 {
     internal const uint SprintActionId = 3;
-    private const ushort SprintStatusId = 50;
-    private const float SprintDuration = 10f; 
-    internal const ushort SprintStatusParam = 30;
 
     public bool DisableAllActions { get; set; }
     public bool ZeroMovement { get; set; }
@@ -153,8 +150,6 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
         // general action that UpdateDetour issues while stunned.
         if (result && !IsStopAutosAction(actionType, actionId))
             actionUsedSincePoll = true;
-        if (result && actionType == ActionType.Action && actionId == SprintActionId)
-            Plugin.GameInstance?.Player?.AddStatus(SprintStatusId, SprintDuration, SprintStatusParam);
         return result;
     }
 
@@ -163,6 +158,11 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
         var result = useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
         if (result) actionUsedSincePoll = true;
+        // UseAction can merely queue a press. This path runs when the adjusted
+        // action actually executes, including GeneralAction Sprint from a hotbar.
+        // The zone firewall drops its server response, so supply the buff locally.
+        if (result && actionType == ActionType.Action && actionId == SprintActionId)
+            Plugin.GameInstance?.Player?.StartSprint();
         return result;
     }
 

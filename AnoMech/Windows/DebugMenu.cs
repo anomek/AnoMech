@@ -589,12 +589,12 @@ internal sealed unsafe class DebugMenu
         Plugin.Log.Info($"  TransformationId={ch->TransformationId} StatusLoopVfxId={ch->StatusLoopVfxId} Battalion={ch->Battalion} ShieldValue={ch->ShieldValue}");
         Plugin.Log.Info($"  ModelContainer: ModelCharaId={ch->ModelContainer.ModelCharaId} ModelSkeletonId={ch->ModelContainer.ModelSkeletonId} ModelCharaId_2={ch->ModelContainer.ModelCharaId_2} ModelSkeletonId_2={ch->ModelContainer.ModelSkeletonId_2}");
         Plugin.Log.Info($"  ModelContainer: ModelScaleId=0x{ch->ModelContainer.ModelScaleId:X2} ModeAttributeFlags=0x{ch->ModelContainer.ModeAttributeFlags:X2} UnscaledRadius={ch->ModelContainer.UnscaledRadius:F2}");
-        Plugin.Log.Info($"  WeaponFlags=0x{ch->WeaponFlags:X2} ActorControlFlags=0x{ch->ActorControlFlags:X2}");
+        Plugin.Log.Info($"  WeaponFlags=0x{ch->LifeSkillContainer.WeaponFlags:X2} ActorControlFlags=0x{ch->ActorControlFlags:X2}");
         Plugin.Log.Info($"  Timeline.ModelState=0x{ch->Timeline.ModelState:X2} AnimationState=[0x{ch->Timeline.AnimationState[0]:X2},0x{ch->Timeline.AnimationState[1]:X2}]");
         for (int s = 0; s < 3; s++)
         {
             ref var w = ref ch->DrawData.WeaponData[s];
-            Plugin.Log.Info($"  DrawData.Weapon[{s}]: Id={w.ModelId.Id} Type={w.ModelId.Type} Variant={w.ModelId.Variant} Stain=({w.ModelId.Stain0},{w.ModelId.Stain1}) State=0x{w.State:X2} Flags1=0x{w.Flags1:X4} Flags2=0x{w.Flags2:X2} DrawObject*=0x{(nint)w.DrawObject:X}");
+            Plugin.Log.Info($"  DrawData.Weapon[{s}]: Id={w.ModelId.Id} Type={w.ModelId.Type} Variant={w.ModelId.Variant} Stain=({w.ModelId.Stain0},{w.ModelId.Stain1}) State=0x{w.State:X2} Flags1=0x{w.Flags1:X4} Flags2=0x{w.Flags2:X2} DrawObject*=0x{(nint)w.DrawData.DrawObject:X}");
         }
         Plugin.Log.Info($"  DrawData.Flags1=0x{ch->DrawData.Flags1:X2} Flags2=0x{ch->DrawData.Flags2:X2}");
     }

@@ -41,11 +41,11 @@ internal static unsafe class PartyCreator
 
     private static readonly Random Rng = new();
 
-    public static void Populate(SimParty party, SimPlayer player, uint playerJob, SimWorld world, PartyRole? roleOverride = null, bool solo = false)
+    public static void Populate(SimParty party, SimPlayer player, uint playerJob, SimWorld world, PartyRole? roleOverride = null, bool solo = false, byte? levelOverride = null)
     {
         var presets = roleOverride is { } skip
-            ? PartyPresets.ForRole(skip)
-            : PartyPresets.ForPlayerJob(playerJob);
+            ? PartyPresets.ForRole(skip, levelOverride)
+            : PartyPresets.ForPlayerJob(playerJob, levelOverride);
         var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
 
         for (int i = 0; i < presets.Count; i++)
@@ -72,6 +72,22 @@ internal static unsafe class PartyCreator
 
             var member = Spawn(preset, world, (PartyRole)i, new Placement(localPos, facingPlayer), itemSheet);
             if (member != null) party.SetSlot((PartyRole)i, member);
+        }
+    }
+
+    internal static void FillMissing(SimParty party, SimWorld world,
+        Func<PartyRole, Placement> placement, byte? levelOverride = null)
+    {
+        if (party.Player == null) return;
+        var presets = PartyPresets.ForRole(party.PlayerRole, levelOverride);
+        var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
+        for (var i = 0; i < presets.Count; i++)
+        {
+            // Preserve the player and every existing member, including KO'd bots.
+            if (presets[i] is not { } preset || party.Get(i) != null) continue;
+            var role = (PartyRole)i;
+            var member = Spawn(preset, world, role, placement(role), itemSheet);
+            if (member != null) party.SetSlot(role, member);
         }
     }
 
@@ -107,7 +123,7 @@ internal static unsafe class PartyCreator
         chara->IsPartyMember = true;
         chara->IsAllianceMember = false;
         chara->IsFriend = false;
-        chara->IsOffhandDrawn = false;
+        chara->LifeSkillContainer.IsOffhandDrawn = false;
         chara->Timeline.IsWeaponDrawn = false;
         chara->CastInfo.IsCasting = false;
         chara->Mode = CharacterModes.Normal;
@@ -123,7 +139,7 @@ internal static unsafe class PartyCreator
             chara->CurrentWorld = localChara->CurrentWorld;
         }
 
-        Plugin.Log.Info($"PartyCreator: spawned {preset.Name} ({role}, job {preset.ClassJob}) at index {idx}");
+        Plugin.Log.Info($"PartyCreator: spawned {preset.Name} ({role}, job {preset.ClassJob}, level {preset.Level}) at index {idx}");
         var member = new SimPartyNpc(idx, world.Coordinates, role, preset.ClassJob, preset.Name);
         // Bots steer around the scenario's geometry; only doppels get the live
         // field (bosses/player keep ObstacleField.Empty and move in straight lines).

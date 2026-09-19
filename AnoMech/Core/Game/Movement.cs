@@ -21,6 +21,9 @@ internal class Movement(SimCharacter parent)
     private ushort timelineId;
     private bool timelineBaseOverride;
     private bool animActive;
+    private bool playerKnockback;
+    private Vector3? playerKnockbackPosition;
+    private const float PlayerDisplacementTolerance = 0.1f;
 
     private SimCharacter? followTarget;
     private float followCooldown;
@@ -29,6 +32,18 @@ internal class Movement(SimCharacter parent)
     private float interceptMargin = 3f;   // park this many yards short of either tether endpoint
 
     public bool IsMoving => destination != null;
+    public bool IsForcedMoving { get; private set; }
+
+    public void Slide(Vector3 direction, float distance, float slideSpeed)
+    {
+        direction.Y = 0;
+        if (direction.LengthSquared() < 0.000001f || !parent.IsAlive()) return;
+        // Native pc_contentsaction/icefloor. Ice carries the actor straight
+        // through hazards; ordinary bot obstacle steering must not bend it.
+        InternalMoveTo(parent.Position + Vector3.Normalize(direction) * distance, slideSpeed,
+            tl: 602, baseOverride: false, faceTravel: true, avoid: false);
+        IsForcedMoving = true;
+    }
 
     public virtual void MoveTo(Vector3 t, float sp = 6f, float? finalRot = null, ushort tl = RunTimelineId, bool baseOverride = true)
         => InternalMoveTo(t, sp, finalRot, tl, baseOverride);
@@ -108,7 +123,8 @@ internal class Movement(SimCharacter parent)
         var kbDestination = parent.Placement().Face(source).MoveForward(-distance).Position;
         // Knockback is forced movement: don't steer around or stop short of obstacles.
         InternalMoveTo(kbDestination, kbSpeed, tl: KnockbackTimelineId, baseOverride: false, faceTravel: false, avoid: false);
-
+        playerKnockback = parent is SimPlayer && parent.IsAlive();
+        IsForcedMoving = parent.IsAlive();
     }
 
     // Shared move entry for MoveTo (locomotion) and Knockback (one-shot action).
@@ -120,6 +136,9 @@ internal class Movement(SimCharacter parent)
         bool faceTravel = true, bool avoid = true)
     {
         if (!parent.IsAlive()) return;   // dead characters don't move
+        playerKnockback = false;
+        playerKnockbackPosition = null;
+        IsForcedMoving = false;
         destination = moveDestination;
         speed = MathF.Max(0f, sp);
         finalRotation = finalRot;
@@ -133,6 +152,19 @@ internal class Movement(SimCharacter parent)
 
     public void Tick(float deltaSeconds)
     {
+        // SimCharacter has just sampled the native actor position. A gap-closer
+        // can take over before our last slide frame; release the old destination
+        // instead of pushing the player back toward it. Ignore floor height and
+        // small native rounding, and leave the new action's animation alone.
+        if (playerKnockbackPosition is { } expected)
+        {
+            var displacement = new Vector2(parent.Position.X - expected.X, parent.Position.Z - expected.Z);
+            if (displacement.LengthSquared() > PlayerDisplacementTolerance * PlayerDisplacementTolerance)
+            {
+                Stop(resetAnimation: false);
+                return;
+            }
+        }
         if (parent.AnimationLock)
         {
             StopAnim();
@@ -181,6 +213,10 @@ internal class Movement(SimCharacter parent)
             var next = new Vector3(cur.X + heading.X * step, cur.Y, cur.Z + heading.Y * step);
             parent.SetPosition(new Placement(next, faceTravel ? MathF.Atan2(heading.X, heading.Y) : parent.Rotation));
         }
+        // Start tracking only after the first actual slide write: scenario
+        // events run before the actor sample, so the position at Knockback()
+        // can still be the previous frame's normal player movement.
+        if (playerKnockback) playerKnockbackPosition = parent.Position;
     }
 
     private void TickFollow(float deltaSeconds)
@@ -216,11 +252,17 @@ internal class Movement(SimCharacter parent)
         }
     }
 
-    public void Stop()
+    public void Stop() => Stop(resetAnimation: true);
+
+    private void Stop(bool resetAnimation)
     {
         destination = null;
+        IsForcedMoving = false;
         interceptTether = null;
-        StopAnim();
+        playerKnockback = false;
+        playerKnockbackPosition = null;
+        if (resetAnimation) StopAnim();
+        else animActive = false;
     }
 
 
