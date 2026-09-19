@@ -26,17 +26,19 @@ namespace AnoMech.Core.SimObjects
         public uint GameObjectId => 100u + (uint)Role;
         public List<(uint Action, string Cause, bool Lethal)> Damage { get; } = [];
         public HashSet<ushort> Statuses { get; } = [];
+        public Dictionary<ushort, int> StatusParams { get; } = [];
         public List<ushort> StatusHistory { get; } = [];
         public bool HasStatus(ushort status) => Statuses.Contains(status);
-        public void AddStatus(ushort status, float duration = 0f)
+        public void AddStatus(ushort status, float duration = 0f, int stacks = 1, bool overrideStacks = false)
         {
+            StatusParams[status] = overrideStacks ? stacks : StatusParams.GetValueOrDefault(status) + stacks;
             Statuses.Add(status);
             StatusHistory.Add(status);
         }
-        public void RemoveStatus(ushort status) => Statuses.Remove(status);
+        public void RemoveStatus(ushort status) { Statuses.Remove(status); StatusParams.Remove(status); }
     }
 
-    public enum EnemyListMode { Always, Never }
+    public enum EnemyListMode { Always, Never, OnlyWhenVisible }
     public record struct EnemySpawnConfig(uint BNpcBaseId, uint NameId = 0, byte Level = 0,
         bool Targetable = false, EnemyListMode EnemyList = EnemyListMode.Always, Placement Placement = default, float Scale = 0,
         bool IsHostile = true, ushort SpawnTimeline = 0, uint ModelCharaId = 0);
@@ -79,7 +81,7 @@ namespace AnoMech.Core.SimObjects
         {
             foreach (var spawned in Spawned) spawned.Despawn();
             Spawned.Clear();
-            foreach (var member in Party.Members) { member.Statuses.Clear(); member.ActiveActorVfx.Clear(); member.StopMoving(); }
+            foreach (var member in Party.Members) { member.Statuses.Clear(); member.StatusParams.Clear(); member.ActiveActorVfx.Clear(); member.StopMoving(); }
             Party.Player?.SetMechanicInputLock(false);
         }
     }
@@ -107,5 +109,6 @@ namespace AnoMech.Scenarios.Fru
         public static IPhase P5 { get; } = new StubPhase();
         public static IPhase P4 { get; } = new StubPhase();
         public static IPhase P3 { get; } = new StubPhase();
+        public static IPhase P2 { get; } = new StubPhase();
     }
 }

@@ -9,6 +9,7 @@ namespace AnoMech.Scenarios.Fru;
 public sealed class FruZone : IZone
 {
     public static readonly FruZone Instance = new();
+    public static readonly Phase P2 = new(Instance, "P2", 105, BgmId.Usurper, InitP2Arena);
     public static readonly Phase P3 = new(Instance, "P3", 106, BgmId.Oracle, InitP3Arena);
     public static readonly Phase P4 = new(Instance, "P4", 106, BgmId.OracleAndUsurper, InitP4Arena);
     public static readonly Phase P5 = new(Instance, "P5", WeatherId.Pandora, BgmId.Pandora, InitP5Arena);
@@ -40,6 +41,13 @@ public sealed class FruZone : IZone
         // stage4_type2 state. Hourglasses and the fragment are owned by CT.
         for (byte slot = 0; slot < MapEffect.SlotCount; slot++)
             world.Map.AddEffect(slot == 40 ? 0x00020001u : MapEffect.Hide, slot);
+    });
+
+    private static void InitP2Arena(SimWorld world) => world.Events.Add(1f, () =>
+    {
+        // Native P2 platform: ContentDirectorManagedSG 181, slot 23.
+        for (byte slot = 0; slot < MapEffect.SlotCount; slot++)
+            world.Map.AddEffect(slot == 23 ? MapEffect.Show : MapEffect.Hide, slot);
     });
 
     private static void InitP3Arena(SimWorld world) => world.Events.Add(1f, () =>

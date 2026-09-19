@@ -3,6 +3,8 @@ using AnoMech.Scenarios.Fru.FulgentBlade;
 using static AnoMech.Scenarios.Fru.FruConstants;
 
 if (args.Contains("--apocalypse")) { ApocalypseChecks.Run(); return; }
+if (args.Contains("--diamond-dust")) { DiamondDustChecks.Run(); return; }
+DiamondDustChecks.Run();
 
 // Regression oracle: FRU-Sim fb_positions.gd's six dodges, evaluated at the
 // snapshots in exawave_controller.tscn + exawave.tscn. No game client required.

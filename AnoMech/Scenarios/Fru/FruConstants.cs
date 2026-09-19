@@ -14,6 +14,8 @@ public static class FruConstants
 
     public static class BgmId
     {
+        // Return to Oblivion, music/ex3/BGM_EX3_Raid_08.scd.
+        public const ushort Usurper = 759;
         // The Extreme (Shadowbringers), music/ex3/BGM_EX3_Raid_12.scd.
         public const ushort Oracle = 802;
         // Promises to Keep, music/ex3/BGM_EX3_Raid_11.scd (native BGM sheet).

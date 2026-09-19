@@ -13,9 +13,23 @@ public partial class SimCharacter
     public void AddVfx(string path, float duration = 0, bool persistent = true)
     { ActorVfx.Add((path, persistent)); if (persistent) ActiveActorVfx.Add(path); }
     public void RemoveVfx(string path) { RemovedActorVfx.Add(path); ActiveActorVfx.Remove(path); }
-    public sealed class StatusHandle { public void Reapply(float duration, int stacks) { } }
-    public StatusHandle? FindStatus(ushort status) => HasStatus(status) ? new() : null;
+    public sealed class StatusHandle(SimCharacter owner, ushort status)
+    {
+        public void Reapply(float duration, int stacks)
+            => owner.StatusParams[status] = Math.Max(0, owner.StatusParams.GetValueOrDefault(status) + stacks);
+    }
+    public StatusHandle? FindStatus(ushort status) => HasStatus(status) ? new(this, status) : null;
     public (Vector3 Position, float Speed)? ForcedMove { get; set; }
+    public bool IsForcedMoving => ForcedMove != null;
+    public List<Vector3> Slides { get; } = [];
+    public void Slide(Vector3 direction, float distance, float speed)
+    {
+        if (!this.IsAlive()) return;
+        ForcedMove = (Position + Vector3.Normalize(direction) * distance, speed);
+        Slides.Add(ForcedMove.Value.Position);
+        StopAtMoveCount = Moves.Count;
+    }
+    public void Face(Vector3 position) => Rotation = MathF.Atan2(position.X - Position.X, position.Z - Position.Z);
     public int StopAtMoveCount { get; private set; }
     public void StopMoving() { ForcedMove = null; StopAtMoveCount = Moves.Count; }
     public void Knockback(Vector3 source, float distance, float speed)
@@ -78,12 +92,23 @@ public sealed class SimTether(ushort id) : ISimObject
 }
 public sealed partial class SimWorld
 {
+    public SimVoiceLine SpawnVoiceLine(uint voiceId)
+    { var result = new SimVoiceLine(voiceId, Events.Elapsed); Spawned.Add(result); return result; }
     public SimOmen SpawnOmen(string path, Placement placement, Vector3 scale)
     { var result = new SimOmen(path, placement, scale); Spawned.Add(result); return result; }
     public SimEventObject SpawnEventObject(EventObjectSpawnConfig config)
     { var result = new SimEventObject(config); Spawned.Add(result); return result; }
     public SimTether Tether(SimCharacter? from, SimCharacter? to, ushort id)
     { var result = new SimTether(id); Spawned.Add(result); return result; }
+}
+
+public sealed class SimVoiceLine(uint voiceId, float startTime) : ISimObject
+{
+    public uint VoiceId => voiceId;
+    public float StartTime => startTime;
+    public bool IsActive { get; private set; } = true;
+    public void Despawn() => IsActive = false;
+    public void Tick(float deltaSeconds) { }
 }
 public sealed class SimOmen(string path, Placement placement, Vector3 scale) : ISimObject
 {

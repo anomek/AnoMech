@@ -89,6 +89,13 @@ public sealed class SimWorld : ISimObject, IDisposable
         return effect;
     }
 
+    public SimVoiceLine SpawnVoiceLine(uint voiceId)
+    {
+        var voice = new SimVoiceLine(voiceId);
+        children.Add(voice);
+        return voice;
+    }
+
     // Allocates an EventObject actor in EventObjectManager's 40-slot pool and
     // wires it to the given EObj sheet row. Mirror of SpawnEnemy for the EObj
     // side of the engine — see SimEventObject / EventObjectSpawn for details.

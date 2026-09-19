@@ -78,3 +78,21 @@ foreach (var fps in new[] { 15, 30, 60, 144 })
     Check(botMovement.IsMoving && bot.Position.Z > 3, "Bot knockback retains its existing destination behavior");
 }
 Console.WriteLine($"PASS: production player movement; {cases} gap-closer interruption cases at 15/30/60/144 FPS; normal slides, facing, animation handoff, later knockbacks, reset and bot behavior.");
+
+foreach (var fps in new[] { 15, 30, 60, 144 })
+{
+    var player = new SimPlayer { Position = new(0, 0, -17) };
+    var movement = new PlayerMovement(player);
+    movement.Slide(Vector3.UnitZ, 32, 32);
+    Check(movement.IsForcedMoving, "Thin Ice is forced movement and locks ordinary player locomotion");
+    var frames = 0;
+    while (movement.IsMoving && frames++ < fps * 2) movement.Tick(1f / fps);
+    Check(Vector3.Distance(player.Position, new(0, 0, 15)) < 0.001f, "Thin Ice travels exactly 32 yalms");
+    Check(!movement.IsForcedMoving && player.Animations.SequenceEqual(new ushort[] { 602 }) && player.AnimationResets == 1,
+        "Ice uses the native icefloor timeline once and releases movement and animation on arrival");
+    movement.Slide(Vector3.UnitZ, 32, 32);
+    movement.Tick(1f / fps);
+    movement.Stop();
+    Check(!movement.IsForcedMoving, "Reset releases an active Thin Ice slide");
+}
+Console.WriteLine("PASS: production Thin Ice distance, native animation, forced-movement state, arrival and reset at four frame rates.");

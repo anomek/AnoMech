@@ -32,6 +32,18 @@ internal class Movement(SimCharacter parent)
     private float interceptMargin = 3f;   // park this many yards short of either tether endpoint
 
     public bool IsMoving => destination != null;
+    public bool IsForcedMoving { get; private set; }
+
+    public void Slide(Vector3 direction, float distance, float slideSpeed)
+    {
+        direction.Y = 0;
+        if (direction.LengthSquared() < 0.000001f || !parent.IsAlive()) return;
+        // Native pc_contentsaction/icefloor. Ice carries the actor straight
+        // through hazards; ordinary bot obstacle steering must not bend it.
+        InternalMoveTo(parent.Position + Vector3.Normalize(direction) * distance, slideSpeed,
+            tl: 602, baseOverride: false, faceTravel: true, avoid: false);
+        IsForcedMoving = true;
+    }
 
     public virtual void MoveTo(Vector3 t, float sp = 6f, float? finalRot = null, ushort tl = RunTimelineId, bool baseOverride = true)
         => InternalMoveTo(t, sp, finalRot, tl, baseOverride);
@@ -112,6 +124,7 @@ internal class Movement(SimCharacter parent)
         // Knockback is forced movement: don't steer around or stop short of obstacles.
         InternalMoveTo(kbDestination, kbSpeed, tl: KnockbackTimelineId, baseOverride: false, faceTravel: false, avoid: false);
         playerKnockback = parent is SimPlayer && parent.IsAlive();
+        IsForcedMoving = parent.IsAlive();
     }
 
     // Shared move entry for MoveTo (locomotion) and Knockback (one-shot action).
@@ -125,6 +138,7 @@ internal class Movement(SimCharacter parent)
         if (!parent.IsAlive()) return;   // dead characters don't move
         playerKnockback = false;
         playerKnockbackPosition = null;
+        IsForcedMoving = false;
         destination = moveDestination;
         speed = MathF.Max(0f, sp);
         finalRotation = finalRot;
@@ -243,6 +257,7 @@ internal class Movement(SimCharacter parent)
     private void Stop(bool resetAnimation)
     {
         destination = null;
+        IsForcedMoving = false;
         interceptTether = null;
         playerKnockback = false;
         playerKnockbackPosition = null;
