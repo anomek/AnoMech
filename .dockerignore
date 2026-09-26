@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vs
+.claude
+**/bin
+**/obj
+logs
+Reference
+tests
+tools
+*.user

@@ -46,6 +46,15 @@ dotnet run -- --port 7890
 - Others on the LAN connect to `ws://<host's-LAN-IP>:7890` (`ipconfig` → IPv4 Address).
 - Allow the app through Windows Firewall's private-network prompt if asked.
 
+Prebuilt Windows, Linux, and macOS binaries are attached to each `relay-v*` GitHub
+release. A Linux amd64/arm64 container is also published as
+`ghcr.io/anomek/anomech-relay:<version>` and `ghcr.io/anomek/anomech-relay:latest`.
+For example:
+
+```bash
+docker run --rm -p 7890:7890 ghcr.io/anomek/anomech-relay:latest
+```
+
 ---
 
 ## Option A — cloud VPS (recommended)

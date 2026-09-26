@@ -95,11 +95,25 @@ public unsafe class MainWindow : Window, IDisposable
         IsOpen = false;
         RestoreSelectedScenario();
 
-        // Small gear in the title bar opens the settings window (same toggle as /anomech config).
+        // Global tools live in the title bar so the scenario header stays focused on the
+        // selected scenario. Higher priority places Multiplayer to the left of Settings.
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Users,
+            IconOffset = new Vector2(2f, 1f) * uiScale,
+            Priority = 1,
+            Click = _ => plugin.MultiplayerWindow.Toggle(),
+            ShowTooltip = () => ImGui.SetTooltip(plugin.Multiplayer.IsConnected
+                ? "Multiplayer (connected)"
+                : "Multiplayer"),
+        });
+
+        // Small gear opens the settings window (same toggle as /anomech config).
         TitleBarButtons.Add(new TitleBarButton
         {
             Icon = FontAwesomeIcon.Cog,
             IconOffset = new Vector2(2f, 1f) * uiScale,
+            Priority = 0,
             Click = _ => plugin.ToggleConfigUi(),
             ShowTooltip = () => ImGui.SetTooltip("Settings"),
         });
@@ -482,11 +496,6 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.TextDisabled($"{scenario.Phase.Zone.Name} —");
         ImGui.SameLine(0f, 4f * uiScale);
         ImGui.TextUnformatted(DisplayName(scenario));
-        if (scenario.SupportsMultiplayer)
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton("Multiplayer...")) plugin.MultiplayerWindow.Toggle();
-        }
 
         var minimumStatusX = ImGui.GetItemRectMax().X + 12f * uiScale;
         // Room for the widest status, or an auto-sized window whose widest row is this one would
