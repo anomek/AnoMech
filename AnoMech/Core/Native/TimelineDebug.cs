@@ -157,7 +157,6 @@ internal static unsafe class TimelineDebug
         DiagnosticLog.Info("[TimelineDebug] test spawn despawned.");
     }
 
-    // ImGui block shared by DebugMenu and RunningSimWindow.
     public static void DrawControls()
     {
         if (!ImGui.CollapsingHeader("Timeline test (debug)")) return;

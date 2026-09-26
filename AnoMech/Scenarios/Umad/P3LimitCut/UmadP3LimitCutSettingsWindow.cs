@@ -27,9 +27,16 @@ public sealed class UmadP3LimitCutSettingsWindow
         PartyRole.MeleeDpsA, PartyRole.MeleeDpsB, PartyRole.CasterDps,
     ];
 
+    // Solo, the player's own picks sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-        if (ImGui.Button("Auto")) ResetAll();
+        var solo = !PerRole.SeatsActive;
+        if (ImGui.Button("Auto"))
+        {
+            ResetAll();
+            if (solo) ResetMine();
+        }
 
         if (SettingsGrid.Begin("##p3limitcut"))
         {
@@ -63,6 +70,7 @@ public sealed class UmadP3LimitCutSettingsWindow
             if (ImGui.Combo("##lclb", ref lb, LimitBreakLabels, LimitBreakLabels.Length))
                 Overrides.BotTankLimitBreak = lb switch { 1 => true, 2 => false, _ => null };
 
+            if (solo) DrawPlayerRows();
             SettingsGrid.End();
         }
         // The Thunder III plan is drawn by UmadP3LimitCutScenario.DrawMultiplayerSettings so it
@@ -75,25 +83,29 @@ public sealed class UmadP3LimitCutSettingsWindow
         if (SettingsGrid.Begin("##p3limitcutplayers"))
         {
             editingSeat = SettingsGrid.SeatRow("##lcseat", editingSeat);
-            var whose = PerRole.SeatsActive ? "" : "Your ";
-
-            SettingsGrid.Row($"{whose}number:");
-            var number = Overrides.Number.Effective(editingSeat) ?? 0;
-            SettingsGrid.ItemWidth(140);
-            if (ImGui.Combo("##lcnumber", ref number, NumberLabels, NumberLabels.Length))
-                Overrides.Number.Set(editingSeat, number == 0 ? null : number);
-
-            SettingsGrid.Row($"{whose}wind:");
-            var wind = Overrides.Wind.Effective(editingSeat) switch { Wind.Headwind => 1, Wind.Tailwind => 2, _ => 0 };
-            SettingsGrid.ItemWidth(140);
-            if (ImGui.Combo("##lcwind", ref wind, WindLabels, WindLabels.Length))
-                Overrides.Wind.Set(editingSeat, wind switch { 1 => Wind.Headwind, 2 => Wind.Tailwind, _ => null });
-
+            DrawPlayerRows();
             SettingsGrid.ForcedRecapRow("Numbers set:", Overrides.Number);
             SettingsGrid.ForcedRecapRow("Winds set:", Overrides.Wind);
             SettingsGrid.End();
         }
         SettingsGrid.ConflictRows(Overrides.Validate());
+    }
+
+    private void DrawPlayerRows()
+    {
+        var whose = PerRole.SeatsActive ? "" : "Your ";
+
+        SettingsGrid.Row($"{whose}number:");
+        var number = Overrides.Number.Effective(editingSeat) ?? 0;
+        SettingsGrid.ItemWidth(140);
+        if (ImGui.Combo("##lcnumber", ref number, NumberLabels, NumberLabels.Length))
+            Overrides.Number.Set(editingSeat, number == 0 ? null : number);
+
+        SettingsGrid.Row($"{whose}wind:");
+        var wind = Overrides.Wind.Effective(editingSeat) switch { Wind.Headwind => 1, Wind.Tailwind => 2, _ => 0 };
+        SettingsGrid.ItemWidth(140);
+        if (ImGui.Combo("##lcwind", ref wind, WindLabels, WindLabels.Length))
+            Overrides.Wind.Set(editingSeat, wind switch { 1 => Wind.Headwind, 2 => Wind.Tailwind, _ => null });
     }
 
     private void ResetAll()
@@ -110,6 +122,13 @@ public sealed class UmadP3LimitCutSettingsWindow
     {
         Overrides.Number.Clear();
         Overrides.Wind.Clear();
+    }
+
+    // Solo's own picks only: a host's seat assignments are kept apart.
+    private void ResetMine()
+    {
+        Overrides.Number.Mine = null;
+        Overrides.Wind.Mine = null;
     }
 
     // Black Hole's planner for the one Thunder III set here (the two hits at ~38.6s and ~41.6s):

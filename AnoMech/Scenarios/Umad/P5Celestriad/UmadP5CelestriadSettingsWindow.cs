@@ -23,12 +23,21 @@ public sealed class UmadP5CelestriadSettingsWindow
         "Lightning, Fire, Ice", "Lightning, Ice, Fire",
     ];
 
+    // Solo, the player's own debuff sits in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-        if (ImGui.Button("Auto")) ResetAll();
+        var solo = !PerRole.SeatsActive;
+        if (ImGui.Button("Auto"))
+        {
+            ResetAll();
+            if (solo) Overrides.Debuff.Mine = null;
+        }
 
         if (SettingsGrid.Begin("##p5celestriad"))
         {
+            if (solo) DrawDebuff();
+
             SettingsGrid.Row("Doubled element:");
             var order = Overrides.DoubleOrder is { } o ? (int)o + 1 : 0;
             SettingsGrid.ItemWidth(200);
@@ -51,18 +60,20 @@ public sealed class UmadP5CelestriadSettingsWindow
         if (SettingsGrid.Begin("##p5celestriadplayers"))
         {
             editingSeat = SettingsGrid.SeatRow("##celseat", editingSeat);
-            var whose = PerRole.SeatsActive ? "" : "Your ";
-
-            SettingsGrid.Row($"{whose}debuff:");
-            var debuff = Overrides.Debuff.Effective(editingSeat) is { } d ? (int)d + 1 : 0;
-            SettingsGrid.ItemWidth(180);
-            if (ImGui.Combo("##celdebuff", ref debuff, DebuffLabels, DebuffLabels.Length))
-                Overrides.Debuff.Set(editingSeat, debuff == 0 ? null : (CelestriadDebuff)(debuff - 1));
-
+            DrawDebuff();
             SettingsGrid.ForcedRecapRow("Debuffs set:", Overrides.Debuff);
             SettingsGrid.End();
         }
         SettingsGrid.ConflictRows(Overrides.Validate());
+    }
+
+    private void DrawDebuff()
+    {
+        SettingsGrid.Row($"{(PerRole.SeatsActive ? "" : "Your ")}debuff:");
+        var debuff = Overrides.Debuff.Effective(editingSeat) is { } d ? (int)d + 1 : 0;
+        SettingsGrid.ItemWidth(180);
+        if (ImGui.Combo("##celdebuff", ref debuff, DebuffLabels, DebuffLabels.Length))
+            Overrides.Debuff.Set(editingSeat, debuff == 0 ? null : (CelestriadDebuff)(debuff - 1));
     }
 
     private static void DrawVariant(string id, CatastrophicVariantOverride current, Action<CatastrophicVariantOverride> set)

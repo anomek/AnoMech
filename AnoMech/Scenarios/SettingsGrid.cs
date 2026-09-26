@@ -100,5 +100,10 @@ internal static class SettingsGrid
         ImGui.TableSetColumnIndex(1);
     }
 
+    // A per-player row. Solo it is one of the scenario panel's own rows, so it starts with a
+    // capital; with seats it reads after the seat picker.
+    public static void PlayerRow(string label) =>
+        Row(PerRole.SeatsActive ? label : char.ToUpperInvariant(label[0]) + label[1..]);
+
     public static void End() => ImGui.EndTable();
 }

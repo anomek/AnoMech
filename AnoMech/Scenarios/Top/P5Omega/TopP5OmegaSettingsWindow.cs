@@ -11,9 +11,16 @@ public sealed class TopP5OmegaSettingsWindow
     // Which seat the per-player rows are showing. UI state only; never broadcast.
     private PartyRole editingSeat = PartyRole.MainTank;
 
+    // Solo, the player's own picks sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-        if (ImGui.Button("Auto")) ResetFight();
+        var solo = !PerRole.SeatsActive;
+        if (ImGui.Button("Auto"))
+        {
+            ResetFight();
+            if (solo) ResetMine();
+        }
         if (SettingsGrid.Begin("##p5omega"))
         {
             DrawAttack("First F attack:",  "1f", OmegaAttack.Legs,   "Legs",   OmegaAttack.Staff,  "Staff",
@@ -27,8 +34,15 @@ public sealed class TopP5OmegaSettingsWindow
             DrawWaveCannon();
             DrawMonitorSide();
             DrawBeetleSpawn();
+            if (solo)
+            {
+                DrawExtraDynamis();
+                DrawHelloWorldOrder();
+                DrawHelloWorldType();
+            }
             SettingsGrid.End();
         }
+        if (solo) DrawForceButtons();
     }
 
     public void DrawPerPlayer()
@@ -64,6 +78,14 @@ public sealed class TopP5OmegaSettingsWindow
         Overrides.ExtraDynamis.Clear();
         Overrides.HelloWorldOrder.Clear();
         Overrides.HelloWorldType.Clear();
+    }
+
+    // Solo's own picks only: a host's seat assignments are kept apart.
+    private void ResetMine()
+    {
+        Overrides.ExtraDynamis.Mine = null;
+        Overrides.HelloWorldOrder.Mine = null;
+        Overrides.HelloWorldType.Mine = null;
     }
 
     private static void DrawAttack(string label, string suffix,
@@ -113,12 +135,10 @@ public sealed class TopP5OmegaSettingsWindow
         }
     }
 
-    private string Whose => PerRole.SeatsActive ? "" : "Your ";
-
     private void DrawExtraDynamis()
     {
         var v = Overrides.ExtraDynamis.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}extra dynamis stack:");
+        SettingsGrid.PlayerRow("extra dynamis stack:");
         if (ImGui.RadioButton("Auto##dyn", v == null))  Overrides.ExtraDynamis.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("No##dyn",   v == false)) Overrides.ExtraDynamis.Set(editingSeat, false);
@@ -129,7 +149,7 @@ public sealed class TopP5OmegaSettingsWindow
     private void DrawHelloWorldOrder()
     {
         var v = Overrides.HelloWorldOrder.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Hello World order:");
+        SettingsGrid.PlayerRow("Hello World order:");
         if (ImGui.RadioButton("Auto##hwo",   v == null))                          SetOrder(null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Any##hwo",    v == HelloWorldOrderOption.Any))     SetOrder(HelloWorldOrderOption.Any);
@@ -144,7 +164,7 @@ public sealed class TopP5OmegaSettingsWindow
     private void DrawHelloWorldType()
     {
         var v = Overrides.HelloWorldType.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Hello World type:");
+        SettingsGrid.PlayerRow("Hello World type:");
         if (ImGui.RadioButton("Auto##hwt", v == null))                        Overrides.HelloWorldType.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Near##hwt", v == HelloWorldTypeOption.Near))   Overrides.HelloWorldType.Set(editingSeat, HelloWorldTypeOption.Near);

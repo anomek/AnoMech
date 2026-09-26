@@ -14,18 +14,38 @@ public sealed class UmadP3BlackHoleSettingsWindow
     // Which seat the per-player rows are showing. UI state only; never broadcast.
     private PartyRole editingSeat = PartyRole.MainTank;
 
+    // Solo, the player's own picks sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
+        var solo = !PerRole.SeatsActive;
+#if !DEBUG
+        if (!solo)
+        {
+            ImGui.TextDisabled("Everything here is per player -- use the button below.");
+            return;
+        }
+#endif
+        if (ImGui.Button("Auto"))
+        {
 #if DEBUG
-        if (ImGui.Button("Auto")) Overrides.FirstSlap = null;
+            Overrides.FirstSlap = null;
+#endif
+            if (solo) ResetMine();
+        }
         if (SettingsGrid.Begin("##umadp3blackhole"))
         {
+            if (solo)
+            {
+                DrawLineNumber();
+                DrawAccretion();
+            }
+#if DEBUG
             DrawFirstSlap();
+            if (solo) DrawFirstSlapTarget();
+#endif
             SettingsGrid.End();
         }
-#else
-        ImGui.TextDisabled("Everything here is per player -- use the button below.");
-#endif
     }
 
     public void DrawPerPlayer()
@@ -46,13 +66,11 @@ public sealed class UmadP3BlackHoleSettingsWindow
         SettingsGrid.ConflictRows(Overrides.Validate());
     }
 
-    private string Whose => PerRole.SeatsActive ? "" : "Your ";
-
     // Forces the seat into the slot carrying that line number (Auto = the fight's own roll).
     private void DrawLineNumber()
     {
         var v = Overrides.LineNumber.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}line:");
+        SettingsGrid.PlayerRow("line:");
         if (ImGui.RadioButton("Auto##line",   v == null)) Overrides.LineNumber.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("First##line",  v == 1))    Overrides.LineNumber.Set(editingSeat, 1);
@@ -66,7 +84,7 @@ public sealed class UmadP3BlackHoleSettingsWindow
     private void DrawAccretion()
     {
         var v = Overrides.Accretion.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Accretion:");
+        SettingsGrid.PlayerRow("Accretion:");
         if (ImGui.RadioButton("Auto##accretion", v == null))  Overrides.Accretion.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##accretion",  v == true))  Overrides.Accretion.Set(editingSeat, true);
@@ -89,10 +107,10 @@ public sealed class UmadP3BlackHoleSettingsWindow
     private void DrawFirstSlapTarget()
     {
         var v = Overrides.FirstSlapAllOnMe.Effective(editingSeat);
-        SettingsGrid.Row("1st Slap at:");
+        SettingsGrid.Row(PerRole.SeatsActive ? "1st Slap at:" : "1st Slap Target:");
         if (ImGui.RadioButton("Auto##firstslaptarget", v != true)) Overrides.FirstSlapAllOnMe.Set(editingSeat, null);
         ImGui.SameLine();
-        if (ImGui.RadioButton($"{(PerRole.SeatsActive ? "This seat" : "Me")}##firstslaptarget", v == true))
+        if (ImGui.RadioButton($"{(PerRole.SeatsActive ? "This seat" : "Player")}##firstslaptarget", v == true))
             Overrides.FirstSlapAllOnMe.Set(editingSeat, true);
     }
 #endif
@@ -150,5 +168,13 @@ public sealed class UmadP3BlackHoleSettingsWindow
         Overrides.LineNumber.Clear();
         Overrides.Accretion.Clear();
         Overrides.FirstSlapAllOnMe.Clear();
+    }
+
+    // Solo's own picks only: a host's seat assignments are kept apart.
+    private void ResetMine()
+    {
+        Overrides.LineNumber.Mine = null;
+        Overrides.Accretion.Mine = null;
+        Overrides.FirstSlapAllOnMe.Mine = null;
     }
 }

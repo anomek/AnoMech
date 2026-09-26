@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
@@ -10,7 +11,6 @@ using AnoMech.Core.Map;
 using AnoMech.Core;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
-using AnoMech.Multiplayer;
 using AnoMech.Scenarios;
 using static AnoMech.Core.Game.Game;
 
@@ -20,7 +20,6 @@ public unsafe class MainWindow : Window, IDisposable
 {
     private const float ScenarioButtonExtraPadding = 6f;
     private const float SetupDropdownWidth = 180f;
-    private const float MinimumSectionsHeight = 120f;
 
     internal static readonly Vector4 StartColor = new(0.18f, 0.40f, 0.24f, 0.92f);
     internal static readonly Vector4 StopColor = new(0.45f, 0.14f, 0.16f, 0.92f);
@@ -28,15 +27,13 @@ public unsafe class MainWindow : Window, IDisposable
     private static readonly Vector4 PausedColor = new(1f, 0.65f, 0.25f, 1f);
 
     private readonly Plugin plugin;
+    private readonly TitleBarButton autoCollapseButton;
     private IZone? _openZone;
     internal ScenarioPanelWindow ScenarioPanel { get; }
     internal Vector2 ScenarioPanelAnchor { get; private set; }
     internal float ScenarioPanelHeight { get; private set; }
     internal bool IsActuallyCollapsed { get; private set; }
     private float _windowChromeHeight;
-    private Vector2? _windowPos;
-    private bool _onMainViewport;
-    private Vector2 _sectionsSize;
     internal IScenario? SelectedScenario => _selectedScenario;
     private IScenario? _selectedScenario;
 
@@ -74,10 +71,14 @@ public unsafe class MainWindow : Window, IDisposable
     private readonly DebugMenu debugMenu;
 #endif
 
-    // Version plus the build checksum the multiplayer handshake compares; the ### id keeps the
-    // window identity stable across versions.
+    // <Version> from AnoMech.csproj flows into the assembly version; surface it in the
+    // title bar. Use a ### id so the window identity stays "MainWindow" across versions.
     private static string TitleWithVersion()
-        => $"AnoMech v{PluginBuildInfo.Version} ({PluginBuildInfo.ShortChecksum})###MainWindow";
+    {
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        var version = v is null ? "" : $" v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+        return $"AnoMech{version}###MainWindow";
+    }
 
     public MainWindow(Plugin plugin)
         : base(TitleWithVersion())
@@ -94,6 +95,21 @@ public unsafe class MainWindow : Window, IDisposable
         ScenarioPanel = new ScenarioPanelWindow(this);
         IsOpen = false;
         RestoreSelectedScenario();
+
+        autoCollapseButton = new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.CompressAlt,
+            IconOffset = new Vector2(1f, 1f),
+            Priority = 2,
+            Click = _ =>
+            {
+                Plugin.Config.AutoCollapseWhileRunning = !Plugin.Config.AutoCollapseWhileRunning;
+                Plugin.Config.Save();
+            },
+            ShowTooltip = () => ImGui.SetTooltip(
+                $"Auto-collapse while running: {(Plugin.Config.AutoCollapseWhileRunning ? "On" : "Off")}"),
+        };
+        TitleBarButtons.Add(autoCollapseButton);
 
         // Global tools live in the title bar so the scenario header stays focused on the
         // selected scenario. Higher priority places Multiplayer to the left of Settings.
@@ -129,26 +145,99 @@ public unsafe class MainWindow : Window, IDisposable
 #endif
     }
 
-    // Hidden while the instance is loaded (RunningSimWindow covers Start/Reset/Leave) and
-    // reopened afterwards only if we were the one who closed it.
-    private bool hiddenByUs;
+    private bool _wasInInstance;
+    private bool _wasScenarioActive;
+    private bool _wasScenarioMistake;
+    private bool _wasScenarioFailed;
+    private bool _wasScenarioSucceeded;
+    private bool _clearCollapsedRequest;
 
+    // A peer never sets Game.ActiveScenario: in a session the run is the session's.
+    private bool RunActive => plugin.Multiplayer.SessionCode != null ? plugin.Multiplayer.IsRunning : plugin.Game.IsScenarioActive;
+
+    // The window is collapsible while a scenario runs, and expands again when the run ends.
+    // Outside a run, fake-zone sessions keep it expanded so the next action is visible.
     public override void PreOpenCheck()
     {
-        if (plugin.Game.World.Map.IsInInstance)
+        if (_clearCollapsedRequest)
         {
-            if (IsOpen) hiddenByUs = true;
-            IsOpen = false;
+            Collapsed = null;
+            CollapsedCondition = ImGuiCond.None;
+            _clearCollapsedRequest = false;
         }
-        else if (hiddenByUs)
+
+        var scenarioActive = RunActive;
+        var scenarioMistake = plugin.Game.HasScenarioMistake;
+        var scenarioFailed = plugin.Game.HasScenarioFailed;
+        var scenarioSucceeded = plugin.Game.HasScenarioSucceeded;
+        if (scenarioActive && !_wasScenarioActive)
         {
-            hiddenByUs = false;
+            if (Plugin.Config.AutoCollapseWhileRunning)
+                RequestCollapsed(true);
+        }
+        if (scenarioMistake && !_wasScenarioMistake)
+        {
+            RequestCollapsed(false);
+        }
+        else if (scenarioFailed && !_wasScenarioFailed)
+        {
+            RequestCollapsed(false);
+        }
+        else if (scenarioSucceeded && !_wasScenarioSucceeded)
+        {
+            RequestCollapsed(false);
+        }
+        else if (!scenarioActive && _wasScenarioActive)
+        {
+            RequestCollapsed(false);
+        }
+
+        var inInstance = plugin.Game.World.Map.IsInInstance;
+        if (inInstance)
+        {
             IsOpen = true;
+            ShowCloseButton = false;
+            RespectCloseHotkey = false;
+            if (scenarioActive)
+                Flags &= ~ImGuiWindowFlags.NoCollapse;
+            else
+                Flags |= ImGuiWindowFlags.NoCollapse;
+            if (!_wasInInstance)
+            {
+                ScenarioPanel.Close();
+                if (!scenarioActive)
+                    RequestCollapsed(false);
+            }
         }
+        else
+        {
+            ShowCloseButton = true;
+            RespectCloseHotkey = true;
+            Flags &= ~ImGuiWindowFlags.NoCollapse;
+            if (_wasInInstance)
+                CollapsedCondition = ImGuiCond.FirstUseEver;
+        }
+
+        _wasScenarioActive = scenarioActive;
+        _wasScenarioMistake = scenarioMistake;
+        _wasScenarioFailed = scenarioFailed;
+        _wasScenarioSucceeded = scenarioSucceeded;
+        _wasInInstance = inInstance;
+    }
+
+    private void RequestCollapsed(bool collapsed)
+    {
+        Collapsed = collapsed;
+        CollapsedCondition = ImGuiCond.Always;
+        _clearCollapsedRequest = true;
     }
 
     public override void PreDraw()
     {
+        autoCollapseButton.IconColor = Plugin.Config.AutoCollapseWhileRunning
+            ? StyleColor(ImGuiCol.Text)
+            : StyleColor(ImGuiCol.TextDisabled);
+
         var uiScale = ImGuiHelpers.GlobalScale;
         var minimumHeight = 80f;
         if (ScenarioPanel.RequestedOpen && ScenarioPanel.NaturalHeight > 0f)
@@ -158,22 +247,6 @@ public unsafe class MainWindow : Window, IDisposable
             MinimumSize = new Vector2(220f, minimumHeight),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
-        KeepScenarioPanelOnScreen();
-    }
-
-    // The scenario panel docks to this window's left edge, so a window opened or dropped too close
-    // to the game window's left edge moves right until the panel fits. Not while the mouse is held
-    // (a drag), nor outside the game window (multi-monitor windows).
-    private void KeepScenarioPanelOnScreen()
-    {
-        Position = null;
-        if (_windowPos is not { } pos || !_onMainViewport || !ScenarioPanel.RequestedOpen || IsActuallyCollapsed
-            || ImGui.IsMouseDown(ImGuiMouseButton.Left))
-            return;
-        var minimumX = ImGui.GetMainViewport().WorkPos.X + ScenarioPanelWindowWidth() - ImGui.GetStyle().WindowBorderSize;
-        if (pos.X >= minimumX) return;
-        Position = new Vector2(minimumX, pos.Y);
-        PositionCondition = ImGuiCond.Always;
     }
 
     public override void PostDraw()
@@ -185,8 +258,6 @@ public unsafe class MainWindow : Window, IDisposable
     public override void Draw()
     {
         var windowPos = ImGui.GetWindowPos();
-        _windowPos = windowPos;
-        _onMainViewport = ImGui.GetWindowViewport().ID == ImGui.GetMainViewport().ID;
         var contentTop = windowPos.Y + ImGui.GetFrameHeight();
         ScenarioPanelAnchor = new Vector2(windowPos.X, contentTop);
         _windowChromeHeight = contentTop - windowPos.Y;
@@ -359,21 +430,8 @@ public unsafe class MainWindow : Window, IDisposable
         DrawLocationHint();
         DrawRunOptions(game, mpWindowOpen, mpConnected);
 
-        // The sections scroll rather than push the window past the bottom of the game window.
-        // The child takes last frame's measured size: one sized "remaining" would collapse inside
-        // an auto-resize window.
         ImGui.Spacing();
-        var style = ImGui.GetStyle();
-        var viewport = ImGui.GetWindowViewport();
-        var room = viewport.WorkPos.Y + viewport.WorkSize.Y - ImGui.GetCursorScreenPos().Y - style.WindowPadding.Y;
-        var height = Math.Min(_sectionsSize.Y, Math.Max(room, MinimumSectionsHeight * ImGuiHelpers.GlobalScale));
-        var scrolling = _sectionsSize.Y > height;
-        ImGui.BeginChild("##sections", new Vector2(_sectionsSize.X + (scrolling ? style.ScrollbarSize : 0f), height), false, ImGuiWindowFlags.None);
         DrawSections(_selectedScenario, mpWindowOpen, mpConnected, mpGuest);
-        // The size ImGui's own auto-fit uses: a nested table (SettingsGrid) reports its width
-        // only here and clamps CursorMaxPos to its outer rect, so a group would under-measure.
-        _sectionsSize = ImGuiP.GetCurrentWindow().ContentSizeIdeal;
-        ImGui.EndChild();
     }
 
     // Every frame, Setup expanded or not: Start and the Multiplayer window's Start read these.
@@ -454,10 +512,6 @@ public unsafe class MainWindow : Window, IDisposable
                 ImGui.EndGroup();
                 if (mpActive && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                     ImGui.SetTooltip(MpDisabledReason(mpWindowOpen, mpConnected));
-                // Solo keeps its own copy: these are the player's own mechanics, not only a
-                // host's assignment.
-                MultiplayerWindow.DrawAssignMechanicsButton(scenario, mpActive,
-                                                            MpDisabledReason(mpWindowOpen, mpConnected));
                 scenario.DrawMultiplayerSettings();
             }
             ImGui.TreePop();
@@ -489,7 +543,7 @@ public unsafe class MainWindow : Window, IDisposable
         var rowHeight = ImGui.GetFrameHeight();
         var scenario = _selectedScenario!;
 
-        var (statusLabel, statusColor) = Status(game.Paused, game.IsScenarioActive);
+        var (statusLabel, statusColor) = Status(game.Paused, RunActive);
 
         DrawScenarioPanelToggle();
         ImGui.SameLine();
@@ -572,7 +626,7 @@ public unsafe class MainWindow : Window, IDisposable
     {
         var uiScale = ImGuiHelpers.GlobalScale;
         var actionSize = new Vector2(140f * uiScale, 32f * uiScale);
-        if (game.IsScenarioActive)
+        if (RunActive)
         {
             if (DrawSemanticButton("Stop", actionSize, StopColor))
                 plugin.ResetScenario();
@@ -600,41 +654,6 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.EndDisabled();
         if (refusal != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(refusal);
-    }
-
-    // RunningSimWindow's compact controls. Start stays up while a run is active: it restarts.
-    internal void DrawSoloStartButton()
-    {
-        if (_selectedScenario != null) DrawStartButton(Vector2.Zero);
-    }
-
-    // Stop, plus Leave while in-instance; a connected peer's clicks route through the host. Stop
-    // stays up with no run active: it also cancels a start still waiting to settle.
-    internal void DrawStopLeaveButtons()
-    {
-        if (DrawSemanticButton("Stop", Vector2.Zero, StopColor))
-            plugin.ResetScenario();
-        if (!plugin.Game.World.Map.IsInInstance) return;
-        ImGui.SameLine();
-        if (DrawSemanticButton("Leave", Vector2.Zero, StopColor))
-            plugin.LeaveInstance();
-    }
-
-    // The header's status dot and label, drawn inline.
-    internal static void DrawStatus(bool paused, bool active)
-    {
-        var (label, color) = Status(paused, active);
-        var uiScale = ImGuiHelpers.GlobalScale;
-        var radius = 3f * uiScale;
-        var lineHeight = ImGui.GetTextLineHeight();
-        var start = ImGui.GetCursorScreenPos();
-        ImGui.GetWindowDrawList().AddCircleFilled(
-            new Vector2(start.X + radius, start.Y + lineHeight * 0.5f),
-            radius,
-            ImGui.GetColorU32(color));
-        ImGui.Dummy(new Vector2(radius * 2f, lineHeight));
-        ImGui.SameLine(0f, 4f * uiScale);
-        ImGui.TextColored(color, label);
     }
 
     private static (string Label, Vector4 Color) Status(bool paused, bool active) =>
