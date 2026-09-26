@@ -1,0 +1,233 @@
+name: Release Relay
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Which Relay version segment to bump
+        type: choice
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+
+concurrency:
+  group: release-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  RELAY_PROJECT: Relay/AnoMech.Relay/AnoMech.Relay.csproj
+  RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
+  CONTAINER_IMAGE: ghcr.io/${{ github.repository_owner }}/anomech-relay
+
+jobs:
+  version:
+    name: Test and version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_BRANCH }}
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run Relay regression checks
+        run: dotnet run --project tests/SecurityTests/SecurityTests.csproj --configuration Release
+
+      - name: Bump Relay version
+        id: bump
+        shell: pwsh
+        env:
+          VERSION_BUMP: ${{ inputs.version_bump }}
+        run: |
+          $projectText = Get-Content -Raw $env:RELAY_PROJECT
+          $matches = [regex]::Matches($projectText, '<Version>([^<]+)</Version>')
+          if ($matches.Count -ne 1) {
+            throw "Expected exactly one <Version> in $env:RELAY_PROJECT; found $($matches.Count)."
+          }
+
+          $current = [version]$matches[0].Groups[1].Value
+          $major = $current.Major
+          $minor = [Math]::Max($current.Minor, 0)
+          $patch = [Math]::Max($current.Build, 0)
+
+          switch ($env:VERSION_BUMP) {
+            'major' { $major++; $minor = 0; $patch = 0 }
+            'minor' { $minor++; $patch = 0 }
+            'patch' { $patch++ }
+            default { throw "Unsupported version bump: $env:VERSION_BUMP" }
+          }
+
+          $version = "$major.$minor.$patch"
+          $tag = "relay-v$version"
+          if (git tag --list $tag) {
+            throw "Tag $tag already exists."
+          }
+
+          $updated = $projectText.Remove($matches[0].Groups[1].Index, $matches[0].Groups[1].Length).Insert($matches[0].Groups[1].Index, $version)
+          Set-Content -Path $env:RELAY_PROJECT -Value $updated -NoNewline
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Commit and tag Relay version
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$RELAY_PROJECT"
+          git commit -m "Release Relay $VERSION"
+          git tag --annotate "$TAG" --message "AnoMech Relay $VERSION"
+          git push origin "HEAD:$RELEASE_BRANCH" "$TAG"
+
+  binaries:
+    name: Binary (${{ matrix.rid }})
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            format: zip
+          - rid: linux-x64
+            format: tar.gz
+          - rid: linux-arm64
+            format: tar.gz
+          - rid: osx-x64
+            format: tar.gz
+          - rid: osx-arm64
+            format: tar.gz
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish self-contained binary
+        env:
+          RID: ${{ matrix.rid }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          dotnet publish "$RELAY_PROJECT" \
+            --configuration Release \
+            --runtime "$RID" \
+            --self-contained true \
+            --output "publish/$RID" \
+            -p:PublishSingleFile=true \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -p:Version="$VERSION"
+
+      - name: Package binary
+        shell: pwsh
+        env:
+          RID: ${{ matrix.rid }}
+          FORMAT: ${{ matrix.format }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $baseName = "AnoMech.Relay-$env:VERSION-$env:RID"
+          if ($env:FORMAT -eq 'zip') {
+            Compress-Archive -Path "publish/$env:RID/AnoMech.Relay.exe" -DestinationPath "dist/$baseName.zip"
+          } else {
+            tar -C "publish/$env:RID" -czf "dist/$baseName.tar.gz" AnoMech.Relay
+          }
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  container:
+    name: Container image
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate container metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.CONTAINER_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=AnoMech Relay
+            org.opencontainers.image.description=WebSocket relay for AnoMech multiplayer
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+
+      - name: Build and publish container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Relay/AnoMech.Relay/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ needs.version.outputs.version }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+  release:
+    name: GitHub release
+    needs:
+      - version
+      - binaries
+      - container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download binary archives
+        uses: actions/download-artifact@v5
+        with:
+          pattern: relay-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: AnoMech Relay ${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          files: dist/*

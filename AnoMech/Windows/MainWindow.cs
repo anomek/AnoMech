@@ -100,7 +100,7 @@ public unsafe class MainWindow : Window, IDisposable
         {
             Icon = FontAwesomeIcon.CompressAlt,
             IconOffset = new Vector2(1f, 1f),
-            Priority = 1,
+            Priority = 2,
             Click = _ =>
             {
                 Plugin.Config.AutoCollapseWhileRunning = !Plugin.Config.AutoCollapseWhileRunning;
@@ -111,11 +111,25 @@ public unsafe class MainWindow : Window, IDisposable
         };
         TitleBarButtons.Add(autoCollapseButton);
 
-        // Small gear in the title bar opens the settings window (same toggle as /anomech config).
+        // Global tools live in the title bar so the scenario header stays focused on the
+        // selected scenario. Higher priority places Multiplayer to the left of Settings.
+        TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Users,
+            IconOffset = new Vector2(2f, 1f) * uiScale,
+            Priority = 1,
+            Click = _ => plugin.MultiplayerWindow.Toggle(),
+            ShowTooltip = () => ImGui.SetTooltip(plugin.Multiplayer.IsConnected
+                ? "Multiplayer (connected)"
+                : "Multiplayer"),
+        });
+
+        // Small gear opens the settings window (same toggle as /anomech config).
         TitleBarButtons.Add(new TitleBarButton
         {
             Icon = FontAwesomeIcon.Cog,
             IconOffset = new Vector2(2f, 1f) * uiScale,
+            Priority = 0,
             Click = _ => plugin.ToggleConfigUi(),
             ShowTooltip = () => ImGui.SetTooltip("Settings"),
         });
@@ -538,16 +552,10 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.TextUnformatted(DisplayName(scenario));
 
         var minimumStatusX = ImGui.GetItemRectMax().X + 12f * uiScale;
-        if (scenario.SupportsMultiplayer)
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton("Multiplayer...")) plugin.MultiplayerWindow.Toggle();
-            minimumStatusX = ImGui.GetItemRectMax().X + 12f * uiScale;
-            // Room for the widest status: the button can make this the auto-sized window's widest
-            // row, which would leave the overlay no space.
-            ImGui.SameLine(0f, 12f * uiScale);
-            ImGui.Dummy(new Vector2(StatusOverlayWidth(), rowHeight));
-        }
+        // Room for the widest status, or an auto-sized window whose widest row is this one would
+        // leave the overlay no space and it would not be drawn.
+        ImGui.SameLine(0f, 12f * uiScale);
+        ImGui.Dummy(new Vector2(StatusOverlayWidth(), rowHeight));
         DrawStatusOverlay(
             statusLabel,
             statusColor,
