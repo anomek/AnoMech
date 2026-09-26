@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Bindings.ImGui;
@@ -25,6 +26,12 @@ public unsafe class MainWindow : Window, IDisposable
     internal static readonly Vector4 StopColor = new(0.45f, 0.14f, 0.16f, 0.92f);
     private static readonly Vector4 RunningColor = new(0.35f, 0.85f, 0.45f, 1f);
     private static readonly Vector4 PausedColor = new(1f, 0.65f, 0.25f, 1f);
+    // Fixed rather than theme-derived: Dalamud's default ButtonActive is red, which reads as
+    // "stop"/error next to the semantic Start/Stop buttons.
+    private static readonly Vector4 SelectionColor = new(0.30f, 0.55f, 0.85f, 1f);
+    private static readonly Vector4 SelectionHoveredColor = new(0.28f, 0.50f, 0.78f, 0.92f);
+    private static readonly Vector4 SelectionActiveColor = new(0.22f, 0.42f, 0.68f, 1f);
+    private static readonly Vector4 HoverColor = new(0.24f, 0.39f, 0.60f, 0.88f);
 
     private readonly Plugin plugin;
     private readonly TitleBarButton autoCollapseButton;
@@ -288,63 +295,81 @@ public unsafe class MainWindow : Window, IDisposable
 
     internal void DrawScenariosPanel()
     {
-        ImGui.TextUnformatted("Scenarios");
+        // Switching scenarios inside a loaded zone skips the zone reload, so another zone's
+        // scenario would run on the wrong territory.
+        var lockedZone = plugin.Game.World.Map.IsInInstance ? _selectedScenario?.Phase.Zone : null;
+        ImGui.TextUnformatted(lockedZone?.Name ?? "Scenarios");
         ImGui.Separator();
 
         var mpWindowOpen = plugin.MultiplayerWindow.IsOpen;
         var mpConnected = plugin.Multiplayer.IsConnected;
+        if (lockedZone != null)
+        {
+            var right = ImGui.GetCursorScreenPos().X + ImGui.GetContentRegionAvail().X;
+            DrawZoneScenarios(lockedZone, right, mpWindowOpen, mpConnected);
+            return;
+        }
         foreach (var zone in plugin.Game.Zones)
         {
             var shouldOpen = _openZone == zone;
             ImGui.SetNextItemOpen(shouldOpen, ImGuiCond.Always);
+            var containsSelection = ZoneContains(zone, _selectedScenario);
             var headerColor = BlendColor(
                 StyleColor(ImGuiCol.WindowBg),
                 StyleColor(ImGuiCol.Header),
                 0.72f);
-            ImGui.PushStyleColor(ImGuiCol.Header, headerColor);
+            ImGui.PushStyleColor(ImGuiCol.Header,
+                containsSelection ? BlendColor(headerColor, SelectionColor, 0.58f) : headerColor);
+            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, containsSelection ? SelectionHoveredColor : HoverColor);
+            ImGui.PushStyleColor(ImGuiCol.HeaderActive, SelectionActiveColor);
             var open = ImGui.CollapsingHeader($"{zone.Name}###scenario-zone-{zone.GetType().FullName}");
-            ImGui.PopStyleColor();
+            ImGui.PopStyleColor(3);
+            if (containsSelection) DrawSelectionAccent();
             var sectionRight = ImGui.GetItemRectMax().X;
             if (open != shouldOpen) _openZone = open ? zone : null;
             if (!open) continue;
             ImGui.Indent();
-            var buttonPadding = ImGui.GetStyle().FramePadding;
-            buttonPadding.X += ScenarioButtonExtraPadding * ImGuiHelpers.GlobalScale;
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, buttonPadding);
-            ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, new Vector2(0f, 0.5f));
-            foreach (var phase in plugin.Game.PhasesOf(zone))
-                foreach (var scenario in plugin.Game.ScenariosOf(phase))
-                {
-                    var selected = _selectedScenario == scenario;
-                    var mpUnsupported = (mpWindowOpen || mpConnected) && !scenario.SupportsMultiplayer;
-                    if (selected) PushSelectedScenarioStyle();
-                    // Zone-qualified: two zones can hold same-named scenarios (UMAD and UCOB
-                    // both have a P5 "Exaflares"), and a shared ImGui id makes the second
-                    // button unclickable.
-                    ImGui.PushID(FullName(scenario));
-                    var buttonWidth = sectionRight - ImGui.GetCursorScreenPos().X;
-                    ImGui.BeginDisabled(mpUnsupported);
-                    var clicked = ImGui.Button(DisplayName(scenario), new Vector2(buttonWidth, 0));
-                    ImGui.EndDisabled();
-                    if (mpUnsupported && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                        ImGui.SetTooltip($"This scenario doesn't support multiplayer. {MpDisabledReason(mpWindowOpen, mpConnected)}");
-                    if (selected)
-                    {
-                        var min = ImGui.GetItemRectMin();
-                        var max = ImGui.GetItemRectMax();
-                        var accentWidth = 3f * ImGuiHelpers.GlobalScale;
-                        ImGui.GetWindowDrawList().AddRectFilled(
-                            min,
-                            new Vector2(min.X + accentWidth, max.Y),
-                            ImGui.GetColorU32(ImGuiCol.ButtonActive));
-                        ImGui.PopStyleColor(3);
-                    }
-                    ImGui.PopID();
-                    if (clicked) SelectScenario(scenario);
-                }
-            ImGui.PopStyleVar(2);
+            DrawZoneScenarios(zone, sectionRight, mpWindowOpen, mpConnected);
             ImGui.Unindent();
         }
+    }
+
+    private void DrawZoneScenarios(IZone zone, float sectionRight, bool mpWindowOpen, bool mpConnected)
+    {
+        var buttonPadding = ImGui.GetStyle().FramePadding;
+        buttonPadding.X += ScenarioButtonExtraPadding * ImGuiHelpers.GlobalScale;
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, buttonPadding);
+        ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, new Vector2(0f, 0.5f));
+        foreach (var phase in plugin.Game.PhasesOf(zone))
+            foreach (var scenario in plugin.Game.ScenariosOf(phase))
+            {
+                var selected = _selectedScenario == scenario;
+                var mpUnsupported = (mpWindowOpen || mpConnected) && !scenario.SupportsMultiplayer;
+                if (selected) PushSelectedScenarioStyle();
+                else PushScenarioHoverStyle();
+                // Zone-qualified: two zones can hold same-named scenarios (UMAD and UCOB
+                // both have a P5 "Exaflares"), and a shared ImGui id makes the second
+                // button unclickable.
+                ImGui.PushID(FullName(scenario));
+                var buttonWidth = sectionRight - ImGui.GetCursorScreenPos().X;
+                ImGui.BeginDisabled(mpUnsupported);
+                var clicked = ImGui.Button(DisplayName(scenario), new Vector2(buttonWidth, 0));
+                ImGui.EndDisabled();
+                if (mpUnsupported && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    ImGui.SetTooltip($"This scenario doesn't support multiplayer. {MpDisabledReason(mpWindowOpen, mpConnected)}");
+                if (selected)
+                {
+                    DrawSelectionAccent();
+                    ImGui.PopStyleColor(3);
+                }
+                else
+                {
+                    ImGui.PopStyleColor(2);
+                }
+                ImGui.PopID();
+                if (clicked) SelectScenario(scenario);
+            }
+        ImGui.PopStyleVar(2);
     }
 
     private void RestoreSelectedScenario()
@@ -721,13 +746,30 @@ public unsafe class MainWindow : Window, IDisposable
 
     private static void PushSelectedScenarioStyle()
     {
-        var button = StyleColor(ImGuiCol.Button);
-        var hovered = StyleColor(ImGuiCol.ButtonHovered);
-        var active = StyleColor(ImGuiCol.ButtonActive);
-        ImGui.PushStyleColor(ImGuiCol.Button, BlendColor(button, active, 0.52f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, BlendColor(hovered, active, 0.62f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, active);
+        ImGui.PushStyleColor(ImGuiCol.Button, BlendColor(StyleColor(ImGuiCol.Button), SelectionColor, 0.78f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, SelectionHoveredColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, SelectionActiveColor);
     }
+
+    private static void PushScenarioHoverStyle()
+    {
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, HoverColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, SelectionActiveColor);
+    }
+
+    private static void DrawSelectionAccent()
+    {
+        var min = ImGui.GetItemRectMin();
+        var max = ImGui.GetItemRectMax();
+        var accentWidth = 3f * ImGuiHelpers.GlobalScale;
+        ImGui.GetWindowDrawList().AddRectFilled(
+            min,
+            new Vector2(min.X + accentWidth, max.Y),
+            ImGui.GetColorU32(SelectionColor));
+    }
+
+    private bool ZoneContains(IZone zone, IScenario? scenario) =>
+        scenario != null && plugin.Game.PhasesOf(zone).Any(p => plugin.Game.ScenariosOf(p).Contains(scenario));
 
     private static Vector4 StyleColor(ImGuiCol color) => *ImGui.GetStyleColorVec4(color);
 
