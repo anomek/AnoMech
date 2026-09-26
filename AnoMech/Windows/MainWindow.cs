@@ -184,6 +184,7 @@ public unsafe class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
+        plugin.Offline?.DrawMainWindowBar();
         var windowPos = ImGui.GetWindowPos();
         _windowPos = windowPos;
         _onMainViewport = ImGui.GetWindowViewport().ID == ImGui.GetMainViewport().ID;

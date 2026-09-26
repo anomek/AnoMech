@@ -22,7 +22,8 @@ namespace AnoMech.Core;
 //    oldest-first past TotalArchiveCapBytes. Leftover unrotated active files from previous
 //    sessions (crash, plugin reload, a load that threw before Plugin.Dispose) are rotated at
 //    startup instead of being overwritten; one still held open by a dead load is left alone and
-//    this session writes to a stamped sibling instead.
+//    this session writes to a stamped sibling instead. Offline mode's sessions are kept whatever
+//    windows are open, in segments of their own archived and capped alike as AnoMech-Offline-*.
 internal static class DiagnosticLog
 {
     // ---- In-memory "this run" view (DamageDebugWindow's Snapshot) -----------------------
@@ -100,6 +101,7 @@ internal static class DiagnosticLog
     // assigned these statics.
     private static bool ShouldPersistToDisk()
         => ForcePersist
+           || offline
            || (Plugin.MainWindow?.IsOpen ?? false)
            || Plugin.GameInstance?.ActiveScenario != null
            || Plugin.MultiplayerInstance?.SessionCode != null;
@@ -133,14 +135,22 @@ internal static class DiagnosticLog
     private const long TotalArchiveCapBytes = 20L * 1024 * 1024;
     private const string ActiveFileName = "AnoMech-active.log";
     private const string ArchivePrefix = "AnoMech-Debug-";
+    private const string OfflineArchivePrefix = "AnoMech-Offline-";
     private const string ArchiveSuffix = ".log.gz";
+    private const string ArchiveHeaderField = "archive=";
+    private static readonly TimeSpan FlushTimeout = TimeSpan.FromMilliseconds(500);
 
-    private readonly record struct LogCommand(string? Line, bool Rotate);
+    // Prefix, with Rotate, names the segments after it; Flushed is set once everything before it
+    // is on disk.
+    private readonly record struct LogCommand(string? Line, bool Rotate, string? Prefix = null, TaskCompletionSource? Flushed = null);
 
     private static Channel<LogCommand>? channel;
     private static Task? writerTask;
     private static string? logDir;
     private static bool initialized;
+    private static volatile bool offline;
+    // One slow flush and the rest of the session stops waiting, so a stalled disk costs one pause.
+    private static volatile bool flushTimedOut;
 
     // Null when disk logging is disabled; other debug captures live under the same folder.
     internal static string? LogDirectory => logDir;
@@ -182,6 +192,29 @@ internal static class DiagnosticLog
     // Archives the active segment now regardless of size (Game.Leave). Non-blocking.
     public static void RotateNow() => channel?.Writer.TryWrite(new LogCommand(null, true));
 
+    // From offline mode's first check until it has put the game back.
+    public static void BeginOffline()
+    {
+        offline = true;
+        flushTimedOut = false;
+        channel?.Writer.TryWrite(new LogCommand(null, true, OfflineArchivePrefix));
+    }
+
+    public static void EndOffline()
+    {
+        channel?.Writer.TryWrite(new LogCommand(null, true, ArchivePrefix));
+        offline = false;
+    }
+
+    // Waits until everything logged so far is on disk, for a line a native crash must not lose.
+    public static void Flush()
+    {
+        if (flushTimedOut || channel is not { } current || writerTask is not { IsCompleted: false }) return;
+        var flushed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (current.Writer.TryWrite(new LogCommand(null, false, Flushed: flushed)) && !flushed.Task.Wait(FlushTimeout))
+            flushTimedOut = true;
+    }
+
     // Waits briefly for the writer to flush, so an unload/reload doesn't lose the queued tail.
     public static void Shutdown()
     {
@@ -205,12 +238,13 @@ internal static class DiagnosticLog
         FileStream activeStream;
         StreamWriter activeWriter;
         long activeBytes;
+        var prefix = ArchivePrefix;
 
         try
         {
             // Leftover active files from a reload, crash or failed load are preserved, not truncated.
             await RotateLeftoverActiveFilesAsync();
-            (activePath, activeStream, activeWriter, activeBytes) = OpenFreshActiveFile();
+            (activePath, activeStream, activeWriter, activeBytes) = OpenFreshActiveFile(prefix);
         }
         catch (Exception e)
         {
@@ -236,9 +270,10 @@ internal static class DiagnosticLog
                     await activeWriter.DisposeAsync();
                     await activeStream.DisposeAsync();
                     await RotateActiveFileAsync(activePath);
-                    (activePath, activeStream, activeWriter, activeBytes) = OpenFreshActiveFile();
+                    prefix = cmd.Prefix ?? prefix;
+                    (activePath, activeStream, activeWriter, activeBytes) = OpenFreshActiveFile(prefix);
                 }
-                else if (reader.Count == 0)
+                else if (reader.Count == 0 || cmd.Flushed != null)
                 {
                     // Burst drained: flush so the active file is current mid-session or after a
                     // crash. Writes still batch under load.
@@ -249,6 +284,10 @@ internal static class DiagnosticLog
             {
                 Plugin.Log.Warning($"[DiagnosticLog] Writer loop error (continuing): {e.Message}");
             }
+            finally
+            {
+                cmd.Flushed?.TrySetResult();
+            }
         }
 
         await activeWriter.DisposeAsync();
@@ -257,7 +296,7 @@ internal static class DiagnosticLog
 
     // The canonical name first, then stamped siblings: a load whose constructor threw keeps its
     // handle on the canonical file until the game exits, which must cost a filename, not the log.
-    private static (string FilePath, FileStream Stream, StreamWriter Writer, long Bytes) OpenFreshActiveFile()
+    private static (string FilePath, FileStream Stream, StreamWriter Writer, long Bytes) OpenFreshActiveFile(string prefix)
     {
         var canonical = Path.Combine(logDir!, ActiveFileName);
         foreach (var candidate in ActiveFileCandidates(canonical))
@@ -280,8 +319,9 @@ internal static class DiagnosticLog
 
             // Flushing every line would make each log call synchronous.
             var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = false };
-            // Stamped so a later rotation knows which build wrote the segment.
-            var header = $"# AnoMech build={PluginBuildInfo.Checksum} started={DateTime.Now:yyyy-MM-dd HH:mm:ss}";
+            // Stamped so a later rotation knows which build wrote the segment, and its archive name.
+            var header = $"# AnoMech build={PluginBuildInfo.Checksum} started={DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                         + (prefix == ArchivePrefix ? "" : $" {ArchiveHeaderField}{prefix}");
             writer.WriteLine(header);
             writer.Flush();
             return (candidate, stream, writer, Encoding.UTF8.GetByteCount(header) + Environment.NewLine.Length);
@@ -345,9 +385,9 @@ internal static class DiagnosticLog
     {
         try
         {
-            var checksum = ReadHeaderChecksum(sourcePath);
+            var (checksum, prefix) = ReadHeader(sourcePath);
             var shortChecksum = checksum.Length >= 6 ? checksum[..6] : checksum;
-            var archivePath = NextArchivePath(shortChecksum);
+            var archivePath = NextArchivePath(prefix, shortChecksum);
 
             // ReadWrite|Delete share: a dead load's writer may still hold this file.
             var openedSource = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
@@ -363,7 +403,7 @@ internal static class DiagnosticLog
             }
 
             File.Delete(sourcePath);
-            EnforceTotalArchiveCap();
+            EnforceTotalArchiveCap(prefix);
         }
         catch (Exception e)
         {
@@ -371,57 +411,58 @@ internal static class DiagnosticLog
         }
     }
 
-    private static string ReadHeaderChecksum(string path)
+    private static (string Checksum, string Prefix) ReadHeader(string path)
     {
         try
         {
             using var reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
-            const string prefix = "# AnoMech build=";
-            if (reader.ReadLine() is { } first && first.StartsWith(prefix))
+            const string start = "# AnoMech build=";
+            if (reader.ReadLine() is { } first && first.StartsWith(start))
             {
-                var afterBuild = first[prefix.Length..];
-                var spaceIdx = afterBuild.IndexOf(' ');
-                return spaceIdx >= 0 ? afterBuild[..spaceIdx] : afterBuild;
+                var fields = first[start.Length..].Split(' ');
+                var offlineSegment = fields.Contains($"{ArchiveHeaderField}{OfflineArchivePrefix}");
+                return (fields[0], offlineSegment ? OfflineArchivePrefix : ArchivePrefix);
             }
         }
         catch
         {
             // Fall through -- an unreadable/missing header just means an older or damaged file.
         }
-        return "unknown";
+        return ("unknown", ArchivePrefix);
     }
 
-    private static string NextArchivePath(string shortChecksum)
+    private static string NextArchivePath(string prefix, string shortChecksum)
     {
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        var basePath = Path.Combine(logDir!, $"{ArchivePrefix}{stamp}-{shortChecksum}{ArchiveSuffix}");
+        var basePath = Path.Combine(logDir!, $"{prefix}{stamp}-{shortChecksum}{ArchiveSuffix}");
         if (!File.Exists(basePath)) return basePath;
         for (var i = 1; ; i++)
         {
-            var candidate = Path.Combine(logDir!, $"{ArchivePrefix}{stamp}-{shortChecksum}-{i}{ArchiveSuffix}");
+            var candidate = Path.Combine(logDir!, $"{prefix}{stamp}-{shortChecksum}-{i}{ArchiveSuffix}");
             if (!File.Exists(candidate)) return candidate;
         }
     }
 
     // Null for a non-matching name, so the caller can fall back to filesystem metadata.
-    private static DateTime? ParseArchiveTimestamp(string fileName)
+    private static DateTime? ParseArchiveTimestamp(string fileName, string prefix)
     {
-        if (!fileName.StartsWith(ArchivePrefix)) return null;
-        var rest = fileName[ArchivePrefix.Length..];
+        if (!fileName.StartsWith(prefix)) return null;
+        var rest = fileName[prefix.Length..];
         if (rest.Length < 15) return null; // "yyyyMMdd-HHmmss" is 15 chars
         var stamp = rest[..15];
         return DateTime.TryParseExact(stamp, "yyyyMMdd-HHmmss", null,
             System.Globalization.DateTimeStyles.None, out var parsed) ? parsed : null;
     }
 
-    private static void EnforceTotalArchiveCap()
+    // Each kind of archive has its own cap, so offline sessions and the debug log never evict each other.
+    private static void EnforceTotalArchiveCap(string prefix)
     {
         try
         {
             // By the filename's stamp, not CreationTime, which a copy/move can reset.
             var files = new DirectoryInfo(logDir!)
-                .GetFiles($"{ArchivePrefix}*{ArchiveSuffix}")
-                .OrderBy(f => ParseArchiveTimestamp(f.Name) ?? f.CreationTimeUtc)
+                .GetFiles($"{prefix}*{ArchiveSuffix}")
+                .OrderBy(f => ParseArchiveTimestamp(f.Name, prefix) ?? f.CreationTimeUtc)
                 .ToList();
             var total = files.Sum(f => f.Length);
             foreach (var file in files)

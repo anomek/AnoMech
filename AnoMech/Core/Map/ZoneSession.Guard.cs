@@ -127,6 +127,12 @@ public sealed unsafe partial class ZoneSession
 
     private static double SecondsSince(long? stamp) => stamp is { } s ? Stopwatch.GetElapsedTime(s).TotalSeconds : double.PositiveInfinity;
 
+    // Offline mode has no server to be logged in to; its world stands in for one.
+    private static bool LoggedIn => Plugin.ClientState.IsLoggedIn || Offline.OfflineSession.InWorld;
+
+    // A logout while this holds trips the guard, including a stay's pending delayed lift.
+    public static bool GuardArmed => Current is { guardArmed: true };
+
     // Null when a scenario may start now, otherwise why not. Every start path ends in Enter,
     // which asks again, so a change between the click and the deferred start is caught too. A
     // restart inside a loaded zone changes nothing the server can see, so only a tripped guard
@@ -143,7 +149,7 @@ public sealed unsafe partial class ZoneSession
         // The previous stay's delayed lift is still pending; a new stay under it would lose its
         // firewall a second in.
         if (Current is { guardArmed: true }) return Settling("the previous run", out settling);
-        if (!Plugin.ClientState.IsLoggedIn || Plugin.ObjectTable.LocalPlayer is not { } player) return "not logged in";
+        if (!LoggedIn || Plugin.ObjectTable.LocalPlayer is not { } player) return "not logged in";
         if (!IsInInn()) return "not in an inn";
         var c = Plugin.Condition;
         if (c[ConditionFlag.BetweenAreas] || c[ConditionFlag.BetweenAreas51]) return "zoning";
@@ -309,7 +315,7 @@ public sealed unsafe partial class ZoneSession
         var c = Plugin.Condition;
         if (!sendPacketHook.IsEnabled || !receivePacketHook.IsEnabled)
             Trip("a firewall hook was found disabled while armed");
-        else if (!Plugin.ClientState.IsLoggedIn)
+        else if (!LoggedIn)
             Trip("the client logged out while the firewall was up");
         else if (c[ConditionFlag.BetweenAreas] || c[ConditionFlag.BetweenAreas51])
             Trip("the client began a zone transition while the firewall was up");
@@ -354,7 +360,7 @@ public sealed unsafe partial class ZoneSession
     {
         if (tripReason is { } tripped) return tripped;
         if (!sendPacketHook.IsEnabled || !receivePacketHook.IsEnabled) return HookDisabled;
-        if (!Plugin.ClientState.IsLoggedIn) return "not logged in";
+        if (!LoggedIn) return "not logged in";
         var c = Plugin.Condition;
         if (c[ConditionFlag.BetweenAreas] || c[ConditionFlag.BetweenAreas51]) return "a zone transition is in progress";
         if (c[ConditionFlag.LoggingOut]) return "logging out";

@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Compile Include="../Shared/RelayWire.cs" Link="Multiplayer/RelayWire.cs" />
+    <EmbeddedResource Include="../images/icon.png" LogicalName="AnoMech.OfflineIcon.png" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
