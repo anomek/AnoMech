@@ -165,6 +165,23 @@ public sealed class Plugin : IDalamudPlugin
     // instance, where anything past the throwing step was never assigned.
     public void Dispose()
     {
+        try
+        {
+            DisposeSubsystems();
+        }
+        finally
+        {
+            // Dalamud disposes this plugin's hooks once Dispose returns or throws, so a sim must be
+            // reverted by then even when a step above threw. A no-op after a clean Game.Dispose.
+            ZoneSession.Current?.Dispose();
+        }
+
+        // Last, so it captures every other subsystem's teardown logging before the DLL unloads.
+        Core.DiagnosticLog.Shutdown();
+    }
+
+    private void DisposeSubsystems()
+    {
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         Framework.Update -= OnFrameworkUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
@@ -198,9 +215,6 @@ public sealed class Plugin : IDalamudPlugin
             CommandManager.RemoveHandler(CommandName);
             CommandManager.RemoveHandler(CommandAlias);
         }
-
-        // Last, so it captures every other subsystem's teardown logging before the DLL unloads.
-        Core.DiagnosticLog.Shutdown();
     }
 
     private unsafe void OnFrameworkUpdate(IFramework framework)

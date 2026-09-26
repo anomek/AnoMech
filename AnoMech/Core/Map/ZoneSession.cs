@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -213,12 +214,26 @@ public sealed unsafe partial class ZoneSession : IDisposable
         EnableFirewall();
         if (!FirewallArmed(out var why))
         {
-            DisableFirewall();
+            // Half up with no session, nothing would ever release what it holds.
+            if (!DisableFirewall()) Die($"{why}, and the half-armed firewall would not come back down");
             AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] Enter refused: {why}.");
             return false;
         }
         CaptureInnState();
-        LoadZoneInternal(territoryId, false, playerSpawn);
+        try
+        {
+            LoadZoneInternal(territoryId, false, playerSpawn);
+        }
+        catch (Exception e)
+        {
+            // Part-way into the load with the firewall up: back out through the verified revert,
+            // or nothing would ever lift the firewall.
+            AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] Enter: the zone load threw -- reverting to the inn. {e}");
+            IsActive = true;
+            ArmGuard(territoryId);
+            Revert(false);
+            return false;
+        }
         IsActive = true;
         ArmGuard(territoryId);
         Plugin.Log.Information($"[ZoneSession] Entered territory {territoryId}.");
@@ -454,25 +469,21 @@ public sealed unsafe partial class ZoneSession : IDisposable
             var stay = stayId;
             ThreadingTask.Delay(1000).ContinueWith(_ => Plugin.Framework.Run(() =>
             {
-                // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
-                var beforeRestore = Plugin.ObjectTable.LocalPlayer?.Position;
-                SetLocalPlayerPosition(savedPosition, savedRotation);
-                var afterRestore = Plugin.ObjectTable.LocalPlayer?.Position;
-                AnoMech.Core.DiagnosticLog.Info($"[ZoneGuard] Position re-asserted to {savedPosition.X:F2},{savedPosition.Y:F2},{savedPosition.Z:F2}: was {Describe(beforeRestore)}, now {Describe(afterRestore)}.");
-                condition->Occupied = false;
-
-                // TODO: this is here because of Suppression. Either define it as normal behaviour, or add an OnLeave method on Scenarios
-                condition->SufferingStatusAffliction = false;
-                condition->SufferingStatusAffliction2 = false;
-
-                if (Plugin.ObjectTable.LocalPlayer != null)
+                // Already lifted (an unload during the wait), or a later stay owns the character
+                // (Enter refuses while this is pending, so only a bypass gets here): a restore now
+                // would move the character with nothing holding the move.
+                if (stay != stayId || !guardArmed) return;
+                // A throw here must not strand the stay: the lift below verifies the position itself.
+                try
                 {
-                    PacketDispatcher.HandleActorControlPacket(Plugin.ObjectTable.LocalPlayer.EntityId, 54, 1, 0, 0, 0, 0, 0, 0, 0, 0xE0000000, false);
+                    RestoreBeforeLift(savedPosition, savedRotation);
                 }
-
-                // A later stay owns the firewall now (Enter refuses while this is pending, so
-                // only a bypass gets here).
-                if (stay == stayId) LiftFirewallOrDie("after the inn reload");
+                catch (Exception e)
+                {
+                    AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The restore before the lift threw: {e}");
+                }
+                ReleasePlayerConditions();
+                LiftFirewallOrDie("after the inn reload");
             }));
 
             // Resync the real party HUD once the inn reload has settled. A bare
@@ -486,9 +497,43 @@ public sealed unsafe partial class ZoneSession : IDisposable
         {
             // This skips all safety delays, so if possible, don't disable the plugin while being in a Scenario
             SetLocalPlayerPosition(sessionSave.Position, sessionSave.Rotation);
-            condition->Occupied = false;
+            ReleasePlayerConditions();
             LiftFirewallOrDie("on plugin unload", mayRetry: false);
             Plugin.Framework.Run(OpenSocialForPartyResync);
+        }
+    }
+
+    private void RestoreBeforeLift(Vector3 savedPosition, float savedRotation)
+    {
+        // The Player could do something like jump, so to be extremely sure we are where we are supposed to, we set the Position and Rotation again.
+        var beforeRestore = Plugin.ObjectTable.LocalPlayer?.Position;
+        SetLocalPlayerPosition(savedPosition, savedRotation);
+        var afterRestore = Plugin.ObjectTable.LocalPlayer?.Position;
+        AnoMech.Core.DiagnosticLog.Info($"[ZoneGuard] Position re-asserted to {savedPosition.X:F2},{savedPosition.Y:F2},{savedPosition.Z:F2}: was {Describe(beforeRestore)}, now {Describe(afterRestore)}.");
+    }
+
+    // What the settle and the sim hold on the character: Occupied for the settle, and the
+    // afflictions and untargetable state Suppression leaves. Every lift path releases them, and
+    // none may be kept from its lift by a throw here.
+    private static void ReleasePlayerConditions()
+    {
+        var condition = Conditions.Instance();
+        condition->Occupied = false;
+
+        // TODO: this is here because of Suppression. Either define it as normal behaviour, or add an OnLeave method on Scenarios
+        condition->SufferingStatusAffliction = false;
+        condition->SufferingStatusAffliction2 = false;
+
+        try
+        {
+            if (Plugin.ObjectTable.LocalPlayer != null)
+            {
+                PacketDispatcher.HandleActorControlPacket(Plugin.ObjectTable.LocalPlayer.EntityId, 54, 1, 0, 0, 0, 0, 0, 0, 0, 0xE0000000, false);
+            }
+        }
+        catch (Exception e)
+        {
+            AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] Restoring targetability threw: {e}");
         }
     }
 
@@ -518,37 +563,80 @@ public sealed unsafe partial class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Auto-closed Social after party resync.");
     }
 
+    // Dalamud's SafetyHook backend throws when it cannot patch the function; callers read
+    // IsEnabled instead.
     public void EnableFirewall()
     {
-        sendPacketHook.Enable();
-        receivePacketHook.Enable();
+        try { sendPacketHook.Enable(); }
+        catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The send filter would not enable: {e.Message}"); }
+        try { receivePacketHook.Enable(); }
+        catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The receive filter would not enable: {e.Message}"); }
     }
 
     // Send-side firewall alone, outside a session, for the debug menu's in-inn timeline tests:
     // nothing but the heartbeat leaves the client. A no-op during a session, where both hooks
     // are on already.
     private bool sendHoldActive;
+    // Where the server last placed the character: the hold's start, or the latest zone-in during it.
+    private Vector3? holdPosition;
+    private bool holdSawZoning;
 
     public void HoldSendFirewall(bool hold)
     {
         // guardArmed covers the second between a Revert and the lift, which the guard owns.
         if (IsActive || guardArmed || hold == sendHoldActive) return;
-        sendHoldActive = hold;
-        if (hold) sendPacketHook.Enable();
-        else sendPacketHook.Disable();
-        AnoMech.Core.DiagnosticLog.Info($"[ZoneSession] Send firewall {(hold ? "held: only the heartbeat leaves the client" : "released")} (debug hold, no session active).");
+        if (hold)
+        {
+            if (HoldBlockedReason() is { } blocked)
+            {
+                AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] Debug send hold refused: {blocked}.");
+                return;
+            }
+            holdPosition = Plugin.ObjectTable.LocalPlayer?.Position;
+            holdSawZoning = false;
+            try { sendPacketHook.Enable(); }
+            catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] The send filter would not enable: {e.Message}"); }
+        }
+        else
+        {
+            // No move made during the hold reached the server: put the character back where the
+            // server last placed it, or the next movement packet reports a jump. Not while a
+            // zone-in is placing it (or placed it with no character to re-anchor on, which then
+            // could not have moved), nor once something else took the hook down (the server saw
+            // the rest).
+            if (!Zoning() && !holdSawZoning && sendPacketHook.IsEnabled && holdPosition is { } at
+                && Plugin.ObjectTable.LocalPlayer is { } player && Vector3.Distance(player.Position, at) > LiftPositionTolerance)
+                SetLocalPlayerPosition(at);
+            try { sendPacketHook.Disable(); }
+            catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] The send filter would not disable: {e.Message}"); }
+        }
+        sendHoldActive = sendPacketHook.IsEnabled;
+        AnoMech.Core.DiagnosticLog.Info(sendHoldActive == hold
+            ? $"[ZoneSession] Send firewall {(hold ? "held: only the heartbeat leaves the client" : "released")} (debug hold, no session active)."
+            : $"[ZoneSession] Send firewall NOT {(hold ? "held" : "released")}: the hook would not change (debug hold).");
     }
 
-    public void DisableFirewall()
+    // True once both filters are down. The receive side goes first and a refusal stops there, so
+    // a lift that fails leaves the send filter up: nothing the client does reaches the server.
+    public bool DisableFirewall()
     {
-        sendPacketHook.Disable();
-        receivePacketHook.Disable();
+        try { receivePacketHook.Disable(); }
+        catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The receive filter would not disable: {e.Message}"); }
+        if (!receivePacketHook.IsEnabled)
+        {
+            try { sendPacketHook.Disable(); }
+            catch (Exception e) { AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The send filter would not disable: {e.Message}"); }
+        }
+        // A debug hold the lift just took down is over too, or the next hold would find it "on".
+        sendHoldActive = false;
+        return !sendPacketHook.IsEnabled && !receivePacketHook.IsEnabled;
     }
 
     // ── Zone loading sequence (mirrors Hyperborea Utils.LoadZone) ─────────────
 
     private void LoadZoneInternal(uint territory, bool unloading, Vector3 playerPos, float? rotation = null)
     {
+        completedLoad = 0;
         var eventFramework = EventFramework.Instance();
         var gm = GameMain.Instance();
         Plugin.Log.Information($"[ZoneSession] LoadZone territory={territory} ef={((nint)eventFramework):X} gm={((nint)gm):X}");
@@ -623,6 +711,7 @@ public sealed unsafe partial class ZoneSession : IDisposable
         SetLocalPlayerPosition(playerPos, rotation);
 
         Plugin.Log.Information("[ZoneSession] LoadZone complete");
+        completedLoad = territory;
     }
 
     private void SetLocalPlayerPosition(Vector3 position, float? rotation = null)
@@ -1126,8 +1215,11 @@ public sealed unsafe partial class ZoneSession : IDisposable
             if (guardArmed)
             {
                 SetLocalPlayerPosition(armedPosition, armedRotation);
+                ReleasePlayerConditions();
                 LiftFirewallOrDie("on plugin unload during the post-revert wait", mayRetry: false);
             }
+            // Through its own release, which puts the character back first.
+            HoldSendFirewall(false);
             DisableFirewall(); // To be sure the Hooks are disabled before calling Dispose
         }
 

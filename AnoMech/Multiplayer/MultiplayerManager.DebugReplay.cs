@@ -26,7 +26,8 @@ public sealed partial class MultiplayerManager
     private void TryStartDebugBotReplay()
     {
         if (!debugBotControlled || debugBotReplayStarted) return;
-        if (!peerEnteredInstance) return;
+        // peerEnteredInstance outlives the run; the AI drives the real character.
+        if (!PeerInRun) return;
         if (MyClaimedRole is not { } myRole) return;
         if (pendingGenericReplayState is not { } msg) return;
         if (TryResolveScenario() is not IMultiplayerReplayable replayable) return;

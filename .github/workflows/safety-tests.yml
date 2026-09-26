@@ -1,0 +1,91 @@
+name: Safety tests
+
+on:
+  pull_request:
+  push:
+  # Dalamud releases land without a commit here; the contract tests check each against the fakes.
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzz_seeds:
+        description: Random firewall sequences to run (the default run uses 2000)
+        required: false
+        default: "20000"
+
+jobs:
+  firewall:
+    name: Packet filter and position safety (Dalamud ${{ matrix.dalamud }})
+    runs-on: windows-2022
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # Staging (Dalamud's next release) only on the daily and manual runs: an early warning,
+        # not a gate on pull requests.
+        dalamud: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["release","staging"]' || '["release"]') }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Download Dalamud (${{ matrix.dalamud }})
+      run: |
+        $url = if ('${{ matrix.dalamud }}' -eq 'staging') { 'https://goatcorp.github.io/dalamud-distrib/stg/latest.zip' } else { 'https://goatcorp.github.io/dalamud-distrib/latest.zip' }
+        Invoke-WebRequest -Uri $url -OutFile latest.zip
+        Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+    # The architecture rules read the built plugin, in the configuration users get and in the
+    # one used for in-game testing.
+    - name: Build the plugin (Release)
+      run: dotnet build AnoMech.sln -c Release -p:Platform=x64
+
+    - name: Build the plugin (Debug)
+      run: dotnet build AnoMech.sln -c Debug -p:Platform=x64
+
+    - name: Run the safety tests
+      env:
+        ANOMECH_DLLS: ${{ github.workspace }}\AnoMech\bin\x64\Release\AnoMech.dll;${{ github.workspace }}\AnoMech\bin\x64\Debug\AnoMech.dll
+        ANOMECH_FUZZ_SEEDS: ${{ github.event_name == 'schedule' && '20000' || github.event.inputs.fuzz_seeds }}
+      run: dotnet test tests/SafetyTests -c Release --logger "trx;LogFileName=safety.trx" --logger "console;verbosity=normal"
+
+    # Dalamud's other hook backend reports a failed patch by throwing, where Reloaded cannot fail.
+    - name: Run the safety tests with SafetyHook's hook failures
+      env:
+        ANOMECH_DLLS: ${{ github.workspace }}\AnoMech\bin\x64\Release\AnoMech.dll;${{ github.workspace }}\AnoMech\bin\x64\Debug\AnoMech.dll
+        ANOMECH_FUZZ_SEEDS: ${{ github.event_name == 'schedule' && '20000' || github.event.inputs.fuzz_seeds }}
+        ANOMECH_HOOK_BACKEND: safetyhook
+      run: dotnet test tests/SafetyTests -c Release --no-build --logger "trx;LogFileName=safety-safetyhook.trx"
+
+    - name: Keep the results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: safety-test-results-${{ matrix.dalamud }}
+        path: tests/SafetyTests/TestResults/*.trx
+        if-no-files-found: ignore
+        retention-days: 14
+
+  relay:
+    name: Relay transport security
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          8.0.x
+          10.0.x
+
+    - name: Run the relay security checks
+      run: dotnet run --project tests/SecurityTests -c Release
