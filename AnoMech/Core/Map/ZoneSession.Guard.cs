@@ -39,9 +39,11 @@ public sealed unsafe partial class ZoneSession
     private static long? zoneChangePressedAt;
     private static uint zoneChangeActionId;
     private static bool zoneChangeCastSeen;
+    private static bool zoneChangeCastLost;
     private static float zoneChangeCastProgress;
     private static long? lastTerritoryChangeAt;
     private static long? lastBusyAt;
+    private static bool wasServerActing;
 
     public static void NoteActionPressed(ActionType type, uint actionId)
     {
@@ -49,6 +51,7 @@ public sealed unsafe partial class ZoneSession
         zoneChangePressedAt = Stopwatch.GetTimestamp();
         zoneChangeActionId = actionId;
         zoneChangeCastSeen = false;
+        zoneChangeCastLost = false;
         zoneChangeCastProgress = 0f;
         DiagnosticLog.Info($"[ZoneGuard] {ActionLookup.Name(actionId)} pressed -- Start is blocked until it resolves.");
     }
@@ -67,9 +70,41 @@ public sealed unsafe partial class ZoneSession
     // Every frame, from Plugin: the gate's timers run outside a session too.
     public static void TickGuard()
     {
-        if (IsServerActingSoon()) lastBusyAt = Stopwatch.GetTimestamp();
+        // Stamped on the first frame without the state too, so the settle counts from its end:
+        // Dalamud reports a zone change as the load begins, not as it ends.
+        var acting = IsServerActingSoon();
+        if (acting || wasServerActing) lastBusyAt = Stopwatch.GetTimestamp();
+        wasServerActing = acting;
         TickZoneChangeLatch();
         Current?.TickSessionGuard();
+        Current?.TickSendHold();
+    }
+
+    private static bool Zoning() => Plugin.Condition[ConditionFlag.BetweenAreas] || Plugin.Condition[ConditionFlag.BetweenAreas51];
+
+    // The debug hold keeps the character where the server last placed it; while the server may
+    // still move it, or with no character, there is no such place.
+    private static string? HoldBlockedReason()
+    {
+        if (!Plugin.ClientState.IsLoggedIn || Plugin.ObjectTable.LocalPlayer is not { } player) return "no local player";
+        if (Zoning()) return "zoning";
+        if (player.IsCasting || IsServerActingSoon()) return "the server may still act on the last action";
+        if (zoneChangePressedAt != null) return $"{ActionLookup.Name(zoneChangeActionId)} has not resolved";
+        return null;
+    }
+
+    private void TickSendHold()
+    {
+        if (!sendHoldActive) return;
+        if (Zoning())
+        {
+            holdSawZoning = true;
+            return;
+        }
+        if (!holdSawZoning || Plugin.ObjectTable.LocalPlayer is not { } player) return;
+        holdSawZoning = false;
+        holdPosition = player.Position;
+        DiagnosticLog.Info($"[ZoneSession] Debug send hold: a zone-in placed the character at {Describe(player.Position, player.Rotation)}; the release restores to there.");
     }
 
     // The busy states whose outcome the server delivers after they end (an event's zone change,
@@ -104,19 +139,36 @@ public sealed unsafe partial class ZoneSession
 
     private static void TickZoneChangeLatch()
     {
+        var player = Plugin.ObjectTable.LocalPlayer;
+        // The cast on screen is what the server acts on, whichever press it came from: a later
+        // press the game refused (it re-latches the press hook) must not release it.
+        if (player is { IsCasting: true } && player.CastActionId is TeleportActionId or ReturnActionId
+            && (zoneChangePressedAt == null || player.CastActionId != zoneChangeActionId))
+        {
+            zoneChangePressedAt = Stopwatch.GetTimestamp();
+            zoneChangeActionId = player.CastActionId;
+            zoneChangeCastSeen = false;
+            zoneChangeCastLost = false;
+            DiagnosticLog.Info($"[ZoneGuard] {ActionLookup.Name(zoneChangeActionId)} cast seen -- Start is blocked until it resolves.");
+        }
         if (zoneChangePressedAt is not { } pressedAt) return;
         var elapsed = Stopwatch.GetElapsedTime(pressedAt).TotalSeconds;
-        var player = Plugin.ObjectTable.LocalPlayer;
+        // Without a local player (a redraw) the cast can't be watched; whatever it did meanwhile,
+        // only the zone change or the timeout can resolve it now.
+        if (player == null) zoneChangeCastLost = true;
         if (player is { IsCasting: true } && player.CastActionId == zoneChangeActionId)
         {
             zoneChangeCastSeen = true;
             zoneChangeCastProgress = player.TotalCastTime > 0f ? player.CurrentCastTime / player.TotalCastTime : 0f;
             return;
         }
+        // Ended under the debug hold, the interrupting move never reached the server, which then
+        // finishes the cast.
+        if (zoneChangeCastSeen && Current is { sendHoldActive: true }) zoneChangeCastLost = true;
         string? release = null;
-        if (zoneChangeCastSeen && zoneChangeCastProgress < InterruptedBelowProgress)
+        if (player != null && !zoneChangeCastLost && zoneChangeCastSeen && zoneChangeCastProgress < InterruptedBelowProgress)
             release = $"its cast was interrupted at {zoneChangeCastProgress:P0}";
-        else if (!zoneChangeCastSeen && elapsed > NoCastGraceSeconds)
+        else if (player != null && !zoneChangeCastLost && !zoneChangeCastSeen && elapsed > NoCastGraceSeconds)
             release = "no cast followed the press";
         else if (elapsed > ZoneChangeHoldSeconds)
             release = $"{ZoneChangeHoldSeconds:F0}s passed with no zone change";
@@ -152,6 +204,8 @@ public sealed unsafe partial class ZoneSession
         if (zoneChangePressedAt is { } pressed)
             return $"{ActionLookup.Name(zoneChangeActionId)} was used {Stopwatch.GetElapsedTime(pressed).TotalSeconds:F0}s ago and has not resolved";
         if (IsPlayerBusy()) return "busy (cutscene, NPC event, crafting, trading, zoning, combat, mounted, queued, etc.)";
+        // Nothing the character did during the hold reached the server.
+        if (Current is { sendHoldActive: true }) return Settling("the debug send hold", out settling);
         if (SecondsSince(lastBusyAt) < SettleSeconds) return Settling("the last action", out settling);
         return null;
     }
@@ -178,6 +232,9 @@ public sealed unsafe partial class ZoneSession
     private Vector3 armedPosition;
     private float armedRotation;
     private const float LiftPositionTolerance = 2f;
+    // The territory the last zone load finished; 0 while one is under way or after one threw. The
+    // only proof the inn reload happened: Dalamud's reading never follows the sim's loads.
+    private uint completedLoad;
     private long lastHeartbeatAt;
     private const double HeartbeatSeconds = 30;
     // The detours may not run on the framework thread, and the snapshot reads these from it.
@@ -244,7 +301,7 @@ public sealed unsafe partial class ZoneSession
             .Where(f => (int)f != 0 && Plugin.Condition[f]).Select(f => f.ToString()).Distinct());
         return $"[ZoneGuard] {where} -- stay #{stayId}, {Stopwatch.GetElapsedTime(guardArmedAt).TotalSeconds:F2}s in, armed={guardArmed}, sessionActive={IsActive}, trip={tripReason ?? "none"}; "
              + $"player {here}, inn {Describe(armedPosition, armedRotation)}, apart {apart}; "
-             + $"territory Dalamud={Plugin.ClientState.TerritoryType} GameMain={NativeTerritory()} (inn {innClientTerritory}, loaded {loadedTerritory}); "
+             + $"territory Dalamud={Plugin.ClientState.TerritoryType} GameMain={NativeTerritory()} (inn {innClientTerritory}, loaded {loadedTerritory}, last finished load {completedLoad}); "
              + $"loggedIn={Plugin.ClientState.IsLoggedIn}; hooks send={sendPacketHook.IsEnabled}/disposed={sendPacketHook.IsDisposed} recv={receivePacketHook.IsEnabled}/disposed={receivePacketHook.IsDisposed}; "
              + $"held {heldInbound} inbound, outbound [{outbound}]; conditions [{conditions}]";
     }
@@ -360,6 +417,13 @@ public sealed unsafe partial class ZoneSession
         if (c[ConditionFlag.LoggingOut]) return "logging out";
         if (Plugin.ClientState.TerritoryType != innClientTerritory)
             return $"the client reports territory {Plugin.ClientState.TerritoryType}, not the inn ({innClientTerritory}) the firewall was armed in";
+        if (completedLoad != innClientTerritory || loadedInstanceContent != null)
+            return $"the inn reload did not complete (last finished load {completedLoad}, sim duty {(loadedInstanceContent is { } content ? content.ToString() : "none")})";
+        // The engine finishes the reload over the next second and then sends its post-load packet;
+        // its territory reads 0 until then. An unload cannot wait for it (no frames are left), so
+        // only a lift that may retry holds on it.
+        if (pendingLiftMayRetry && NativeTerritory() != innClientTerritory)
+            return $"the client is still loading the inn (the game's territory reads {NativeTerritory()})";
         return TerritoryDrift() ?? PositionDrift();
     }
 
@@ -414,7 +478,7 @@ public sealed unsafe partial class ZoneSession
         pendingLift = null;
         liftHoldLoggedReason = null;
         guardArmed = false;
-        DisableFirewall();
+        if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
         DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
     }
 

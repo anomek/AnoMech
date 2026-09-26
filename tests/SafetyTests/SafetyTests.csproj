@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Packet-filter safety tests. Two halves:
+    - Firewall/: the plugin's real ZoneSession, MapController and NetGuard sources, compiled
+      unmodified against the fakes in Fakes/ and driven through a simulated client and server
+      (Harness/). No game, Dalamud or network is needed.
+    - Architecture/: rules over the built AnoMech.dll (read as IL, never loaded), so a new code
+      path that could lower the filter or move the real character fails the build. Needs the
+      plugin built first; see README.md.
+    - Contract/: the fakes checked against the Dalamud, ClientStructs and Lumina the plugin builds
+      with, running Dalamud's own hooks and scheduler where they work outside the game.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>AnoMech.SafetyTests</RootNamespace>
+    <!-- The plugin sources carry warnings the plugin build already reports. -->
+    <NoWarn>$(NoWarn);CS0162;CS0169;CS0414;CS0649;CS8500;CS8602;CS8618;CS8625;CS9124</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Mutation/ holds tools that break copies of the plugin or of Dalamud; never compiled in. -->
+    <Compile Remove="Mutation/**" />
+    <Compile Include="../../AnoMech/Core/Map/ZoneSession.cs" Link="Plugin/ZoneSession.cs" />
+    <Compile Include="../../AnoMech/Core/Map/ZoneSession.Guard.cs" Link="Plugin/ZoneSession.Guard.cs" />
+    <Compile Include="../../AnoMech/Core/Map/MapController.cs" Link="Plugin/MapController.cs" />
+    <Compile Include="../../AnoMech/Core/Map/TargetInstance.cs" Link="Plugin/TargetInstance.cs" />
+    <Compile Include="../../AnoMech/Multiplayer/NetGuard.cs" Link="Plugin/NetGuard.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+
+  <!-- The included plugin sources must compile with shipped (Release) semantics in every test
+       configuration: ReceivePacketDetour's filter is only switchable under DEBUG. -->
+  <Target Name="StripDebugDefine" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <DefineConstants>$(DefineConstants.Replace(';DEBUG;', ';').Replace('DEBUG;', '').Replace(';DEBUG', '').Replace('DEBUG', ''))</DefineConstants>
+    </PropertyGroup>
+  </Target>
+
+</Project>
