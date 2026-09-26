@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Numerics;
-using AnoMech.Core.Native;
 using AnoMech.Multiplayer;
 using AnoMech.Scenarios;
 using Dalamud.Bindings.ImGui;
@@ -9,13 +8,14 @@ using Dalamud.Interface.Windowing;
 
 namespace AnoMech.Windows;
 
-// Compact substitute for MainWindow/MultiplayerWindow while a sim runs (both are hidden
-// then); every button calls the same methods those windows use.
+// The session controls while a multiplayer session is in the sim, where the Multiplayer window
+// is hidden; MainWindow keeps Start, Stop and Leave. Every button calls the same methods the
+// Multiplayer window uses.
 public sealed class RunningSimWindow : Window
 {
     private readonly Plugin plugin;
 
-    public RunningSimWindow(Plugin plugin) : base("Running sim###AnoMechRunningSim")
+    public RunningSimWindow(Plugin plugin) : base("Multiplayer###AnoMechRunningSim")
     {
         this.plugin = plugin;
         Flags |= ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse;
@@ -26,55 +26,28 @@ public sealed class RunningSimWindow : Window
 
     public override void PreOpenCheck()
     {
-        IsOpen = plugin.Game.World.Map.IsInInstance;
+        IsOpen = plugin.Game.World.Map.IsInInstance && plugin.Multiplayer.SessionCode != null;
     }
 
     public override void Draw()
     {
         var mp = plugin.Multiplayer;
-        var inSession = mp.SessionCode != null;
-
-        // ActiveScenario is never set for a peer; Paused clears neither signal.
-        var scenarioActive = inSession ? mp.IsRunning : plugin.Game.ActiveScenario != null;
-        MainWindow.DrawStatus(plugin.Game.Paused, scenarioActive);
-
-        if (inSession)
+        if (!mp.Session.Started)
         {
-            if (!mp.Session.Started)
-            {
-                MainWindow.PushSemanticColors(MainWindow.StartColor);
-                plugin.MultiplayerWindow.DrawStartButton();
-                MainWindow.PopSemanticColors();
-                ImGui.SameLine();
-            }
-        }
-        else
-        {
-            Plugin.MainWindow.DrawSoloStartButton();
+            MainWindow.PushSemanticColors(MainWindow.StartColor);
+            plugin.MultiplayerWindow.DrawStartButton();
+            MainWindow.PopSemanticColors();
             ImGui.SameLine();
         }
 
-        Plugin.MainWindow.DrawStopLeaveButtons();
+        MainWindow.PushSemanticColors(MainWindow.StopColor);
+        plugin.MultiplayerWindow.DrawLeaveSessionButton();
+        MainWindow.PopSemanticColors();
 
-        if (inSession)
-        {
-            MainWindow.PushSemanticColors(MainWindow.StopColor);
-            plugin.MultiplayerWindow.DrawLeaveSessionButton();
-            MainWindow.PopSemanticColors();
-        }
-
+        DrawRoster();
 #if DEBUG
-        // The only window on screen mid-scenario, so the test bench has to be reachable here.
-        ImGui.Separator();
-        TimelineDebug.DrawControls();
+        DrawRelayUsage();
 #endif
-        if (inSession)
-        {
-            DrawRoster();
-#if DEBUG
-            DrawRelayUsage();
-#endif
-        }
     }
 
     // The Multiplayer window is hidden while a sim runs, so the host needs a way to remove

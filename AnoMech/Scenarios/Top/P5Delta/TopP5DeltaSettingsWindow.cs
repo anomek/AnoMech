@@ -10,19 +10,32 @@ public sealed class TopP5DeltaSettingsWindow
     // Which seat the per-player rows are showing. UI state only; never broadcast.
     private PartyRole editingSeat = PartyRole.MainTank;
 
+    // Solo, the player's own picks sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-#if DEBUG
-        if (ImGui.Button("Auto")) ResetFight();
+        var solo = !PerRole.SeatsActive;
+#if !DEBUG
+        if (!solo)
+        {
+            ImGui.TextDisabled("Everything here is per player -- use the button below.");
+            return;
+        }
+#endif
+        if (ImGui.Button("Auto"))
+        {
+            ResetFight();
+            if (solo) ResetMine();
+        }
         if (SettingsGrid.Begin("##p5delta"))
         {
+#if DEBUG
             DrawEyeSpawn();
             DrawSwivelCannon();
+#endif
+            if (solo) DrawPlayerRows();
             SettingsGrid.End();
         }
-#else
-        ImGui.TextDisabled("Everything here is per player -- use the button below.");
-#endif
     }
 
     public void DrawPerPlayer()
@@ -31,24 +44,7 @@ public sealed class TopP5DeltaSettingsWindow
         if (SettingsGrid.Begin("##p5deltaplayers"))
         {
             editingSeat = SettingsGrid.SeatRow("##deltaseat", editingSeat);
-            DrawTetherAssignment();
-
-            var tether = Overrides.Tether.Effective(editingSeat);
-            var closeOnly = tether is
-                PlayerTetherAssignment.FarAny or
-                PlayerTetherAssignment.FarInner or
-                PlayerTetherAssignment.FarOuter;
-            var bdOnly = closeOnly || tether == PlayerTetherAssignment.CloseOuter;
-
-            if (closeOnly) ImGui.BeginDisabled();
-            DrawMonitor();
-            DrawHelloWorld();
-            if (closeOnly) ImGui.EndDisabled();
-
-            if (bdOnly) ImGui.BeginDisabled();
-            DrawBeyondDefence();
-            if (bdOnly) ImGui.EndDisabled();
-
+            DrawPlayerRows();
             SettingsGrid.ForcedRecapRow("Tethers set:", Overrides.Tether);
             SettingsGrid.ForcedRecapRow("Monitor set:", Overrides.Monitor);
             SettingsGrid.ForcedRecapRow("Hello World set:", Overrides.HelloWorld);
@@ -58,13 +54,34 @@ public sealed class TopP5DeltaSettingsWindow
         SettingsGrid.ConflictRows(Overrides.Validate());
     }
 
-#if DEBUG
+    private void DrawPlayerRows()
+    {
+        DrawTetherAssignment();
+
+        var tether = Overrides.Tether.Effective(editingSeat);
+        var closeOnly = tether is
+            PlayerTetherAssignment.FarAny or
+            PlayerTetherAssignment.FarInner or
+            PlayerTetherAssignment.FarOuter;
+        var bdOnly = closeOnly || tether == PlayerTetherAssignment.CloseOuter;
+
+        if (closeOnly) ImGui.BeginDisabled();
+        DrawMonitor();
+        DrawHelloWorld();
+        if (closeOnly) ImGui.EndDisabled();
+
+        if (bdOnly) ImGui.BeginDisabled();
+        DrawBeyondDefence();
+        if (bdOnly) ImGui.EndDisabled();
+    }
+
     private void ResetFight()
     {
+#if DEBUG
         Overrides.EyeSpawn = null;
         Overrides.SwivelCannonSide = null;
-    }
 #endif
+    }
 
     private void ResetPerPlayer()
     {
@@ -72,6 +89,15 @@ public sealed class TopP5DeltaSettingsWindow
         Overrides.Monitor.Clear();
         Overrides.HelloWorld.Clear();
         Overrides.BeyondDefence.Clear();
+    }
+
+    // Solo's own picks only: a host's seat assignments are kept apart.
+    private void ResetMine()
+    {
+        Overrides.Tether.Mine = null;
+        Overrides.Monitor.Mine = null;
+        Overrides.HelloWorld.Mine = null;
+        Overrides.BeyondDefence.Mine = null;
     }
 
 #if DEBUG
@@ -102,12 +128,10 @@ public sealed class TopP5DeltaSettingsWindow
     }
 #endif
 
-    private string Whose => PerRole.SeatsActive ? "" : "Your ";
-
     private void DrawTetherAssignment()
     {
         var t = Overrides.Tether.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}tether:");
+        SettingsGrid.PlayerRow("tether:");
         if (ImGui.RadioButton("Auto##tether",        t == null))                             SetTether(null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Close any##tether",   t == PlayerTetherAssignment.CloseAny))   SetTether(PlayerTetherAssignment.CloseAny);
@@ -128,7 +152,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawMonitor()
     {
         var m = Overrides.Monitor.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}monitor:");
+        SettingsGrid.PlayerRow("monitor:");
         if (ImGui.RadioButton("Auto##mon", m == null))  Overrides.Monitor.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##mon",  m == true))  Overrides.Monitor.Set(editingSeat, true);
@@ -139,7 +163,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawHelloWorld()
     {
         var h = Overrides.HelloWorld.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Hello World:");
+        SettingsGrid.PlayerRow("Hello World:");
         if (ImGui.RadioButton("Auto##hw", h == null))                  Overrides.HelloWorld.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Near##hw", h == HelloWorldOption.Near)) Overrides.HelloWorld.Set(editingSeat, HelloWorldOption.Near);
@@ -152,7 +176,7 @@ public sealed class TopP5DeltaSettingsWindow
     private void DrawBeyondDefence()
     {
         var b = Overrides.BeyondDefence.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Beyond Defence:");
+        SettingsGrid.PlayerRow("Beyond Defence:");
         if (ImGui.RadioButton("Auto##bd", b == null))  Overrides.BeyondDefence.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##bd",  b == true))  Overrides.BeyondDefence.Set(editingSeat, true);

@@ -10,9 +10,16 @@ public sealed class TopP5SigmaSettingsWindow
     // Which seat the per-player rows are showing. UI state only; never broadcast.
     private PartyRole editingSeat = PartyRole.MainTank;
 
+    // Solo, the player's own picks sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-        if (ImGui.Button("Auto")) ResetFight();
+        var solo = !PerRole.SeatsActive;
+        if (ImGui.Button("Auto"))
+        {
+            ResetFight();
+            if (solo) ResetMine();
+        }
         if (SettingsGrid.Begin("##p5sigma"))
         {
 #if DEBUG
@@ -25,6 +32,11 @@ public sealed class TopP5SigmaSettingsWindow
 #endif
             DrawSpinnerRotation();
             DrawOmegaFForm();
+            if (solo)
+            {
+                DrawHelloWorld();
+                DrawDynamis();
+            }
             SettingsGrid.End();
         }
     }
@@ -60,6 +72,13 @@ public sealed class TopP5SigmaSettingsWindow
     {
         Overrides.HelloWorld.Clear();
         Overrides.Dynamis.Clear();
+    }
+
+    // Solo's own picks only: a host's seat assignments are kept apart.
+    private void ResetMine()
+    {
+        Overrides.HelloWorld.Mine = null;
+        Overrides.Dynamis.Mine = null;
     }
 
 #if DEBUG
@@ -132,12 +151,10 @@ public sealed class TopP5SigmaSettingsWindow
         if (ImGui.RadioButton("Staff##form",      v == OmegaAttack.Staff))      Overrides.OmegaFForm = OmegaAttack.Staff;
     }
 
-    private string Whose => PerRole.SeatsActive ? "" : "Your ";
-
     private void DrawHelloWorld()
     {
         var h = Overrides.HelloWorld.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}Hello World:");
+        SettingsGrid.PlayerRow("Hello World:");
         if (ImGui.RadioButton("Auto##hw", h == null)) Overrides.HelloWorld.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Near##hw", h == HelloWorldOption.Near)) Overrides.HelloWorld.Set(editingSeat, HelloWorldOption.Near);
@@ -150,7 +167,7 @@ public sealed class TopP5SigmaSettingsWindow
     private void DrawDynamis()
     {
         var d = Overrides.Dynamis.Effective(editingSeat);
-        SettingsGrid.Row($"{Whose}start with Dynamis:");
+        SettingsGrid.PlayerRow("start with Dynamis:");
         if (ImGui.RadioButton("Auto##dyn", d == null))  Overrides.Dynamis.Set(editingSeat, null);
         ImGui.SameLine();
         if (ImGui.RadioButton("Yes##dyn",  d == true))  Overrides.Dynamis.Set(editingSeat, true);
