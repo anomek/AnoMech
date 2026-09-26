@@ -1,10 +1,8 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -14,10 +12,15 @@ using AnoMech.Relay;
 
 internal static class SecurityTests
 {
-    private static readonly Type Relay = typeof(AnoMech.Relay.Program);
     private static int passed;
-    private static object? Call(string name, params object?[] args)
-        => Relay.GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, args);
+
+    private sealed class QuietLog : IRelayLog
+    {
+        public readonly ConcurrentQueue<string> Lines = new();
+        public void Info(string message) => Lines.Enqueue(message);
+        public void Warn(string message) => Lines.Enqueue(message);
+        public void Detail(string message) => Lines.Enqueue(message);
+    }
 
     private static void Check(bool condition, string name)
     {
@@ -50,12 +53,12 @@ internal static class SecurityTests
 
     private static async Task Run(string[] args)
     {
-        if (args.FirstOrDefault() == "relay-fixture") { await RelayFixture(int.Parse(args[1])); return; }
         WireChecks();
         ConfigurationChecks();
         RelayHelperChecks();
         await SendSerialization();
         await LiveRelay();
+        await HttpFrontDoor();
         await GreetingTests();
         await RedirectTests();
         Console.WriteLine($"{passed} security checks passed on {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}.");
@@ -197,19 +200,19 @@ internal static class SecurityTests
     {
         var secret = RelayWire.NewSecret();
         var version = RelayWire.Version.ToString();
-        Check((Guid?)Call("AuthenticatePeer", version, secret) == RelayWire.PeerId(secret)
-            && Call("AuthenticatePeer", null, secret) is null && Call("AuthenticatePeer", (RelayWire.Version + 1).ToString(), secret) is null
-            && Call("AuthenticatePeer", version, null) is null && Call("AuthenticatePeer", version, "short") is null
-            && Call("AuthenticatePeer", version, new string('z', 64)) is null,
+        Check(RelayServer.AuthenticatePeer(version, secret) == RelayWire.PeerId(secret)
+            && RelayServer.AuthenticatePeer(null, secret) is null && RelayServer.AuthenticatePeer((RelayWire.Version + 1).ToString(), secret) is null
+            && RelayServer.AuthenticatePeer(version, null) is null && RelayServer.AuthenticatePeer(version, "short") is null
+            && RelayServer.AuthenticatePeer(version, new string('z', 64)) is null,
             "relay requires the protocol version and a well-formed credential");
         Check(AdminConsole.IsSafeAdminUri("http://localhost:7890") && AdminConsole.IsSafeAdminUri("http://[::1]:7890")
             && AdminConsole.IsSafeAdminUri("https://relay.example") && !AdminConsole.IsSafeAdminUri("http://relay.example")
             && !AdminConsole.IsSafeAdminUri("https://user:secret@relay.example"), "admin transport policy");
-        var mappedA = (IPAddress)Call("AbuseKey", IPAddress.Parse("::ffff:192.0.2.1"))!;
-        var mappedB = (IPAddress)Call("AbuseKey", IPAddress.Parse("::ffff:192.0.2.2"))!;
+        var mappedA = RelayServer.AbuseKey(IPAddress.Parse("::ffff:192.0.2.1"));
+        var mappedB = RelayServer.AbuseKey(IPAddress.Parse("::ffff:192.0.2.2"));
         Check(mappedA.Equals(IPAddress.Parse("192.0.2.1")) && !mappedA.Equals(mappedB), "mapped IPv4 abuse buckets stay independent");
-        object?[] networkArgs = ["::ffff:192.0.2.0/120", null];
-        Check((bool)Call("TryParseNetwork", networkArgs)! && ((IPNetwork)networkArgs[1]!).Contains(IPAddress.Parse("192.0.2.8")), "mapped proxy CIDR normalized");
+        Check(RelayOptions.TryParseNetwork("::ffff:192.0.2.0/120", out var mappedNetwork) && mappedNetwork.Contains(IPAddress.Parse("192.0.2.8")),
+            "mapped proxy CIDR normalized");
     }
 
     private static object? SampleValue(Type type, Guid id)
@@ -229,10 +232,10 @@ internal static class SecurityTests
     private static async Task SendSerialization()
     {
         var socket = new ProbeSocket();
-        var peerType = Relay.GetNestedType("PeerConn", BindingFlags.NonPublic)!;
-        var peer = Activator.CreateInstance(peerType, socket, 1u, IPAddress.Loopback, Guid.NewGuid())!;
+        var server = new RelayServer(new RelayOptions(), new QuietLog());
+        var peer = new RelayServer.PeerConn(socket, 1u, IPAddress.Loopback, Guid.NewGuid());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var sends = Enumerable.Range(0, 20).Select(_ => (Task)Call("SendOneAsync", peer, new byte[] { 1 }, WebSocketMessageType.Text, timeout.Token)!);
+        var sends = Enumerable.Range(0, 20).Select(_ => server.SendOneAsync(peer, new byte[] { 1 }, WebSocketMessageType.Text, timeout.Token));
         await Task.WhenAll(sends);
         Check(socket.PeakSends == 1 && socket.Sends == 20, "relay serializes concurrent writers");
     }
@@ -249,21 +252,19 @@ internal static class SecurityTests
         catch (TimeoutException) { throw new Exception($"Timed out: {what}"); }
     }
 
+    // The real relay over loopback. Clients a test places on another network name it in
+    // X-Test-Address, which the relay believes because loopback is configured as its proxy.
     private static async Task LiveRelay()
     {
-        var port = FreePort();
-        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var arg in new[] { Assembly.GetExecutingAssembly().Location, "relay-fixture", port.ToString() }) start.ArgumentList.Add(arg);
-        start.Environment.Remove("ANOMECH_RELAY_TOKEN"); start.Environment.Remove("ANOMECH_RELAY_ADMIN_TOKEN");
-        using var process = Process.Start(start)!;
-        var firstLine = process.StandardOutput.ReadLineAsync();
-        Task<string>? output = null;
-        var errors = process.StandardError.ReadToEndAsync();
+        var log = new QuietLog();
+        var options = new RelayOptions { BindAddress = IPAddress.Loopback, Port = 0, ClientIpHeader = "X-Test-Address" };
+        options.TrustedProxies.Add(new IPNetwork(IPAddress.Loopback, 32));
+        await using var server = new RelayServer(options, log);
+        server.Start();
+        var port = server.LocalEndPoint!.Port;
         var completed = false;
         try
         {
-            Check((await firstLine.WaitAsync(TimeSpan.FromSeconds(5))) == "Listening on managed loopback", "relay fixture listens on loopback");
-            output = process.StandardOutput.ReadToEndAsync();
             var url = $"ws://localhost:{port}";
 
             var hostSecret = RelayWire.NewSecret();
@@ -393,10 +394,7 @@ internal static class SecurityTests
         }
         finally
         {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync();
-            var log = output is null ? "" : await output; var error = await errors;
-            if (!completed) Console.WriteLine(log + error);
+            if (!completed) Console.WriteLine(string.Join(Environment.NewLine, log.Lines));
         }
     }
 
@@ -418,51 +416,48 @@ internal static class SecurityTests
         return (WebSocket.CreateFromStream(stream, true, null, TimeSpan.FromSeconds(30)), request[1], headers);
     }
 
-    // The Windows sandbox cannot use HTTP.sys; the actual relay room and receive/send code runs unchanged.
-    private static async Task RelayFixture(int port)
+    // A refusal may reach the client as a reset rather than a readable response when the
+    // relay closes with part of the request still unread; that comes back as "".
+    private static async Task<string> RawHttp(int port, string request)
     {
-        var listener = new TcpListener(IPAddress.Loopback, port);
-        listener.Start();
-        Console.WriteLine("Listening on managed loopback");
-        uint nextId = 0;
-        while (true)
-        {
-            var accepted = await AcceptSocket(listener);
-            var peerId = RelayWire.PeerId(accepted.Headers["X-AnoMech-Peer-Secret"]);
-            // Real clients all arrive from loopback here; a test can place one on another network.
-            var address = accepted.Headers.TryGetValue("X-Test-Address", out var chosen) ? IPAddress.Parse(chosen) : IPAddress.Loopback;
-            var peer = Activator.CreateInstance(Relay.GetNestedType("PeerConn", BindingFlags.NonPublic)!, accepted.Socket, ++nextId, address, peerId)!;
-            _ = RunFixturePeer(accepted.Socket, accepted.Path, peer);
-        }
-    }
-
-    private static async Task RunFixturePeer(WebSocket socket, string path, object peer)
-    {
-        string? code = null;
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, port);
+        var stream = client.GetStream();
         try
         {
-            var isHost = path == "/host";
-            if (isHost)
-            {
-                object?[] create = [peer, null];
-                if (!(bool)Call("TryCreateSession", create)!) throw new Exception("fixture full");
-                code = (string)create[1]!;
-            }
-            else
-            {
-                code = path.Split('/').Last();
-                object?[] join = [code, peer, null];
-                if (!(bool)Call("TryJoin", join)!)
-                {
-                    code = null;
-                    await (Task)Call("CloseQuietlyAsync", socket, WebSocketCloseStatus.PolicyViolation, join[2])!;
-                    return;
-                }
-            }
-            await (Task)Call("RunPeerAsync", peer, code, isHost)!;
+            await stream.WriteAsync(Bytes(request));
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            return await reader.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5));
         }
-        catch (Exception e) { Console.Error.WriteLine(e); }
-        finally { if (code != null) Call("Leave", code, peer); socket.Dispose(); }
+        catch (IOException) { return ""; }
+    }
+
+    private static async Task HttpFrontDoor()
+    {
+        var server = new RelayServer(new RelayOptions { BindAddress = IPAddress.Loopback, Port = 0 }, new QuietLog());
+        server.Start();
+        var port = server.LocalEndPoint!.Port;
+        var info = await RawHttp(port, "GET /info HTTP/1.1\r\nHost: x\r\n\r\n");
+        Check(info.StartsWith("HTTP/1.1 200 ") && JsonDocument.Parse(info[(info.IndexOf("\r\n\r\n") + 4)..]).RootElement
+            .GetProperty("requiresToken").GetBoolean() == false, "info served without a token requirement");
+        Check((await RawHttp(port, "not http at all\r\n\r\n")).StartsWith("HTTP/1.1 400 "), "malformed request line refused");
+        Check((await RawHttp(port, "GET /host HTTP/1.1\r\nHost: x\r\n\r\n")).StartsWith("HTTP/1.1 400 "), "plain GET to a WebSocket path refused");
+        var oversized = await RawHttp(port, "GET /info HTTP/1.1\r\nX-Pad: " + new string('a', RelayHttp.MaxHeaderBytes) + "\r\n\r\n");
+        Check(oversized == "" || oversized.StartsWith("HTTP/1.1 400 "), "oversized header block refused");
+        Check((await RawHttp(port, "GET /admin/stats HTTP/1.1\r\nHost: x\r\n\r\n")).StartsWith("HTTP/1.1 404 "), "admin hidden without an admin token");
+
+        using var host = new RelayClient(RelayWire.NewSecret());
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.Disconnected += _ => disconnected.TrySetResult();
+        Check(await host.ConnectAndHostAsync($"ws://127.0.0.1:{port}") != null, "hosts over the managed listener");
+        await server.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Check(!host.IsConnected, "stopping the relay drops its connections");
+        using var late = new TcpClient();
+        var refused = false;
+        try { await late.ConnectAsync(IPAddress.Loopback, port); } catch (SocketException) { refused = true; }
+        Check(refused, "stopped relay releases its port");
+        await server.DisposeAsync();
     }
 
     private static async Task<ClientWebSocket> ConnectRaw(string url, string code, string secret, bool expectGreeting = true, string? address = null)

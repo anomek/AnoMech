@@ -9,7 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Shared/RelayWire.cs" Link="Source/RelayWire.cs" />
-    <Compile Include="../../Relay/AnoMech.Relay/Program.cs" Link="Source/Relay.cs" />
+    <Compile Include="../../Relay/AnoMech.Relay/Program.cs" Link="Source/Relay/Program.cs" />
+    <Compile Include="../../Relay/AnoMech.Relay/Server/*.cs" Link="Source/Relay/%(Filename)%(Extension)" />
     <Compile Include="../../AnoMech/Multiplayer/RelayClient.cs" Link="Source/RelayClient.cs" />
     <Compile Include="../../AnoMech/Multiplayer/RelayStats.cs" Link="Source/RelayStats.cs" />
     <Compile Include="../../AnoMech/Multiplayer/Protocol.cs" Link="Source/Protocol.cs" />

@@ -264,7 +264,7 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
   | `--max-fragments-per-message` | 2000 | Fragments allowed while assembling one message, independent of its byte size — bounds someone deliberately sending many tiny frames to burn CPU rather than a large one |
   | `--max-failed-joins` | 10 | Failed attempts per address before a 5-minute lockout — shared across session-code guesses and a wrong `--token`. Wrong `--admin-token` attempts use their own separate bucket, so an admin-endpoint scan can never lock players out |
   | `--usage-warn-fraction` | 0.5 | Logs one `[NEAR-LIMIT]` line per connection once it passes this fraction of either rate cap — how you find out a real scenario is creeping toward a limit before anyone is cut off |
-  | `--bind` | `*` (all interfaces) | Address to listen on. Set `127.0.0.1` when a reverse proxy fronts the relay, so nothing can reach it directly |
+  | `--bind` | `*` (all interfaces, IPv4 and IPv6) | Address to listen on: an IP, `*`, or `localhost`. Set `127.0.0.1` when a reverse proxy fronts the relay, so nothing can reach it directly |
   | `--log-dir` | `logs/` next to the executable | Where compressed logs are written — see [Logging](#logging) |
   | `--log-max-bytes` | 5368709120 (5 GiB) | Total on-disk size of all log segments combined |
 
@@ -287,8 +287,8 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
   arriving over loopback with no forwarding headers at all are exempt from the TLS check
   (they never left the machine) — this is what lets the admin CLI reach a local relay.
 
-**Put a real reverse proxy in front regardless of TLS.** `HttpListener` is a
-hand-rolled HTTP front door with far less adversarial-traffic hardening than nginx or
+**Put a real reverse proxy in front regardless of TLS.** The relay's own HTTP handling is a
+minimal hand-rolled front door with far less adversarial-traffic hardening than nginx or
 Caddy, which have absorbed years of internet-facing attack traffic. For a public
 deployment this isn't optional the way it is for a friend group — see [Adding
 TLS](#adding-tls-wss), which gets you both the proxy and the cert in one step with
@@ -472,7 +472,7 @@ Bans and limit changes live in memory only — they reset when the relay restart
 | "Disconnected" immediately after Host/Join | Relay isn't running, or the URL/port is wrong. Check the relay's own console/journal output. |
 | `Test-NetConnection` fails from outside | VPS firewall/security group isn't open, or the router port-forward doesn't match the PC's current LAN IP (consider a static DHCP lease). |
 | Works locally, not for others | Testing with a LAN IP but gave others your public IP without port-forwarding, or vice versa. |
-| `HttpListenerException` on startup (Windows) | Missing the `netsh http add urlacl` grant, or another process owns the port — check `netstat -ano \| findstr 7890`. |
+| `Failed to bind` on startup | Another process owns the port — check `netstat -ano \| findstr 7890` (Windows) or `ss -ltnp` (Linux). |
 | "session full" | 8 peers already connected; host a new session. |
 | Connects, nothing happens after Join | Confirm the same relay URL and session code on both ends (case-normalized, but typos happen). |
 
@@ -521,6 +521,5 @@ From the repository root, with a .NET 8 runtime:
 dotnet run --project tests/SecurityTests/SecurityTests.csproj -c Release
 ```
 
-They run the real relay room, routing, moderation and client code over loopback
-WebSockets, using a small stand-in for the HTTP upgrade so they don't need Windows
-HTTP.sys permissions.
+They run the real relay (HTTP front door, rooms, routing, moderation) and client code
+over loopback WebSockets.
