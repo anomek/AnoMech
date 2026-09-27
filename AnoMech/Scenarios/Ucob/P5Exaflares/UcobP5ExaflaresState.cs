@@ -63,21 +63,9 @@ public sealed class UcobP5ExaflaresState
     private readonly Rng rng = new();
 
     public UcobP5ExaflaresState(UcobP5ExaflaresStateOverrides overrides, EventScheduler timeline)
-        : this(null, null, overrides, timeline) { }
-
-    // `timeline` must be a fresh scheduler the caller ticks itself: a peer never runs the
-    // scenario's own Tick, which is what drives the real one.
-    public static UcobP5ExaflaresState? FromNetworkReplay(float directionRadians, IReadOnlyList<float> laneOrder, EventScheduler timeline)
-    {
-        if (laneOrder.Count != LaneOffsets.Count) return null;
-        if (!float.IsFinite(directionRadians) || laneOrder.Any(o => !LaneOffsets.Contains(o))) return null;
-        return new UcobP5ExaflaresState(new Direction(directionRadians), laneOrder, null, timeline);
-    }
-
-    private UcobP5ExaflaresState(Direction? direction, IReadOnlyList<float>? laneOrder, UcobP5ExaflaresStateOverrides? overrides, EventScheduler timeline)
     {
         Timeline = timeline;
-        Direction = direction ?? overrides!.Direction ?? rng.NextDirection();
+        Direction = overrides.Direction ?? rng.NextDirection();
 
         var theta = Direction.RadiansFromNorth;
         var travel = new Vector3(MathF.Sin(theta), 0f, -MathF.Cos(theta));
@@ -87,7 +75,7 @@ public sealed class UcobP5ExaflaresState
         // Placement rotation faces +Z at 0, so a compass bearing is its mirror.
         var rotation = MathF.PI - theta;
 
-        var order = laneOrder ?? rng.Shuffle(LaneOffsets.ToArray()).ToList();
+        var order = rng.Shuffle(LaneOffsets.ToArray()).ToList();
         LaneOrder = order;
         var lines = new List<ExaflareLine>(LaneOffsets.Count);
         var hits = new List<ExaflareHit>(LaneOffsets.Count * HitsPerLine);

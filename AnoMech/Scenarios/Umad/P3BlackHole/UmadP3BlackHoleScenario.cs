@@ -19,7 +19,7 @@ using static AnoMech.Scenarios.Umad.UmadConstants;
 
 namespace AnoMech.Scenarios.Umad.P3BlackHole;
 
-public sealed class UmadP3BlackHoleScenario : IMultiplayerReplayable
+public sealed class UmadP3BlackHoleScenario : IScenario
 {
     public string Name => "Black Hole";
     public IPhase Phase => UmadZone.P3;
@@ -63,16 +63,12 @@ public sealed class UmadP3BlackHoleScenario : IMultiplayerReplayable
     private float CleanseCooldown;
     SimEnemy? CleanseHelper;
 
-    // For the multiplayer replay-state broadcast.
-    public UmadP3BlackHoleState? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         AnoMech.Core.DiagnosticLog.Clear();
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP3BlackHoleState(world, settingsWindow.Overrides);
-        LastState = state;
         PopulateThunderIIIPlan();
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<UmadP3BlackHoleState>)AiStrats[idx]).Run(state, world);
@@ -833,52 +829,5 @@ public sealed class UmadP3BlackHoleScenario : IMultiplayerReplayable
         world.Events.Add(159.63f, () => party.Get(PartyRole.MeleeDpsB)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
         // [159.63s] 30|B7D|Magic Vulnerability Up|0.00|400040E8|Chaos|100AC8F1|CasterDps|00|227550|44|8ea67f20190b40b7
         world.Events.Add(159.63f, () => party.Get(PartyRole.CasterDps)?.RemoveStatus(StatusId.MagicVulnerabilityUp));
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new AiReplayStateMessage(
-            s.Roles.List, s.StackTargets.List, s.SlapAttacks.ToArray(),
-            s.KefkaPosition.Select(d => d.RadiansFromNorth).ToArray(), s.ImplosionAttack,
-            s.ThunderSet1, s.ThunderSet2)
-        : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not AiReplayStateMessage msg) return null;
-        var shadowState = UmadP3BlackHoleState.FromNetworkReplay(
-            replayWorld, msg.Roles, msg.StackTargets, msg.SlapAttacks, msg.KefkaPositionRadians, msg.ImplosionAttack,
-            msg.ThunderSet1, msg.ThunderSet2);
-        ((IScenarioAi<UmadP3BlackHoleState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        SchedulePeerThunderMitigation(shadowState, replayWorld, myRole);
-        return shadowState;
-    }
-
-    // RunThunder never runs on a peer, so a Share plan would apply nothing there. AddStatus
-    // writes through StatusManager, so the self-report poller picks it up.
-    private static void SchedulePeerThunderMitigation(UmadP3BlackHoleState state, SimWorld world, PartyRole myRole)
-    {
-        void ApplyIfMine(float time, ThunderIIIAssignment plan)
-        {
-            if (plan is not (ThunderIIIAssignment.ShareMtFirst or ThunderIIIAssignment.ShareOtFirst)) return;
-            var (first, second) = ThunderIIIPlanning.Roles(plan);
-            if (first != myRole && second != myRole) return;
-            world.Events.Add(time, () =>
-            {
-                if (world.Party.Player is { } player)
-                    ApplyThunderShareKit(player);
-            });
-        }
-        ApplyIfMine(38f, state.ThunderSet1);
-        ApplyIfMine(43.5f, state.ThunderSet1);
-        ApplyIfMine(79f, state.ThunderSet2);
-        ApplyIfMine(84.9f, state.ThunderSet2);
-    }
-
-    // Chaos/Exdeath may not be replicated yet when StartReplay runs.
-    public void RefreshLiveHandles(object shadowStateObj, IReadOnlyDictionary<int, SimEnemy> peerEnemies)
-    {
-        if (shadowStateObj is not UmadP3BlackHoleState shadowState) return;
-        shadowState.ScenarioObjects.Chaos ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.ChaosP3);
-        shadowState.ScenarioObjects.Exdeath ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.Exdeath);
     }
 }

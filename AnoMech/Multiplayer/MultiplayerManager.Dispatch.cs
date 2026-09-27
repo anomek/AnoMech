@@ -178,7 +178,7 @@ public sealed partial class MultiplayerManager
             or MoveMessage or InterceptMessage or FaceMessage or CarryMessage
             or SpawnOmenMessage or EndMessage or PingMessage or PeerStatusMessage
             or SetFogHoldMessage or AnnouncementMessage
-            or IScenarioReplayStateMessage or IScenarioMidRunUpdateMessage or KickMessage)
+            or KickMessage)
         {
             lastHostMessageMs = Environment.TickCount64;
             everHeardFromHost = true;
@@ -452,14 +452,6 @@ public sealed partial class MultiplayerManager
                 break;
             case AnnouncementMessage announcement when PeerInRun:
                 Plugin.GameInstance.World.Announce(NetGuard.Clean(announcement.Text));
-                break;
-            // Every IMultiplayerReplayable scenario routes through these two cases.
-            case MpMessage genericMsg when !IsHost && genericMsg is IScenarioReplayStateMessage:
-                break;
-            // Without a shadow state yet, nothing needs the update.
-            case MpMessage midRunUpdate when !IsHost && midRunUpdate is IScenarioMidRunUpdateMessage:
-                if (debugShadowStateGeneric != null && TryResolveScenario() is IMultiplayerReplayable replayable)
-                    replayable.ApplyMidRunUpdate(debugShadowStateGeneric, midRunUpdate);
                 break;
         }
     }

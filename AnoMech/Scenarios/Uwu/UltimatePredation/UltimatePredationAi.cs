@@ -16,21 +16,6 @@ public class UltimatePredationAi : IScenarioAi<UltimatePredationState>
 
     private UltimatePredationState state = null!;
 
-    // Resolves this run's three safe-spot tie-breaks unconditionally, so LastState always has
-    // them ready to broadcast even when the host runs no bots itself. Idempotent: the three
-    // GetSafe* methods short-circuit once their Resolved* field is set, so calling this before
-    // a real bot's own Run never re-rolls.
-    public void ResolveSafeSpots(UltimatePredationState state)
-    {
-        // Mirrors Run's own first line -- DeleteUnsafeFirstSet/DeleteUnsafeSecondSet read the
-        // instance field (not a parameter), and this is called on a fresh, throwaway
-        // UltimatePredationAi() instance whose field was never otherwise set.
-        this.state = state;
-        var safeCardinal = GetSafeCardinal(state);
-        GetSafeForFirstSet(state, safeCardinal);
-        GetSafeForSecondSet(state, safeCardinal);
-    }
-
     public void Run(UltimatePredationState state, SimWorld world)
     {
         this.state = state;
@@ -62,8 +47,7 @@ public class UltimatePredationAi : IScenarioAi<UltimatePredationState>
         ai.Move(77f, PartySplit, jitter: 0.25f);
     }
 
-    // Resolved once on the real run and cached on `state`; a peer's replayed Run reads the
-    // cached value instead of rolling, landing on the same spot as the host's real bots.
+    // Cached on `state`, so every read in a run lands on the same spot.
     private Placement GetSafeCardinal(UltimatePredationState state)
     {
         if (state.ResolvedSafeCardinal is { } resolved) return resolved;

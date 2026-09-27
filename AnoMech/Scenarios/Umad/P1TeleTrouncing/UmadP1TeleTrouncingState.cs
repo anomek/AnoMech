@@ -139,54 +139,6 @@ public sealed class UmadP1TeleTrouncingState
         Spots = BuildSpots(debuffs);
     }
 
-    // A peer's shadow of the host's roll (see IMultiplayerReplayable): nothing rolled.
-    private UmadP1TeleTrouncingState(
-        bool dpsGetsDifferent, bool dpsGetsConfused,
-        Dictionary<PartyRole, (TelePortentDirection First, TelePortentDirection Second)> debuffs, Dictionary<PartyRole, bool> polarity,
-        PartyRole confettiStackSupport, PartyRole confettiStackDps,
-        bool gazeInverted, bool fireIsStack, bool fireIsLie, PartyRole fireStackSupport, PartyRole fireStackDps,
-        int thunderRealOffset, bool thunderOrientationFlipped, bool thunderIsLie)
-    {
-        DpsGetsDifferent = dpsGetsDifferent;
-        DpsGetsConfused = dpsGetsConfused;
-        Debuffs = debuffs;
-        DifferentPolarity = polarity;
-        Spots = BuildSpots(debuffs);
-        ConfettiStackSupport = confettiStackSupport;
-        ConfettiStackDps = confettiStackDps;
-        GazeInverted = gazeInverted;
-        FireIsStack = fireIsStack;
-        FireIsLie = fireIsLie;
-        FireStackSupport = fireStackSupport;
-        FireStackDps = fireStackDps;
-        ThunderRealOffset = thunderRealOffset;
-        ThunderOrientationFlipped = thunderOrientationFlipped;
-        ThunderIsLie = thunderIsLie;
-    }
-
-    public static UmadP1TeleTrouncingState? FromNetworkReplay(
-        bool dpsGetsDifferent, bool dpsGetsConfused,
-        IReadOnlyList<PartyRole> roles, IReadOnlyList<TelePortentDirection> firstDirections, IReadOnlyList<TelePortentDirection> secondDirections, IReadOnlyList<bool> polarity,
-        PartyRole confettiStackSupport, PartyRole confettiStackDps,
-        bool gazeInverted, bool fireIsStack, bool fireIsLie, PartyRole fireStackSupport, PartyRole fireStackDps,
-        int thunderRealOffset, bool thunderOrientationFlipped, bool thunderIsLie)
-    {
-        if (roles.Count != 8 || firstDirections.Count != 8 || secondDirections.Count != 8 || polarity.Count != 8) return null;
-        if (roles.Distinct().Count() != 8 || roles.Any(r => !Enum.IsDefined(r))) return null;
-        if (firstDirections.Any(d => !Enum.IsDefined(d)) || secondDirections.Any(d => !Enum.IsDefined(d))) return null;
-        if (!Enum.IsDefined(confettiStackSupport) || !Enum.IsDefined(confettiStackDps) || !Enum.IsDefined(fireStackSupport) || !Enum.IsDefined(fireStackDps)) return null;
-        if (thunderRealOffset is < 0 or > 1) return null;
-        var debuffs = new Dictionary<PartyRole, (TelePortentDirection, TelePortentDirection)>();
-        var polarityByRole = new Dictionary<PartyRole, bool>();
-        for (var i = 0; i < 8; i++)
-        {
-            debuffs[roles[i]] = (firstDirections[i], secondDirections[i]);
-            polarityByRole[roles[i]] = polarity[i];
-        }
-        return new(dpsGetsDifferent, dpsGetsConfused, debuffs, polarityByRole, confettiStackSupport, confettiStackDps,
-            gazeInverted, fireIsStack, fireIsLie, fireStackSupport, fireStackDps, thunderRealOffset, thunderOrientationFlipped, thunderIsLie);
-    }
-
     // Each person's two teleporters land next to each other: a different role's pair are two
     // adjacent sides, so its arrows take the last slot of the first side and the first slot of
     // the second, straddling the corner. That claims slots 0 and 3 on every side, leaving the

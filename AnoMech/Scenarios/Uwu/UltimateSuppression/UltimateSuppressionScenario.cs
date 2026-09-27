@@ -7,7 +7,6 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Network;
@@ -15,7 +14,7 @@ using static AnoMech.Scenarios.Uwu.UwuConstants;
 
 namespace AnoMech.Scenarios.Uwu.UltimateSuppression;
 
-public unsafe class UltimateSuppressionScenario : IMultiplayerReplayable
+public unsafe class UltimateSuppressionScenario : IScenario
 {
     public string Name => "Ultimate Suppression";
     public IPhase Phase => UwuZone.Ultima;
@@ -32,9 +31,6 @@ public unsafe class UltimateSuppressionScenario : IMultiplayerReplayable
     private UwuUtils? utilsInstance;
     private UwuUtils utils => utilsInstance ??= new UwuUtils(world);
     private UltimateSuppressionState state = null!;
-
-    // Polled by the multiplayer host; null until Run has assigned roles.
-    public UltimateSuppressionState? LastState { get; private set; }
 
     private SimEnemy? ultima;
     private SimEnemy? garuda;
@@ -70,7 +66,6 @@ public unsafe class UltimateSuppressionScenario : IMultiplayerReplayable
         party = world.Party;
 
         state = new(party, settingsWindow.Overrides);
-        LastState = state;
 
         razorPlumesDamage = false;
         razorPlumesRotate.Reset();
@@ -910,31 +905,5 @@ public unsafe class UltimateSuppressionScenario : IMultiplayerReplayable
         return closest.Position;
     }
 
-    public MpMessage? BuildReplayStateMessage()
-    {
-        if (LastState is not { } s) return null;
-        if (RoleOf(s.PlayerLightPillar) is not { } lightPillar || RoleOf(s.PlayerGaol) is not { } gaol
-            || RoleOf(s.PlayerFlamingCrush) is not { } flamingCrush) return null;
-        var mistralSongs = s.PlayerMistralSongs.Select(RoleOf).ToArray();
-        var eruptions = s.PlayerEruptions.Select(RoleOf).ToArray();
-        if (mistralSongs.Any(r => r is null) || eruptions.Any(r => r is null)) return null;
-        return new UltimateSuppressionAiReplayStateMessage(
-            lightPillar, mistralSongs.Select(r => r!.Value).ToArray(),
-            eruptions.Select(r => r!.Value).ToArray(), gaol, flamingCrush, s.SuppressionSpotOrder);
-    }
-
     private static PartyRole? RoleOf(SimCharacter? member) => (member as ISimPartyMember)?.Role;
-
-    // The Ai drives AiManager, which ticks on a peer like any other scenario, so there is no
-    // replay clock of its own to keep.
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not UltimateSuppressionAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
-        var shadowState = UltimateSuppressionState.FromNetworkReplay(
-            replayWorld.Party, msg.LightPillar, msg.MistralSongs, msg.Eruptions, msg.Gaol, msg.FlamingCrush,
-            msg.SuppressionSpotOrder);
-        if (shadowState == null) return null;
-        ((IScenarioAi<UltimateSuppressionState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
-    }
 }

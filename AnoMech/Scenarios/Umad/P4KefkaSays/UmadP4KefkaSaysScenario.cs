@@ -9,7 +9,6 @@ using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
 namespace AnoMech.Scenarios.Umad.P4KefkaSays;
@@ -18,7 +17,7 @@ namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 // Player id -> role (first-seen order in the window):
 //   10066D86 MT, 100AC8F1 OT, 100AE96C H1, 100702A3 H2,
 //   10018AEA M1, 100AF82E M2, 100A7A8F R1, 1009061B C.
-public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
+public sealed class UmadP4KefkaSaysScenario : IScenario
 {
     public string Name => "Kefka Says";
     public IPhase Phase => UmadZone.P4;
@@ -42,19 +41,11 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
     private SimEnemy[] detonationHelpers = [];  // invisible KefkaHelper that casts DeathSurge on Allagan Field detonation
     private int detonatioHelperIndex;
 
-    // The current run's randomized per-run assignments, exposed so
-    // MultiplayerManager can read them after a host Start and broadcast them --
-    // lets a peer's local "debug: bot controls my character" mode replay the
-    // same choreography a host-side bot in that role would produce. Mirrors
-    // UmadP3BlackHoleScenario.LastState.
-    public UmadP4KefkaSaysState? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP4KefkaSaysState(party, settingsWindow.Overrides);
-        LastState = state;
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<UmadP4KefkaSaysState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
@@ -461,30 +452,5 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
                 world.Events.Add(104.39f, () => damage.ResolveGaze(state.Wave2.Get(shriekTargetId), lookAway: state.Wave2True));
             }
         }
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new P4AiReplayStateMessage(
-            s.Mystery.Select(m => m.BlizzardOffset).ToArray(),
-            s.Mystery.Select(m => m.LightningOffset).ToArray(),
-            s.Mystery.Select(m => m.LightningOrientation).ToArray(),
-            s.Wave1First, s.Wave1.List, s.Wave1True,
-            s.Wave2.List, s.Wave2True,
-            s.InfernoMystery.IsTrue, s.TsunamiMystery.IsTrue,
-            s.Wave3.List, s.Wounds,
-            s.Antilights[0].Antilight == Antilight.White,
-            s.NeoExdeathDirection.RadiansFromNorth)
-        : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not P4AiReplayStateMessage msg) return null;
-        var shadowState = UmadP4KefkaSaysState.FromNetworkReplay(
-            replayWorld.Party, msg.MysteryBlizzardOffset, msg.MysteryLightningOffset, msg.MysteryLightningOrientation,
-            msg.Wave1First, msg.Wave1, msg.Wave1True, msg.Wave2, msg.Wave2True,
-            msg.InfernoIsTrue, msg.TsunamiIsTrue, msg.Wave3, msg.Wounds,
-            msg.Antilight0IsWhite, msg.NeoExdeathDirectionRadians);
-        ((IScenarioAi<UmadP4KefkaSaysState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
     }
 }

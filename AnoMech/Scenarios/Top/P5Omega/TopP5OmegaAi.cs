@@ -25,10 +25,6 @@ public class TopP5OmegaAi : IScenarioAi<TopP5OmegaState>
         ai.Move(24f, Dodge(1), arrivalTime: 28f);
         ai.Automarker(28f, () => HelloWorldMarkers(helloWorld1?.List));
         ai.Move(32f, HelloWorld1Pos, jitter: 0.1f, arrivalTime: 41f);
-        // state.HelloWorld2 is resolved host-only by TopP5OmegaScenario (see its own doc
-        // comment) and broadcast, not rolled here -- this Ai runs identically for the host's
-        // bots and a peer's own replay, and a live status read + shuffle would let the two
-        // diverge on who stands where.
         ai.Automarker(47f, () => HelloWorldMarkers(state.HelloWorld2));
         ai.Move(48f, GatherMiddle);
         ai.Move(53f, HelloWorld2Pos, arrivalTime: 57f);

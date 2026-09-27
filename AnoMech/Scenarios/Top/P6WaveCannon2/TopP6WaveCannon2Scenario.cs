@@ -7,12 +7,11 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P6WaveCannon2;
 
-public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
+public sealed class TopP6WaveCannon2Scenario : IScenario
 {
     public string Name => "Exasquares/WC2";
     public IPhase Phase => TopZone.P6;
@@ -32,16 +31,11 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
     private SimParty party = null!;
     private DamageSolver damage = null!;
 
-    // Exposed so MultiplayerManager can read the AI-relevant subset (InFirst) after a host
-    // Start and broadcast it -- see UmadP3BlackHoleScenario.LastState for the pattern.
-    public TopP6WaveCannon2State? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP6WaveCannon2State(party, settingsWindow.Overrides);
-        LastState = state;
         var solo = selectedAi is null;
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP6WaveCannon2State>)AiStrats[idx]).Run(state, world);
@@ -160,16 +154,5 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
             world.Events.Add(21.07f, () => damage.Resolve(alpha_Omega_4000A40C, ActionId.WaveCannonProtean, [DamageType.Magic], [(StatusId.MagicVulnerabilityUp, 2.5f)]));
         }
 
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new TopP6WaveCannon2AiReplayStateMessage(s.InFirst) : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not TopP6WaveCannon2AiReplayStateMessage msg) return null;
-        var shadowState = TopP6WaveCannon2State.FromNetworkReplay(msg.InFirst);
-        ((IScenarioAi<TopP6WaveCannon2State>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
     }
 }

@@ -150,10 +150,7 @@ public class RoleList
     }
 
     // Same pick-without-replacement as the parameterless overload, but from a caller-supplied
-    // Rng instead of this class's own unseeded static one. The static overload draws
-    // independently on every client replaying an Ai.Run, so each can pick differently -- use
-    // the State's own seeded Rng and resolve once in the State constructor, then broadcast
-    // the result.
+    // Rng instead of this class's own unseeded static one.
     public RoleList Random(Rng rng, int count, params PartyRole[] except)
     {
         var exceptSet = new HashSet<PartyRole>(except);

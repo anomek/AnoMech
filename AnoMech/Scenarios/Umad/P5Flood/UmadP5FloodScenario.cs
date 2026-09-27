@@ -25,7 +25,7 @@ namespace AnoMech.Scenarios.Umad.P5Flood;
 //
 // Multiplayer: the waves and the stack fire as NativeActionEffects, which peers replay field
 // for field (EnemyState.LastInstantCastIsNativeEffect); the RawPacket delivery knob is host-only.
-public sealed class UmadP5FloodScenario : IMultiplayerReplayable
+public sealed class UmadP5FloodScenario : IScenario
 {
     public string Name => "Flood";
     public IPhase Phase => UmadZone.P5;
@@ -135,14 +135,11 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         NwSePoint(-NearOffset),  // G (mirrors D)
     ];
 
-    public UmadP5FloodState? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP5FloodState(settingsWindow.Overrides, timeline);
-        LastState = state;
         damage = new DamageSolver(party);
         chaoticFloodCaster = null;
         for (var i = 0; i < TickCount; i++) tickHelpers[i] = null;
@@ -219,36 +216,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         if (wallDelta > 0 && wallDelta <= FrameGapCapSeconds)
             timeline.Tick((float)wallDelta);
         TickAnchorWatch();
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s
-            ? new UmadP5FloodAiReplayStateMessage(s.NeSwReversed, s.NwSeReversed, s.NeSwFirst, s.StartQuadrant, s.RotationClockwise)
-            : null;
-
-    // The shadow state's timeline is peer-owned and driven by TickReplay, as for Exaflares.
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not UmadP5FloodAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
-        var shadowState = UmadP5FloodState.FromNetworkReplay(msg.NeSwReversed, msg.NwSeReversed, msg.NeSwFirst, msg.StartQuadrant, msg.RotationClockwise, new EventScheduler());
-        if (shadowState == null) return null;
-        ((IScenarioAi<UmadP5FloodState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
-    }
-
-    public void TickReplay(object shadowStateObj, float deltaSeconds)
-    {
-        if (shadowStateObj is not UmadP5FloodState shadowState) return;
-        if (deltaSeconds > FrameGapCapSeconds) return;
-        shadowState.Timeline.Tick(deltaSeconds);
-    }
-
-    public float? ReplayClockSeconds => (float)(timeline.Elapsed + (wallClock.Elapsed.TotalSeconds - lastWall));
-
-    public void AdvanceReplayClockTo(object shadowStateObj, float seconds)
-    {
-        if (shadowStateObj is UmadP5FloodState shadowState)
-            shadowState.Timeline.Advance(seconds - shadowState.Timeline.Elapsed);
     }
 
     // pair1 = points[0]&points[2] (cross-paired outer/inner), pair2 = points[1]&points[3].

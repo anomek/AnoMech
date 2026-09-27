@@ -51,23 +51,6 @@ public sealed class UmadP5FloodState
         RotationClockwise = overrides.RotationClockwise ?? DeriveRotationClockwise(NeSwFirst, NeSwReversed, NwSeReversed);
     }
 
-    // A peer's shadow of the host's roll (see IMultiplayerReplayable): nothing rolled, and the
-    // timeline is the peer's own, ticked by TickReplay.
-    private UmadP5FloodState(bool neSwReversed, bool nwSeReversed, bool neSwFirst, int startQuadrant, bool rotationClockwise, EventScheduler timeline)
-    {
-        Timeline = timeline;
-        NeSwReversed = neSwReversed;
-        NwSeReversed = nwSeReversed;
-        NeSwFirst = neSwFirst;
-        StartQuadrant = startQuadrant;
-        RotationClockwise = rotationClockwise;
-    }
-
-    public static UmadP5FloodState? FromNetworkReplay(bool neSwReversed, bool nwSeReversed, bool neSwFirst, int startQuadrant, bool rotationClockwise, EventScheduler timeline)
-        => startQuadrant is >= 0 and <= 3
-            ? new(neSwReversed, nwSeReversed, neSwFirst, startQuadrant, rotationClockwise, timeline)
-            : null;
-
     // 0=N, 1=E, 2=S, 3=W.
     private static int DeriveStartQuadrant(bool neSwReversed, bool nwSeReversed) => (neSwReversed, nwSeReversed) switch
     {

@@ -112,27 +112,6 @@ public sealed class UmadP3LimitCutState
         return winds;
     }
 
-    // A peer's shadow of the host's roll: nothing rolled.
-    private UmadP3LimitCutState(int startSpot, bool clockwise, IReadOnlyList<PartyRole> numbers, IReadOnlyDictionary<PartyRole, Wind> winds, int bossSpot, PartyRole baitRole, ThunderIIIAssignment thunderPlan)
-    {
-        StartSpot = startSpot;
-        Clockwise = clockwise;
-        Numbers = numbers;
-        Winds = winds;
-        BossSpot = bossSpot;
-        BaitRole = baitRole;
-        ThunderPlan = thunderPlan;
-    }
-
-    public static UmadP3LimitCutState? FromNetworkReplay(int startSpot, bool clockwise, IReadOnlyList<PartyRole> numbers, IReadOnlyList<PartyRole> headwinds, int bossSpot, PartyRole baitRole, ThunderIIIAssignment thunderPlan)
-    {
-        if (startSpot is < 0 or > 7 || bossSpot is < 0 or > 7) return null;
-        if (numbers.Count != 8 || numbers.Distinct().Count() != 8 || numbers.Any(r => !AllRoles.Contains(r))) return null;
-        if (headwinds.Any(r => !AllRoles.Contains(r)) || !AllRoles.Contains(baitRole)) return null;
-        if (!Enum.IsDefined(thunderPlan)) return null;
-        return new(startSpot, clockwise, numbers, AllRoles.ToDictionary(r => r, r => headwinds.Contains(r) ? Wind.Headwind : Wind.Tailwind), bossSpot, baitRole, thunderPlan);
-    }
-
     private static int Mod8(int v) => ((v % 8) + 8) % 8;
 
     private static readonly PartyRole[] AllRoles =

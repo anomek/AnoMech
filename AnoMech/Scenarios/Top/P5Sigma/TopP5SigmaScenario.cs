@@ -7,12 +7,11 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Sigma;
 
-public sealed class TopP5SigmaScenario : IMultiplayerReplayable
+public sealed class TopP5SigmaScenario : IScenario
 {
     public string Name => "Sigma";
     public IPhase Phase => TopZone.P5;
@@ -33,16 +32,11 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     private SimWorld world = null!;
     private SimParty party = null!;
 
-    // Exposed so MultiplayerManager can read the AI-relevant subset after a host Start and
-    // broadcast it -- see UmadP3BlackHoleScenario.LastState for the pattern.
-    public TopP5SigmaState? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new TopP5SigmaState(party, settingsWindow.Overrides);
-        LastState = state;
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP5SigmaState>)AiStrats[idx]).Run(state, world);
         topUtils = new TopUtils(world);
@@ -379,24 +373,5 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
             world.Events.Add(59.62f, () => omega_F_4000A40C_2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.OmegaFDynamis, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenPlacement))));
             world.Events.Add(59.66f, () => omega_F_4000A40C_2?.Cast(ActionId.SuperliminalSteelOmenL, targetLocation: state.NewNorthB.Apply(Geometry.SuperliminalSteelOmenTargetL), castSeconds: 1.200f, targetId: omega_F_4000A40C_2?.GameObjectId, omenDelay: Duration.OmegaAttackOmenDelay));
         }
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new TopP5SigmaAiReplayStateMessage(
-            s.Order.List, s.DynamisTargets.List, s.HelloWorldTargets.List, s.HandBait.List, s.HelloWorldJumpOrder.List,
-            s.NewNorthA.RadiansFromNorth, s.NewNorthB.RadiansFromNorth, s.TowerNorthFlipped,
-            s.GlitchType == GlitchType.Far, s.SpinnerRotation == Rotation.Clockwise, s.OmegaFAttack == OmegaAttack.Staff,
-            s.FirstMissing, s.SecondMissing)
-        : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not TopP5SigmaAiReplayStateMessage msg) return null;
-        var shadowState = TopP5SigmaState.FromNetworkReplay(
-            replayWorld.Party, msg.Order, msg.DynamisTargets, msg.HelloWorldTargets, msg.HandBait, msg.HelloWorldJumpOrder,
-            msg.NewNorthARadians, msg.NewNorthBRadians, msg.TowerNorthFlipped,
-            msg.GlitchIsFar, msg.SpinnerIsClockwise, msg.OmegaFIsStaff, msg.FirstMissing, msg.SecondMissing);
-        ((IScenarioAi<TopP5SigmaState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
     }
 }

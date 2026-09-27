@@ -6,7 +6,6 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 using static AnoMech.Scenarios.Umad.P5Celestriad.UmadP5CelestriadConstants;
 
@@ -23,7 +22,7 @@ namespace AnoMech.Scenarios.Umad.P5Celestriad;
 // set 1 has no Catastrophic Choice and resolves independently in between.
 //
 // See UmadP5CelestriadConstants for what's replay-confirmed vs. still an estimate.
-public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
+public sealed class UmadP5CelestriadScenario : IScenario
 {
     public string Name => "Celestriad";
     public IPhase Phase => UmadZone.P5;
@@ -41,8 +40,6 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
 
     private UmadP5CelestriadState state = null!;
 
-    // Polled by the multiplayer host; null until Run has rolled the set.
-    public UmadP5CelestriadState? LastState { get; private set; }
     private SimWorld world = null!;
     private SimParty party = null!;
     private DamageSolver damage = null!;
@@ -60,7 +57,6 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP5CelestriadState(party, settingsWindow.Overrides);
-        LastState = state;
         damage = new DamageSolver(party);
         damage.SetStatuses(DamageType.Lightning, StatusId.LightningResistanceDownII);
         damage.SetStatuses(DamageType.Fire, CelestriadStatusId.FireResistanceDownII);
@@ -206,28 +202,5 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
             instance.Marker?.Despawn();
         }
         towerInstances.Clear();
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-    {
-        if (LastState is not { } s) return null;
-        return new UmadP5CelestriadAiReplayStateMessage(
-            s.DoubleElement.Select(UmadP5CelestriadState.ElementIndex).ToArray(),
-            s.PlayerDebuffElement.ToDictionary(kv => kv.Key, kv => UmadP5CelestriadState.ElementIndex(kv.Value)),
-            s.SetActiveTowers.Select(set => set.ToArray()).ToArray(),
-            s.AeroVariant.Select(UmadP5CelestriadState.ChoiceIndex).ToArray(),
-            s.TowerElementOrder.Select(UmadP5CelestriadState.ElementIndex).ToArray());
-    }
-
-    // The Ai schedules onto world.Events, which already ticks on a peer, so there is no replay
-    // clock of its own to keep.
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not UmadP5CelestriadAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
-        var shadowState = UmadP5CelestriadState.FromNetworkReplay(
-            msg.DoubleElement, msg.PlayerDebuffElement, msg.SetActiveTowers, msg.AeroVariant, msg.TowerElementOrder);
-        if (shadowState == null) return null;
-        ((IScenarioAi<UmadP5CelestriadState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
     }
 }

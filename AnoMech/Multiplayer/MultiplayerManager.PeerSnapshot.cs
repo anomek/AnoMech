@@ -18,7 +18,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Umad;
-using AnoMech.Scenarios.Umad.P3BlackHole;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
 namespace AnoMech.Multiplayer;
@@ -35,7 +34,7 @@ public sealed partial class MultiplayerManager
         if (pendingSelfPoseSend is not (null or { IsCompleted: true })) return;
         var player = Plugin.GameInstance.World.Party.Player;
         if (player == null) return;
-        pendingSelfPoseSend = relay!.SendAsync(new SelfPoseMessage(MyPeerId, player.Position.X, player.Position.Y, player.Position.Z, player.Rotation));
+        pendingSelfPoseSend = relay!.SendAsync(new SelfPoseMessage(MyPeerId, player.Position.X, player.Position.Y, player.Position.Z, player.Rotation, DebugBotControl.Enabled));
     }
 
     // Reads the native StatusManager (ActiveTrackedStatusIds), not ActiveStatusSnapshot: a real
@@ -85,6 +84,8 @@ public sealed partial class MultiplayerManager
             return;
         }
         if (!NetGuard.TryPosition(msg.X, msg.Y, msg.Z, out var pose)) return;
+        if (msg.BotControlled) botControlledPeers.Add(msg.PeerId);
+        else botControlledPeers.Remove(msg.PeerId);
         if (Plugin.GameInstance.World.Party.Get(role) is SimNetworkPuppet puppet)
             puppet.ApplyNetworkPose(pose, NetGuard.Rotation(msg.Rotation));
         else
@@ -279,9 +280,6 @@ public sealed partial class MultiplayerManager
             if (!NetGuard.TryPosition(o.X, 0f, o.Z, out var center)) continue;
             world.Obstacles.Add(new CircleObstacle(new Vector2(center.X, center.Z), NetGuard.Clamp(o.Radius, 0f, 200f)));
         }
-
-        if (debugShadowStateGeneric != null && TryResolveScenario() is IMultiplayerReplayable replayable)
-            replayable.RefreshLiveHandles(debugShadowStateGeneric, peerEnemies);
 
         var seenTetherIds = new HashSet<int>();
         foreach (var t in NetGuard.Cap(snap.Tethers, NetGuard.MaxTethersPerSnapshot))
@@ -763,7 +761,7 @@ public sealed partial class MultiplayerManager
         DiagnosticLog.Info($"[Multiplayer] Peer received EndMessage (ReturnedToInn={msg.ReturnedToInn}, Reason={msg.Reason ?? "none"}).");
         if (NetGuard.Clean(msg.Reason) is { Length: > 0 } reason) AnnounceRunEnded(reason);
         running = false;
-        StopDebugBotReplay();
+        DebugBotControl.Enabled = false;
         // Leave() assumes a zone was entered: an end that beats our queued entry is acted on by
         // OnPeerStartResolved once the entry completes.
         if (peerEntryQueued)

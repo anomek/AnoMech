@@ -72,14 +72,16 @@ public static unsafe class TankMitigation
         return fraction;
     }
 
-    // A puppet's native StatusManager never sees the owning peer's press, so it reads the
-    // peer's self-reported set instead. mitigationSource folds in that enemy's SourceSide debuffs.
+    // A puppet's native StatusManager never sees the owning peer's press, so it adds the peer's
+    // self-reported set to what the host itself put on the puppet (a planned kit, an Ai invuln),
+    // which only reaches the peer a round trip later. mitigationSource folds in that enemy's
+    // SourceSide debuffs.
     public static float SurvivalFraction(SimParty party, PartyRole role, SimEnemy? mitigationSource = null)
     {
         var member = party.Get(role);
         if (member == null) return 1f;
         IEnumerable<ushort> activeIds = member is SimNetworkPuppet && Plugin.MultiplayerInstance is { IsHost: true } mp
-            ? mp.PeerMitigationStatusIds(role)
+            ? ActiveTrackedStatusIds(member).Union(mp.PeerMitigationStatusIds(role))
             : ActiveTrackedStatusIds(member);
         var fraction = SurvivalFraction(activeIds);
         if (mitigationSource != null) fraction *= SourceSideFraction(mitigationSource);
@@ -142,10 +144,14 @@ public static unsafe class TankMitigation
         return survives;
     }
 
-    // Slots nothing real presses buttons for: a bot, or the local player under DebugBotControl
-    // (which drives movement only).
-    public static bool IsBotDriven(SimParty party, SimCharacter member)
-        => (!ReferenceEquals(member, party.Player) || DebugBotControl.Enabled) && member is not SimNetworkPuppet;
+    // Slots nothing real presses buttons for: a bot, or a player (local or a peer) under
+    // DebugBotControl, which drives movement only.
+    public static bool IsBotDriven(SimParty party, SimCharacter member) => member switch
+    {
+        SimNetworkPuppet puppet => Plugin.MultiplayerInstance?.IsPeerBotControlled(puppet.Role) == true,
+        _ when ReferenceEquals(member, party.Player) => DebugBotControl.Enabled,
+        _ => true,
+    };
 
     // Right before a tankbuster resolves: a bot-driven target gets the host's planned status.
     public static void ApplyPlannedMitigationIfBot(SimParty party, SimCharacter target, string castId)

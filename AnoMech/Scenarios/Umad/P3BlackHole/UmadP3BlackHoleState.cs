@@ -66,40 +66,6 @@ public sealed class UmadP3BlackHoleState
         MiniBlackHoleChirality = rng.NextSign();
     }
 
-    // Network replay: only the fields UmadP3BlackHoleAi reads; the rest are placeholders the
-    // scenario's own resolution, which never runs on a peer, would read.
-    private UmadP3BlackHoleState(
-        SimWorld world, RoleList roles, RoleList stackTargets,
-        IReadOnlyList<uint> slapAttacks, IReadOnlyList<Direction> kefkaPosition, uint implosionAttack,
-        ThunderIIIAssignment thunderSet1, ThunderIIIAssignment thunderSet2)
-    {
-        ScenarioObjects = new UmadP3BlackHoleScenarioObjects(world);
-        Roles = roles;
-        StackTargets = stackTargets;
-        EdictTargets = RoleList.Empty();
-        ImplosionAttack = implosionAttack;
-        SlapAttacks = slapAttacks;
-        ConeTargets = [];
-        ThunderSet1 = thunderSet1;
-        ThunderSet2 = thunderSet2;
-        KefkaPosition = kefkaPosition;
-        BlackHoleDirections = [];
-        MiniBlackHoleInitialAngle = 0;
-        MiniBlackHoleChirality = 1;
-    }
-
-    public static UmadP3BlackHoleState FromNetworkReplay(
-        SimWorld world, IReadOnlyList<PartyRole> roles, IReadOnlyList<PartyRole> stackTargets,
-        IReadOnlyList<uint> slapAttacks, IReadOnlyList<float> kefkaPositionRadians, uint implosionAttack,
-        ThunderIIIAssignment thunderSet1, ThunderIIIAssignment thunderSet2)
-        => new(world,
-               new RoleList(world.Party, roles),
-               new RoleList(world.Party, stackTargets),
-               slapAttacks,
-               kefkaPositionRadians.Select(r => new Direction(r)).ToList(),
-               implosionAttack,
-               thunderSet1, thunderSet2);
-
     // Final-slot (post-swap) line number and Accretion, mirroring the per-index status
     // assignment in UmadP3BlackHoleScenario.Run_OtherDebuffs. Slots 0-3 hold the supports
     // (slot 3 never a tank), slots 4-7 the DPS; Swap(3,7) trades the two Accretion holders.

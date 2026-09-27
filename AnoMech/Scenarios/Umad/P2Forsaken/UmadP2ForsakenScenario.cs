@@ -22,13 +22,12 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
-using AnoMech.Multiplayer;
 using AnoMech.Scenarios.Umad.P2Forsaken.Ai;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
 namespace AnoMech.Scenarios.Umad.P2Forsaken;
 
-public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
+public sealed class UmadP2ForsakenScenario : IScenario
 {
     public string Name => "Forsaken";
     public IPhase Phase => UmadZone.P2;
@@ -59,22 +58,11 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
     private SimParty party = null!;
     private DamageSolver damage = null!;
 
-    // The current run's randomized per-run assignments, exposed so
-    // MultiplayerManager can read them after a host Start and broadcast them --
-    // lets a peer's local "debug: bot controls my character" mode replay the
-    // same choreography a host-side bot in that role would produce. Mirrors
-    // UmadP3BlackHoleScenario.LastState.
-    public UmadP2ForsakenState? LastState { get; private set; }
-
-    // Edge-triggers BuildMidRunUpdateMessage -- see IMultiplayerReplayable.BuildMidRunUpdateMessage.
-    private string? lastBroadcastLockonsKey;
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = worldParam.Party;
         state = new UmadP2ForsakenState(party, settingsWindow.Overrides);
-        LastState = state;
         if (selectedAi is { } idx && idx >= 0 && idx < AiStrats.Count)
             ((IScenarioAi<UmadP2ForsakenState>)AiStrats[idx]).Run(state, world);
         damage = new DamageSolver(party);
@@ -345,32 +333,5 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
             RunCloneEndAttack(kefka_40004FD0, 74.24f, 2, i);
             RunCloneEndAttack(kefka_40004FD0, 95.06f, 3, i);
         }
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new P2AiReplayStateMessage(s.EndAttacks, s.NewNorth.RadiansFromNorth, s.Rotation, s.Lockons) : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not P2AiReplayStateMessage msg) return null;
-        var shadowState = UmadP2ForsakenState.FromNetworkReplay(msg.EndAttacks, msg.NewNorthRadians, msg.Rotation, msg.Lockons);
-        ((IScenarioAi<UmadP2ForsakenState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
-    }
-
-    public MpMessage? BuildMidRunUpdateMessage()
-    {
-        if (LastState is not { } s) return null;
-        var lockonsKey = string.Join(",", s.Lockons.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}:{kv.Value}"));
-        if (lastBroadcastLockonsKey == lockonsKey) return null;
-        lastBroadcastLockonsKey = lockonsKey;
-        DiagnosticLog.Info($"[Multiplayer] Host: broadcasting P2 Lockons update -- [{lockonsKey}].");
-        return new P2LockonsUpdateMessage(new Dictionary<PartyRole, uint>(s.Lockons));
-    }
-
-    public void ApplyMidRunUpdate(object shadowStateObj, MpMessage message)
-    {
-        if (shadowStateObj is UmadP2ForsakenState shadowState && message is P2LockonsUpdateMessage update)
-            shadowState.Lockons = update.Lockons;
     }
 }

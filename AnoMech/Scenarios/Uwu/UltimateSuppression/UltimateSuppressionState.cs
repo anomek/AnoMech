@@ -21,28 +21,8 @@ public class UltimateSuppressionState
     public SimTether? MesohighTether = null;
 
     public const int SuppressionSpots = 6;
-    // Which spread spot each non-tank takes, resolved here so a peer's replay can't re-roll it.
+    // Which spread spot each non-tank takes.
     public int[] SuppressionSpotOrder { get; private init; } = [];
-
-    // LightPillarPlacement is resolved mid-run on the host and never read by the Ai, so it stays
-    // at its default here.
-    public static UltimateSuppressionState? FromNetworkReplay(
-        SimParty party, PartyRole lightPillar, IReadOnlyList<PartyRole> mistralSongs,
-        IReadOnlyList<PartyRole> eruptions, PartyRole gaol, PartyRole flamingCrush, int[] suppressionSpotOrder)
-    {
-        if (mistralSongs.Count != 2 || eruptions.Count != 2 || suppressionSpotOrder is not { Length: SuppressionSpots }) return null;
-        return new UltimateSuppressionState
-        {
-            PlayerLightPillar = party.Get(lightPillar),
-            PlayerMistralSongs = [party.Get(mistralSongs[0]), party.Get(mistralSongs[1])],
-            PlayerEruptions = [party.Get(eruptions[0]), party.Get(eruptions[1])],
-            PlayerGaol = party.Get(gaol),
-            PlayerFlamingCrush = party.Get(flamingCrush),
-            SuppressionSpotOrder = suppressionSpotOrder,
-        };
-    }
-
-    private UltimateSuppressionState() { }
 
     public UltimateSuppressionState(SimParty party, UltimateSuppressionStateOverrides overrides)
     {

@@ -21,17 +21,4 @@ public sealed class TopP6WaveCannon2State
         WildChargeTarget = rng.NextRole();
         InFirst = overrides.InFirst ?? rng.NextBool();
     }
-
-    // Network-replay constructor: reconstructs only InFirst, the sole field
-    // TopP6WaveCannon2Ai reads. ProteanOrder/WildChargeTarget are harmless
-    // placeholders -- the Ai never touches them, only the scenario's own
-    // (host-only) damage resolution does.
-    private TopP6WaveCannon2State(bool inFirst)
-    {
-        ProteanOrder = RoleList.Empty();
-        WildChargeTarget = default;
-        InFirst = inFirst;
-    }
-
-    public static TopP6WaveCannon2State FromNetworkReplay(bool inFirst) => new(inFirst);
 }

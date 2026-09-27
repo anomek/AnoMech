@@ -31,10 +31,6 @@ public sealed partial class MultiplayerManager
     {
         var world = Plugin.GameInstance.World;
 
-        if (TryResolveScenario() is IMultiplayerReplayable replayable
-            && replayable.BuildMidRunUpdateMessage() is { } midRunUpdateMsg)
-            _ = relay!.SendAsync(midRunUpdateMsg);
-
         // See SimNetworkPuppet.PendingNetwork*. Follow before teleport before push: Umad P1's
         // arrow releases the chase, snaps, then pushes. A bot move goes first so any forced
         // movement issued alongside it wins, as it would locally.

@@ -54,7 +54,7 @@ public class ProtocolTests
             Rejects(() => RelayWire.Validate(bytes, false, Guid.NewGuid()), $"{type} refused from anyone else");
             peerForms++;
         }
-        Assert.That(forms, Has.Length.GreaterThan(40));
+        Assert.That(forms, Has.Length.GreaterThan(30));
         Assert.That(peerForms, Is.EqualTo(PeerTypes.Length), "every peer type checked");
     }
 

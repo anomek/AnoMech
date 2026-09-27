@@ -84,12 +84,11 @@ public sealed partial class MultiplayerManager : IDisposable
     private bool peerEntryQueued;
     // An EndMessage that arrived while the entry was queued: acted on once it completes.
     private bool? endAfterPeerEntry;
-    // The host's clocks from the message that started this run, and when it arrived; applied by
-    // SyncClocksToHost once the entry completes (event clock) and the replay exists (Ai clock).
+    // The host's clock from the message that started this run, and when it arrived; applied by
+    // SyncClocksToHost once the entry completes.
     private RunClockState? hostClockAtStart;
     private long hostClockReceivedAt;
     private bool eventClockSynced;
-    private bool replayClockSynced;
     // Smoothed frame time, sent in RunClockState; load hitches are left out.
     private float averageFrameSeconds = 1f / 60f;
     private const float MaxFrameSampleSeconds = 0.1f;
@@ -113,6 +112,8 @@ public sealed partial class MultiplayerManager : IDisposable
     // Host-only: each peer's self-reported mitigation statuses (SelfMitigationMessage); read by
     // TankMitigation.ComputeMitigation.
     private readonly Dictionary<Guid, HashSet<ushort>> peerMitigationStatusIds = new();
+    // Host-only: peers whose own character the bot Ai drives, from SelfPoseMessage.
+    private readonly HashSet<Guid> botControlledPeers = new();
     // Rebuilt by the host each ping cycle and broadcast (PeerStatusMessage).
     private readonly Dictionary<Guid, PeerStatusEntry> peerStatuses = new();
     // Peer-only: the host never pings itself, so its liveness is the time since any host broadcast.
@@ -136,13 +137,11 @@ public sealed partial class MultiplayerManager : IDisposable
 
     // ---- Debug: bot-controlled host or peer ---------------------------------
     // Testing aid: the user's own role is driven by the bot AI, so one developer can fill a
-    // session alone. The host's scenario.Run already schedules that choreography (the flag just
-    // lets PlayerMovement.MoveTo act on the player); a peer rebuilds it from the host's
-    // replay-state message. Sticky across Start/Reset; lobby-only to toggle.
+    // session alone. The host's scenario.Run already schedules that choreography against every
+    // role and forwards a peer's to it (MoveMessage and co.); the flag just lets PlayerMovement
+    // act on it. Sticky across Start/Reset; lobby-only to toggle.
     private bool debugBotControlled;
     public bool DebugBotControlled => debugBotControlled;
-
-    private bool aiReplayStateSent;
 
     // EndMessage is resent a few times: a lost one would leave peers waiting out PeerStaleTimeoutMs.
     private const int EndMessageResendCount = 4;
@@ -155,12 +154,6 @@ public sealed partial class MultiplayerManager : IDisposable
     // RunScenarioAsHost sets ActiveScenario a frame late; without this Tick() would read the
     // null as "run ended".
     private bool hostScenarioStarted;
-
-    // Peer-only: the host's replay-state message, buffered until the zone is entered (arrival
-    // order isn't guaranteed), and the opaque shadow state the owning scenario built from it.
-    private MpMessage? pendingGenericReplayState;
-    private object? debugShadowStateGeneric;
-    private bool debugBotReplayStarted;
 
     public bool SetDebugBotControlled(bool value)
     {
@@ -235,6 +228,9 @@ public sealed partial class MultiplayerManager : IDisposable
         if (!IsHost || !Session.ClaimedBy.TryGetValue(role, out var peerId)) return [];
         return peerMitigationStatusIds.TryGetValue(peerId, out var ids) ? ids : [];
     }
+
+    public bool IsPeerBotControlled(PartyRole role)
+        => IsHost && Session.ClaimedBy.TryGetValue(role, out var peerId) && botControlledPeers.Contains(peerId);
 
     public float SecondsSinceHostMessage => (Environment.TickCount64 - lastHostMessageMs) / 1000f;
     // SessionCode is set synchronously on Join; this is what confirms a host is actually there.
@@ -412,6 +408,7 @@ public sealed partial class MultiplayerManager : IDisposable
         peerLatencyMs.Clear();
         peerStatuses.Clear();
         peerMitigationStatusIds.Clear();
+        botControlledPeers.Clear();
         lastSentMitigationStatusIds.Clear();
         lastSentShieldFraction = 0f;
         TankShieldTracker.Reset();
@@ -424,10 +421,9 @@ public sealed partial class MultiplayerManager : IDisposable
         startCheckReplyWaited = null;
         startCheckTimer = 0f;
         debugBotControlled = false;
-        aiReplayStateSent = false;
         pendingEndResendReturnedToInn = null;
         RestoreOwnScenarioSettings();
-        StopDebugBotReplay();
+        DebugBotControl.Enabled = false;
     }
 
     public void Dispose() => LeaveSession();
@@ -717,6 +713,7 @@ public sealed partial class MultiplayerManager : IDisposable
         peerLatencyMs.Remove(peerId);
         peerStatuses.Remove(peerId);
         peerMitigationStatusIds.Remove(peerId);
+        botControlledPeers.Remove(peerId);
         warnedStalePeers.Remove(peerId);
         startCheckFailures.Remove(peerId);
         if (pendingStartResponses?.Remove(peerId) == true && pendingStartResponses.Count == 0)
@@ -785,7 +782,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private RunClockState? HostRunClock()
     {
         if (!IsHost || !running || Plugin.GameInstance.ActiveScenario is not { } active) return null;
-        return new RunClockState(Plugin.GameInstance.EventClockNow, (active as IMultiplayerReplayable)?.ReplayClockSeconds, averageFrameSeconds);
+        return new RunClockState(Plugin.GameInstance.EventClockNow, averageFrameSeconds);
     }
 
     // ---- Starting the scenario ---------------------------------------------
@@ -981,7 +978,6 @@ public sealed partial class MultiplayerManager : IDisposable
         nextTetherNetId = 0;
         nextEventObjectNetId = 0;
         warnedStalePeers.Clear();
-        aiReplayStateSent = false;
         pendingEndResendReturnedToInn = null;
         hostScenarioStarted = false;
         var nowMs = Environment.TickCount64;
@@ -1084,13 +1080,12 @@ public sealed partial class MultiplayerManager : IDisposable
         hostClockAtStart = clock;
         hostClockReceivedAt = Stopwatch.GetTimestamp();
         eventClockSynced = false;
-        replayClockSynced = false;
-        StopDebugBotReplay();
+        DebugBotControl.Enabled = false;
         running = true;
         Plugin.GameInstance.RunScenarioAsPeer(scenario, myRole, Session.SelectedWaymark, networkRoles, ClaimedRoleSeats(), OnPeerStartResolved);
     }
 
-    // Called from RunScenarioInternal's own callback, so snapshots and the debug-bot replay only
+    // Called from RunScenarioInternal's own callback, so snapshots and debug-bot control only
     // touch this run's party (a Reset leaves the zone loaded, so IsInInstance can't tell).
     private void OnPeerStartResolved(string? refusal)
     {
@@ -1132,7 +1127,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private void SyncClocksToHost()
     {
         if (hostClockAtStart is not { } clock) return;
-        if (eventClockSynced && (replayClockSynced || debugShadowStateGeneric == null)) return;
+        if (eventClockSynced) return;
         var game = Plugin.GameInstance;
         var eventAtStart = NetGuard.Clamp(clock.EventClock, 0f, 3600f);
         var oneWay = NetGuard.Clamp(peerStatuses.GetValueOrDefault(MyPeerId)?.LatencyMs ?? 0f, 0f, 4000f) / 2000f;
@@ -1141,21 +1136,18 @@ public sealed partial class MultiplayerManager : IDisposable
         var target = eventAtStart + oneWay + poseLead
             + (float)Stopwatch.GetElapsedTime(hostClockReceivedAt, game.LastEventTick).TotalSeconds;
 
-        if (!eventClockSynced)
-        {
-            eventClockSynced = true;
-            var advance = target - game.Events.Elapsed;
-            game.Events.Advance(advance);
-            DiagnosticLog.Info($"[Multiplayer] Peer: run clock {(advance > 0f ? $"moved up {advance * 1000f:F0} ms" : "left as is")}: the host's time plus a {poseLead * 1000f:F0} ms lead (Start sent {eventAtStart:F3}s into the host's run, {oneWay * 1000f:F0} ms one-way, {hostFrame * 1000f:F1} ms host frame).");
-        }
+        eventClockSynced = true;
+        var advance = target - game.Events.Elapsed;
+        game.Events.Advance(advance);
+        DiagnosticLog.Info($"[Multiplayer] Peer: run clock {(advance > 0f ? $"moved up {advance * 1000f:F0} ms" : "left as is")}: the host's time plus a {poseLead * 1000f:F0} ms lead (Start sent {eventAtStart:F3}s into the host's run, {oneWay * 1000f:F0} ms one-way, {hostFrame * 1000f:F1} ms host frame).");
+    }
 
-        if (replayClockSynced || debugShadowStateGeneric == null) return;
-        replayClockSynced = true;
-        if (clock.ReplayClock is not { } replayAtStart
-            || TryResolveScenario() is not IMultiplayerReplayable replayable) return;
-        var replayTarget = target - (eventAtStart - NetGuard.Clamp(replayAtStart, 0f, 3600f));
-        replayable.AdvanceReplayClockTo(debugShadowStateGeneric, replayTarget);
-        DiagnosticLog.Info($"[Multiplayer] Peer: replay clock brought up to {replayTarget:F3}s, the host's plus the same lead (never moved back).");
+    // PartyCreator wires the obstacle field to bot doppels only; a bot-driven real character
+    // steers like one.
+    private static void GiveLocalPlayerObstacles()
+    {
+        var world = Plugin.GameInstance.World;
+        if (world.Party.Player is { } player) player.Obstacles = world.Obstacles;
     }
 
     // Names for the puppets: every role claimed by someone else, the host's included from a

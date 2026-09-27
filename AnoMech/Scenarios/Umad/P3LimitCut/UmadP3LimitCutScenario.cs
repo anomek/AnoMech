@@ -19,7 +19,7 @@ using Constants = UmadP3LimitCutConstants;
 // starts casting Umbra Smash, the earliest start inside this mechanic (the previous resolve is
 // 9.2s before); every other timestamp is that cast start plus the replay-measured offset in
 // Constants.Timing.
-public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
+public sealed class UmadP3LimitCutScenario : IScenario
 {
     public string Name => "Limit Cut";
     public IPhase Phase => UmadZone.P3;
@@ -47,14 +47,11 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     private readonly List<SimCharacter> cycloneTargets = [];
     private readonly SimCharacter?[] chargeTargets = new SimCharacter?[8];
 
-    public UmadP3LimitCutState? LastState { get; private set; }
-
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         party = world.Party;
         state = new UmadP3LimitCutState(party, settingsWindow.Overrides);
-        LastState = state;
         PopulateThunderPlan();
         damage = new DamageSolver(party);
         cycloneTargets.Clear();
@@ -164,24 +161,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             instanceWorld.Events.Add(u + offset, () => instanceWorld.Map.DirectorUpdate(Constants.Timing.DirectorCategory, arg, 0x2U, Constants.Timing.DirectorArg3, Constants.Timing.DirectorKefkaId, broadcast: false));
     }
 
-    public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s
-            ? new UmadP3LimitCutAiReplayStateMessage(s.StartSpot, s.Clockwise, s.Numbers.ToArray(),
-                s.Winds.Where(kv => kv.Value == Wind.Headwind).Select(kv => kv.Key).ToArray(), s.BossSpot, s.BaitRole, s.ThunderPlan)
-            : null;
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not UmadP3LimitCutAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
-        if (UmadP3LimitCutState.FromNetworkReplay(msg.StartSpot, msg.Clockwise, msg.Numbers, msg.Headwinds, msg.BossSpot, msg.BaitRole, msg.ThunderPlan) is not { } shadowState) return null;
-        ((IScenarioAi<UmadP3LimitCutState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        SchedulePeerThunderMitigation(shadowState, replayWorld, myRole);
-        return shadowState;
-    }
-
-    // Black Hole's Thunder III plan plumbing for the one set here; a peer applies the kit to its
-    // own character, since ResolveThunder never runs there. InvulnsBoth needs no entry: the Ai
-    // grants the invuln.
+    // Black Hole's Thunder III plan plumbing for the one set here. InvulnsBoth needs no entry: the
+    // Ai grants the invuln.
     private const ushort ThunderSharePlanned = 1;
     private static string ThunderPlanKey(int hitNumber, PartyRole role) => $"p3-limitcut-thunder3-hit{hitNumber}-{role}";
 
@@ -212,27 +193,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         if (target is not ISimPartyMember member || !TankMitigation.IsBotDriven(party, target)) return;
         if (Plugin.MultiplayerInstance?.Session.TankBusterPlan.GetValueOrDefault(ThunderPlanKey(hitNumber, member.Role)) != ThunderSharePlanned) return;
         UmadP3BlackHoleScenario.ApplyThunderShareKit(target);
-    }
-
-    private static void SchedulePeerThunderMitigation(UmadP3LimitCutState shadow, SimWorld peerWorld, PartyRole myRole)
-    {
-        if (shadow.ThunderPlan is not (ThunderIIIAssignment.ShareMtFirst or ThunderIIIAssignment.ShareOtFirst)) return;
-        var (first, second) = ThunderIIIPlanning.Roles(shadow.ThunderPlan);
-        if (first != myRole && second != myRole) return;
-        foreach (var at in new[] { Constants.Timing.ThunderHit1AfterUmbra, Constants.Timing.ThunderHit2AfterUmbra })
-            peerWorld.Events.Add(Constants.Timing.UmbraCastAt + at - 0.05f, () =>
-            {
-                if (peerWorld.Party.Player is { } player)
-                    UmadP3BlackHoleScenario.ApplyThunderShareKit(player);
-            });
-    }
-
-    // Chaos/Exdeath may not be replicated yet when StartReplay runs.
-    public void RefreshLiveHandles(object shadowStateObj, IReadOnlyDictionary<int, SimEnemy> peerEnemies)
-    {
-        if (shadowStateObj is not UmadP3LimitCutState shadow) return;
-        shadow.Objects.Chaos ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == UmadConstants.BNpcBaseId.ChaosP3);
-        shadow.Objects.Exdeath ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == UmadConstants.BNpcBaseId.Exdeath);
     }
 
     // The "hide" set's mon_sp003/mon_sp004 materialise the clone out of its dissolve; a timeline

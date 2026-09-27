@@ -15,8 +15,7 @@ public interface IScenario
 
     bool SupportsSolo => false;
 
-    // Core replication works for any scenario; this also needs the debug-bot AI replay plumbing
-    // (IMultiplayerReplayable).
+    // Whether the scenario has been checked against host replication (see MultiplayerManager).
     bool SupportsMultiplayer => false;
 
     // Selectable strats. Run's selectedAi indexes this (null = solo); region buttons derive

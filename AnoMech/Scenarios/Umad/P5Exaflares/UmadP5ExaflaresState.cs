@@ -26,27 +26,6 @@ public sealed class UmadP5ExaflaresState
         RightOrder = Resolve(overrides.RightOrder);
     }
 
-    // Network-replay constructor: reconstructs the full state (LeftOrder/RightOrder
-    // are its entire meaningful surface) from values the host already rolled and
-    // broadcast, instead of drawing fresh RNG. Used exclusively by a peer's local
-    // "debug: bot controls my character" mode (see MultiplayerManager) so its AI
-    // choreography matches what a host-side bot would actually do. Unlike the
-    // other Umad scenarios' replay factories, `timeline` here is NOT the host's --
-    // it must be a fresh EventScheduler the caller drives itself every frame (see
-    // MultiplayerManager.Tick's P5-specific branch), since UmadP5ExaflaresAi
-    // schedules its dodges onto it directly and nothing else would ever advance
-    // one on a peer (a peer never runs IScenario.Tick, which is what drives the
-    // real scenario's own timeline -- see UmadP5ExaflaresScenario.Tick).
-    private UmadP5ExaflaresState(IReadOnlyList<int> leftOrder, IReadOnlyList<int> rightOrder, EventScheduler timeline)
-    {
-        Timeline = timeline;
-        LeftOrder = leftOrder;
-        RightOrder = rightOrder;
-    }
-
-    public static UmadP5ExaflaresState FromNetworkReplay(IReadOnlyList<int> leftOrder, IReadOnlyList<int> rightOrder, EventScheduler timeline)
-        => new(leftOrder, rightOrder, timeline);
-
     private IReadOnlyList<int> Resolve(ExaFlareOrder order)
     {
         if (order == ExaFlareOrder.Random)

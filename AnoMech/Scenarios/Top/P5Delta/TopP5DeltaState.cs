@@ -60,9 +60,7 @@ public sealed class TopP5DeltaState
     public PartyRole? ForcedBeyondDefenceRole { get; }
     public IReadOnlyCollection<PartyRole> BeyondDefenceExcluded { get; }
 
-    // Nullable -- null means "not resolved yet" (set only once FireBeyondDefenseAoe runs at
-    // t=35.3s), distinguishable from any real PartyRole including the enum's default. The
-    // re-broadcast poll for TopP5DeltaBeyondDefenseUpdateMessage depends on that distinction.
+    // Null until FireBeyondDefenseAoe resolves it at t=35.3s.
     public PartyRole? BeyondDefenseTarget { get; set; }
     public PartyRole NearWorldRole { get; set; }
     public PartyRole FarWorldRole { get; set; }
@@ -203,44 +201,6 @@ public sealed class TopP5DeltaState
         var allowed = free.Where(i => want.GetValueOrDefault(roles[i], true)).ToList();
         return allowed.Count > 0 ? allowed[rng.Next(allowed.Count)] : free[rng.Next(free.Count)];
     }
-
-    // Network-replay constructor: reconstructs the fields TopP5DeltaAi reads. BeyondDefenseTarget
-    // starts null -- not knowable at run start, set later via TopP5DeltaBeyondDefenseUpdateMessage
-    // (same pattern as Umad P2 Forsaken's P2LockonsUpdateMessage). Side/NorthSouth are carried
-    // as bools (two named static instances each, no delegate). FistRotations/
-    // NearWorldTetherIndex/Beyond Defence requests/PunchExplosionUnmitigated/PunchTargets are
-    // harmless placeholders -- only the scenario's own host-only resolution reads them.
-    private TopP5DeltaState(
-        PartyRole[] tetherOrder, uint[] fistColors, int playerMonitorIndex,
-        bool playerMonitorSideIsLeft, bool omegaMonitorSideIsLeft, bool eyeSpawnIsNorth,
-        bool swivelCannonSideIsLeft, bool[] armHandednessIsLeft, PartyRole farWorldRole,
-        PartyRole nearWorldRole, int farWorldTetherIndex)
-    {
-        TetherOrder = tetherOrder;
-        EyeSpawn = eyeSpawnIsNorth ? NorthSouth.North : NorthSouth.South;
-        FistRotations = [];
-        FistColors = fistColors;
-        ArmHandedness = armHandednessIsLeft.Select(isLeft => isLeft ? Side.Left : Side.Right).ToList();
-        SwivelCannonSide = swivelCannonSideIsLeft ? Side.Left : Side.Right;
-        OmegaMonitorSide = omegaMonitorSideIsLeft ? Side.Left : Side.Right;
-        PlayerMonitorSide = playerMonitorSideIsLeft ? Side.Left : Side.Right;
-        PlayerMonitorIndex = playerMonitorIndex;
-        NearWorldTetherIndex = 0;
-        FarWorldTetherIndex = farWorldTetherIndex;
-        ForcedBeyondDefenceRole = null;
-        BeyondDefenceExcluded = [];
-        NearWorldRole = nearWorldRole;
-        FarWorldRole = farWorldRole;
-    }
-
-    public static TopP5DeltaState FromNetworkReplay(
-        PartyRole[] tetherOrder, uint[] fistColors, int playerMonitorIndex,
-        bool playerMonitorSideIsLeft, bool omegaMonitorSideIsLeft, bool eyeSpawnIsNorth,
-        bool swivelCannonSideIsLeft, bool[] armHandednessIsLeft, PartyRole farWorldRole,
-        PartyRole nearWorldRole, int farWorldTetherIndex)
-        => new(tetherOrder, fistColors, playerMonitorIndex, playerMonitorSideIsLeft, omegaMonitorSideIsLeft,
-               eyeSpawnIsNorth, swivelCannonSideIsLeft, armHandednessIsLeft, farWorldRole, nearWorldRole,
-               farWorldTetherIndex);
 
     private static Side RandomSide(Random rng) => rng.Next(2) == 0 ? Side.Left : Side.Right;
 

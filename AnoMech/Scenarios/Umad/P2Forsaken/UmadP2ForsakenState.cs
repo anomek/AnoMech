@@ -51,27 +51,6 @@ public sealed class UmadP2ForsakenState
         DiagnosticLog.Info($"Lockon assigments: {string.Join(",", Enum.GetValues<PartyRole>().Select(r => Lockons[r]))}");
     }
 
-    // Network-replay constructor: reconstructs the full state from values the
-    // host already rolled and broadcast, instead of drawing fresh RNG. Used
-    // exclusively by a peer's local "debug: bot controls my character" mode
-    // (see MultiplayerManager) so its AI choreography matches what a
-    // host-side bot in that role would actually do. Unlike UmadP3BlackHoleState,
-    // every public property here is a plain value (no live SimEnemy handles),
-    // so this reconstructs everything rather than a curated subset -- there's
-    // no per-strat "only some fields are read" distinction to worry about
-    // across P2's 7 debug-bot Ai variants.
-    private UmadP2ForsakenState(EndAttack[] endAttacks, Direction newNorth, int rotation, Dictionary<PartyRole, uint> lockons)
-    {
-        EndAttacks = endAttacks;
-        NewNorth = newNorth;
-        Rotation = rotation;
-        Lockons = lockons;
-    }
-
-    public static UmadP2ForsakenState FromNetworkReplay(
-        EndAttack[] endAttacks, float newNorthRadians, int rotation, Dictionary<PartyRole, uint> lockons)
-        => new(endAttacks, new Direction(newNorthRadians), rotation, lockons);
-
     public (Direction, Direction) GetTowers(int index)
     {
         var north =  NewNorthAt(index);

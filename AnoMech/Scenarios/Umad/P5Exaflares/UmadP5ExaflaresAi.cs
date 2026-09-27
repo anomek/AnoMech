@@ -11,10 +11,8 @@ using static AnoMech.Scenarios.Umad.UmadConstants;
 namespace AnoMech.Scenarios.Umad.P5Exaflares;
 
 // Bots for UMAD P5 exaflares: all 8 party slots weave the rolling walls, then spread for the final
-// ExaflareSpread. Addresses every slot uniformly, including whichever holds the real player --
-// PlayerMovement.MoveTo is what decides whether that one actually moves (no-op for a real human,
-// forwarded to MoveTo under DebugBotControl), so a real human dodging themselves works exactly as
-// before and debug-bot testing now also drives that slot instead of leaving it standing still.
+// ExaflareSpread. Addresses every slot uniformly; PlayerMovement decides whether a real player's
+// slot actually moves.
 // Scheduled on the scenario's unscaled `timeline`, not the stock AiManager (which rides
 // EventTimeScale), so they stay frame-locked to the fire; spread relaxation runs per-frame from the
 // scenario's Tick via state.SpreadTick.

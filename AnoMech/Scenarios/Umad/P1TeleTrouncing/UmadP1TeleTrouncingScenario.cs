@@ -23,7 +23,7 @@ using Constants = UmadP1TeleTrouncingConstants;
 // Multiplayer: the host resolves everything against each peer's reported pose; the forced
 // movement the mechanic applies to a peer (the confused chase, an arrow's snap and push) reaches
 // them through SimNetworkPuppet's pending network moves.
-public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
+public sealed class UmadP1TeleTrouncingScenario : IScenario
 {
     public string Name => "Tele-trouncing";
     public IPhase Phase => UmadZone.P1;
@@ -77,8 +77,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         (7530, "mon_sp/gimmick/n4g1_boss_gimmick06"),
         (5823, "mon_sp/gimmick/e3d3_boss_gimmick01"),
     ];
-
-    public UmadP1TeleTrouncingState? LastState { get; private set; }
 
     // Local to UmadZone.Origin (100, 0, 100). Full 3D, because the two tethers attach to
     // different parts of the colossus.
@@ -150,7 +148,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         world = worldParam;
         party = world.Party;
         state = new UmadP1TeleTrouncingState(settingsWindow.Overrides);
-        LastState = state;
         damage = new DamageSolver(party);
         hazeHoldApplied = true;   // what MapController.TryLoad just applied from the phase
 
@@ -422,42 +419,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
         // Kefka's later lines depend on the arrow outcome, so the host schedules them in Run.
         instanceWorld.Events.Add(15.58f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x3U, 0x2U, 0x1BDBU, 0x400250DCU, broadcast: false));
-    }
-
-    public MpMessage? BuildReplayStateMessage()
-    {
-        if (LastState is not { } s) return null;
-        var roles = s.Debuffs.Keys.ToArray();
-        return new UmadP1TeleTrouncingAiReplayStateMessage(
-            s.DpsGetsDifferent, s.DpsGetsConfused,
-            roles, roles.Select(r => s.Debuffs[r].First).ToArray(), roles.Select(r => s.Debuffs[r].Second).ToArray(),
-            roles.Select(r => s.DifferentPolarity.GetValueOrDefault(r)).ToArray(),
-            s.ConfettiStackSupport, s.ConfettiStackDps,
-            s.GazeInverted, s.FireIsStack, s.FireIsLie, s.FireStackSupport, s.FireStackDps,
-            s.ThunderRealOffset, s.ThunderOrientationFlipped, s.ThunderIsLie);
-    }
-
-    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
-    {
-        if (message is not UmadP1TeleTrouncingAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
-        var shadowState = UmadP1TeleTrouncingState.FromNetworkReplay(
-            msg.DpsGetsDifferent, msg.DpsGetsConfused, msg.Roles, msg.FirstDirections, msg.SecondDirections, msg.Polarity,
-            msg.ConfettiStackSupport, msg.ConfettiStackDps,
-            msg.GazeInverted, msg.FireIsStack, msg.FireIsLie, msg.FireStackSupport, msg.FireStackDps,
-            msg.ThunderRealOffset, msg.ThunderOrientationFlipped, msg.ThunderIsLie);
-        if (shadowState == null) return null;
-        ((IScenarioAi<UmadP1TeleTrouncingState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
-    }
-
-    // The arrows steer a bot's Confetti/Tether moves the same way SpawnArrowObjects does on the
-    // host, and stop doing so once Confused starts, when the chase has to walk into them.
-    public void RebuildPeerObstacles(ObstacleField obstacles, IReadOnlyDictionary<int, SimEnemy> peerEnemies, IReadOnlyDictionary<int, SimEventObject> peerEventObjects, SimCharacter? localPlayer)
-    {
-        if (localPlayer == null || localPlayer.HasStatus(Constants.StatusId.Confused)) return;
-        foreach (var eo in peerEventObjects.Values)
-            if (eo.EObjRowId == Constants.EObjId.TelePortent)
-                obstacles.Add(new CircleObstacle(new Vector2(eo.Position.X, eo.Position.Z), ArrowTriggerRadius));
     }
 
     private const float ArrowTriggerRadius = 2.0f;

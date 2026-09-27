@@ -35,13 +35,9 @@ namespace AnoMech.Scenarios.Top.P5Sigma
 
         public RoleList HelloWorldTargets { get; }
 
-        // Resolved once here (not live inside TopP5SigmaAi.Run) -- see RoleList.Random(Rng, ...)'s
-        // doc comment for why a live pick there would let a peer's own bot-controlled replay
-        // choose different hand-bait targets than the host's bots did.
         public RoleList HandBait { get; }
 
-        // The other four, in the order TopP5SigmaAi marks and places them; resolved here for the
-        // same reason as HandBait.
+        // The other four, in the order TopP5SigmaAi marks and places them.
         public RoleList HelloWorldJumpOrder { get; }
 
         public readonly Tower?[] Towers;
@@ -82,43 +78,6 @@ namespace AnoMech.Scenarios.Top.P5Sigma
                      .Select(t => t == null ? t : t with { Position = AdjustedNorthA.Apply(t.Position) })
                      .ToArray();
         }
-
-        // Network-replay constructor: reconstructs the fields TopP5SigmaAi reads.
-        // WaveCannonTargets/Towers are harmless placeholders -- only the scenario's own
-        // host-only resolution reads them. GlitchType/OmegaAttack/Rotation aren't
-        // JSON-serializable in a reconstructible way, so which named static instance was
-        // chosen is carried as a bool.
-        private TopP5SigmaState(
-            SimParty party, PartyRole[] order, PartyRole[] dynamisTargets, PartyRole[] helloWorldTargets,
-            PartyRole[] handBait, PartyRole[] helloWorldJumpOrder, float newNorthARadians, float newNorthBRadians,
-            bool towerNorthFlipped, bool glitchIsFar, bool spinnerIsClockwise, bool omegaFIsStaff, int firstMissing,
-            int secondMissing)
-        {
-            Order = new RoleList(party, order);
-            WaveCannonTargets = RoleList.Empty();
-            DynamisTargets = new RoleList(party, dynamisTargets);
-            GlitchType = glitchIsFar ? GlitchType.Far : GlitchType.Mid;
-            NewNorthA = new Direction(newNorthARadians);
-            NewNorthB = new Direction(newNorthBRadians);
-            TowerNorthFlipped = towerNorthFlipped;
-            SpinnerRotation = spinnerIsClockwise ? Rotation.Clockwise : Rotation.CounterClockwise;
-            OmegaFAttack = omegaFIsStaff ? OmegaAttack.Staff : OmegaAttack.Legs;
-            HelloWorldTargets = new RoleList(party, helloWorldTargets);
-            HandBait = new RoleList(party, handBait);
-            HelloWorldJumpOrder = new RoleList(party, helloWorldJumpOrder);
-            Towers = [];
-            FirstMissing = firstMissing;
-            SecondMissing = secondMissing;
-        }
-
-        public static TopP5SigmaState FromNetworkReplay(
-            SimParty party, PartyRole[] order, PartyRole[] dynamisTargets, PartyRole[] helloWorldTargets,
-            PartyRole[] handBait, PartyRole[] helloWorldJumpOrder, float newNorthARadians, float newNorthBRadians,
-            bool towerNorthFlipped, bool glitchIsFar, bool spinnerIsClockwise, bool omegaFIsStaff, int firstMissing,
-            int secondMissing)
-            => new(party, order, dynamisTargets, helloWorldTargets, handBait, helloWorldJumpOrder, newNorthARadians,
-                   newNorthBRadians, towerNorthFlipped, glitchIsFar, spinnerIsClockwise, omegaFIsStaff, firstMissing,
-                   secondMissing);
 
 
         // MidGlitch: 6 towers on the 22.5°-offset inner ring at radius 17, rotated so the two

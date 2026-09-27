@@ -16,13 +16,7 @@ public class UltimatePredationState
 
     public readonly Rng Rng = new();
 
-    // Unlike other scenarios' State, UltimatePredationAi.Run makes live RNG tie-break draws
-    // instead of resolving randomness once in the constructor. A peer replaying with a fresh
-    // Rng could independently land on a different-but-valid safe spot than the host's bots,
-    // visibly splitting the party on an AiMove.All(...) call. Fixed by having GetSafeCardinal/
-    // GetSafeForFirstSet/GetSafeForSecondSet write their choice here on the real run, and read
-    // it back instead of rolling once set -- same "broadcast resolved values" idiom as every
-    // other FromNetworkReplay.
+    // UltimatePredationAi's live RNG tie-breaks, cached by its GetSafe* methods.
     public Placement? ResolvedSafeCardinal;
     public Placement? ResolvedSafeFirstSet;
     public Placement? ResolvedSafeSecondSet;
@@ -44,21 +38,6 @@ public class UltimatePredationState
             $"TitanPlacement = {TitanPlacement.Position2}");
 #endif
     }
-
-    // Network-replay constructor: reconstructs only the placements UltimatePredationAi reads,
-    // skipping the RNG-driven resolution body. ScenarioObjects.Titan is set separately once
-    // peerEnemies has it (mirrors UmadP3BlackHoleState's Chaos/Exdeath).
-    private UltimatePredationState() { }
-
-    public static UltimatePredationState FromNetworkReplay(
-        Placement garudaPlacement, Placement titanPlacement, Placement ifritPlacement, Placement ultimaPlacement)
-        => new()
-        {
-            GarudaPlacement = garudaPlacement,
-            TitanPlacement = titanPlacement,
-            IfritPlacement = ifritPlacement,
-            UltimaPlacement = ultimaPlacement,
-        };
 
     private (Placement Placement, DirectionEnum Intercardinal) GetPlacement(IDictionary<DirectionEnum, Placement> possiblePlacements, List<DirectionEnum>? ignoreDirections = null)
     {

@@ -7,8 +7,8 @@ using AnoMech.Core.SimObjects;
 namespace AnoMech.Scenarios.Umad.P5Flood;
 
 // Stacks near the boss in a cardinal quadrant and rotates 90 deg after every tick's resolve, in
-// one direction for the whole sequence. Addresses every slot; MoveTo no-ops for a real human
-// outside debug-bot control.
+// one direction for the whole sequence. Addresses every slot; PlayerMovement decides whether a
+// real player's slot actually moves.
 public sealed class UmadP5FloodAi : IScenarioAi<UmadP5FloodState>
 {
     public string Name => "Rotate";

@@ -219,7 +219,6 @@ public sealed partial class MultiplayerManager
                 BroadcastRunEnded(!Plugin.GameInstance.World.Map.IsInInstance);
                 return;
             }
-            if (!aiReplayStateSent) TrySendAiReplayState();
             if (pendingSnapshotSend is null or { IsCompleted: true })
                 pendingSnapshotSend = SampleAndBroadcastSnapshot();
             if (pendingRolesSend is null or { IsCompleted: true })
@@ -232,12 +231,9 @@ public sealed partial class MultiplayerManager
             {
                 DiagnosticLog.Info("[Multiplayer] Peer's zone was unloaded out from under the run (IsInInstance went false) -- stopping locally.");
                 running = false;
-                StopDebugBotReplay();
+                DebugBotControl.Enabled = false;
                 return;
             }
-            if (debugShadowStateGeneric != null && deltaSeconds > 0f
-                && TryResolveScenario() is IMultiplayerReplayable replayable)
-                replayable.TickReplay(debugShadowStateGeneric, deltaSeconds);
             SyncClocksToHost();
             SendSelfPose();
             SendSelfMitigationIfChanged();

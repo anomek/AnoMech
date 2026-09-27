@@ -127,32 +127,6 @@ public sealed class UmadP5CelestriadState
         AeroVariant = aero;
     }
 
-    // Elements and the choice arrive as indices into Elements / (Aero, Earth); -1 means free/none.
-    public static UmadP5CelestriadState? FromNetworkReplay(
-        IReadOnlyList<int> doubleElement, IReadOnlyDictionary<PartyRole, int> playerDebuffElement,
-        IReadOnlyList<int[]> setActiveTowers, IReadOnlyList<int> aeroVariant,
-        IReadOnlyList<int>? towerElementOrder = null)
-    {
-        // Hosts predating randomized sectors omit this field and use the original layout.
-        towerElementOrder ??= [0, 1, 2];
-        if (towerElementOrder.Count != Elements.Length
-            || towerElementOrder.Any(i => i < 0 || i >= Elements.Length)
-            || towerElementOrder.Distinct().Count() != Elements.Length) return null;
-        var towerCount = Elements.Length * SubTowersPerElement;
-        if (doubleElement.Count != SetCount || setActiveTowers.Count != SetCount || aeroVariant.Count != SetCount) return null;
-        if (doubleElement.Any(i => i < 0 || i >= Elements.Length)) return null;
-        if (playerDebuffElement.Values.Any(i => i < -1 || i >= Elements.Length)) return null;
-        if (setActiveTowers.Any(set => set.Any(i => i < 0 || i >= towerCount))) return null;
-        if (aeroVariant.Any(i => i is < -1 or > 1)) return null;
-
-        return new UmadP5CelestriadState(
-            doubleElement.Select(i => Elements[i]).ToList(),
-            playerDebuffElement.ToDictionary(kv => kv.Key, kv => kv.Value < 0 ? null : Elements[kv.Value]),
-            setActiveTowers.Select(set => (IReadOnlyList<int>)set.ToList()).ToList(),
-            aeroVariant.Select(Choice).ToList(),
-            towerElementOrder.Select(i => Elements[i]).ToList());
-    }
-
     // -1 none, 0 Aero, 1 Earth -- the wire form of AeroVariant, both ways.
     public static int ChoiceIndex(CatastrophicChoice? choice)
         => choice is null ? -1 : choice == CatastrophicChoice.Aero ? 0 : 1;
@@ -163,21 +137,6 @@ public sealed class UmadP5CelestriadState
     // Stable element/wire identity, independent of sector position; -1 for a free player.
     public static int ElementIndex(CelestriadElement? element)
         => element is null ? -1 : Array.IndexOf(Elements, element);
-
-    private UmadP5CelestriadState(
-        IReadOnlyList<CelestriadElement> doubleElement,
-        IReadOnlyDictionary<PartyRole, CelestriadElement?> playerDebuffElement,
-        IReadOnlyList<IReadOnlyList<int>> setActiveTowers,
-        IReadOnlyList<CatastrophicChoice?> aeroVariant,
-        IReadOnlyList<CelestriadElement> towerElementOrder)
-    {
-        DoubleElement = doubleElement;
-        PlayerDebuffElement = playerDebuffElement;
-        TowerElementOrder = towerElementOrder;
-        AllTowers = BuildAllTowers();
-        SetActiveTowers = setActiveTowers;
-        AeroVariant = aeroVariant;
-    }
 
     private IReadOnlyList<CelestriadTower> BuildAllTowers()
     {
