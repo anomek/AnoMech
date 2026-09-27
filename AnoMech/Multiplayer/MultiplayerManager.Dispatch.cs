@@ -175,6 +175,7 @@ public sealed partial class MultiplayerManager
         // can send it). Keep in sync with the `when !IsHost` cases below.
         if (!IsHost && message is LobbyStateMessage or StartMessage or WorldSnapshotMessage or RolesSnapshotMessage
             or RoleKilledMessage or KnockbackMessage or TeleportMessage or PushMessage or FollowMessage
+            or MoveMessage or InterceptMessage or FaceMessage or CarryMessage
             or SpawnOmenMessage or EndMessage or PingMessage or PeerStatusMessage
             or SetFogHoldMessage or AnnouncementMessage
             or IScenarioReplayStateMessage or IScenarioMidRunUpdateMessage or KickMessage)
@@ -347,6 +348,15 @@ public sealed partial class MultiplayerManager
             case FollowMessage follow when !IsHost:
                 OnFollowReceived(follow);
                 break;
+            case MoveMessage move when !IsHost:
+                OnMoveReceived(move);
+                break;
+            case InterceptMessage intercept when !IsHost:
+                OnInterceptReceived(intercept);
+                break;
+            case FaceMessage face when !IsHost:
+                OnFaceReceived(face);
+                break;
             case SpawnOmenMessage omen when !IsHost:
                 OnSpawnOmenReceived(omen);
                 break;
@@ -445,8 +455,6 @@ public sealed partial class MultiplayerManager
                 break;
             // Every IMultiplayerReplayable scenario routes through these two cases.
             case MpMessage genericMsg when !IsHost && genericMsg is IScenarioReplayStateMessage:
-                pendingGenericReplayState = genericMsg;
-                TryStartDebugBotReplay();
                 break;
             // Without a shadow state yet, nothing needs the update.
             case MpMessage midRunUpdate when !IsHost && midRunUpdate is IScenarioMidRunUpdateMessage:

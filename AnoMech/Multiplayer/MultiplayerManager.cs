@@ -1114,7 +1114,14 @@ public sealed partial class MultiplayerManager : IDisposable
         }
         DiagnosticLog.Info("[Multiplayer] Peer's deferred zone entry completed -- applying snapshots and sending SelfPose.");
         peerEnteredInstance = true;
-        TryStartDebugBotReplay();
+        // The host's scenario schedules the Ai against our puppet and forwards each move to us;
+        // this lets PlayerMovement act on them.
+        if (debugBotControlled)
+        {
+            DiagnosticLog.Info("[Multiplayer] Peer: debug-bot mode active for own character this run.");
+            DebugBotControl.Enabled = true;
+            GiveLocalPlayerObstacles();
+        }
     }
 
     // Starting from zero would leave this run behind the host's by the host's load time plus the

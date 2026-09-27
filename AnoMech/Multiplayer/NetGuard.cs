@@ -12,6 +12,7 @@ internal static class NetGuard
     public const int MaxEnemiesPerSnapshot = 256;
     public const int MaxTethersPerSnapshot = 128;
     public const int MaxEventObjectsPerSnapshot = 256;
+    public const int MaxObstaclesPerSnapshot = 128;
     public const int MaxStatusesPerEntity = 64;
     // Legit sim data, so generous; the host logs anything over (WarnOverVfxCap).
     public const int MaxLockonVfxPerEntity = 200;

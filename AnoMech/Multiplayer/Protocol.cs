@@ -30,6 +30,9 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(PushMessage), "push")]
 [JsonDerivedType(typeof(CarryMessage), "carry")]
 [JsonDerivedType(typeof(FollowMessage), "follow")]
+[JsonDerivedType(typeof(MoveMessage), "move")]
+[JsonDerivedType(typeof(InterceptMessage), "intercept")]
+[JsonDerivedType(typeof(FaceMessage), "face")]
 [JsonDerivedType(typeof(SpawnOmenMessage), "spawnOmen")]
 [JsonDerivedType(typeof(EndMessage), "end")]
 [JsonDerivedType(typeof(PingMessage), "ping")]
@@ -208,7 +211,11 @@ public sealed record EventObjectState(
 // Full-state, so a dropped frame costs one tick of staleness, not a wrong reconstruction.
 public sealed record WorldSnapshotMessage(
     List<EnemyState> Enemies, List<TetherState> Tethers,
-    List<EventObjectState> EventObjects) : MpMessage, IHostOnlyMessage;
+    List<EventObjectState> EventObjects, List<ObstacleState>? Obstacles = null) : MpMessage, IHostOnlyMessage;
+
+// One CircleObstacle of world.Obstacles, which a bot-controlled peer's own character steers
+// around; a peer never runs the scenario code that builds the field.
+public sealed record ObstacleState(float X, float Z, float Radius);
 
 // Paced independently of WorldSnapshotMessage (see RelayClient's priority queue): role
 // positions are small and urgent, enemy data can be large.
@@ -227,7 +234,14 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
 public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
 public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z, int Mode = 0) : MpMessage, IHostOnlyMessage;
-public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, int? TargetEnemyNetId, float Speed) : MpMessage, IHostOnlyMessage;
+public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, int? TargetEnemyNetId, float Speed, bool Forced = true) : MpMessage, IHostOnlyMessage;
+
+// A strat's bot choreography for a role, from the matching NetworkPuppetMovement call. Sent
+// for every role; the owner applies it through its own PlayerMovement, which only acts on it
+// while the owner is bot-controlled.
+public sealed record MoveMessage(PartyRole Role, float X, float Y, float Z, float Speed, float? FinalRotation) : MpMessage, IHostOnlyMessage;
+public sealed record InterceptMessage(PartyRole Role, int TetherNetId, float Margin) : MpMessage, IHostOnlyMessage;
+public sealed record FaceMessage(PartyRole Role, float X, float Y, float Z) : MpMessage, IHostOnlyMessage;
 
 // One per SimWorld.OmenSpawned. Path is checked against SimAssets on receipt: it is the one
 // field that names a raw game file.

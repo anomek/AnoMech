@@ -273,26 +273,15 @@ public sealed partial class MultiplayerManager
             peerEnemyTemplateFailed.Remove(staleId);
         }
 
-        // UMAD P3 black holes: a peer never runs the scenario's obstacle setup, so a debug-bot
-        // peer's MoveTo would cut straight through one.
         world.Obstacles.Clear();
-        var localPlayer = Plugin.GameInstance.World.Party.Player;
-        foreach (var (netId, bh) in peerEnemies.Where(kvp => kvp.Value.BNpcBaseId == BNpcBaseId.BlackHole))
+        foreach (var o in NetGuard.Cap(snap.Obstacles, NetGuard.MaxObstaclesPerSnapshot))
         {
-            world.Obstacles.Add(new CircleObstacle(new Vector2(bh.Position.X, bh.Position.Z), UmadP3BlackHoleScenario.BlackHoleAvoidRadius));
-            if (localPlayer is null) continue;
-            var distSq = localPlayer.Placement().DistanceSq(bh.Position);
-            if (distSq < UmadP3BlackHoleScenario.NearBlackHoleLogRadius * UmadP3BlackHoleScenario.NearBlackHoleLogRadius)
-                DiagnosticLog.Info(
-                    $"[Multiplayer] Peer: local position ({localPlayer.Position.X:F2},{localPlayer.Position.Z:F2}) is {MathF.Sqrt(distSq):F2}y from black hole NetId {netId} at ({bh.Position.X:F2},{bh.Position.Z:F2}).");
+            if (!NetGuard.TryPosition(o.X, 0f, o.Z, out var center)) continue;
+            world.Obstacles.Add(new CircleObstacle(new Vector2(center.X, center.Z), NetGuard.Clamp(o.Radius, 0f, 200f)));
         }
 
-        if (TryResolveScenario() is IMultiplayerReplayable replayable)
-        {
-            replayable.RebuildPeerObstacles(world.Obstacles, peerEnemies, peerEventObjects, localPlayer);
-            if (debugShadowStateGeneric != null)
-                replayable.RefreshLiveHandles(debugShadowStateGeneric, peerEnemies);
-        }
+        if (debugShadowStateGeneric != null && TryResolveScenario() is IMultiplayerReplayable replayable)
+            replayable.RefreshLiveHandles(debugShadowStateGeneric, peerEnemies);
 
         var seenTetherIds = new HashSet<int>();
         foreach (var t in NetGuard.Cap(snap.Tethers, NetGuard.MaxTethersPerSnapshot))
@@ -690,10 +679,37 @@ public sealed partial class MultiplayerManager
         if (!PeerInRun) return;
         if (OwnMember(msg.Role, "Follow") is not SimCharacter me) return;
         var target = ResolvePeerEnd(Plugin.GameInstance.World, msg.TargetEnemyNetId, msg.TargetRole);
-        DiagnosticLog.Info($"[Multiplayer] Peer: {msg.Role} {(target == null ? "released from follow" : $"following {msg.TargetRole?.ToString() ?? $"enemy#{msg.TargetEnemyNetId}"} at {msg.Speed:F1}y/s")}.");
-        // Only forced follows are ever sent (see SimNetworkPuppet.Follow), and only a forced one
-        // may drive the real character.
-        me.Follow(target, NetGuard.Clamp(msg.Speed, 0f, 20f), forced: true);
+        DiagnosticLog.Info($"[Multiplayer] Peer: {msg.Role} {(target == null ? "released from follow" : $"following {msg.TargetRole?.ToString() ?? $"enemy#{msg.TargetEnemyNetId}"} at {msg.Speed:F1}y/s{(msg.Forced ? " (forced)" : "")}")}.");
+        me.Follow(target, NetGuard.Clamp(msg.Speed, 0f, 20f), msg.Forced);
+    }
+
+    // The bot choreography cases below are sent for every role; PlayerMovement drops them unless
+    // this client is bot-controlled.
+    private void OnMoveReceived(MoveMessage msg)
+    {
+        if (!PeerInRun) return;
+        if (!NetGuard.TryPosition(msg.X, msg.Y, msg.Z, out var target)) return;
+        var finalRotation = msg.FinalRotation is { } rot ? NetGuard.Rotation(rot) : (float?)null;
+        (OwnMember(msg.Role, "Move") as SimCharacter)?.MoveTo(target, NetGuard.Clamp(msg.Speed, 0f, 20f), finalRotation);
+    }
+
+    private void OnInterceptReceived(InterceptMessage msg)
+    {
+        if (!PeerInRun) return;
+        if (OwnMember(msg.Role, "Intercept") is not SimCharacter me) return;
+        if (!peerTethers.TryGetValue(msg.TetherNetId, out var tether))
+        {
+            DiagnosticLog.Debug($"[Multiplayer] Peer: Intercept for {msg.Role} names tether NetId {msg.TetherNetId}, not replicated yet -- dropping.");
+            return;
+        }
+        me.Intercept(tether, NetGuard.Clamp(msg.Margin, 0f, 50f));
+    }
+
+    private void OnFaceReceived(FaceMessage msg)
+    {
+        if (!PeerInRun) return;
+        if (!NetGuard.TryPosition(msg.X, msg.Y, msg.Z, out var target)) return;
+        (OwnMember(msg.Role, "Face") as SimCharacter)?.Face(target);
     }
 
     private SimCharacter? ResolvePeerEnd(SimWorld world, int? enemyNetId, PartyRole? role)

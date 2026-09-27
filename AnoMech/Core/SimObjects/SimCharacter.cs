@@ -144,7 +144,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
         Rotation = rotation;
     }
 
-    public void Face(Vector3? target) => Movement.Face(target);
+    public void Face(Vector3? target) => Movement.RequestFace(target);
     public void Face(IPositioned? target) => Face(target?.Position);
     public void MoveTo(Vector3 target, float speed = 6f, float? finalRotation = null)
         => Movement.MoveTo(target, speed, finalRotation);

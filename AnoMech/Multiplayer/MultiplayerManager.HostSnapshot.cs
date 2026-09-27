@@ -36,10 +36,22 @@ public sealed partial class MultiplayerManager
             _ = relay!.SendAsync(midRunUpdateMsg);
 
         // See SimNetworkPuppet.PendingNetwork*. Follow before teleport before push: Umad P1's
-        // arrow releases the chase, snaps, then pushes.
+        // arrow releases the chase, snaps, then pushes. A bot move goes first so any forced
+        // movement issued alongside it wins, as it would locally.
         foreach (var role in Enum.GetValues<PartyRole>())
         {
             if (world.Party.Get(role) is not SimNetworkPuppet puppet) continue;
+            if (puppet.PendingNetworkMove is { } move)
+            {
+                _ = relay!.SendAsync(new MoveMessage(role, move.Target.X, move.Target.Y, move.Target.Z, move.Speed, move.FinalRotation));
+                puppet.ClearPendingNetworkMove();
+            }
+            // A tether spawned this frame has no NetId until the snapshot below; retried next sample.
+            if (puppet.PendingNetworkIntercept is { } intercept && hostTetherNetIds.TryGetValue(intercept.Tether, out var tetherNetId))
+            {
+                _ = relay!.SendAsync(new InterceptMessage(role, tetherNetId, intercept.Margin));
+                puppet.ClearPendingNetworkIntercept();
+            }
             if (puppet.PendingNetworkKnockback is { } kb)
             {
                 _ = relay!.SendAsync(new KnockbackMessage(role, kb.Source.X, kb.Source.Y, kb.Source.Z, kb.Distance, kb.Speed));
@@ -48,7 +60,7 @@ public sealed partial class MultiplayerManager
             if (puppet.PendingNetworkFollow is { } follow)
             {
                 var (targetEnemy, targetRole) = ResolveEnd(world, follow.Target);
-                _ = relay!.SendAsync(new FollowMessage(role, targetRole, targetEnemy, follow.Speed));
+                _ = relay!.SendAsync(new FollowMessage(role, targetRole, targetEnemy, follow.Speed, follow.Forced));
                 puppet.ClearPendingNetworkFollow();
             }
             if (puppet.PendingNetworkTeleport is { } teleport)
@@ -65,6 +77,11 @@ public sealed partial class MultiplayerManager
             {
                 _ = relay!.SendAsync(new CarryMessage(role, carry.Destination.X, carry.Destination.Y, carry.Destination.Z, (int)carry.Mode));
                 puppet.ClearPendingNetworkCarry();
+            }
+            if (puppet.PendingNetworkFace is { } face)
+            {
+                _ = relay!.SendAsync(new FaceMessage(role, face.X, face.Y, face.Z));
+                puppet.ClearPendingNetworkFace();
             }
         }
 
@@ -220,7 +237,10 @@ public sealed partial class MultiplayerManager
                 eo.LastDirectorState, eo.DirectorModSeq, eoConfig?.HideAtState ?? (ushort)0));
         }
 
-        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects));
+        var obstacles = world.Obstacles.All.OfType<CircleObstacle>()
+            .Select(o => new ObstacleState(o.Center.X, o.Center.Y, o.Radius)).ToList();
+
+        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects, obstacles));
     }
 
     private static void WarnOverVfxCap(string who, int dropped, string what)

@@ -204,8 +204,7 @@ public sealed class UmadP1TeleTrouncingAi : IScenarioAi<UmadP1TeleTrouncingState
         return null;
     }
 
-    // Toward the source on an inverted gaze, away on a normal one. A human's SimPlayer slot is
-    // skipped (Face writes the real local player's rotation); a bot-driven one turns like a bot.
+    // Toward the source on an inverted gaze, away on a normal one.
     private static void FaceGaze(UmadP1TeleTrouncingState state, SimWorld world)
     {
         var source3 = state.GazeInverted
@@ -216,7 +215,6 @@ public sealed class UmadP1TeleTrouncingAi : IScenarioAi<UmadP1TeleTrouncingState
         for (var i = 0; i < 8; i++)
         {
             if (world.Party.Get(i) is not { } member || !member.IsAlive()) continue;
-            if (member is SimPlayer && !DebugBotControl.Enabled) continue;
             var p = new Vector2(member.Position.X, member.Position.Z);
             var faceToward = state.GazeInverted ? source : 2f * p - source;
             member.Face(new Vector3(faceToward.X, 0f, faceToward.Y));

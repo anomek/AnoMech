@@ -189,7 +189,6 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
         {
             var member = world.Party.Get(slot);
             if (member is null || !member.IsAlive() || member is not ISimPartyMember pm) continue;
-            if (member is SimPlayer && !DebugBotControl.Enabled) continue;
             var away = member.Position - exdeath.Position;
             member.Face(state.Winds[pm.Role] == Wind.Headwind ? member.Position + away : exdeath.Position);
         }

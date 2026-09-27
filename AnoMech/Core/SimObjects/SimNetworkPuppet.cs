@@ -8,8 +8,8 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 namespace AnoMech.Core.SimObjects;
 
 // A party slot occupied by a real remote player. Same doppel spawn path as SimPartyNpc, but
-// Movement is a no-op (NetworkPuppetMovement), so code that addresses every slot uniformly
-// skips it the way it skips SimPlayer; only ApplyNetworkPose moves it.
+// Movement never moves it (NetworkPuppetMovement queues the move for its owner instead);
+// only ApplyNetworkPose moves it.
 //
 // Not a SimPartyNpc subclass: that class is sealed and the two share only a dozen lines.
 public sealed unsafe class SimNetworkPuppet : SimNpc, ISimPartyMember
@@ -109,10 +109,34 @@ public sealed unsafe class SimNetworkPuppet : SimNpc, ISimPartyMember
     public (Vector3 Source, float Distance, float Speed)? PendingNetworkKnockback { get; private set; }
     public (float Heading, float Distance, float Speed, float DurationSeconds)? PendingNetworkPush { get; private set; }
     public Placement? PendingNetworkTeleport { get; private set; }
-    // Edge-triggered on the (target, speed) pair: Umad P1's confused chase re-issues Follow
-    // every tick with the same target.
-    public (SimCharacter? Target, float Speed)? PendingNetworkFollow { get; private set; }
-    private (SimCharacter? Target, float Speed) lastNetworkFollow;
+    // Edge-triggered on the (target, speed, forced) triple: Umad P1's confused chase re-issues
+    // Follow every tick with the same target.
+    public (SimCharacter? Target, float Speed, bool Forced)? PendingNetworkFollow { get; private set; }
+    private (SimCharacter? Target, float Speed, bool Forced) lastNetworkFollow;
+
+    // A strat's bot moves, sent to every owner: only a bot-controlled one acts on them (see
+    // PlayerMovement). Move and intercept share one last-wins slot, as each cancels the other.
+    public (Vector3 Target, float Speed, float? FinalRotation)? PendingNetworkMove { get; private set; }
+    public (SimTether Tether, float Margin)? PendingNetworkIntercept { get; private set; }
+    public Vector3? PendingNetworkFace { get; private set; }
+
+    internal void QueueNetworkMove(Vector3 target, float speed, float? finalRotation)
+    {
+        PendingNetworkMove = (target, speed, finalRotation);
+        PendingNetworkIntercept = null;
+    }
+
+    internal void QueueNetworkIntercept(SimTether? tether, float margin)
+    {
+        PendingNetworkIntercept = tether is null ? null : (tether, margin);
+        PendingNetworkMove = null;
+    }
+
+    internal void QueueNetworkFace(Vector3 target) => PendingNetworkFace = target;
+
+    public void ClearPendingNetworkMove() => PendingNetworkMove = null;
+    public void ClearPendingNetworkIntercept() => PendingNetworkIntercept = null;
+    public void ClearPendingNetworkFace() => PendingNetworkFace = null;
 
     public void Knockback(Vector3 source, float distance, float speed)
     {
@@ -153,16 +177,15 @@ public sealed unsafe class SimNetworkPuppet : SimNpc, ISimPartyMember
 
     public void ClearPendingNetworkCarry() => PendingNetworkCarry = null;
 
-    // Only a forced follow reaches the owner: an unforced one is a strat walking its bots, and
-    // the person in this seat is playing, not being driven. A release always propagates -- it
-    // only ever hands control back. Never applied locally either: this copy's position is the
-    // owner's reported pose, which TickFollow would fight every frame.
+    // Forwarded with its forced flag; the owner's PlayerMovement.CanFollow decides whether it
+    // drives them. Never applied locally: this copy's position is the owner's reported pose,
+    // which TickFollow would fight every frame.
     public override void Follow(SimCharacter? target = null, float speed = 6f, bool forced = false)
     {
         var liveTarget = target.IsAlive() ? target : null;
-        if (!forced && liveTarget != null) return;
-        if (ReferenceEquals(liveTarget, lastNetworkFollow.Target) && (liveTarget == null || speed == lastNetworkFollow.Speed)) return;
-        lastNetworkFollow = (liveTarget, speed);
+        if (ReferenceEquals(liveTarget, lastNetworkFollow.Target)
+            && (liveTarget == null || (speed == lastNetworkFollow.Speed && forced == lastNetworkFollow.Forced))) return;
+        lastNetworkFollow = (liveTarget, speed, forced);
         PendingNetworkFollow = lastNetworkFollow;
     }
 

@@ -75,7 +75,7 @@ internal class Movement(SimCharacter parent)
     // Walk to the nearest point on the tether line and keep tracking it: TickIntercept
     // re-projects every frame so a tether whose endpoints drift is still met. `margin`
     // is how many yards short of either endpoint to park.
-    public void Intercept(SimTether? tether, float margin = 3f)
+    public virtual void Intercept(SimTether? tether, float margin = 3f)
     {
         followTarget = null;
         interceptTether = tether;
@@ -347,6 +347,10 @@ internal class Movement(SimCharacter parent)
         animActive = false;
     }
 
+    // A caller turning this character, as opposed to Movement's own facing (a follow's arrival):
+    // only this one is gated for a real player or forwarded for a remote one.
+    public virtual void RequestFace(Vector3? t) => Face(t);
+
     public void Face(Vector3? t)
     {
         if(t is not {} target) return;
@@ -375,14 +379,26 @@ internal sealed class PlayerMovement(SimCharacter parent) : Movement(parent)
     // a strat walking its bots must never take the wheel from someone practising. Knockbacks,
     // arrow pushes and a forced follow (Confusion) still apply -- the real fight moves you too.
     protected override bool CanFollow(bool forced) => forced || DebugBotControl.Enabled;
+
+    public override void RequestFace(Vector3? t)
+    {
+        if (DebugBotControl.Enabled) Face(t);
+    }
 }
 
 // Position comes from received poses (SimNetworkPuppet.ApplyNetworkPose); a scheduled bot
-// MoveTo would fight it every frame.
-internal sealed class NetworkPuppetMovement(SimCharacter parent) : Movement(parent)
+// move would fight it every frame. Moves, intercepts and turns are instead handed to the
+// owner's client, which applies them to its real character under its own PlayerMovement gate.
+internal sealed class NetworkPuppetMovement(SimNetworkPuppet parent) : Movement(parent)
 {
     public override void MoveTo(Vector3 t, float sp = 6f, float? finalRot = null, ushort tl = RunTimelineId, bool baseOverride = true)
+        => parent.QueueNetworkMove(t, sp, finalRot);
+
+    public override void Intercept(SimTether? tether, float margin = 3f)
+        => parent.QueueNetworkIntercept(tether, margin);
+
+    public override void RequestFace(Vector3? t)
     {
-        // NO-OP - position comes from the network, not local pathing
+        if (t is { } target) parent.QueueNetworkFace(target);
     }
 }
