@@ -45,6 +45,11 @@ block:
   Splatoon's scripts between pulls. A restart drops combat for a few frames so Splatoon sees
   the new pull.
 * **In duty.** Enables duty-only layouts.
+* **Party.** The bots are already in the game's party list. While you're in a cross-world
+  party, though, Splatoon reads the server's cross-world roster instead, so AnoMech hides
+  the cross-world flag during a run. Priority lists and scripts then see the bots, named
+  after their job (`Warrior`, `White Mage`, ...) on your world. Role-mode lists with
+  **Fill automatically** work best, because which job the bots get depends on your own.
 * **Phase scene.** Sets the scene that scripts check with `Controller.Scene` and that layout
   scene locks use: TOP P5 = 6, TOP P6 = 7, Dancing Mad P2 = 7, Dancing Mad P3 = 8. Other
   phases keep the zone's own value. Use **Scene override** to force a scene for them.

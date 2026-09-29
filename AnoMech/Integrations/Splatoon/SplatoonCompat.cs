@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Scenarios;
 using Dalamud.Game.ClientState.Conditions;
@@ -11,6 +12,11 @@ namespace AnoMech.Integrations.Splatoon;
 // the encounter state Splatoon gates on: InCombat (script resets, combat-only layouts,
 // Controller.CombatSeconds), BoundByDuty (duty-only layouts) and the phase's env scene
 // (Controller.Scene, layout scene locks). This holds those for the length of a run.
+//
+// It also clears ParticipatingInCrossWorldPartyOrAlliance: with it set, ECommons'
+// UniversalParty (Splatoon priority lists, script GetPartyMembers) reads the server's
+// cross-realm roster instead of MainGroup, so it lists the player's real party and never the
+// doppels PartyHud writes there.
 internal sealed class SplatoonCompat : IDisposable
 {
     public const string SplatoonInternalName = "Splatoon";
@@ -19,7 +25,17 @@ internal sealed class SplatoonCompat : IDisposable
     private readonly CombatGate combat = new();
     private byte? wantedScene;
     private byte? sceneBeforeRun;
-    private (bool InCombat, bool BoundByDuty)? conditionsBeforeRun;
+    private Dictionary<ConditionFlag, bool>? conditionsBeforeRun;
+
+    // Held for the whole run; InCombat is driven by the gate instead.
+    private static readonly (ConditionFlag Flag, bool Value)[] HeldConditions =
+    [
+        (ConditionFlag.BoundByDuty, true),
+        (ConditionFlag.ParticipatingInCrossWorldPartyOrAlliance, false),
+    ];
+
+    private static readonly ConditionFlag[] OwnedConditions =
+        [ConditionFlag.InCombat, .. HeldConditions.Select(h => h.Flag)];
 
     public bool IsHoldingEncounter => combat.Owns;
     public byte? AppliedScene => combat.Owns ? wantedScene : null;
@@ -47,10 +63,11 @@ internal sealed class SplatoonCompat : IDisposable
             return;
         }
 
-        conditionsBeforeRun ??= (Plugin.Condition[ConditionFlag.InCombat], Plugin.Condition[ConditionFlag.BoundByDuty]);
+        conditionsBeforeRun ??= OwnedConditions.ToDictionary(f => f, f => Plugin.Condition[f]);
         if (combat.Tick() is { } inCombat)
             EncounterFlags.SetCondition(ConditionFlag.InCombat, inCombat);
-        EncounterFlags.SetCondition(ConditionFlag.BoundByDuty, true);
+        foreach (var (flag, value) in HeldConditions)
+            EncounterFlags.SetCondition(flag, value);
 
         if (wantedScene is { } scene)
         {
@@ -69,8 +86,8 @@ internal sealed class SplatoonCompat : IDisposable
             Core.DiagnosticLog.Info("[SplatoonCompat] Released encounter state.");
         if (conditionsBeforeRun is { } conditions)
         {
-            EncounterFlags.SetCondition(ConditionFlag.InCombat, conditions.InCombat);
-            EncounterFlags.SetCondition(ConditionFlag.BoundByDuty, conditions.BoundByDuty);
+            foreach (var (flag, value) in conditions)
+                EncounterFlags.SetCondition(flag, value);
         }
         conditionsBeforeRun = null;
         if (sceneBeforeRun is { } original)
