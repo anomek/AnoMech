@@ -3,6 +3,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
+using AnoMech.Integrations.Splatoon;
 
 namespace AnoMech.Windows;
 
@@ -15,7 +16,7 @@ public class ConfigWindow : Window, IDisposable
         Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;
 
-        Size = new Vector2(380, 310) * ImGuiHelpers.GlobalScale;
+        Size = new Vector2(380, 420) * ImGuiHelpers.GlobalScale;
         SizeCondition = ImGuiCond.Always;
 
         configuration = plugin.Configuration;
@@ -67,6 +68,8 @@ public class ConfigWindow : Window, IDisposable
         }
 
         ImGui.Separator();
+        DrawSplatoonCompat();
+        ImGui.Separator();
 
         var logging = configuration.EnableEventLogging;
         if (ImGui.Checkbox("Enable event logging", ref logging))
@@ -101,5 +104,43 @@ public class ConfigWindow : Window, IDisposable
                 "the sim zone this way. You still can't send anything to the server " +
                 "while in the instance.");
 #endif
+    }
+
+    private void DrawSplatoonCompat()
+    {
+        var compat = configuration.SplatoonCompat;
+        if (ImGui.Checkbox("Splatoon compatibility", ref compat))
+        {
+            configuration.SplatoonCompat = compat;
+            configuration.Save();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(
+                "While a scenario runs, flags you as in combat and in duty and sets the fight's\n" +
+                "phase scene, so Splatoon layouts and scripts for the fight activate and reset\n" +
+                "between pulls. Also lets Splatoon see the sim's arena map effects.");
+
+        ImGui.SameLine();
+        if (SplatoonCompat.IsSplatoonLoaded())
+            ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.4f, 1f), "Splatoon loaded");
+        else
+            ImGui.TextDisabled("Splatoon not loaded");
+
+        if (!configuration.SplatoonCompat) return;
+
+        var sceneOverride = configuration.SplatoonSceneOverride;
+        ImGui.SetNextItemWidth(90 * ImGuiHelpers.GlobalScale);
+        if (ImGui.InputInt("Scene override", ref sceneOverride))
+        {
+            configuration.SplatoonSceneOverride = Math.Clamp(sceneOverride, SplatoonCompat.SceneOverrideOff, byte.MaxValue);
+            configuration.Save();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(
+                "-1 uses each phase's own scene. Set a value to force Splatoon's Controller.Scene\n" +
+                "for phases whose scene isn't known yet.");
+
+        if (Plugin.SplatoonCompat.IsHoldingEncounter)
+            ImGui.TextDisabled($"Active: in combat, scene {Plugin.SplatoonCompat.AppliedScene?.ToString() ?? "unchanged"}");
     }
 }

@@ -76,6 +76,9 @@ public sealed unsafe partial class ZoneSession : IDisposable
 
     public bool IsActive { get; private set; }
 
+    // Set when Enter moved Dalamud's TerritoryType to the sim zone; Revert moves it back.
+    private bool clientTerritorySynced;
+
     private readonly SessionSave sessionSave = new();
 
     // ── Construction ──────────────────────────────────────────────────────────
@@ -236,6 +239,12 @@ public sealed unsafe partial class ZoneSession : IDisposable
         }
         IsActive = true;
         ArmGuard(territoryId);
+        // After ArmGuard, which records Dalamud's reading as the inn to return to.
+        if (Plugin.Config.SplatoonCompat)
+        {
+            clientTerritorySynced = TrySetClientTerritory(territoryId);
+            AnoMech.Core.DiagnosticLog.Info($"[ZoneSession] Dalamud territory {(clientTerritorySynced ? "now reads" : "could not be set to")} {territoryId}.");
+        }
         Plugin.Log.Information($"[ZoneSession] Entered territory {territoryId}.");
         return true;
     }
@@ -440,6 +449,14 @@ public sealed unsafe partial class ZoneSession : IDisposable
         desiredWeather = null;
         weatherAppliedMs = null;
         FogHold = null; // stop re-asserting the fog hold before the inn's own value loads
+
+        // The firewall lift requires Dalamud to read the inn again.
+        if (clientTerritorySynced)
+        {
+            clientTerritorySynced = false;
+            if (!TrySetClientTerritory(innClientTerritory))
+                AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] Dalamud territory could not be restored to the inn ({innClientTerritory}).");
+        }
 
         // The reload can throw; the firewall and the Occupied flag must be released regardless,
         // or the client is left unable to send anything until the plugin is unloaded.
@@ -704,10 +721,8 @@ public sealed unsafe partial class ZoneSession : IDisposable
         Plugin.Log.Information("[ZoneSession] Step 5: SetupTerritoryType");
         eventFramework->SetTerritoryTypeId((ushort)territory);
 
-        Plugin.Log.Information("[ZoneSession] Step 6: SyncClientState");
-        SyncClientStateTerritoryType((ushort)territory);
-
-        Plugin.Log.Information("[ZoneSession] Step 7: SetPosition");
+        // Dalamud's own territory is moved by Enter/Revert, around the guard, not here.
+        Plugin.Log.Information("[ZoneSession] Step 6: SetPosition");
         SetLocalPlayerPosition(playerPos, rotation);
 
         Plugin.Log.Information("[ZoneSession] LoadZone complete");
@@ -749,27 +764,33 @@ public sealed unsafe partial class ZoneSession : IDisposable
         return rowRef.Value;
     }
 
-    private static void SyncClientStateTerritoryType(ushort territory)
+    // Dalamud only moves ClientState.TerritoryType on a server ZoneInit, which a client-side load
+    // never gets, so plugins that gate on it (Splatoon's zone locks and script territories) keep
+    // seeing the inn. Plugins hold a scoped proxy whose TerritoryType has no setter; the setter
+    // is on the service it wraps, and it raises TerritoryChanged like a real zone-in.
+    private static bool TrySetClientTerritory(uint territory)
     {
         try
         {
-            var type = Plugin.ClientState.GetType();
-            var prop = type.GetProperty("TerritoryType",
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (prop?.CanWrite == true)
+            object proxy = Plugin.ClientState;
+            var service = proxy.GetType()
+                .GetField("clientStateService", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.GetValue(proxy) ?? proxy;
+            var setter = service.GetType()
+                .GetProperty("TerritoryType", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.GetSetMethod(nonPublic: true);
+            if (setter == null)
             {
-                prop.SetValue(Plugin.ClientState, territory);
-                return;
+                AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] No TerritoryType setter on {service.GetType().FullName}; Dalamud keeps reading {Plugin.ClientState.TerritoryType}.");
+                return false;
             }
-            var field = type.GetField("territoryType",
-                BindingFlags.NonPublic | BindingFlags.Instance)
-                ?? type.GetField("TerritoryType",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            field?.SetValue(Plugin.ClientState, territory);
+            setter.Invoke(service, [territory]);
+            return Plugin.ClientState.TerritoryType == territory;
         }
         catch (Exception e)
         {
-            Plugin.Log.Warning($"[ZoneSession] Could not sync ClientState.TerritoryType: {e.Message}");
+            AnoMech.Core.DiagnosticLog.Warn($"[ZoneSession] Could not set Dalamud's TerritoryType to {territory}: {e}");
+            return false;
         }
     }
 

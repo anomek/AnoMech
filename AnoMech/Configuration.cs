@@ -81,6 +81,14 @@ public class Configuration : IPluginConfiguration
     // the sim zone leaks back to the server.
     public bool SafeMode { get; set; } = true;
 
+    // While a scenario runs, hold the encounter state Splatoon gates layouts and scripts on
+    // (see Integrations/Splatoon/SplatoonCompat) and let other plugins' map-effect hooks see the
+    // sim's arena changes.
+    public bool SplatoonCompat { get; set; } = true;
+
+    // Env scene forced for every phase; SplatoonCompat.SceneOverrideOff uses each phase's own.
+    public int SplatoonSceneOverride { get; set; } = Integrations.Splatoon.SplatoonCompat.SceneOverrideOff;
+
     // The below exists just to make saving less cumbersome
     public void Save()
     {

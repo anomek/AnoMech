@@ -14,6 +14,9 @@ public interface IPhase
     // Optional per-frame hold of the zone's environment fog value (ZoneSession.FogHold);
     // null = let the engine's own weather transition run.
     float? FogHold => null;
+    // The env scene the server has set by the time this phase plays, which scripts and layouts
+    // gate on (see SplatoonCompat); null leaves the zone's own value.
+    byte? EnvScene => null;
 
     // Optional phase-wide setup, between zone and scenario Run. Default no-op.
     void Run(SimWorld world) { }
@@ -29,13 +32,14 @@ public sealed class Phase : IPhase
     private readonly Action<SimWorld>? init;
     private readonly Action<SimWorld>? clientSetup;
 
-    public Phase(IZone zone, string name, byte? weather, ushort bgm, Action<SimWorld>? init = null, float? fogHold = null, Action<SimWorld>? clientSetup = null)
+    public Phase(IZone zone, string name, byte? weather, ushort bgm, Action<SimWorld>? init = null, float? fogHold = null, Action<SimWorld>? clientSetup = null, byte? envScene = null)
     {
         Zone = zone;
         Name = name;
         Weather = weather;
         Bgm = bgm;
         FogHold = fogHold;
+        EnvScene = envScene;
         this.init = init;
         this.clientSetup = clientSetup;
     }
@@ -45,6 +49,7 @@ public sealed class Phase : IPhase
     public byte? Weather { get; }
     public ushort Bgm { get; }
     public float? FogHold { get; }
+    public byte? EnvScene { get; }
 
     public void Run(SimWorld world) => init?.Invoke(world);
     public void RunClientSetup(SimWorld world) => clientSetup?.Invoke(world);

@@ -12,6 +12,7 @@ using AnoMech.Core.Map;
 using AnoMech.Core.Native;
 using AnoMech.Multiplayer;
 using AnoMech.Core.UserActions;
+using AnoMech.Integrations.Splatoon;
 using AnoMech.Windows;
 using AnoMech.Pointers;
 using CSFramework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework;
@@ -59,6 +60,7 @@ public sealed class Plugin : IDalamudPlugin
     // Optional, detached module: resolves the player's own actions client-side.
     internal static UserActions UserActions { get; private set; } = null!;
     internal static LogManager LogManager { get; private set; } = null!;
+    internal static SplatoonCompat SplatoonCompat { get; private set; } = null!;
     private ConfigWindow ConfigWindow { get; init; }
     // Static so MultiplayerManager can read the host's current selection.
     internal static MainWindow MainWindow { get; private set; } = null!;
@@ -79,6 +81,7 @@ public sealed class Plugin : IDalamudPlugin
             if (Config.EnableEventLogging) LogManager.Open();
 
             PlayerInputHooks = new LocalPlayerInputHooks(GameInterop);
+            SplatoonCompat = new SplatoonCompat();
             Game = new Game();
             GameInstance = Game;
             MultiplayerInstance = Multiplayer;
@@ -193,6 +196,8 @@ public sealed class Plugin : IDalamudPlugin
         Core.Native.VfxSpawnLog.Dispose();
         Multiplayer.Dispose();
         Game?.Dispose();
+        // After Game, whose teardown can still be mid-run: the pre-run conditions go back last.
+        SplatoonCompat?.Dispose();
         UserActions?.Dispose();
         // After Game.Dispose so World.Dispose → SimPlayer.Despawn can still clear
         // the lock flags through the hooks before they're torn down.
@@ -225,6 +230,8 @@ public sealed class Plugin : IDalamudPlugin
         // pump down.
         try { Game.Tick(fw->FrameDeltaTime); }
         catch (Exception e) { Core.DiagnosticLog.Warn($"[Plugin] Game.Tick threw: {e}"); }
+        try { SplatoonCompat.Tick(); }
+        catch (Exception e) { Core.DiagnosticLog.Warn($"[Plugin] SplatoonCompat.Tick threw: {e}"); }
         try { UserActions.Tick(fw->FrameDeltaTime); }
         catch (Exception e) { Core.DiagnosticLog.Warn($"[Plugin] UserActions.Tick threw: {e}"); }
         try
@@ -244,6 +251,9 @@ public sealed class Plugin : IDalamudPlugin
     private void OnTerritoryChanged(uint territory)
     {
         ZoneSession.NoteTerritoryChanged(territory);
+        // The sim's own sync of Dalamud's territory (ZoneSession.TrySetClientTerritory), not a
+        // real zone-in: leave the windows and the instance log alone.
+        if (ZoneSession.Current is { IsActive: true }) return;
         var row = DataManager.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(territory);
         var isInn = row?.TerritoryIntendedUse.RowId == 2; // TerritoryIntendedUse.Inn
         if (!isInn)

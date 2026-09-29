@@ -10,8 +10,8 @@ public sealed class TopZone : IZone
 {
     public static readonly TopZone Instance = new();
     public static readonly Phase P2 = new(Instance, "P2", 78, BgmId.TopP2);
-    public static readonly Phase P5 = new(Instance, "P5", 174, BgmId.TopP5);
-    public static readonly Phase P6 = new(Instance, "P6", 175, BgmId.TopP6);
+    public static readonly Phase P5 = new(Instance, "P5", 174, BgmId.TopP5, envScene: 6);
+    public static readonly Phase P6 = new(Instance, "P6", 175, BgmId.TopP6, envScene: 7);
 
     public string Name => "The Omega Protocol";
     public uint TerritoryId => 1122;

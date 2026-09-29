@@ -27,6 +27,40 @@ The simulator now includes a beta feature that properly resolves most skills, tr
 As this feature is still in beta, some edge cases and less common interactions may not yet resolve correctly.
 
 
+### Splatoon presets and scripts
+
+With [Splatoon](https://github.com/PunishXIV/Splatoon) installed, its layouts (presets) and scripts
+for the simulated fight work inside a scenario. Toggle it under `/anomech config` →
+**Splatoon compatibility** (on by default).
+
+Boss casts, action effects, head-marker and other actor VFX, tethers and statuses already
+reach Splatoon, because the sim plays them through the same game functions server packets use.
+While a scenario runs, AnoMech also sets the encounter state the firewall would otherwise
+block:
+
+* **Zone.** Dalamud only learns the zone from the server, so it would keep reporting the inn.
+  AnoMech sets it to the simulated fight's territory on entry and back to the inn on leave, so
+  zone-locked layouts and scripts load.
+* **In combat.** Enables combat-only layouts and `Controller.CombatSeconds`, and resets
+  Splatoon's scripts between pulls. A restart drops combat for a few frames so Splatoon sees
+  the new pull.
+* **In duty.** Enables duty-only layouts.
+* **Phase scene.** Sets the scene that scripts check with `Controller.Scene` and that layout
+  scene locks use: TOP P5 = 6, TOP P6 = 7, Dancing Mad P2 = 7, Dancing Mad P3 = 8. Other
+  phases keep the zone's own value. Use **Scene override** to force a scene for them.
+* **Map effects.** Arena map effects are sent through the game function itself, so
+  Splatoon's `OnMapEffect` fires no matter which plugin loaded first.
+
+Known gaps:
+* The scene is only known for the phases above.
+* Scripts that read `OnActorControl` head-marker packets or NPC chat lines (`OnMessage` with
+  boss dialogue) don't get those events. The sim spawns head markers as VFX, so
+  `OnVFXSpawn`-based scripts work. `OnDirectorUpdate` only sees the director updates the sim
+  replays itself, such as Commence at zone load. It never sees a wipe, but the combat reset
+  between pulls covers that.
+* Scenarios start mid-fight, so layouts timed from the start of combat run from the start of
+  the scenario.
+
 ## Installation
 
 See: https://github.com/anomek/MyDalamudPlugins

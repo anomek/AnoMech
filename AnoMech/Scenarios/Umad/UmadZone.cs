@@ -39,8 +39,8 @@ public sealed class UmadZone : IZone
     // 77 is the zone-in weather between pulls; a pull switches to 78.
     public const float P1Haze = 1000f;
     public static readonly Phase P1 = new(Instance, "P1", 78, 20291, clientSetup: world => InitArena(world, P1ArenaStates, SuppressP1Scenery));
-    public static readonly Phase P2 = new(Instance, "P2", 79, 20292, clientSetup: world => InitArena(world, P2ArenaStates));
-    public static readonly Phase P3 = new(Instance, "P3", 174, 20293, clientSetup: world => InitArena(world, P3ArenaStates));
+    public static readonly Phase P2 = new(Instance, "P2", 79, 20292, clientSetup: world => InitArena(world, P2ArenaStates), envScene: 7);
+    public static readonly Phase P3 = new(Instance, "P3", 174, 20293, clientSetup: world => InitArena(world, P3ArenaStates), envScene: 8);
     public static readonly Phase P4 = new(Instance, "P4", 174, 20293, clientSetup: world => InitArena(world, P3ArenaStates));
     public static readonly Phase P5 = new(Instance, "P5", 175, 20294, clientSetup: world => InitArena(world, P5ArenaStates));
 

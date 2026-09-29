@@ -385,6 +385,7 @@ public sealed class Game : IDisposable
             activeScenario = scenario;
             scenarioElapsed = 0f;
         }
+        Plugin.SplatoonCompat?.OnScenarioStarted(phase);
 
         // Reconcile BGM to the new scenario. Bgm.Play is idempotent, so switching
         // between same-track scenarios (e.g. the P5 phases) keeps playing without
@@ -635,6 +636,7 @@ public sealed class Game : IDisposable
         activeScenario = null;
         scenarioElapsed = 0f;
         Events.Clear();
+        Plugin.SplatoonCompat?.OnScenarioStopped();
         World.Despawn();
         // A wipe or Leave never reaches the scenario's own cleanup.
         Core.Native.VfxSpawnLog.Disable();
