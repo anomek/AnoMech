@@ -8,7 +8,8 @@ namespace AnoMech.Core.Game.Ai;
 // The non-generic view carries only what the UI needs (the display Name) so strats
 // of different scenarios can be listed uniformly. The generic subtype carries the
 // actual entry point: state arrives via Run (not the constructor), so a strat is a
-// stateless strategy that is constructed once and fed the per-run state at start.
+// strategy is constructed once and fed the per-run state at start. Any transient
+// movement state must be reset by Run before a subsequent attempt.
 public interface IScenarioAi
 {
     string Name { get; }
@@ -22,4 +23,5 @@ public interface IScenarioAi
 public interface IScenarioAi<TState> : IScenarioAi
 {
     void Run(TState state, SimWorld world);
+    void Tick(TState state, SimWorld world, float delta) { }
 }

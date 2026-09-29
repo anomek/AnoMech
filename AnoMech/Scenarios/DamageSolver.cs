@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
@@ -22,8 +22,8 @@ public class DamageSolver
     {
         this.party = party;
     }
-    
-    
+
+
     public IReadOnlyList<SimCharacter> Resolve(
         IPositioned? source, uint actionId, DamageType[] damageType,
         (ushort statusId, float duration)[] statusesToApply,
@@ -73,7 +73,7 @@ public class DamageSolver
         Array.ForEach(damageType, d => damageTypeBase.Add(d));
         HashSet<DamageType> damageTypeWildCharge = new(damageTypeBase);
         if (wildChargeDamageType != null) Array.ForEach(wildChargeDamageType, d => damageTypeWildCharge.Add(d));
-        
+
         var i = 0;
         foreach (var target in targets)
         {
@@ -98,19 +98,19 @@ public class DamageSolver
             {
                 deadTargets.Add(target);
             }
-            
+
             if (target.IsAlive())
             {
-                if (removeStatus is {} r)
+                if (removeStatus is { } r)
                     foreach (var s in r)
                         target.RemoveStatus(s);
                 foreach (var status in statusesToApply)
-                    target.AddStatus(status.statusId, status.duration);       
+                    target.AddStatus(status.statusId, status.duration);
             }
         }
         return killTargets ? targets : deadTargets;
     }
-    
+
     private static float DistanceXZ(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
         => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
 
@@ -194,13 +194,13 @@ public class DamageSolver
             vulnUpStatuses[damageType] = [];
         return vulnUpStatuses[damageType];
     }
-    
+
     private IEnumerable<ushort> VulnUps(DamageType[] damageType)
     {
         return damageType
                .SelectMany(VulnUps);
     }
-    
+
     // Null without a vuln; 1 = lethal short of an invuln, which is what a vuln is unless
     // SetMitigableStatuses said otherwise.
     private float? VulnUpRequiredMitigation(SimCharacter target, HashSet<DamageType> damageType)
@@ -246,6 +246,7 @@ public enum DamageType
     Lethal,
     Any,
     Magic,
+    Water,
     TankBuster,
     Fire,
     Ice,

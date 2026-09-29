@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../AnoMech/Core/Game/Movement.cs" Link="Production/Movement.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Placement.cs" Link="Production/Placement.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Geometry/*.cs" Link="Production/Geometry/%(Filename)%(Extension)" />
+    <Compile Include="../../AnoMech/Core/SimObjects/IPositioned.cs" Link="Production/IPositioned.cs" />
+    <Compile Include="../../AnoMech/Core/SimObjects/DebugBotControl.cs" Link="Production/DebugBotControl.cs" />
+    <Compile Include="../../AnoMech/Core/Native/StaticVfxTrigger.cs" Link="Production/StaticVfxTrigger.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Party/PartyRole.cs" Link="Production/PartyRole.cs" />
+    <Compile Include="../../AnoMech/Core/Game/Party/PartyPresets.cs" Link="Production/PartyPresets.cs" />
+  </ItemGroup>
+</Project>

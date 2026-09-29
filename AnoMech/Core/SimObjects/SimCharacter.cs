@@ -36,6 +36,9 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     // that simulate casts (SimEnemy) override it.
     public virtual bool AnimationLock => false;
 
+    public bool IsForcedMoving => Movement.IsForcedMoving;
+    public void Slide(Vector3 direction, float distance, float speed) => Movement.Slide(direction, distance, speed);
+
     public GameObjectId GameObjectId => BattleCharaPtr == null ? default : BattleCharaPtr->GetGameObjectId();
     public float HitboxRadius => BattleCharaPtr == null ? 0f : BattleCharaPtr->HitboxRadius;
 
@@ -176,7 +179,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     private void AddVfx(string path, float duration, bool persistent, bool fromLockon)
     {
         if (!VfxFunctions.VfxPathExists(path) || !IsActive) return;
-        if (persistent && FindVfx(path) is {} existing)
+        if (persistent && FindVfx(path) is { } existing)
         {
             existing.Refresh(duration);
             return;
@@ -225,7 +228,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
 
     public void AttachLockonVfx(uint lockonId, float duration = 0f, bool persistent = true)
     {
-        if (VfxFunctions.LockonVfxIconName(lockonId) is not {} iconName) return;
+        if (VfxFunctions.LockonVfxIconName(lockonId) is not { } iconName) return;
         AddVfx($"vfx/lockon/eff/{iconName}.avfx", duration, persistent, fromLockon: true);
         LastLockonVfxId = lockonId;
         if (pendingLockonVfxIds.Count < AnoMech.Multiplayer.NetGuard.MaxLockonVfxPerEntity) pendingLockonVfxIds.Add(lockonId);
@@ -260,7 +263,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     public SimStatus? AddStatus(ushort statusId, float duration = 0f, int stacks = 1, bool overrideStacks = false, GameObjectId sourceObject = default)
     {
         Core.DiagnosticLog.Info($"[SimCharacter] AddStatus: {DiagnosticName} gets status {statusId} (duration={duration:F1}, stacks={stacks}, overrideStacks={overrideStacks}, source={sourceObject}).");
-        if (FindStatus(statusId, sourceObject) is {} status)
+        if (FindStatus(statusId, sourceObject) is { } status)
         {
             // overrideStacks: stacks is the absolute target; otherwise it's a
             // relative delta (negative consumes stacks).
@@ -299,7 +302,7 @@ public abstract unsafe class SimCharacter(Coordinates coordinates) : ISimObject,
     // Source-aware: an id the character holds twice (two appliers) needs the right one named.
     public void RemoveStatus(ushort statusId, GameObjectId sourceObject)
     {
-        if (FindStatus(statusId, sourceObject) is not {} status) return;
+        if (FindStatus(statusId, sourceObject) is not { } status) return;
         Core.DiagnosticLog.Info($"[SimCharacter] RemoveStatus: {DiagnosticName} loses status {statusId}.");
         status.Despawn();
     }

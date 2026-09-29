@@ -61,8 +61,8 @@ public record struct EnemySpawnConfig(
     float Scale = 0f,    // 0 = use BNpcBase.Scale
     float HitboxRadius = 0f,    // 0 = ModelChara unscaled radius × Scale
     byte? InitialModeAttributeFlags = null, // null = engine default; set when the idle sub-mesh variant differs (Omega-M = 0x10)
-    // Only for a ModelChara.Type==0 (Character) row, whose look is Customize+equipment driven;
-    // without it the engine never builds a DrawObject for such a spawn.
+                                            // Only for a ModelChara.Type==0 (Character) row, whose look is Customize+equipment driven;
+                                            // without it the engine never builds a DrawObject for such a spawn.
     CustomizeData? Customize = null,
     // A captured real NpcSpawn packet body (see UmadRealPackets): the engine's own spawn
     // handler builds the actor from it, and of the fields above only NameId, Targetable,
@@ -71,13 +71,16 @@ public record struct EnemySpawnConfig(
     // Packet path only: request the draw object ourselves. The engine never draws a packet
     // actor on its own, and a caster without a draw object has its action timeline cleared
     // within frames. With IsVisible=false the built model is hidden the moment it appears.
-    bool PacketSpawnEnableDraw = false);
+    bool PacketSpawnEnableDraw = false,
+    bool IsHostile = true,
+    ushort SpawnTimeline = 0);
 
 public sealed unsafe class SimEnemy : SimNpc
 {
     // Cast bar, action-effect release, omen telegraph, and animation lock live in
     // SimCast. SimEnemy just converts target coords to world space and reads IsBusy.
     private readonly SimCast cast;
+    private ushort pendingSpawnTimeline;
 
     // Peer-only smoothing for ApplyNetworkPosition, same model as SimNetworkPuppet: the
     // catch-up speed is a floor once the real snapshot interval is known, anything beyond
@@ -207,9 +210,9 @@ public sealed unsafe class SimEnemy : SimNpc
     // toggle is reflected without extra plumbing; Manual lets the scenario drive it.
     public bool InEnemyList => EnemyListMode switch
     {
-        EnemyListMode.Always          => true,
-        EnemyListMode.Never           => false,
-        EnemyListMode.Manual          => manualInEnemyList,
+        EnemyListMode.Always => true,
+        EnemyListMode.Never => false,
+        EnemyListMode.Manual => manualInEnemyList,
         EnemyListMode.OnlyWhenVisible => IsEngineVisible(),
         _ => false,
     };
@@ -401,8 +404,8 @@ public sealed unsafe class SimEnemy : SimNpc
         chara->BattleNpcSubKind = BattleNpcSubKind.Combatant;
         chara->MaxHealth = 1_000_000;
         chara->Health = 1_000_000;
-        chara->Battalion = 4;
-        chara->IsHostile = true;
+        chara->Battalion = config.IsHostile ? (byte)4 : checked((byte)bnpc.Battalion.RowId);
+        chara->IsHostile = config.IsHostile;
         chara->InCombat = true;
         chara->CombatTagType = 1;
         chara->CombatTaggerId = ((GameObject*)player.Address)->GetGameObjectId();
@@ -419,6 +422,7 @@ public sealed unsafe class SimEnemy : SimNpc
         {
             SpawnConfig = config,
         };
+        enemy.pendingSpawnTimeline = config.SpawnTimeline;
         // Mirror the native position/rotation writes above into the C#-side fields.
         enemy.SetPosition(config.Placement);
         enemy.SetTargetable(config.Targetable);
@@ -537,6 +541,7 @@ public sealed unsafe class SimEnemy : SimNpc
 
     public override void Despawn()
     {
+        pendingSpawnTimeline = 0;
         Movement.Follow(null);
         cast.Despawn();
         if (PacketSpawnPending)
@@ -569,6 +574,15 @@ public sealed unsafe class SimEnemy : SimNpc
         {
             chara->TargetableStatus &= ~((ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable);
         }
+    }
+
+    public void SetHealth(uint current, uint maximum)
+    {
+        if (maximum == 0) throw new System.ArgumentOutOfRangeException(nameof(maximum));
+        var chara = BattleCharaPtr;
+        if (chara == null) return;
+        chara->MaxHealth = maximum;
+        chara->Health = System.Math.Min(current, maximum);
     }
 
     /// <summary>
@@ -964,6 +978,13 @@ public sealed unsafe class SimEnemy : SimNpc
         base.Tick(deltaSeconds);
         // Before ReconcileVisibility, so "become visible" and a position snap land in the same tick.
         TickNetworkPosition(deltaSeconds);
+        var chara = BattleCharaPtr;
+        if (pendingSpawnTimeline != 0 && desiredVisible && chara != null && chara->DrawObject != null
+            && chara->IsReadyToDraw() && chara->Timeline.TimelineSequencer.Parent != null)
+        {
+            PlayActionTimeline(pendingSpawnTimeline);
+            pendingSpawnTimeline = 0;
+        }
         ReconcileVisibility();
         if (modelHidden) ApplyModelHidden();
         cast.Tick(deltaSeconds);
