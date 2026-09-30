@@ -76,12 +76,26 @@ public sealed class SimWorld : ISimObject, IDisposable
         return tether;
     }
 
-    
+
     public SimEnemy? SpawnEnemy(EnemySpawnConfig config)
     {
         var enemy = SimEnemy.Spawn(config, this);
         if (enemy != null) children.Add(enemy);
         return enemy;
+    }
+
+    public SimMapEffect SpawnMapEffect(byte index, uint show, uint hide)
+    {
+        var effect = new SimMapEffect(Map, index, show, hide);
+        children.Add(effect);
+        return effect;
+    }
+
+    public SimVoiceLine SpawnVoiceLine(uint voiceId)
+    {
+        var voice = new SimVoiceLine(voiceId);
+        children.Add(voice);
+        return voice;
     }
 
     // Allocates an EventObject actor in EventObjectManager's 40-slot pool and
@@ -153,10 +167,15 @@ public sealed class SimWorld : ISimObject, IDisposable
     // The live count is remotely driven on a peer, and each omen holds a native VfxObject.
     public bool CanSpawnOmen => children.Count(c => c is SimOmen) < Multiplayer.NetGuard.MaxLiveOmens;
 
-    public void SpawnOmen(string path, Placement placement, Vector3 scale, float durationSeconds)
+    // Persistent/triggered scenery is locally owned; finite ordinary omens retain replication.
+    public SimOmen SpawnOmen(string path, Placement placement, Vector3 scale,
+        float? durationSeconds = null, uint? startTrigger = null)
     {
-        children.Add(new SimOmen(Coordinates, path, placement, scale, durationSeconds));
-        OmenSpawned?.Invoke(path, placement, scale, durationSeconds);
+        var omen = new SimOmen(Coordinates, path, placement, scale, durationSeconds, startTrigger);
+        children.Add(omen);
+        if (durationSeconds is { } duration && startTrigger == null)
+            OmenSpawned?.Invoke(path, placement, scale, duration);
+        return omen;
     }
 
     // Standalone telegraph derived from `actionId`'s own Omen sheet entry (shape/scale
@@ -183,10 +202,10 @@ public sealed class SimWorld : ISimObject, IDisposable
     // Reset's reverse-order teardown (tethers and enemies reference slot positions).
     // networkRoles: multiplayer slots claimed by other real participants — see
     // PartyCreator.Populate.
-    public void CreateParty(uint playerJob, uint? tankMaxHealth = null, PartyRole? roleOverride = null, bool solo = false, IReadOnlySet<PartyRole>? networkRoles = null, IReadOnlyDictionary<PartyRole, NetworkSeat>? networkSeats = null)
+    public void CreateParty(uint playerJob, uint? tankMaxHealth = null, PartyRole? roleOverride = null, bool solo = false, IReadOnlySet<PartyRole>? networkRoles = null, IReadOnlyDictionary<PartyRole, NetworkSeat>? networkSeats = null, byte? levelOverride = null)
     {
         var party = new SimParty();
-        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, tankMaxHealth, roleOverride, solo, networkRoles, networkSeats);
+        PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, tankMaxHealth, roleOverride, solo, networkRoles, networkSeats, levelOverride);
         children.Add(party);
         Party = party;
     }

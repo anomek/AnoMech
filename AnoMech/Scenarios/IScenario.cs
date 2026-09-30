@@ -31,6 +31,9 @@ public interface IScenario
 
     void Run(SimWorld world, int? selectedAi);
     void Tick(float delta, float elapsed) { }
+    // Successful native execution, not a queued button press. Scenarios may
+    // model actions whose server effects are blocked by simulation isolation.
+    void OnPlayerAction(uint actionId, ulong targetId) { }
 
     // The fight-wide rolls only: one setting the whole sim shares.
     void DrawSettings() { }

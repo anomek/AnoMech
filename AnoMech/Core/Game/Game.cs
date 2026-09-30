@@ -348,7 +348,7 @@ public sealed class Game : IDisposable
         World.ScenarioOrigin = zone.Origin;
         World.Map.ArmColliderDrops(zone.ColliderRemovalPoints.Select(World.Coordinates.ToGlobal));
         World.PlaceWaymarks(ResolveWaymarks(zone, selectedWaymark));
-        World.CreateParty(player.ClassJob.RowId, scenario.TankMaxHealth, roleOverride, solo, networkRoles, networkSeats);
+        World.CreateParty(player.ClassJob.RowId, scenario.TankMaxHealth, roleOverride, solo, networkRoles, networkSeats, levelOverride: zone.Level == 0 ? null : zone.Level);
         // Client-asset setup a peer needs too (see IZone.RunClientSetup).
         zone.RunClientSetup(World);
         phase.RunClientSetup(World);
@@ -402,6 +402,11 @@ public sealed class Game : IDisposable
             Message = new SeStringBuilder().AddText($"[AnoMech] Starting: {FullName(scenario)}{(networkRoles is null ? " (Solo)" : "")}").Build(),
         });
         return null;
+    }
+
+    public void NotifyPlayerAction(uint actionId, ulong targetId)
+    {
+        if (!Paused) activeScenario?.OnPlayerAction(actionId, targetId);
     }
 
     public void Tick(float deltaSeconds)

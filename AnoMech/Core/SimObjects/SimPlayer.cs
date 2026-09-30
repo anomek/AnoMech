@@ -65,6 +65,12 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
 
     public PartyRole Role { get; set; }
     public bool Dead { get; private set; }
+    private bool mechanicInputLock;
+    public void SetMechanicInputLock(bool locked)
+    {
+        mechanicInputLock = locked;
+        SyncInputLock();
+    }
 
     // For stillness/movement mechanics: IsMoving = movement input, a jump, any action, or an
     // in-flight debug-bot MoveTo; IsActing also counts auto-attacks. Forced false while KO'd.
@@ -129,6 +135,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
 
     public override void Despawn()
     {
+        mechanicInputLock = false;
         base.Despawn();
         StopMoving();
         // Order matters; see RestoreRealMaxHealth.
@@ -157,7 +164,7 @@ public sealed unsafe class SimPlayer(Coordinates coordinates) : SimCharacter(coo
         var asleep = !Dead && HasStatus(StatusIdSleep);
         var confused = !Dead && HasStatus(StatusIdConfused);
         var bound = !Dead && HasStatus(StatusIdBind);
-        var incapacitated = asleep || confused;
+        var incapacitated = asleep || confused || mechanicInputLock;
         hooks.ZeroMovement = Dead || Movement.IsMoving || incapacitated || bound;
         hooks.DisableAllActions = Dead || incapacitated;
         // A knockback slide still lets you turn, so this isn't folded into ZeroMovement.

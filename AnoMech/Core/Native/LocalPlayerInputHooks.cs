@@ -378,6 +378,7 @@ public sealed unsafe class LocalPlayerInputHooks : IDisposable
         {
             actionUsedSincePoll = true;
             ActionExecuted?.Invoke(actionType, actionId, targetId);
+            if (actionType == ActionType.Action) Plugin.GameInstance?.NotifyPlayerAction(actionId, targetId);
         }
         return result;
     }
