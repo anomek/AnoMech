@@ -32,13 +32,13 @@ public class DamageSolver
         int stackMinTargets = 0, int wildChargeTargets = 0, DamageType[]? wildChargeDamageType = null,
         float? size = null, float? coneRotationDelta = null, SimCharacter[]? excludeTargets = null,
         bool killTargets = true, float requiredMitigation = 0f, float lethalWithin = 0f,
-        float? understackedTankMitigation = null)
+        float? understackedTankMitigation = null, float extraRange = 0f)
     {
         if (source == null) return [];
         var placement = source.Placement();
         if (coneRotationDelta is { } delta)
             placement = placement with { Rotation = placement.Rotation + delta };
-        var query = new AoeQuery(actionId, placement, size: size);
+        var query = new AoeQuery(actionId, placement, size: size, extraRange: extraRange);
 #if DEBUG
         AnoMech.Windows.DamageDebugWindow.Instance?.Record(query);
 #endif

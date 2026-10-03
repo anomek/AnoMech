@@ -55,7 +55,6 @@ doesn't work. Marks: ✅ works · ⚠️ partial · ❌ not simulated · ➖ not
   but the client ignores a granted Dualcast status for cast time, so the next cast isn't actually made
   instant. Duration cast-time reductions (Ley Lines, Lightspeed, Presence of Mind, PCT Inspiration)
   are granted in the data table and applied by the client.
-- **Healer utility gates** — SGE Eukrasia gauge byte: a swap/gate chain whose defining gauge isn't set.
   (SCH Seraphism, WHM Divine Caress, and AST Neutral Sect / Earthly Star / Macrocosmos are now wired.)
 - **NIN mudra is not simulable** — the Ten/Chi/Jin → Ninjutsu selector is computed by native
   `ProcessDeferredReplaceAction` from an internal ordered-sequence value FFXIVClientStructs never

@@ -53,9 +53,13 @@ See: https://github.com/anomek/MyDalamudPlugins
     - P5 Sigma
     - P5 Omega
     - P6 Exasquares / Wave Cannon 2
-- The Weapon's Refrain (Ultimate) _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
-    - Ultimate Predaction
-    - Ultimate Suppression
+- The Weapon's Refrain (Ultimate)
+    - P1 Garuda _by [Asunnya](https://github.com/Asunnya)_
+    - P2 Ifrit _by [Asunnya](https://github.com/Asunnya)_
+    - P3 Titan _by [Asunnya](https://github.com/Asunnya)_
+    - Ultimate Predaction _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
+    - Ultimate Annihilation _by [Asunnya](https://github.com/Asunnya)_
+    - Ultimate Suppression _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
 - The Unending Coil of Bahamut (Ultimate) _by [RoarkGit](https://github.com/RoarkGit)_
     - Exaflares
 
@@ -89,6 +93,7 @@ Thanks for contributors:
 * [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting core & fixing crashes, scenarios for uwu
 * [Wydox](https://github.com/Wydox) - EU strats for Forsaken, UMAD Exaflares, core improvements
 * [RoarkGit](https://github.com/RoarkGit) - UMAD Celestriad, UCOB exas, win streaks
+* [Asunnya](https://github.com/Asunnya) - UWU P1 Garuda / P2 Ifrit / P3 Titan / Ultimate Annihilation
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:

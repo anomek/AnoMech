@@ -226,15 +226,16 @@ public sealed class CharacterFind<T> where T : IPositioned
     // 3, 13 (cones) -> halfAngleRad default PI/6
     // 8 (charge) -> charge length default 100
     // 10 (donut) -> inner safe radius default 0
-    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement target, float omenRotate = 0f, float? size = null)
+    // extraRange: the caster's hitbox, which the game adds to caster-centred shapes.
+    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement target, float omenRotate = 0f, float? size = null, float extraRange = 0f)
     {
         if (Natives.Data.Action(actionId) is not { } action)
         {
             Plugin.Log.Warning($"InsideActionAoe: action {actionId} not found");
             return Array.Empty<T>();
         }
-        AoeQuery.RaiseEvaluated(new AoeQuery(actionId, target, omenRotate, size));
-        var range = (float)action.EffectRange;
+        AoeQuery.RaiseEvaluated(new AoeQuery(actionId, target, omenRotate, size, extraRange));
+        var range = action.EffectRange + extraRange;
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
         var forward = new Placement(target.Position, target.Rotation + omenRotate);
         var hits = action.CastType switch
@@ -314,15 +315,16 @@ public sealed class CharacterFind<T> where T : IPositioned
 // exactly one place (Run), so any parameter it grows is carried to both callers
 // automatically — the debug picture can't drift from the resolved AOE.
 public readonly struct AoeQuery(uint actionId, Placement source,
-    float omenRotate = 0f, float? size = null)
+    float omenRotate = 0f, float? size = null, float extraRange = 0f)
 {
     public uint ActionId { get; } = actionId;
     public Placement Source { get; } = source;
     public float OmenRotate { get; } = omenRotate;
     public float? Size { get; } = size;
+    public float ExtraRange { get; } = extraRange;
 
     public IReadOnlyList<T> Run<T>(CharacterFind<T> find) where T : IPositioned =>
-        find.InsideActionAoe(ActionId, Source, OmenRotate, Size);
+        find.InsideActionAoe(ActionId, Source, OmenRotate, Size, ExtraRange);
 
     // Every InsideActionAoe check, for the headless test harness's death reports.
     public static event Action<AoeQuery>? Evaluated;
@@ -334,7 +336,7 @@ public readonly struct AoeQuery(uint actionId, Placement source,
     public float? SignedDistance(Vector3 point)
     {
         if (Natives.Data.Action(ActionId) is not { } action) return null;
-        var range = (float)action.EffectRange;
+        var range = action.EffectRange + ExtraRange;
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
         var rotation = Source.Rotation + OmenRotate;
         var dx = point.X - Source.Position.X;

@@ -13,6 +13,7 @@ public sealed class SimStatus : ISimObject
     public GameObjectId SourceObject { get; }
     public bool IsActive { get; private set; }
     public ushort Stacks { get; private set; }
+    public float Remaining => duration > 0f ? MathF.Max(0f, duration - elapsed) : float.PositiveInfinity;
 
     // Distinguishes a re-added status from one refreshed in place: only the add goes through
     // the engine's gain path, which is what applies a param-driven look.

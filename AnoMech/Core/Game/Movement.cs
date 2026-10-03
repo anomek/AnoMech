@@ -146,6 +146,7 @@ internal class Movement(SimCharacter parent)
         var kbDestination = parent.Placement().Face(source).MoveForward(-distance).Position;
         // Knockback is forced movement: don't steer around or stop short of obstacles.
         InternalMoveTo(kbDestination, kbSpeed, tl: KnockbackTimelineId, baseOverride: false, faceTravel: false, avoid: false);
+        GiveUpForcedMoveAfter(distance, kbSpeed);
 
     }
 
@@ -156,7 +157,15 @@ internal class Movement(SimCharacter parent)
         var dir = new Vector2(MathF.Sin(heading), MathF.Cos(heading));
         var dest = parent.Position + new Vector3(dir.X * distance, 0f, dir.Y * distance);
         InternalMoveTo(dest, pushSpeed, tl: KnockbackTimelineId, baseOverride: false, faceTravel: false, avoid: false);
+        GiveUpForcedMoveAfter(distance, pushSpeed);
     }
+
+    // A wall's collision can hold the player short of a forced-move destination; without a
+    // deadline the move never ends and the input lock tied to it stays on.
+    private float? forcedMoveDeadline;
+
+    private void GiveUpForcedMoveAfter(float distance, float moveSpeed) =>
+        forcedMoveDeadline = moveSpeed > 0f ? distance / moveSpeed + 0.5f : null;
 
     // Same forced-move semantics, but smoothstep-eased over durationSeconds: a real arrow push
     // eases in, holds and eases out over ~1s rather than sliding at one speed.
@@ -209,6 +218,7 @@ internal class Movement(SimCharacter parent)
         easeDuration = null;
         easeDelay = 0f;
         easeOut = false;
+        forcedMoveDeadline = null;
         var sameAnim = animActive && timelineId == tl;
         timelineId = tl;
         timelineBaseOverride = baseOverride;
@@ -227,6 +237,16 @@ internal class Movement(SimCharacter parent)
         TickIntercept();
 
         if (destination is not { } dest) return;
+
+        if (forcedMoveDeadline is { } deadline)
+        {
+            forcedMoveDeadline = deadline - deltaSeconds;
+            if (forcedMoveDeadline <= 0f)
+            {
+                Stop();
+                return;
+            }
+        }
 
         // Re-assert the movement animation if a move is still pending but its
         // animation was stopped while we were animation-locked. Follow re-issues

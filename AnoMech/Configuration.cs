@@ -16,6 +16,7 @@ public class Configuration : IPluginConfiguration
     public bool SuppressBgm { get; set; } = true;
     public bool EnableMechanicResultMarks { get; set; } = false;
     public bool AutoCollapseWhileRunning { get; set; } = false;
+    public bool ShowSpeedControl { get; set; } = false;
     public string LastSelectedScenario { get; set; } = "";
 
     // Multiplayer relay address (see AnoMech.Relay.Host/README.md) -- remembered across

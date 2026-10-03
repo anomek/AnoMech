@@ -14,5 +14,8 @@ public interface IGameData
     string? StatusName(ushort statusId);
     string? BNpcName(uint nameId);
 
+    bool StatusLocksMovement(ushort statusId);
+    bool StatusLocksActions(ushort statusId);
+
     bool FileExists(string path);
 }

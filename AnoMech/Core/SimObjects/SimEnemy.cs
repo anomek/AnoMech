@@ -396,6 +396,21 @@ public sealed class SimEnemy : SimNpc
 
     public void SetVisible(bool visible) => desiredVisible = visible;
 
+    // Same ActorControl 607 fade as SimEventObject.FadeOut.
+    public void FadeOut()
+    {
+        if (EntityId == 0) return;
+        ActorControl(607, EntityId, 1, 0, 100);
+    }
+
+    // For adds whose HP bar the sim drains on a timer.
+    public void SetHealth(uint maxHealth, float fraction)
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        chara.MaxHealth = maxHealth;
+        chara.Health = (uint)MathF.Ceiling(maxHealth * Math.Clamp(fraction, 0f, 1f));
+    }
+
     // RenderFlags Model|Nameplate. The engine then drops the DrawObject entirely, so this does
     // not keep action VFX alive on a hidden carrier; kept for the Flood carrier A/B.
     // Re-asserted every tick because EnableDraw resets RenderFlags.

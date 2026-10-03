@@ -155,9 +155,9 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
     // ── Statuses ─────────────────────────────────────────────────────────────
 
-    public void AddStatusInit(ushort statusId, ushort param, GameObjectId source = default) { }
-    public void ApplyStatus(ushort statusId, float remainingTime, ushort param, GameObjectId source = default) { }
-    public void RemoveStatus(ushort statusId, GameObjectId source = default) { }
+    public void AddStatusInit(ushort statusId, ushort param, GameObjectId source = default) => Actor?.Statuses.Add(statusId);
+    public void ApplyStatus(ushort statusId, float remainingTime, ushort param, GameObjectId source = default) => Actor?.Statuses.Add(statusId);
+    public void RemoveStatus(ushort statusId, GameObjectId source = default) => Actor?.Statuses.Remove(statusId);
 
     // ── Effects ──────────────────────────────────────────────────────────────
 

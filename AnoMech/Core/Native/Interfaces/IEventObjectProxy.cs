@@ -24,6 +24,7 @@ public interface IEventObjectProxy
 
     ushort SharedTimelineState { get; }
     void SetSharedTimelineState(ushort state);
+    void UpdateSharedTimelineState(ushort from, ushort to);
     void PlayAnimation(uint state, uint bitmask);
 
     // The server's ActorControl packet for this object, through the client's own dispatcher.
