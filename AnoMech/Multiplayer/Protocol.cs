@@ -53,6 +53,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP2PartySynergyAiReplayStateMessage), "topP2PsAiReplayState")]
 [JsonDerivedType(typeof(TopP5SigmaAiReplayStateMessage), "topP5SigmaAiReplayState")]
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
+[JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
@@ -370,6 +371,10 @@ public sealed record TopP5SigmaAiReplayStateMessage(
     PartyRole[] HelloWorldJumpOrder,
     float NewNorthARadians, float NewNorthBRadians, bool TowerNorthFlipped, bool GlitchIsFar,
     bool SpinnerIsClockwise, bool OmegaFIsStaff, int FirstMissing, int SecondMissing) : MpMessage, IScenarioReplayStateMessage;
+
+// The whole state surface; tower sets travel flattened, two cardinals per set.
+public sealed record TopP1ProgramLoopAiReplayStateMessage(
+    PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP5OmegaAi reads. MonitorSide travels as a bool; MonitorTargets is the host's
 // already-resolved pick.

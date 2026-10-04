@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AnoMech.Scenarios.Top.P1ProgramLoop;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
@@ -33,6 +34,7 @@ public static class ScenarioCatalog
         new UmadP5ExaflaresScenario(),
         new UmadP5CelestriadScenario(),
         new UmadP5ForsakenNull(),
+        new TopP1ProgramLoopScenario(),
         new TopP2PartySynergyScenario(),
         new TopP5DeltaScenario(),
         new TopP5SigmaScenario(),
