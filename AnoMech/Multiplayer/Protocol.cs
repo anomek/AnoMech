@@ -57,6 +57,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP3MonitorsAiReplayStateMessage), "topP3MonitorsAiReplayState")]
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
 [JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
+[JsonDerivedType(typeof(TopP4BlueScreenAiReplayStateMessage), "topP4BlueScreenAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
@@ -389,6 +390,9 @@ public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, 
 // The whole state surface; tower layouts travel as parallel arrays, one entry per patch.
 public sealed record TopP3HelloWorldAiReplayStateMessage(
     PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;
+
+// The whole state surface; the three Wave Cannons' stack targets travel flattened, two per set.
+public sealed record TopP4BlueScreenAiReplayStateMessage(PartyRole[] StackTargets) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP5OmegaAi reads. MonitorSide travels as a bool; MonitorTargets is the host's
 // already-resolved pick.
