@@ -61,7 +61,7 @@ namespace AnoMech.Scenarios.Top.P5Sigma
             }.Build(rng, party);
             WaveCannonTargets = SelectWaveCannonTargets(Order, overrides.WaveCannonSkips);
 
-            NewNorthA = overrides.NewNorthA ?? rng.NextDirection();
+            NewNorthA = overrides.NewNorthA ?? rng.NextIntercardinal();
             GlitchType = overrides.CloseFarTether ?? rng.NextObj(GlitchType.Mid, GlitchType.Far);
             TowerNorthFlipped = overrides.TowerNorthFlip ?? rng.NextBool();
             NewNorthB = overrides.NewNorthB ?? rng.NextDirection();
@@ -78,8 +78,12 @@ namespace AnoMech.Scenarios.Top.P5Sigma
 
             var handBait = DynamisTargets.Random(rng, 2, HelloWorldTargets.List);
             HandBait = overrides.HandBait is { } pinnedHandBait ? new RoleList(party, pinnedHandBait) : handBait;
-            var jumpOrder = new RoleList(party, Enum.GetValues<PartyRole>())
-                .Random(rng, 4, HelloWorldTargets.List.Concat(HandBait.List).ToArray());
+            // "1" goes north with the hand baits, so it is a Dynamis holder too.
+            var helloWorldOrHandBait = HelloWorldTargets.List.Concat(HandBait.List).ToArray();
+            var first = DynamisTargets.Random(rng, 1, helloWorldOrHandBait);
+            var rest = new RoleList(party, Enum.GetValues<PartyRole>())
+                .Random(rng, 3, helloWorldOrHandBait.Concat(first.List).ToArray());
+            var jumpOrder = new RoleList(party, first.List.Concat(rest.List).ToList());
             HelloWorldJumpOrder = overrides.HelloWorldJumpOrder is { } pinnedJumpOrder
                 ? new RoleList(party, pinnedJumpOrder)
                 : jumpOrder;
@@ -141,10 +145,8 @@ namespace AnoMech.Scenarios.Top.P5Sigma
             new(new Vector3(-6.506f, 0f, +15.706f), MinPlayers: 1), // SOLO SSW (202.5°)
         };
 
-        // FarGlitch: 5 towers, following bossmod P5Sigma.cs (apex pair at rel N, base pairs at
-        // rel SE/SW, solos at rel W/E), rotated so the apex pair-tower is at compass N.
-        // UNVERIFIED: radius 17 is assumed to match MidGlitch and the positions are placed on
-        // true cardinals/intercardinals. Neither is observed; treat both as guesses.
+        // FarGlitch: 5 towers on the 45° grid at radius 17, rotated so the apex pair-tower is at
+        // compass N: pairs at rel N, SE and SW, solos at rel E and W.
         // 12.021 = 17/√2.
         private static readonly Tower?[] FarGlitchTowers =
         {

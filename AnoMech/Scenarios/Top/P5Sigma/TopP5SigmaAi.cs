@@ -193,14 +193,14 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
     private IAiMove RearLasersPrePosition()
     {
         return AiMove.Create(
-            new(6.5f, -17),
-            new(6.5f, -17),
-            new(6.5f, -17),
-            new(-6.5f, 17),
-            new(-6.5f, 17),
-            new(-6.5f, 17),
-            new(-6.5f, 17),
-            new(-6.5f, 17)
+            new(7.5f, -17),
+            new(7.5f, -17),
+            new(7.5f, -17),
+            new(-7.5f, 17),
+            new(-7.5f, 17),
+            new(-7.5f, 17),
+            new(-7.5f, 17),
+            new(-7.5f, 17)
         )
         .Assignments(markingsOrder.List)
         .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);

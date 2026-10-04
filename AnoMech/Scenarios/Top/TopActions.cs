@@ -113,9 +113,16 @@ public static class TopActions
         ],
     };
 
+    // The target's own Magic Vulnerability Up runs 1.96 s, everyone else's 4.96 s.
     public static readonly EnemyAction WaveCannon = new(ActionId.WaveCannonAoe)
     {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
+        Cast = new() { AnimationLock = 1.1f },
+        Effects =
+        [
+            Damage(Magic),
+            ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
+            OnTarget(ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)),
+        ],
     };
 
     public static readonly EnemyAction DiffuseWaveCannon = new(ActionId.OmegaDiffuseWaveCannonAOE)
@@ -147,6 +154,7 @@ public static class TopActions
 
     private static EnemyAction StorageViolation(uint actionId) => new(actionId)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects =
         [
             Damage(Magic),
@@ -164,6 +172,7 @@ public static class TopActions
     // -- Hyper Pulse --
     public static readonly EnemyAction HyperPulseSigma = new(ActionId.HyperPulseSigma)
     {
+        Cast = new() { AnimationLock = 2.1f },
         Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
     };
 
@@ -228,12 +237,16 @@ public static class TopActions
     // -- Sigma-specific --
     public static readonly EnemyAction RunMiSigmaVersion = new(ActionId.RunMiSigmaVersion)
     {
+        Cast = new() { CastTime = 4.7f, AnimationLock = 3.1f },
         Effects = [Damage(Magic)],
+        Timing = Lands(0.30f),
     };
 
     public static readonly EnemyAction RearLasersCharging = new(ActionId.RearLasersCharging)
     {
+        Cast = new() { CastTime = 2.7f },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.29f),
     };
 
     public static readonly EnemyAction RearLasersShoot = new(ActionId.RearLasersShoot)
