@@ -32,6 +32,8 @@ internal sealed unsafe class EventObjectProxy(int slot, GameObject* obj) : IEven
     // Diff-based: plays the SGB timelines mapped to whichever state bits change.
     public void SetSharedTimelineState(ushort state) => EventObject->SetSharedTimelineState(state, true, 0);
 
+    public void UpdateSharedTimelineState(ushort from, ushort to) => obj->UpdateSharedTimelineState(from, to);
+
     public void PlayAnimation(uint state, uint bitmask) => EventObject->PlayAnimation(state, bitmask, 0);
 
     public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)

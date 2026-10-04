@@ -26,6 +26,7 @@ internal sealed class FakeEventObject(int slot, uint entityId, Vector3 position,
 
     public ushort SharedTimelineState { get; private set; } = timelineState;
     public void SetSharedTimelineState(ushort state) => SharedTimelineState = state;
+    public void UpdateSharedTimelineState(ushort from, ushort to) => SharedTimelineState = to;
     public void PlayAnimation(uint state, uint bitmask) { }
 
     public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0) { }

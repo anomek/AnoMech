@@ -23,16 +23,32 @@ public class UwuConstants
         new(WaymarkSlot.Four, new Vector3(-13, 0, -13)),
     ];
 
+    public static IReadOnlyList<Waymark> StandardWaymarks =>
+    [
+        new(WaymarkSlot.A, new Vector3(0, 0, -6.7f)),
+        new(WaymarkSlot.B, new Vector3(6.699f, 0, 0)),
+        new(WaymarkSlot.C, new Vector3(0, 0, 6.699f)),
+        new(WaymarkSlot.D, new Vector3(-6.7f, 0, 0)),
+        new(WaymarkSlot.One, new Vector3(7.3f, 0, 7.3f)),
+        new(WaymarkSlot.Two, new Vector3(0, 0, -19)),
+        new(WaymarkSlot.Three, new Vector3(0, 0, 0)),
+        new(WaymarkSlot.Four, new Vector3(-13, 0, -13)),
+    ];
+
     public class BNpcBaseId
     {
         public const uint Garuda = 8722;
         public const uint SuparnaChirada = 8723;
         public const uint RazorPlume = 8724;
+        public const uint SatinPlume = 8725;
+        public const uint SpinyPlume = 8726;
         public const uint Titan = 8727;
         public const uint BombBoulder = 8728;
         public const uint GraniteGaol = 8729;
         public const uint Ifrit = 8730;
+        public const uint InfernalNail = 8731;
         public const uint UltimaWeapon = 8734;
+        public const uint Aetheroplasm = 8735;
         public const uint Dummy = 9020;
     }
 
@@ -41,18 +57,27 @@ public class UwuConstants
         public const uint Dummy = 108;
         public const uint BombBoulder = 1803;
         public const uint Ifrit = 1185;
+        public const uint InfernalNail = 1186;
         public const uint Garuda = 1644;
         public const uint Suparna = 1645;
         public const uint Chirada = 1646;
         public const uint RazorPlume = 1647;
+        public const uint SatinPlume = 1648;
+        public const uint SpinyPlume = 2091;
         public const uint Titan = 1801;
         public const uint GraniteGaol = 1804;
         public const uint UltimaWeapon = 2137;
+        public const uint Aetheroplasm = 2138;
     }
 
     public class ActionId
     {
+        public const uint MistralSongBoss = 11074;
         public const uint Featherlance = 11075;
+        public const uint Cyclone = 11077;
+        public const uint Gigastorm = 11078;
+        public const uint SuperCyclone = 11079;
+        public const uint Friction = 11080;
         public const uint GreatWhirlwind = 11073;
         public const uint Mesohigh = 11081;
         public const uint MistralSongSuparnaChirada = 11083;
@@ -60,17 +85,39 @@ public class UwuConstants
         public const uint FeatherRain = 11085;
         public const uint WickedWheelAwaken = 11086;
         public const uint WickedTornado = 11087;
+        public const uint Downburst = 11088;
+        public const uint EyeOfTheStorm = 11090;
+        public const uint Slipstream = 11091;
         public const uint MistralShriek = 11092;
+        public const uint AerialBlast = 11093;
+        public const uint SuperCycloneAwaken = 11189;
+        public const uint SuperCycloneOverload = 11190;
+        public const uint Incinerate = 11094;
+        public const uint VulcanBurst = 11095;
+        public const uint InfernalSurge = 11096;
         public const uint EruptionIfrit = 11097;
         public const uint EruptionPuddle = 11098;
+        public const uint InfernoHowl = 11099;
+        public const uint SearingWind = 11100;
         public const uint FlamingCrush = 11101;
+        public const uint Hellfire = 11102;
         public const uint CrimsonCyclone = 11103;
         public const uint CrimsonCycloneAwaken = 11104;
         public const uint RadiantPlumePuddle = 11105;
+        public const uint RockBuster = 11106;
+        public const uint MountainBuster = 11107;
+        public const uint WeightOfTheLandTitan = 11108;
+        public const uint WeightOfTheLand = 11109;
+        public const uint GeocrushJump = 11110;
+        public const uint Upheaval = 11111;
         public const uint BoulderTitan = 11112;
         public const uint Bury = 11113;
         public const uint Burst = 11114;
         public const uint RockThrow = 11115;
+        public const uint RockThrowHelper = 11116;
+        public const uint GraniteImpactGaols = 11117;
+        public const uint Freefire = 11118;
+        public const uint LandslideTitanNormal = 11119;
         public const uint LandslideLine = 11120;
         public const uint LandslideTitan = 11121;
         public const uint UltimatePredation = 11126;
@@ -81,12 +128,14 @@ public class UwuConstants
         public const uint RadiantPlumeUltima = 11133;
         public const uint LandslideUltima = 11134;
         public const uint LandslideLineUltima = 11135;
+        public const uint Aetheroplasm = 11137;
         public const uint LightPillarUltima = 11138;
         public const uint LightPillarCircle = 11139;
         public const uint AetherochemicalLaserCenter = 11140;
         public const uint AetherochemicalLaserRight = 11141;
         public const uint AetherochemicalLaserLeft = 11142;
         public const uint TankPurge = 11143;
+        public const uint EarthenFury = 11152;
         public const uint MistralSong = 11150;
         public const uint Tumult = 11288;
         public const uint InfernalFetters = 11289;
@@ -97,6 +146,7 @@ public class UwuConstants
         public const uint PostUltimatePredation3 = 11477;
         public const uint UltimateAnnihilation = 11596;
         public const uint UltimateSuppression = 11597;
+        public const uint GeocrushLanding = 11517;
     }
 
     public class ActionTimelineId
@@ -105,27 +155,36 @@ public class UwuConstants
         public const ushort WarpStart = 7737;
         public const ushort WarpStart2 = 7738;
         public const ushort WarpEnd = 7747;
+        public const ushort SistersArrive = 7748;
     }
 
     public class StatusId
     {
+        public const ushort VulnerabilityUp = 202;
         public const ushort Fetters = 292;
         public const ushort InfernalFetters = 377;
+        public const ushort FireResistanceDownII = 1255;
         public const ushort ThermalLow = 1525;
+        public const ushort ThermalHigh = 1526;
         public const ushort AccursedFlame = 1527;
+        public const ushort AetheriallyCharged = 1528;
         public const ushort Woken = 1529;
+        public const ushort SearingWind = 1578;
+        public const ushort Sludge = 287;
     }
 
     public class TetherId
     {
         public const ushort Mesohigh = 4;
         public const ushort InfernalFetters = 9;
+        public const ushort SpinyFixate = 17;
     }
 
     public class EObjId
     {
         public const uint Arena = 2007457;
         public const uint ArenaLayoutId = 7538913;
+        public const uint Sludge = 0x1EA988;
     }
 
     public class LockonId

@@ -12,11 +12,8 @@ public class ConfigWindow : Window, IDisposable
 
     public ConfigWindow(Plugin plugin) : base("AnoMech Settings###AnoMechConfig")
     {
-        Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
+        Flags = ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;
-
-        Size = new Vector2(380, 310) * ImGuiHelpers.GlobalScale;
-        SizeCondition = ImGuiCond.Always;
 
         configuration = plugin.Configuration;
     }
@@ -45,6 +42,15 @@ public class ConfigWindow : Window, IDisposable
             configuration.EnableMechanicResultMarks = resultMarks;
             configuration.Save();
         }
+
+        var showSpeed = configuration.ShowSpeedControl;
+        if (ImGui.Checkbox("Show speed control", ref showSpeed))
+        {
+            configuration.ShowSpeedControl = showSpeed;
+            configuration.Save();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Adds the scenario speed buttons and a typed value under God mode in the main window.\nWarning: bots can die at other speeds, since they still run at normal speed.");
 
         var userActions = configuration.EnableUserActions;
         if (ImGui.Checkbox("Resolve your own actions", ref userActions))

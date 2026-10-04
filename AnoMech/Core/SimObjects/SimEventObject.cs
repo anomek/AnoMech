@@ -61,6 +61,10 @@ public class EventObjectSpawnConfig
 
     // For a prop whose SGB has no timeline for that state (the teleporters).
     public ushort HideAtState { get; init; } = 0;
+
+    // For an EObj bound to a zone SharedGroup: the SG outlives the EObj, so without this a
+    // restarted run finds it still in its last animated state. Pair with ForceSharedGroupActive.
+    public bool RestoreStateOnDespawn { get; init; } = false;
 }
 
 // Handle around an EventObject GameObject allocated via the manager's
@@ -199,6 +203,8 @@ public class SimEventObject : ISimObject, IPositioned
     // ACT 261|Change ModelStatus events. Flips between the configured
     // VisibleState and 0 (the engine default / "hidden" for gated SGs).
     public void SetVisible(bool visible) => SetState(visible ? visibleState : (ushort)0);
+
+    public void UpdateSharedTimelineState(ushort oldState, ushort newState) => obj?.UpdateSharedTimelineState(oldState, newState);
 
     // Edge-tracked like SimEnemy.AnimationState, and sampled for peers: LastBeatMode so a peer
     // delivers the beat the same way the host chose to.
@@ -349,6 +355,12 @@ public class SimEventObject : ISimObject, IPositioned
     public void Despawn()
     {
         if (obj == null) return;
+        if (SpawnConfig is { RestoreStateOnDespawn: true } config)
+        {
+            if (obj.SharedTimelineState != config.TimelineState)
+                obj.UpdateSharedTimelineState(obj.SharedTimelineState, config.TimelineState);
+            obj.DeactivateSharedGroup();
+        }
         var released = obj;
         obj = null;
         released.Despawn();

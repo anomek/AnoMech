@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
@@ -10,6 +11,8 @@ namespace AnoMech.Core.SimObjects;
 public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinates), ISimPartyMember
 {
     private const ushort StunStatusId = 896;  // "Down for the Count" (896) — IsPermanent + LockControl variant.
+    // Out-of-combat speed buff; it only ends on entering battle, which the firewalled server never signals.
+    private const ushort JogStatusId = 4209;
 
     // The real HP bar is only touched on a scenario KO (a 1-HP sliver), restored in RestoreHpBar.
     public void DropHpBar()
@@ -83,6 +86,7 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        if (Proxy is { Exists: true } chara) chara.RemoveStatus(JogStatusId);
         SampleActivity();
         SyncInputLock();
     }
@@ -158,8 +162,8 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
         var confused = !Dead && HasStatus(StatusIdConfused);
         var bound = !Dead && HasStatus(StatusIdBind);
         var incapacitated = asleep || confused;
-        hooks.ZeroMovement = Dead || Movement.IsMoving || incapacitated || bound;
-        hooks.DisableAllActions = Dead || incapacitated;
+        hooks.ZeroMovement = Dead || Movement.IsMoving || incapacitated || bound || HasAnyStatus(Natives.Data.StatusLocksMovement);
+        hooks.DisableAllActions = Dead || incapacitated || HasAnyStatus(Natives.Data.StatusLocksActions);
         // A knockback slide still lets you turn, so this isn't folded into ZeroMovement.
         hooks.ZeroRotation = Dead || incapacitated;
         // Sleep pins the rotation it landed at; Confused re-pins every tick, since the

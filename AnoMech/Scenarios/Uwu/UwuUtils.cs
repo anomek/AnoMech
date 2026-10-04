@@ -6,6 +6,7 @@ using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using static AnoMech.Scenarios.Uwu.UwuConstants;
 
 namespace AnoMech.Scenarios.Uwu;
@@ -27,10 +28,62 @@ public class UwuUtils(SimWorld world)
         Natives.Director.SetDirectorData(1, 0, unionData, true);
     }
 
+    // Server-spawned floor EObj; the sky itself comes from the phase weather.
+    public SimEventObject? SpawnArenaFloor() => world.SpawnEventObject(new EventObjectSpawnConfig
+    {
+        EObjId = 2007457,
+        Placement = new(new(0.16f, 0, 1.4434f), 0),
+        ObjectIndex = 1,
+        TargetableStatus = 5,
+        EntityId = 0x4000829C,
+        LayoutId = 7538913,
+        GimmickId = 7538258,
+        TimelineState = 1,
+    });
+
+    // Titan's arena EObj (LVD_Battle_Titan): its yellow ring shows up and shrinks on the jumps.
+    public SimEventObject? SpawnTitanArena() => world.SpawnEventObject(new EventObjectSpawnConfig
+    {
+        EObjId = 2007457,
+        Placement = new(Vector3.Zero, 0),
+        ObjectIndex = 2,
+        TargetableStatus = 5,
+        EntityId = 0x4000829D,
+        LayoutId = 7372736,
+        GimmickId = 7372735,
+        TimelineState = 1,
+        RestoreStateOnDespawn = true,
+        ForceSharedGroupActive = true,
+    });
+
+    // Native head marker; its AVFX ends on its own, so it isn't tracked as a SimVfx.
+    public static void Lockon(SimCharacter? target, uint lockonId)
+    {
+        if (target == null) return;
+        target.ActorControl(SetLockonControl, lockonId, target.GameObjectId.ObjectId);
+    }
+
+    private const uint SetLockonControl = 34;
+
+    public static void CastSelf(SimEnemy? caster, uint actionId, float castSeconds) =>
+        caster?.NativeCast(actionId, ActionType.Action, 0f, castSeconds, false, targetId: caster.GameObjectId);
+
+    // An effect without a position plays at the arena centre, so default it to the caster.
+    public static void PlayEffect(SimEnemy? caster, uint actionId, float animationLock, float? rotation = null, GameObjectId? target = null, Vector3? at = null) =>
+        caster?.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0,
+            rotation: rotation, position: at ?? caster.Position, animationTargetId: target ?? caster.GameObjectId);
+
     public void Awaken(SimEnemy? enemy, bool isUltima)
     {
         enemy?.AddStatusParam(StatusId.Woken, isUltima ? 97 : 0);
         enemy?.SetAnimationState(0, 1);
+    }
+
+    // Kills a snapshotted hit list, sparing gaol prisoners.
+    public static void KillSnapshot(DamageSolver damage, IEnumerable<SimCharacter> snapshot, uint actionId, string context)
+    {
+        foreach (var hit in snapshot.Where(h => !h.HasStatus(StatusId.Fetters)).ToList())
+            damage.ApplyDamage(hit, 1f, actionId, context, lethal: true);
     }
 
     public void ResolveSnapshot(IReadOnlyList<SimCharacter> snapshot, string dieCause)
@@ -123,13 +176,18 @@ public class UwuUtils(SimWorld world)
         }
     }
 
-    public void FeatherRain(Func<SimEnemy?>[] getDummies, float snapshotOffset, float castOffset, float effectOffset)
+    public void FeatherRain(Func<SimEnemy?>[] getDummies, float snapshotOffset, float castOffset, float effectOffset, Action<Vector3>? onTargeted = null,
+        Action<IReadOnlyList<SimCharacter>>? resolve = null)
     {
         var positions = new List<Vector3>();
 
-        world.Events.Add(snapshotOffset, () => positions.AddRange(
-            RoleList.Random(world.Rng, world.Party, getDummies.Length).List
-            .Select(x => world.Party.Get(x)!.Position)));
+        world.Events.Add(snapshotOffset, () =>
+        {
+            positions.AddRange(
+                RoleList.Random(world.Rng, world.Party, getDummies.Length).List
+                .Select(x => world.Party.Get(x)!.Position));
+            if (onTargeted != null) positions.ForEach(onTargeted);
+        });
 
         var castInfo = new UwuUtilsRecords
         {
@@ -169,7 +227,7 @@ public class UwuUtils(SimWorld world)
                         ));
             });
 
-            Cast(getDummy, castOffset, castInfo, effectOffset, actionEffectInfo, dynamicInfo, 0.2f, snapshot => ResolveSnapshot(snapshot, "Feather Rain"));
+            Cast(getDummy, castOffset, castInfo, effectOffset, actionEffectInfo, dynamicInfo, 0.2f, resolve ?? (snapshot => ResolveSnapshot(snapshot, "Feather Rain")));
         }
     }
 

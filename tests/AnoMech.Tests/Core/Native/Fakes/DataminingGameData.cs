@@ -65,6 +65,10 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
 
     public string? BNpcName(uint nameId) => NonEmpty(Resolve(BNpcNames.Value.Row(nameId)?.Text("Singular")));
 
+    public bool StatusLocksMovement(ushort statusId) => Statuses.Value.Row(statusId)?.Bool("LockMovement") ?? false;
+
+    public bool StatusLocksActions(ushort statusId) => Statuses.Value.Row(statusId)?.Bool("LockActions") ?? false;
+
     public bool FileExists(string path) => true;
 
     private static string? OmenPath(uint omenId)

@@ -60,6 +60,12 @@ internal sealed class GameData : IGameData
     public string? BNpcName(uint nameId)
         => Plugin.DataManager.GetExcelSheet<LuminaBNpcName>().TryGetRow(nameId, out var row) ? NonEmpty(row.Singular.ExtractText()) : null;
 
+    public bool StatusLocksMovement(ushort statusId)
+        => Plugin.DataManager.GetExcelSheet<LuminaStatus>().TryGetRow(statusId, out var row) && row.LockMovement;
+
+    public bool StatusLocksActions(ushort statusId)
+        => Plugin.DataManager.GetExcelSheet<LuminaStatus>().TryGetRow(statusId, out var row) && row.LockActions;
+
     public bool FileExists(string path) => Plugin.DataManager.FileExists(path);
 
     private static string? NonEmpty(string text) => string.IsNullOrEmpty(text) ? null : text;

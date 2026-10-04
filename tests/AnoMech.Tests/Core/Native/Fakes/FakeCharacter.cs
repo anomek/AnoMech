@@ -23,6 +23,8 @@ internal sealed class FakeCharacter(uint entityId, string name)
     public uint Health { get; set; }
     public uint MaxHealth { get; set; }
     public byte TargetableStatus { get; set; }
+    // The ids in the native status slots, including ones the game put there itself.
+    public HashSet<ushort> Statuses { get; } = [];
     public byte ModelState { get; set; }
     public bool HasDrawObject { get; set; }
     public bool IsDrawObjectVisible { get; set; }
