@@ -201,7 +201,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
             var placement = party.Get(state.TetherOrder[i])!.Placement().MoveForward(-Geometry.PunchBackDistance);
             var punch = world.SpawnEnemy(new EnemySpawnConfig(
                                              BNpcBaseId: state.FistColors[i],
-                                             NameId: BNpcNameId.RocketPunch,
+                                             NameId: BNpcNameId.RocketPunchYellow,
                                              Level: 90,
                                              Targetable: false,
                                              EnemyList: EnemyListMode.Always,

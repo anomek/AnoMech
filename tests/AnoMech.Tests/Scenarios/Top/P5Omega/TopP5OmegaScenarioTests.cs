@@ -197,7 +197,7 @@ public class TopP5OmegaScenarioTests
     public void OverlappingBlasterTargetsKillEachOther()
         => Omega(OffTank)
             .TeleportAt(57f, to: new(2, -16.5f))
-            .ShouldKill(ActionId.BlasterAoe, OffTank, ShieldHealer);
+            .ShouldKill(ActionId.OmegaBlasterAoe, OffTank, ShieldHealer);
 
     // Still vulnerable from Blaster, nearer to M1 than RH and R.
     [Test]

@@ -8,8 +8,8 @@ namespace AnoMech.Scenarios.Top.P5Omega;
 
 public sealed record MonitorSide(int Mul, uint ActionId)
 {
-    public static readonly MonitorSide Left = new(1, TopConstants.ActionId.OversampledWaveCannonLeft);
-    public static readonly MonitorSide Right = new(-1, TopConstants.ActionId.OversampledWaveCannonRight);
+    public static readonly MonitorSide Left = new(1, TopConstants.ActionId.DeltaOversampledWaveCannonLeft);
+    public static readonly MonitorSide Right = new(-1, TopConstants.ActionId.DeltaOversampledWaveCannonRight);
 }
 
 public sealed class TopP5OmegaState

@@ -198,7 +198,7 @@ public sealed class TopP5OmegaScenario : IMultiplayerReplayable
         world.Events.Add(41.29f, () => omega_4000A72E?.SetVisible(true));
         world.Events.Add(45.35f, () => tether1 = world.Tether(End.Passable(state.BlasterTetherTargets.Get(0)), omega_4000A72E, TetherId.PassableTether));
         world.Events.Add(45.35f, () => tether2 = world.Tether(End.Passable(state.BlasterTetherTargets.Get(1)), omega_4000A72E, TetherId.PassableTether));
-        world.Events.Add(45.43f, () => omega_4000A72E?.Cast(ActionId.Blaster));
+        world.Events.Add(45.43f, () => omega_4000A72E?.Cast(ActionId.OmegaBlaster));
         world.Events.Add(57.53f, () => omega_4000A72E?.Cast(ActionId.BlasterEffect, castSeconds: 0f, targetId: omega_4000A72E?.GameObjectId));
         world.Events.Add(60.65f, () => omega_4000A72E?.PlayActionTimeline(TimelineId.WarpOut));
         // world.Events.Add(61.44f, () => omega_4000A72E?.SetVisible(false));

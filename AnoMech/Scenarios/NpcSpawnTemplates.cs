@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad;
 
 namespace AnoMech.Scenarios;
@@ -9,7 +10,7 @@ namespace AnoMech.Scenarios;
 // (EnemyState.NpcSpawnTemplate). Resolved by name on receipt, never from wire bytes.
 internal static class NpcSpawnTemplates
 {
-    private static readonly Dictionary<string, byte[]> ByName = Merge(UmadRealPackets.NpcSpawnTemplates);
+    private static readonly Dictionary<string, byte[]> ByName = Merge(UmadRealPackets.NpcSpawnTemplates, TopRealPackets.NpcSpawnTemplates);
 
     public static bool TryGet(string name, [NotNullWhen(true)] out byte[]? template) => ByName.TryGetValue(name, out template);
 

@@ -191,23 +191,24 @@ public class TopP5DeltaScenarioTests
             .ShouldKill(ActionId.OversampledWaveCannonAoe, MeleeDpsB)
             .ShouldKill(ActionId.HwTetherFail, AllBut(MeleeDpsB));
 
-    // Turned around, the monitor picks two of OT, RH, MT and Omega's targets at random. Every pick
-    // kills: Omega's targets are hit twice, MT still has Twice Come Ruin, and OT and RH share a spot,
-    // so each is inside the other's circle.
+    // Turned around, the monitor picks two of OT, RH and Omega's targets at random. Every pick kills:
+    // Omega's targets are hit twice, and OT and RH share a spot, so each is inside the other's
+    // circle. MT steps off that side: its Twice Come Ruin would only turn to Doom.
     [Test]
     public void PlayerMonitorFacingAwayKillsSomeone()
         => Delta(ShieldHealer)
             .TeleportAt(40.45f, to: new(1.2f, -3), facing: FacingWest)
+            .MoveBotAt(40.45f, MainTank, to: new(13, -4))
             .ShouldKillSomeone(ActionId.OversampledWaveCannonAoe);
 
-    // Monitor targets still have Magic Vulnerability Up, the Pile Pitch stack Twice Come Ruin; MT's
-    // from Beyond Defense has run out, but OT's Near World takes them anyway.
+    // Monitor targets still have Magic Vulnerability Up. The Pile Pitch stack's Twice Come Ruin only
+    // turns to Doom, but R and C's deaths fail the last green tether first.
     [Test]
     public void BreakingFirstGreenTetherEarlyKillsTheVulnerable()
         => Delta(MeleeDpsA)
             .TeleportAt(44f, to: new(-10, 4))
-            .ShouldKill(ActionId.HwTetherBreak, AllBut(MainTank))
-            .ShouldKill(ActionId.HelloWorldFail, MainTank);
+            .ShouldKill(ActionId.HwTetherBreak, MeleeDpsA, MeleeDpsB, PhysRangedDps, CasterDps)
+            .ShouldKill(ActionId.HwTetherFail, MainTank, OffTank, RegenHealer, ShieldHealer);
 
     // The safe side's sign is eye x cannon side; mirrored by the eye east to west as well.
     [TestCase(true, true)]

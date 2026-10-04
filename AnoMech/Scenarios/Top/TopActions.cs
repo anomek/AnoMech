@@ -17,7 +17,14 @@ public static class TopActions
 
     private static readonly DamageSpec Physical = DamageType.Physical;
 
-    private static readonly RuinSpec ComeRuin = new((2, StatusId.TwiceComeRuin), (3, StatusId.TriceComeRuin));
+    // UNVERIFIED for Thrice-come Ruin: no pull ever took a third stack.
+    public static readonly RuinSpec ComeRuin = new((2, StatusId.TwiceComeRuin), (3, StatusId.TriceComeRuin))
+    {
+        Doom = (StatusId.Doom, Duration.Doom),
+    };
+
+    // Retail resolves an NPC action this long after its bar ends.
+    private static TimingSpec Lands(float fireDelay) => new() { VfxOffset = fireDelay, ResolveOffset = fireDelay };
 
     // -- Sword/shield/leg/staff body forms --
     public static readonly EnemyAction EfficientBladework = new(ActionId.EfficientBladework)
@@ -111,7 +118,7 @@ public static class TopActions
         Effects = [Damage(Magic)],
     };
 
-    public static readonly EnemyAction Blaster = new(ActionId.BlasterAoe)
+    public static readonly EnemyAction Blaster = new(ActionId.OmegaBlasterAoe)
     {
         Effects =
         [
