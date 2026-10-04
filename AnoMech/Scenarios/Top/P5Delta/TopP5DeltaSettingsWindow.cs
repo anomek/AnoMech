@@ -103,15 +103,17 @@ public sealed class TopP5DeltaSettingsWindow
 #if DEBUG
     private void DrawEyeSpawn()
     {
-        var mode = 0;
-        if (Overrides.EyeSpawn == NorthSouth.North) mode = 1;
-        if (Overrides.EyeSpawn == NorthSouth.South) mode = 2;
+        var eye = Overrides.EyeSpawn;
         SettingsGrid.Row("Eye spawn:");
-        if (ImGui.RadioButton("Auto##eye",  mode == 0)) Overrides.EyeSpawn = null;
+        if (ImGui.RadioButton("Auto##eye",  eye == null))               Overrides.EyeSpawn = null;
         ImGui.SameLine();
-        if (ImGui.RadioButton("North##eye", mode == 1)) Overrides.EyeSpawn = NorthSouth.North;
+        if (ImGui.RadioButton("North##eye", eye == EyeDirection.North)) Overrides.EyeSpawn = EyeDirection.North;
         ImGui.SameLine();
-        if (ImGui.RadioButton("South##eye", mode == 2)) Overrides.EyeSpawn = NorthSouth.South;
+        if (ImGui.RadioButton("East##eye",  eye == EyeDirection.East))  Overrides.EyeSpawn = EyeDirection.East;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("South##eye", eye == EyeDirection.South)) Overrides.EyeSpawn = EyeDirection.South;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("West##eye",  eye == EyeDirection.West))  Overrides.EyeSpawn = EyeDirection.West;
     }
 
     private void DrawSwivelCannon()

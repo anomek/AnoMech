@@ -72,17 +72,18 @@ public static class TopActions
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Effects =
         [
             OnOthers(Damage(Magic, Lethal)),
             OnTarget(Damage(Physical)),
             OnTarget(ApplyRuin(ComeRuin, 2, 6.96f)),
         ],
-        Timing = new() { ResolveOffset = 0.4f },
     };
 
     public static readonly EnemyAction PilePitch = new(ActionId.PilePitch)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Effects = [Damage(Magic, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
     };
 
@@ -103,6 +104,7 @@ public static class TopActions
     // -- Wave Cannon / Oversampled / Diffuse --
     public static readonly EnemyAction OversampledWaveCannon = new(ActionId.OversampledWaveCannonAoe)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects =
         [
             Damage(Magic),
@@ -167,7 +169,9 @@ public static class TopActions
 
     public static readonly EnemyAction HyperPulseCharging = new(ActionId.HyperPulseDeltaCharging)
     {
+        Cast = new() { CastTime = 2.2f },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.28f),
     };
 
     public static readonly EnemyAction HyperPulseShoot = new(ActionId.HyperPulseDeltaShoot)
@@ -178,19 +182,19 @@ public static class TopActions
     // -- Delta-specific --
     public static readonly EnemyAction RunMiDeltaVersion = new(ActionId.RunMiDeltaVersion)
     {
+        Cast = new() { CastTime = 4.7f, AnimationLock = 3.1f },
         Effects = [Damage(Magic)],
+        Timing = Lands(0.28f),
     };
 
-    public static readonly EnemyAction DeltaExplosion = new(ActionId.DeltaExplosion)
-    {
-        Effects = [Damage(Magic, Lethal)],
-        Timing = new() { ResolveOffset = 0.4f },
-    };
+    public static readonly EnemyAction DeltaExplosion = DeltaPunchExplosion(ActionId.DeltaExplosion);
+    public static readonly EnemyAction DeltaUnmitigatedExplosion = DeltaPunchExplosion(ActionId.DeltaUnmitigatedExplosion);
 
-    public static readonly EnemyAction DeltaUnmitigatedExplosion = new(ActionId.DeltaUnmitigatedExplosion)
+    private static EnemyAction DeltaPunchExplosion(uint actionId) => new(actionId)
     {
+        Cast = new() { CastTime = 2.7f, AnimationLock = 2.1f },
         Effects = [Damage(Magic, Lethal)],
-        Timing = new() { ResolveOffset = 0.4f },
+        Timing = Lands(0.29f),
     };
 
     public static readonly EnemyAction SwivelCannonLeft = SwivelCannon(ActionId.SwivelCannonL, MathF.PI / 2);
@@ -198,13 +202,15 @@ public static class TopActions
 
     private static EnemyAction SwivelCannon(uint actionId, float rotation) => new(actionId)
     {
-        Cast = new() { OmenDelay = 8.5f },
+        Cast = new() { CastTime = 9.7f, OmenDelay = 8f, AnimationLock = 3.1f },
         Area = new() { Size = Geometry.SwivelCannonHalfAngle, Rotation = rotation },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.27f),
     };
 
     public static readonly EnemyAction HwTetherBreak = new(ActionId.HwTetherBreak)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects =
         [
             Damage(Magic),
@@ -215,6 +221,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherFail = new(ActionId.HwTetherFail)
     {
+        Cast = new() { CastTime = 0f, AnimationLock = 1.1f },
         Effects = [Damage(Magic, Lethal)],
     };
 
@@ -238,6 +245,7 @@ public static class TopActions
     // Above the soaks, whose FollowUp captures it at initialization.
     public static readonly EnemyAction HelloWorldFail = new(ActionId.HelloWorldFail)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(Magic, Lethal)],
         DeathExplanation = "Failed Hello World mechanic",
     };
@@ -249,6 +257,7 @@ public static class TopActions
 
     private static EnemyAction HelloWorldSoak(uint actionId) => new(actionId)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects =
         [
             Damage(Magic),

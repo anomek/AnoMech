@@ -15,11 +15,11 @@ namespace AnoMech.Tests;
 //   28.1  RH-SH's blue tether is already stretched and breaks; MT-OT's breaks on the way out at 31.2.
 //   30.1  fists land on MT+RH (-10,-3), OT+SH (-10,3), M1+R (8.5/9.5,-10), M2+C (8.5/9.5,10).
 //   31.2  MT (0,-6), OT (0,6); RH SH M1 M2 R C bait the arms NW SW N S NE SE.
-//   35.3  Beyond Defense on MT, who leaves for (13,-1); OT RH stack at (0,-1), SH (the monitor) at (1.2,-3).
+//   35.7  Beyond Defense on MT, who leaves for (13,-1); OT RH stack at (0,-1), SH (the monitor) at (1.2,-3).
 //   40.5  Omega's monitor takes M2 (-10,12) and C (10,12); SH, facing east, takes M1 (-10,-12) and R (10,-12).
 //   41.0  Pile Pitch on OT RH SH.
 //   50    M1 rescued from the cone to (-9.5,3.5), breaking M1-M2's green tether.
-//   53.2  Hello World: near OT (0,6) -> M1 and M2 in either order, far MT (0,19) -> R (-19,1) -> C (16,10).
+//   54.1  Hello World: near OT (0,6) -> M1 and M2 in either order, far RH (0,19) -> R (-19,1) -> C (16,10).
 //   60    R and C meet to break the last green tether.
 public class TopP5DeltaScenarioTests
 {
@@ -39,14 +39,19 @@ public class TopP5DeltaScenarioTests
         => Negative<TopP5DeltaScenario>(player)
             .Overrides<TopP5DeltaStateOverrides>(o =>
             {
-                o.EyeSpawn = NorthSouth.North;
+                o.EyeSpawn = EyeDirection.North;
                 o.SwivelCannonSide = Side.Left;
                 o.OmegaMonitorSide = Side.Left;
                 o.PlayerMonitorSide = Side.Left;
                 o.TetherOrder = Order;
                 o.FistColors = [Yellow, Blue, Blue, Yellow, Yellow, Blue, Blue, Yellow];
-                o.ArmHandedness = [Side.Left, Side.Left, Side.Left, Side.Right, Side.Right, Side.Right];
-                o.HelloWorld[MainTank] = HelloWorldOption.Far;
+                o.ArmModels = [ArmModel.Left, ArmModel.Left, ArmModel.Left, ArmModel.Right, ArmModel.Right, ArmModel.Right];
+                o.ArmRotations =
+                [
+                    ArmRotation.CounterClockwise, ArmRotation.CounterClockwise, ArmRotation.CounterClockwise,
+                    ArmRotation.Clockwise, ArmRotation.Clockwise, ArmRotation.Clockwise,
+                ];
+                o.HelloWorld[RegenHealer] = HelloWorldOption.Far;
                 o.HelloWorld[OffTank] = HelloWorldOption.Near;
                 o.Monitor[ShieldHealer] = true;
                 o.BeyondDefence[MainTank] = true;
@@ -68,10 +73,10 @@ public class TopP5DeltaScenarioTests
 
     [Test]
     public void DyingWithDistantWorldWipes()
-        => Delta(MainTank)
+        => Delta(RegenHealer)
             .TeleportAt(12f, to: OutsideArena)
-            .ShouldKill(ArenaWall, MainTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(MainTank));
+            .ShouldKill(ArenaWall, RegenHealer)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(RegenHealer));
 
     // The second break's first hit lands on the Trice Come Ruin and vuln stacks the first one left.
     [Test]
@@ -164,8 +169,7 @@ public class TopP5DeltaScenarioTests
     public void BeyondDefenseTargetDiesInPilePitch()
         => Delta(MainTank)
             .TeleportAt(36.5f, to: new(0, -1))
-            .ShouldKill(ActionId.PilePitch, MainTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(MainTank));
+            .ShouldKill(ActionId.PilePitch, MainTank);
 
     [Test]
     public void OmegaMonitorTargetsOverlappingKillEachOther()
@@ -180,8 +184,7 @@ public class TopP5DeltaScenarioTests
         => Delta(MainTank)
             .TeleportAt(40.45f, to: new(10, 12))
             .MoveBotAt(40.45f, CasterDps, to: new(5, -1))
-            .ShouldKill(ActionId.OversampledWaveCannonAoe, MainTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(MainTank));
+            .ShouldKill(ActionId.OversampledWaveCannonAoe, MainTank);
 
     // Faces north at x = -7, so only M1 and M2 are on its monitor's side; M2 is also Omega's.
     [Test]
@@ -217,27 +220,28 @@ public class TopP5DeltaScenarioTests
     [TestCase(false, false)]
     public void DiesToSwivelCannon(bool eyeNorth, bool cannonLeft)
     {
-        var eye = eyeNorth ? NorthSouth.North : NorthSouth.South;
+        var eye = eyeNorth ? EyeDirection.North : EyeDirection.South;
+        var mirror = eyeNorth ? 1 : -1;
         var side = cannonLeft ? Side.Left : Side.Right;
         Delta(RegenHealer, o =>
             {
                 o.EyeSpawn = eye;
                 o.SwivelCannonSide = side;
             })
-            .TeleportAt(52f, to: new(9.5f * eye.Mul, -5f * eye.Mul * side.Mul))
+            .TeleportAt(52f, to: new(9.5f * mirror, -5f * mirror * side.Mul))
             .ShouldKill(side.SwivelCannonActionId, RegenHealer);
     }
 
     [Test]
     public void BystanderInFirstNearWorldWipes()
-        => Delta(RegenHealer)
+        => Delta(MainTank)
             .TeleportAt(52.5f, to: new(1, 9))
             .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
 
     // Beside M1, whose jump comes first or second depending on the AI's jitter.
     [Test]
     public void BystanderInNearWorldJumpWipes()
-        => Delta(RegenHealer)
+        => Delta(MainTank)
             .TeleportAt(54f, to: new(-9.5f, 2))
             .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
 
@@ -251,13 +255,13 @@ public class TopP5DeltaScenarioTests
             .ShouldKill(ActionId.HelloNearWorldJump, OffTank)
             .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank));
 
-    // Every jump target (M1 M2 R C) still has Magic Vulnerability Up; OT's and MT's from the first
-    // hits has run out. Which of M1 and M2 the near jumps take first is down to the AI's jitter.
+    // Every Hello World target (OT RH M1 M2 R C) still has Magic Vulnerability Up. Which of M1 and M2
+    // the near jumps take first is down to the AI's jitter.
     [Test]
     public void BreakingLastGreenTetherEarlyKillsHelloWorldJumpTargets()
         => Delta(PhysRangedDps)
             .TeleportAt(58.6f, to: new(2, 3))
-            .ShouldKill(ActionId.HwTetherBreak, MeleeDpsA, MeleeDpsB, PhysRangedDps, CasterDps);
+            .ShouldKill(ActionId.HwTetherBreak, OffTank, RegenHealer, MeleeDpsA, MeleeDpsB, PhysRangedDps, CasterDps);
 
     // R stays put when it should walk in to C.
     [Test]

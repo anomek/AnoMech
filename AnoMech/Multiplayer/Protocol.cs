@@ -405,11 +405,12 @@ public sealed record TopP5OmegaAiReplayStateMessage(
 // Resolved live at t=46s (a status-stack read + shuffle), so it follows the replay state.
 public sealed record TopP5OmegaHelloWorld2UpdateMessage(PartyRole[] Roles) : MpMessage, IScenarioMidRunUpdateMessage;
 
-// The subset TopP5DeltaAi reads; Side/NorthSouth travel as bools. BeyondDefenseTarget is
-// resolved at t=35.3s and follows in TopP5DeltaBeyondDefenseUpdateMessage.
+// The subset TopP5DeltaAi reads; Side travels as a bool, the eye as its index in
+// EyeDirection.All. BeyondDefenseTarget is resolved at t=35.69s and follows in
+// TopP5DeltaBeyondDefenseUpdateMessage.
 public sealed record TopP5DeltaAiReplayStateMessage(
     PartyRole[] TetherOrder, uint[] FistColors, int PlayerMonitorIndex, bool PlayerMonitorSideIsLeft,
-    bool OmegaMonitorSideIsLeft, bool EyeSpawnIsNorth, bool SwivelCannonSideIsLeft, bool[] ArmHandednessIsLeft,
+    bool OmegaMonitorSideIsLeft, int EyeSpawn, bool SwivelCannonSideIsLeft, bool[] ArmRotatesClockwise,
     PartyRole FarWorldRole, PartyRole NearWorldRole, int FarWorldTetherIndex) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP5DeltaBeyondDefenseUpdateMessage(PartyRole BeyondDefenseTarget) : MpMessage, IScenarioMidRunUpdateMessage;
