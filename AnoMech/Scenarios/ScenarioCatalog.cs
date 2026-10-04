@@ -8,7 +8,7 @@ using AnoMech.Scenarios.Top.P4BlueScreen;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
-using AnoMech.Scenarios.Top.P6WaveCannon2;
+using AnoMech.Scenarios.Top.P6AlphaOmega;
 using AnoMech.Scenarios.Ucob.P5Exaflares;
 using AnoMech.Scenarios.Umad;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
@@ -47,7 +47,7 @@ public static class ScenarioCatalog
         new TopP5DeltaScenario(),
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
-        new TopP6WaveCannon2Scenario(),
+        new TopP6AlphaOmegaScenario(),
         new UltimatePredationScenario(),
         new UltimateSuppressionScenario(),
         new UcobP5ExaflaresScenario(),

@@ -49,7 +49,6 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(AnnouncementMessage), "announcement")]
 [JsonDerivedType(typeof(P4AiReplayStateMessage), "p4AiReplayState")]
 [JsonDerivedType(typeof(P5AiReplayStateMessage), "p5AiReplayState")]
-[JsonDerivedType(typeof(TopP6WaveCannon2AiReplayStateMessage), "topP6Wc2AiReplayState")]
 [JsonDerivedType(typeof(TopP2PartySynergyAiReplayStateMessage), "topP2PsAiReplayState")]
 [JsonDerivedType(typeof(TopP5SigmaAiReplayStateMessage), "topP5SigmaAiReplayState")]
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
@@ -58,6 +57,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
 [JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
 [JsonDerivedType(typeof(TopP4BlueScreenAiReplayStateMessage), "topP4BlueScreenAiReplayState")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaAiReplayStateMessage), "topP6AlphaOmegaAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
@@ -68,6 +68,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaLimitBreakDueMessage), "topP6AlphaOmegaLimitBreakDue")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
 [JsonDerivedType(typeof(PeerLimitBreakMessage), "peerLimitBreak")]
@@ -359,9 +360,6 @@ public sealed record UltimateSuppressionAiReplayStateMessage(
     PartyRole LightPillar, PartyRole[] MistralSongs, PartyRole[] Eruptions,
     PartyRole Gaol, PartyRole FlamingCrush, int[] SuppressionSpotOrder) : MpMessage, IScenarioReplayStateMessage;
 
-// InFirst is TopP6WaveCannon2Ai's entire read set.
-public sealed record TopP6WaveCannon2AiReplayStateMessage(bool InFirst) : MpMessage, IScenarioReplayStateMessage;
-
 // The whole state surface. GlitchType holds a Predicate (not JSON-friendly); it and
 // OmegaAttack travel as a bool naming the static instance.
 public sealed record TopP2PartySynergyAiReplayStateMessage(
@@ -393,6 +391,18 @@ public sealed record TopP3HelloWorldAiReplayStateMessage(
 
 // The whole state surface; the three Wave Cannons' stack targets travel flattened, two per set.
 public sealed record TopP4BlueScreenAiReplayStateMessage(PartyRole[] StackTargets) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP6AlphaOmegaAi reads; each exaflare sweep travels as its start octant and turn.
+public sealed record TopP6AlphaOmegaAiReplayStateMessage(
+    bool[] ArrowsInFirst, int[] ExaflareStarts, int[] ExaflareTurns, PartyRole[] WildChargeTargets,
+    PartyRole[] FlareTargets, PartyRole StackTarget, PartyRole LeftDiveTank, PartyRole MeteorMiddleHealer,
+    PartyRole FirstWaveCannonInvuln, AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice Practice = AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice.WholePhase)
+    : MpMessage, IScenarioReplayStateMessage;
+
+// The host's call that a peer's seat presses its LB3 now; its debug bot, if it drives the seat,
+// presses it through that peer's client.
+public sealed record TopP6AlphaOmegaLimitBreakDueMessage(PartyRole Role, AnoMech.Scenarios.Top.P6AlphaOmega.LimitBreakKind Kind)
+    : MpMessage, IScenarioMidRunUpdateMessage;
 
 // The subset TopP5OmegaAi reads. MonitorSide travels as a bool; MonitorTargets is the host's
 // already-resolved pick.

@@ -316,25 +316,4 @@ public static class TopActions
         Effects = [Damage(Magic, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
         Timing = new() { DeathDelay = 0.71f },
     };
-
-    // -- P6 Wave Cannon 2 --
-    public static readonly EnemyAction CosmoArrowOmen = new(ActionId.CosmoArrowOmen)
-    {
-        Effects = [Damage(Magic, Lethal)],
-    };
-
-    public static readonly EnemyAction CosmoArrowLine = new(ActionId.CosmoArrowDamage)
-    {
-        Effects = [Damage(Magic, Lethal)],
-    };
-
-    public static readonly EnemyAction WaveCannonProtean = new(ActionId.WaveCannonProtean)
-    {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 2.5f)],
-    };
-
-    public static readonly EnemyAction WaveCannonWildCharge = new(ActionId.WaveCannonWildCharge)
-    {
-        Effects = [Damage(Magic, split: WildCharge(front: 2, min: 8, frontHit: TankBuster))],
-    };
 }
