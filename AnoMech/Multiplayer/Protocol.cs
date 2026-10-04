@@ -55,6 +55,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
 [JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
+[JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
@@ -380,6 +381,10 @@ public sealed record TopP1ProgramLoopAiReplayStateMessage(
 // The subset TopP3IntermissionAi reads: the debuff order (four spreads, two stacks, two without)
 // and where the first arm units appear.
 public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, bool FirstHandsNorth) : MpMessage, IScenarioReplayStateMessage;
+
+// The whole state surface; tower layouts travel as parallel arrays, one entry per patch.
+public sealed record TopP3HelloWorldAiReplayStateMessage(
+    PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP5OmegaAi reads. MonitorSide travels as a bool; MonitorTargets is the host's
 // already-resolved pick.
