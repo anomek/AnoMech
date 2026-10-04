@@ -54,6 +54,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5SigmaAiReplayStateMessage), "topP5SigmaAiReplayState")]
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
 [JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
+[JsonDerivedType(typeof(TopP3MonitorsAiReplayStateMessage), "topP3MonitorsAiReplayState")]
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
 [JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
@@ -377,6 +378,9 @@ public sealed record TopP5SigmaAiReplayStateMessage(
 // The whole state surface; tower sets travel flattened, two cardinals per set.
 public sealed record TopP1ProgramLoopAiReplayStateMessage(
     PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
+
+// The whole state surface; each CleaveSide travels as a bool naming the static instance.
+public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP3IntermissionAi reads: the debuff order (four spreads, two stacks, two without)
 // and where the first arm units appear.

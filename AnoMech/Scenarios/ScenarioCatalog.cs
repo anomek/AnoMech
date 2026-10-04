@@ -3,6 +3,7 @@ using AnoMech.Scenarios.Top.P1ProgramLoop;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P3HelloWorld;
 using AnoMech.Scenarios.Top.P3Intermission;
+using AnoMech.Scenarios.Top.P3Monitors;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
@@ -40,6 +41,7 @@ public static class ScenarioCatalog
         new TopP2PartySynergyScenario(),
         new TopP3IntermissionScenario(),
         new TopP3HelloWorldScenario(),
+        new TopP3MonitorsScenario(),
         new TopP5DeltaScenario(),
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
