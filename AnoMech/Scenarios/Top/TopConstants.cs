@@ -499,9 +499,6 @@ public static class TopConstants
         public const float FarGlitchMinDistance = 34f;
         public const float TowerRadius = 3f;
         
-        public static readonly Placement SuperliminalSteelOmenPlacement =  new(new Vector3(0, 0.000f, 9.9f), MathF.PI);
-        public static readonly Vector3 SuperliminalSteelOmenTargetR = new(21.21f, 0f, 49.50f);        
-        public static readonly Vector3 SuperliminalSteelOmenTargetL = new(-21.21f, 0, 49.50f);
         // The legs side rects (80 x 36) are cast from the F's own spot and start 40 behind it,
         // 22 to either side, which leaves the 8-wide corridor along its axis.
         public static readonly Placement LegsSideHelperPlacement = new(new Vector3(0f, 0f, -10f), 0f);

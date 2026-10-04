@@ -10,12 +10,14 @@ namespace AnoMech.Scenarios.Top;
 
 public static class TopActions
 {
+    // HP Penalty leaves about 1% of max HP, so any hit under it kills.
     public static readonly DamageSpec Magic = DamageType.Magic
         .VulnerableTo(StatusId.MagicVulnerabilityUp)
         .VulnerableTo(StatusId.VulnerabilityUp)
-        .VulnerableTo(StatusId.MagicVulnerabilityUpMini, minStacks: 2);
+        .VulnerableTo(StatusId.MagicVulnerabilityUpMini, minStacks: 2)
+        .VulnerableTo(StatusId.HPPenalty);
 
-    private static readonly DamageSpec Physical = DamageType.Physical;
+    private static readonly DamageSpec Physical = DamageType.Physical.VulnerableTo(StatusId.HPPenalty);
 
     // UNVERIFIED for Thrice-come Ruin: no pull ever took a third stack.
     public static readonly RuinSpec ComeRuin = new((2, StatusId.TwiceComeRuin), (3, StatusId.TriceComeRuin))
@@ -127,18 +129,23 @@ public static class TopActions
 
     public static readonly EnemyAction DiffuseWaveCannon = new(ActionId.OmegaDiffuseWaveCannonAOE)
     {
+        Cast = new() { CastTime = 0.7f, AnimationLock = 1.1f },
         Area = new() { Size = MathF.PI / 3f },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.28f),
     };
 
     // -- Omega-specific --
     public static readonly EnemyAction RunMiOmegaVersion = new(ActionId.RunMiOmegaVersion)
     {
+        Cast = new() { CastTime = 4.7f, AnimationLock = 3.1f },
         Effects = [Damage(Magic)],
+        Timing = Lands(0.30f),
     };
 
     public static readonly EnemyAction Blaster = new(ActionId.OmegaBlasterAoe)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects =
         [
             Damage(Magic),
@@ -278,6 +285,20 @@ public static class TopActions
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
             FollowUp(HelloWorldFail, when: ctx => ctx.Hits.Count != 1 || ctx.Hits.Any(ctx.IsKilled)),
         ],
+    };
+
+    // -- Solar Ray, Omega-F's tank buster after Omega --
+    public static readonly EnemyAction SolarRay = new(ActionId.SolarRay_81AD)
+    {
+        Cast = new() { CastTime = 4.7f, AnimationLock = 3.1f },
+        Effects = [Damage(Magic, TankBuster), ApplyStatus(StatusId.MagicVulnerabilityUp, 4f)],
+        Timing = Lands(0.30f),
+    };
+
+    public static readonly EnemyAction SolarRayFollowUp = new(ActionId.SolarRay_7B02)
+    {
+        Cast = new() { AnimationLock = 3.1f },
+        Effects = [Damage(Magic, TankBuster)],
     };
 
     // -- Optical Unit --

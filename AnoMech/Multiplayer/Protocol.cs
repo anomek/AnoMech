@@ -402,7 +402,7 @@ public sealed record TopP5OmegaAiReplayStateMessage(
     OmegaAttack[] OmegaAttacks, float BettleSpawnDirectionRadians, bool FirstWaveCannonFront,
     bool MonitorIsLeft) : MpMessage, IScenarioReplayStateMessage;
 
-// Resolved live at t=46s (a status-stack read + shuffle), so it follows the replay state.
+// Resolved by the host at t=40.5s (a shuffle), so it follows the replay state.
 public sealed record TopP5OmegaHelloWorld2UpdateMessage(PartyRole[] Roles) : MpMessage, IScenarioMidRunUpdateMessage;
 
 // The subset TopP5DeltaAi reads; Side travels as a bool, the eye as its index in

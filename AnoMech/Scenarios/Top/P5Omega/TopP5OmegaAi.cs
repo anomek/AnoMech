@@ -22,18 +22,18 @@ public class TopP5OmegaAi : IScenarioAi<TopP5OmegaState>
         helloWorld1 = solveHelloWorld1(world.Party);
         var ai = new AiManager(world);
         ai.Move(0f, InitialPositions);
+        ai.Automarker(9.45f, () => HelloWorldMarkers(helloWorld1?.List));
         ai.Move(20f, Dodge(0), arrivalTime: 24f);
-        ai.Move(24f, Dodge(1), arrivalTime: 28f);
-        ai.Automarker(28f, () => HelloWorldMarkers(helloWorld1?.List));
+        ai.Move(24.6f, Dodge(1), arrivalTime: 28.1f);
         ai.Move(32f, HelloWorld1Pos, jitter: 0.1f, arrivalTime: 41f);
-        // state.HelloWorld2 is resolved host-only by TopP5OmegaScenario (see its own doc
-        // comment) and broadcast, not rolled here -- this Ai runs identically for the host's
-        // bots and a peer's own replay, and a live status read + shuffle would let the two
-        // diverge on who stands where.
-        ai.Automarker(47f, () => HelloWorldMarkers(state.HelloWorld2));
+        ai.Automarker(41.5f, () => HelloWorldMarkers(state.HelloWorld2));
         ai.Move(48f, GatherMiddle, jitter: 0f);
         ai.Move(53f, HelloWorld2Pos, arrivalTime: 57f);
+        ai.Automarker(59.7f, NoMarkers);
         ai.Move(62f, InitialPositions);
+        ai.Move(68f, OffTankOutOfSolarRay);
+        ai.Move(76.9f, SwapTankSpots);
+        ai.Move(84.5f, BlindFaithLine);
     }
 
 
@@ -48,6 +48,30 @@ public class TopP5OmegaAi : IScenarioAi<TopP5OmegaState>
             new(0.7f, 5.7f),
             new(0.7f, 6.5f),
             new(0.7f, 7.3f)
+        ).NaturalOrder();
+    }
+
+    private IAiMove OffTankOutOfSolarRay()
+    {
+        return AiMove.Create(null, new(5.9f, -1.2f), null, null, null, null, null, null).NaturalOrder();
+    }
+
+    private IAiMove SwapTankSpots()
+    {
+        return AiMove.Create(new(5.9f, -1.2f), new(-0.4f, -6.4f), null, null, null, null, null, null).NaturalOrder();
+    }
+
+    private IAiMove BlindFaithLine()
+    {
+        return AiMove.Create(
+            new(0.3f, 5.0f),
+            new(0.1f, -0.6f),
+            new(0f, 6.4f),
+            new(0.7f, 7.9f),
+            new(-0.6f, 2.6f),
+            new(0.6f, 2.6f),
+            new(0f, 3.9f),
+            new(0f, 1.4f)
         ).NaturalOrder();
     }
 
@@ -75,17 +99,19 @@ public class TopP5OmegaAi : IScenarioAi<TopP5OmegaState>
         };
     }
 
+    private Dictionary<PartyRole, Sign> NoMarkers() => [];
+
     private IAiMove HelloWorld1Pos()
     {
         return AiMove.Create(
             new(10f, 0),
-            new(.2f,-10),
+            new(1.5f,-10),
             new(-10, -10),
             new(-10, 10),
-            new(0.2f, -19),
+            new(1.5f, -19),
             new(19, -4),
             new(19, 4),
-            new (0.2f, 19)
+            new (1.5f, 19)
         )
         .Assignments(helloWorld1?.List)
         .ApplyPositions(AdjustForSafeMonitorSide);

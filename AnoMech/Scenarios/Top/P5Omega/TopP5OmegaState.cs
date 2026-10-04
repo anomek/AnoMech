@@ -15,6 +15,8 @@ public sealed record MonitorSide(int Mul, uint ActionId)
 public sealed class TopP5OmegaState
 {
     private readonly Rng rng = Rng.Detached;
+
+    public Rng Rng => rng;
     
     public RoleList HelloWorldTargets { get; }
     public RoleList DoubleDynamicTargets { get; }
@@ -128,6 +130,6 @@ public sealed class TopP5OmegaState
         => new(party, helloWorldTargets, doubleDynamicTargets, monitorTargets, helloWorld1JumpOrder,
                attackDirectionsRadians, omegaAttacks, bettleSpawnDirectionRadians, firstWaveCannonFront, monitorIsLeft);
 
-    // Resolved live at t=46s and broadcast via TopP5OmegaHelloWorld2UpdateMessage.
+    // Resolved by the host at t=40.5s and broadcast via TopP5OmegaHelloWorld2UpdateMessage.
     public PartyRole[]? HelloWorld2;
 }
