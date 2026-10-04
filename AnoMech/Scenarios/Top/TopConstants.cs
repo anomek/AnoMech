@@ -556,7 +556,7 @@ public static class TopConstants
     public static class BgmId
     {
         public const ushort TopP1 = 962;
-        public const ushort TopP2 = 587;
+        public const ushort TopP2 = 963;
         public const ushort TopP3 = 950;
         public const ushort TopP5 = 964; 
         public const ushort TopP6 = 951;
@@ -565,7 +565,7 @@ public static class TopConstants
     public static class Duration
     {
         public const float MonitorHelperLifetime = 5f;
-        public const float OmegaAttackOmenDelay = 0.6f;
+        public const float OmegaAttackOmenDelay = 0.5f;
         public const float HelloWorldDebuff = 44f;
         public const float HwTetherBreakStack = 0.96f;              // Trice Come Ruin / Magic Vuln Up applied per HW break hit
         public const float Doom = 2.96f;

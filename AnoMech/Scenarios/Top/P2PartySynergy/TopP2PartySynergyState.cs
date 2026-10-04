@@ -17,6 +17,8 @@ public class TopP2PartySynergyState
     public GlitchType Glitch { get; }
     public OmegaAttack AttackM { get; }
     public OmegaAttack AttackF { get; }
+    // The real clones look at whoever tops their enmity, a healer most of the time.
+    public PartyRole CloneTarget { get; }
 
     public TopP2PartySynergyState(Rng rng, SimParty party, TopP2PartySynergyStateOverrides overrides)
     {
@@ -38,12 +40,13 @@ public class TopP2PartySynergyState
         AttackF = overrides.AttackF ?? rng.NextObj(OmegaAttack.Staff, OmegaAttack.Legs);
         var attackDir = rng.NextDirection().RotateRad(MathF.Tau / 16);
         AttackDir = overrides.AttackDir ?? attackDir;
+        CloneTarget = rng.NextHealerRole();
     }
 
-    // Network-replay constructor: reconstructs the fields TopP2PartySynergyAi reads -- all of
-    // them here. GlitchType/OmegaAttack aren't JSON-serializable (identified only by reference
-    // equality to a static instance), so the wire message carries which named instance was
-    // chosen.
+    // Network-replay constructor: reconstructs the fields TopP2PartySynergyAi reads; CloneTarget
+    // is a harmless placeholder -- only the scenario's own host-only targeting reads it.
+    // GlitchType/OmegaAttack aren't JSON-serializable (identified only by reference equality to
+    // a static instance), so the wire message carries which named instance was chosen.
     private TopP2PartySynergyState(
         SimParty party, PartyRole[] order, PartyRole[] stacks, float newNorthARadians, float newNorthBRadians,
         float attackDirRadians, bool glitchIsFar, bool attackMIsSword, bool attackFIsStaff)
@@ -56,6 +59,7 @@ public class TopP2PartySynergyState
         AttackM = attackMIsSword ? OmegaAttack.Sword : OmegaAttack.Shield;
         AttackF = attackFIsStaff ? OmegaAttack.Staff : OmegaAttack.Legs;
         AttackDir = new Direction(attackDirRadians);
+        CloneTarget = PartyRole.RegenHealer;
     }
 
     public static TopP2PartySynergyState FromNetworkReplay(

@@ -10,7 +10,7 @@ namespace AnoMech.Scenarios.Top;
 
 public static class TopActions
 {
-    private static readonly DamageSpec Magic = DamageType.Magic
+    public static readonly DamageSpec Magic = DamageType.Magic
         .VulnerableTo(StatusId.MagicVulnerabilityUp)
         .VulnerableTo(StatusId.VulnerabilityUp)
         .VulnerableTo(StatusId.MagicVulnerabilityUpMini, minStacks: 2);
@@ -27,40 +27,47 @@ public static class TopActions
     private static TimingSpec Lands(float fireDelay) => new() { VfxOffset = fireDelay, ResolveOffset = fireDelay };
 
     // -- Sword/shield/leg/staff body forms --
+    private static readonly CastSpec OmegaAttackCast = new() { CastTime = 1.2f, OmenDelay = Duration.OmegaAttackOmenDelay, AnimationLock = 3.1f };
+
     public static readonly EnemyAction EfficientBladework = new(ActionId.EfficientBladework)
     {
-        Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
+        Cast = OmegaAttackCast,
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.27f),
     };
 
     public static readonly EnemyAction BeyondStrength = new(ActionId.BeyondStrength)
     {
-        Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
+        Cast = OmegaAttackCast,
         Area = new() { Size = Geometry.BeyondStrengthSafeRadius },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.27f),
     };
 
     public static readonly EnemyAction OptimizedBlizzardIII = new(ActionId.OptimizedBlizzardIII)
     {
-        Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
+        Cast = OmegaAttackCast,
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.27f),
     };
 
     // Visual only: the two helpers' SuperliminalSteelL/R deal the damage.
     public static readonly EnemyAction SuperliminalSteel = new(ActionId.SuperliminalSteel)
     {
-        Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
+        Cast = OmegaAttackCast with { OmenDelay = 0f },
+        Timing = Lands(0.27f),
     };
 
-    // Cast at SuperliminalSteelOmenTargetL/R from SuperliminalSteelOmenPlacement: the rect starts at
-    // the target and runs along the helper's facing, back across the arena.
+    // Cast at LegsSideTargetL/R from LegsSideHelperPlacement: the rect starts at the target and runs
+    // along the helper's facing, back across the arena.
     public static readonly EnemyAction SuperliminalSteelL = SuperliminalSteelSide(ActionId.SuperliminalSteelOmenL);
     public static readonly EnemyAction SuperliminalSteelR = SuperliminalSteelSide(ActionId.SuperliminalSteelOmenR);
 
     private static EnemyAction SuperliminalSteelSide(uint actionId) => new(actionId)
     {
-        Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
+        Cast = OmegaAttackCast with { AnimationLock = 1.1f },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.27f),
     };
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
@@ -81,13 +88,16 @@ public static class TopActions
 
     public static readonly EnemyAction Discharger = new(ActionId.Discharger)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Effects = [Knockback(KnockbackId.Discharger)],
-        Timing = new() { ResolveOffset = 0.5f },
+        Timing = new() { ResolveOffset = 0.68f },
     };
 
     public static readonly EnemyAction OptimizedFireIII = new(ActionId.OptimizedFireIII)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        Timing = new() { DeathDelay = 0.62f },
     };
 
     // -- Wave Cannon / Oversampled / Diffuse --
@@ -251,13 +261,17 @@ public static class TopActions
     // -- Optical Unit --
     public static readonly EnemyAction OpticalLaser = new(ActionId.OpticalLaser)
     {
+        Cast = new() { CastTime = 1f, AnimationLock = 1.1f },
         Effects = [Damage(Magic, Lethal)],
+        Timing = Lands(0.29f),
     };
 
     // -- P2 Party Synergy --
     public static readonly EnemyAction Spotlight = new(ActionId.Spotlight)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(Magic, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        Timing = new() { DeathDelay = 0.71f },
     };
 
     // -- P6 Wave Cannon 2 --
