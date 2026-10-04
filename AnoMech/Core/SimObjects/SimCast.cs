@@ -80,6 +80,14 @@ public sealed class SimCast : ISimObject
     // carry it and a peer would draw the omen unrotated.
     public float OmenRotate => omenRotate;
 
+    // The telegraph CastSeq names, sampled for peers so a replayed bar releases as late and holds
+    // its animation as long. A bare NativeCast's resolve is its caller's, so it carries only what
+    // the caller declares.
+    public float CastAnimationLock { get; private set; } = 0.6f;
+    public float CastFireDelay { get; private set; }
+    // How far along the bar was when it began, for a cast already under way as a scenario opens.
+    public float CastStartElapsed { get; private set; }
+
     // Bumped per telegraphed cast. A peer dedupes on this changing rather than on IsCasting's
     // rising edge, which compared two independent clocks and replayed a cast twice.
     public int CastSeq { get; private set; }
@@ -163,6 +171,8 @@ public sealed class SimCast : ISimObject
             var target = targetId ?? chara.GameObjectId;
             NativeCast(actionId, ActionType.Action, omenDelay, castTimeValue, false, parent.Rotation + omenRotate, localTargetLocation, target);
             total = chara.TotalCastTime;
+            CastAnimationLock = animationLock;
+            CastFireDelay = fireDelay ?? 0f;
             CastSeq++;
         }
         else
@@ -202,7 +212,7 @@ public sealed class SimCast : ISimObject
         return true;
     }
 
-    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)
+    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null, float animationLock = 0.6f, float fireDelay = 0f)
     {
         parent.Proxy?.ReceiveActorCast(new ActorCastData(
             actionId, actionType, castTime, omenDelay, interruptible,
@@ -216,8 +226,20 @@ public sealed class SimCast : ISimObject
         this.omenDelay = omenDelay;
         targetLocation = position;
         this.targetId = targetId;
+        CastAnimationLock = animationLock;
+        CastFireDelay = fireDelay;
+        CastStartElapsed = 0f;
         CastSeq++;
         pendingNativeResolve = true;
+    }
+
+    public void SkipAhead(float seconds)
+    {
+        if (parent.Proxy is not { IsCasting: true } chara) return;
+        CastStartElapsed = Math.Clamp(seconds, 0f, total);
+        chara.SetCurrentCastTime(CastStartElapsed);
+        elapsed = CastStartElapsed;
+        castClock = CastStartElapsed;
     }
 
     public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)
@@ -291,6 +313,17 @@ public sealed class SimCast : ISimObject
         FaceTarget(chara);
         FireActionEffect(chara, ActionId, ActionType.Action, animationLock, targetLocation, targetId, animationVariation);
         ResetCastState();
+    }
+
+    // Stops the cast short: nothing fires. False when there was nothing to stop.
+    public bool Cancel()
+    {
+        var chara = parent.Proxy;
+        if (!casting && !pendingNativeResolve && chara is not { IsCasting: true }) return false;
+        chara?.ClearCast();
+        pendingNativeResolve = false;
+        ResetCastState();
+        return true;
     }
 
     // Teardown for caster despawn: drop the telegraph, stop any pending delayed

@@ -77,7 +77,12 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
         if (Actor is { } a) a.ModelState = value;
     }
 
-    public void SetModeAttributeFlags(byte value) { }
+    public byte ModeAttributeFlags => Actor?.ModeAttributeFlags ?? 0;
+
+    public void SetModeAttributeFlags(byte value)
+    {
+        if (Actor is { } a) a.ModeAttributeFlags = value;
+    }
 
     public bool? HasUnloadedModelSlot => Actor is { HasDrawObject: true } ? false : null;
 
@@ -100,6 +105,11 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     public uint CastActionId => Actor?.CastActionId ?? 0;
     public float CurrentCastTime => Actor?.CurrentCastTime ?? 0f;
     public float TotalCastTime => Actor?.TotalCastTime ?? 0f;
+
+    public void SetCurrentCastTime(float seconds)
+    {
+        if (Actor is { } a) a.CurrentCastTime = seconds;
+    }
 
     public void ClearCast()
     {
@@ -173,6 +183,7 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     public void ClearTether(byte slot) => SetTether(slot, 0, default, 0);
 
     public void ShowFlyText(uint amount, string label, uint damageTypeIcon = 0) { }
+    public void ShowMissFlyText(string label) { }
 
     public void CarryTo(Vector3 destination, float rotation, bool selfTarget) => Actor?.StartCarry(destination, rotation);
 

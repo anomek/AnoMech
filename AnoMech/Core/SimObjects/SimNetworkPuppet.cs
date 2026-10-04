@@ -91,6 +91,7 @@ public sealed class SimNetworkPuppet : SimNpc, ISimPartyMember
             SetPosition(new Placement(basePos + delta / dist * step, nextRotation));
 
         // Native entry points: interpolation is not a scenario cue to broadcast.
+        if (AnimationLock) return;
         if (poseMoving && !interpAnimActive)
         {
             PlayActionTimelineNative(RunTimelineId, baseOverride: RunTimelineId);
@@ -103,10 +104,18 @@ public sealed class SimNetworkPuppet : SimNpc, ISimPartyMember
         }
     }
 
+    private protected override void PauseMoveAnimationForAction()
+    {
+        base.PauseMoveAnimationForAction();
+        if (!interpAnimActive) return;
+        ResetActionTimelineNative();
+        interpAnimActive = false;
+    }
+
     // A forced move here only moves the host's cosmetic copy; MultiplayerManager polls these
     // to tell the owning peer to apply it to their real character.
     public (Vector3 Source, float Distance, float Speed)? PendingNetworkKnockback { get; private set; }
-    public (float Heading, float Distance, float Speed, float DurationSeconds)? PendingNetworkPush { get; private set; }
+    public (float Heading, float Distance, float Speed, float DurationSeconds, bool Walk)? PendingNetworkPush { get; private set; }
     public Placement? PendingNetworkTeleport { get; private set; }
     // Edge-triggered on the (target, speed) pair: Umad P1's confused chase re-issues Follow
     // every tick with the same target.
@@ -124,13 +133,19 @@ public sealed class SimNetworkPuppet : SimNpc, ISimPartyMember
     public void PushInDirection(float heading, float distance, float speed)
     {
         Movement.PushInDirection(heading, distance, speed);
-        PendingNetworkPush = (heading, distance, speed, 0f);
+        PendingNetworkPush = (heading, distance, speed, 0f, false);
     }
 
     public void PushInDirectionEased(float heading, float distance, float durationSeconds)
     {
         Movement.PushInDirectionEased(heading, distance, durationSeconds);
-        PendingNetworkPush = (heading, distance, 0f, durationSeconds);
+        PendingNetworkPush = (heading, distance, 0f, durationSeconds, false);
+    }
+
+    public void WalkInDirection(float heading, float distance, float speed)
+    {
+        Movement.WalkInDirection(heading, distance, speed);
+        PendingNetworkPush = (heading, distance, speed, 0f, true);
     }
 
     public void ClearPendingNetworkPush() => PendingNetworkPush = null;
@@ -171,6 +186,7 @@ public sealed class SimNetworkPuppet : SimNpc, ISimPartyMember
     {
         Dead = true;
         StopMoving();
+        AbortPlayedAction();
         interpAnimActive = false;
         if (Proxy is not { Exists: true } chara) return;
         chara.ApplyDeadState();

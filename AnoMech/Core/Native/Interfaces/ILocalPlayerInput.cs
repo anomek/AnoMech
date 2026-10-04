@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace AnoMech.Core.Native.Interfaces;
 
 // The real player's input: what they're doing, and the locks a mechanic puts on it.
@@ -19,4 +21,8 @@ public interface ILocalPlayerInput
 
     // Conditions.SufferingStatusAffliction(2): the client's stunned state.
     void SetStatusAffliction(bool afflicted);
+
+    // The debug bot's LB3, pressed through the client as its player would: a ground-targeted one
+    // placed at worldLocation, the rest used on targetId. False when the client refuses it.
+    bool PressLimitBreakThree(ulong targetId, Vector3? worldLocation);
 }

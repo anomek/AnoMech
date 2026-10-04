@@ -368,10 +368,12 @@ internal sealed class MultiplayerUi
     // Speed is deliberately absent: a session always runs at 1x.
     internal void DrawScenarioSettings(IScenario scenario)
     {
+        if (scenario.HasLocalSettings) scenario.DrawLocalSettings(mp.MyClaimedRole);
         if (!mp.IsHost)
         {
             var lines = mp.Session.ScenarioSettings;
-            ImGui.TextDisabled(lines.Count == 0 ? "Set by the host -- everything random." : "Set by the host:");
+            var setBy = scenario.HasLocalSettings ? "Other settings are handled by the host" : "Set by the host";
+            ImGui.TextDisabled(lines.Count == 0 ? $"{setBy} -- everything random." : $"{setBy}:");
             foreach (var line in lines) ImGui.BulletText(line);
             return;
         }

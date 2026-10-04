@@ -8,4 +8,8 @@ public interface IInstanceContentDirector
     void SetDirectorData(byte sequence, byte unknown, byte[] unionData, bool fillExtraData = true);
 
     void Commence();
+
+    // A boss line (InstanceContentTextData) in the BattleTalk box, voiced. False while there is no
+    // director yet; the caller retries.
+    bool BattleTalk(uint speakerNameId, uint textId, uint durationMs);
 }

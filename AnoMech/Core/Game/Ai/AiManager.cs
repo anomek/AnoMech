@@ -17,7 +17,7 @@ namespace AnoMech.Core.Game.Ai;
 public sealed class AiManager
 {
     // Measured in-game.
-    private const float RunSpeed = 6.5f;
+    public const float RunSpeed = 6.5f;
     public const float SprintSpeed = 8.3f;
     private const float DefaultJitter = 0.3f;
     // Move's deadline math leaves zero margin, and a move needing speed within a hair of RunSpeed

@@ -26,6 +26,9 @@ public sealed class Game : IDisposable
     // Null once Reset/Leave clears it -- MultiplayerManager's host-side tick reads
     // this to stop broadcasting once the multiplayer run has ended locally.
     public IScenario? ActiveScenario => activeScenario;
+    // The scenario whose run is live on this client, host or peer alike (ActiveScenario is the
+    // host's only).
+    public IScenario? RunningScenario { get; private set; }
     // Flat registry; the zone -> phase -> scenario tree is derived from it in
     // first-appearance order.
     public IReadOnlyList<IScenario> Scenarios { get; }
@@ -313,6 +316,7 @@ public sealed class Game : IDisposable
         // Client-asset setup a peer needs too (see IZone.RunClientSetup).
         zone.RunClientSetup(World);
         phase.RunClientSetup(World);
+        RunningScenario = scenario;
         // A peer runs no scenario logic; zone.Run also creates the arena boundary the
         // out-of-arena check below reads, so that check no-ops for a peer too.
         if (!isPeer)
@@ -555,6 +559,7 @@ public sealed class Game : IDisposable
     private void ResetInternal()
     {
         activeScenario = null;
+        RunningScenario = null;
         scenarioElapsed = 0f;
         Events.Clear();
         World.Despawn();

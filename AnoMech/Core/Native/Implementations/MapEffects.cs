@@ -154,6 +154,15 @@ internal sealed unsafe class MapEffects : IMapEffects, IDisposable
         }
     }
 
+    public ushort? StateOf(byte index)
+    {
+        if (!Loaded) return null;
+        var modulePtr = *(nint*)((nint)EventFramework.Instance() + 344);
+        if (modulePtr == 0) return null;
+        var module = (ContentDirector*)modulePtr;
+        return IsIndexInRange(module, index) ? (ushort)ReadMapEffectItem(module, index).State : null;
+    }
+
     private static bool IsIndexInRange(ContentDirector* director, uint index)
     {
         var list = director->MapEffects;

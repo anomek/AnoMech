@@ -24,7 +24,8 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimWorld world)
 
         if (castTime > 0f)
             caster.NativeCast(id, ActionType.Action, action.Cast.OmenDelay, castTime, interruptible: false,
-                rotation: caster.Rotation + action.Area.Rotation, position: location, targetId: castTarget);
+                rotation: caster.Rotation + action.Area.Rotation, position: location, targetId: castTarget,
+                animationLock: action.Cast.AnimationLock, fireDelay: action.Timing.VfxOffset);
 
         Schedule(castTime + action.Timing.VfxOffset, () => Release(action, target, location, castTarget));
         if (action.Effects.Count > 0)

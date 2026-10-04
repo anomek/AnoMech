@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
@@ -19,6 +20,9 @@ public interface IZone
 
     // At least one; [0] is the default.
     IReadOnlyList<WaymarkLayout> WaymarkPresets { get; }
+
+    // The seats in the order the fight's strats name them MT OT H1 H2 M1 M2 R1 R2.
+    IReadOnlyList<PartyRole> SeatOrder => PerRole.All;
 
     // Scenario-local positions whose BG SharedGroup colliders are dropped at start.
     IReadOnlyList<Vector3> ColliderRemovalPoints => Array.Empty<Vector3>();

@@ -21,7 +21,7 @@ internal sealed class FakeGame
         Natives.BattleCharas = game.BattleCharas;
         Natives.EventObjects = game.EventObjects;
         Natives.HiddenObjects = new FakeHiddenObjects();
-        Natives.PlayerInput = new FakeLocalPlayerInput();
+        Natives.PlayerInput = new FakeLocalPlayerInput(game.BattleCharas.Player);
         Natives.UserActions = new FakeUserActions();
         Natives.Vfx = new FakeVfxFunctions();
         Natives.TimelinePreload = new FakeActionTimelinePreload();

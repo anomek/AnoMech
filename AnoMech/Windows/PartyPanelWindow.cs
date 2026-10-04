@@ -101,12 +101,11 @@ internal sealed unsafe class PartyPanelWindow : Window
         ImGui.TableSetupColumn("role");
         ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("action");
-        for (var i = 0; i < 8; i++)
+        foreach (var role in SettingsGrid.Seats)
         {
-            var role = (PartyRole)i;
             var claimed = mp.Session.ClaimedBy.TryGetValue(role, out var peerId);
             var mine = claimed && peerId == mp.MyPeerId;
-            ImGui.PushID(i);
+            ImGui.PushID((int)role);
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.TextUnformatted(SettingsGrid.RoleLabel(role));
@@ -219,9 +218,8 @@ internal sealed unsafe class PartyPanelWindow : Window
         ImGui.BeginDisabled(mp.Session.Started);
         if (ImGui.BeginMenu("Move to seat"))
         {
-            for (var i = 0; i < 8; i++)
+            foreach (var role in SettingsGrid.Seats)
             {
-                var role = (PartyRole)i;
                 var label = SettingsGrid.RoleLabel(role)
                             + (mp.Session.ClaimedBy.TryGetValue(role, out var holder) && holder != peerId ? $" ({mp.Session.NameOf(holder)})" : "");
                 if (ImGui.MenuItem(label, "", seat == role)) mp.AssignRole(peerId, role);

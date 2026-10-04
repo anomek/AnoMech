@@ -147,8 +147,8 @@ public static class UmadP3LimitCutConstants
         public const float IconsAfterUmbra = 10.83f;
         public const float CyclonesAfterUmbra = 11.967f;
         public const float AetherlinkAfterUmbra = 13.379f;
-        // When the real LB3's status landed, 1.34s after its press.
-        public const float TankLimitBreakAfterUmbra = 6.94f;
+        // The press; its status lands 1.34s later.
+        public const float TankLimitBreakAfterUmbra = 5.6f;
         // Clone k is teleported to its spot, then fires its appearance ~0.1s later, ~2.0s apart.
         public static readonly float[] PlacementAfterUmbra = [0.803f, 2.808f, 4.815f, 6.821f, 8.830f, 10.836f, 12.840f, 14.846f];
         public static readonly float[] AppearAfterUmbra = [0.892f, 2.898f, 4.904f, 6.910f, 8.919f, 10.925f, 12.929f, 14.933f];

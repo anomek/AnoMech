@@ -73,6 +73,7 @@ public sealed class Plugin : IDalamudPlugin
     private ZoneSession? zoneSession;
     private MapEffects? mapEffects;
     private EnmityHud? enmityHud;
+    private PartyHud? partyHud;
     private Bgm? bgm;
     private VfxSpawnLog? vfxSpawnLog;
     private OpcodeUpdater? opcodeUpdater;
@@ -185,7 +186,7 @@ public sealed class Plugin : IDalamudPlugin
         Natives.Director = new InstanceContentDirector();
         Natives.Rsv = new RsvFunctions();
         Natives.Rsf = new RsfFunctions();
-        Natives.PartyHud = new PartyHud();
+        Natives.PartyHud = partyHud = new PartyHud();
         Natives.EnmityHud = enmityHud = new EnmityHud();
         Natives.LimitBreak = new LimitBreakController();
         Natives.Markings = new Markings();
@@ -234,6 +235,7 @@ public sealed class Plugin : IDalamudPlugin
         // After Game.Dispose, whose World teardown still writes through them.
         bgm?.Dispose();
         enmityHud?.Dispose();
+        partyHud?.Dispose();
         mapEffects?.Dispose();
         zoneSession?.Dispose();
         opcodeUpdater?.Dispose();

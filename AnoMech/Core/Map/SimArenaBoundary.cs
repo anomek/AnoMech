@@ -24,6 +24,7 @@ internal sealed class SimArenaBoundary : ISimObject
     private readonly float radiusSq;
     private readonly string cause;
     private readonly IStaticVfxProxy? ringVfx;
+    private bool lowered;
 
     public bool IsAlive => true;
     public bool IsActive => true;
@@ -42,8 +43,12 @@ internal sealed class SimArenaBoundary : ISimObject
     // external callers (teleport-to-spawn on reset) so they always agree.
     internal bool IsOutside(Vector3 local) => local.X * local.X + local.Z * local.Z > radiusSq;
 
+    // The death wall is down: IsOutside still answers the reset teleport, but no one dies.
+    internal void Lower() => lowered = true;
+
     public void Tick(float deltaSeconds)
     {
+        if (lowered) return;
         // Member positions are scenario-local; the boundary is centered on local zero.
         foreach (var member in party.ActiveMembers())
         {

@@ -23,7 +23,8 @@ public static class EnemyActionEffects
     // Survivors only.
     public static IEnemyActionEffect RemoveStatus(ushort statusId) => new RemoveStatusEffect(statusId);
 
-    // One more stack of the family's `times` status, or the death it completes. Survivors only.
+    // One more stack of the family's `times` status, or the death (or the family's Doom) it
+    // completes. Survivors only.
     public static IEnemyActionEffect ApplyRuin(RuinSpec ruin, int times, float duration)
         => new ApplyRuinEffect(ruin, ruin.StatusId(times), times, duration);
 
@@ -105,10 +106,8 @@ internal sealed class ApplyRuinEffect(RuinSpec ruin, ushort statusId, int times,
         foreach (var target in ctx.Hits)
         {
             if (ctx.IsKilled(target) || !target.IsAlive()) continue;
-            if (ruin.Overloads(target, times))
+            if (!ruin.Land(target, times, duration, ctx.Action.ActionId))
                 ctx.Kill(target, $"{StatusLookup.Name(statusId)} overload");
-            else
-                target.AddStatus(statusId, duration);
         }
     }
 }

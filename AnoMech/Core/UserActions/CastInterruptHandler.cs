@@ -13,8 +13,12 @@ internal sealed unsafe class CastInterruptHandler : IUserActionHandler
     // ActorControl category the server sends to interrupt a cast (0x0F). Captured from
     // replay data: a real self-cancel is ActorControl(15) on the caster with params
     // (538, 1, <castActionId>, 0) — param1/2 constant, param3 = the action.
-    private const uint InterruptCastControl = 15;
-    private const uint InterruptCastReason = 538;
+    internal const uint InterruptCastControl = 15;
+    internal const uint InterruptCastReason = 538;
+
+    // A bar still up this long past its own cast time ran its whole cast, and the client is holding
+    // out for a reply the firewall ate.
+    public const float OverstaySeconds = 1.5f;
 
     public void OnTick(float deltaSeconds)
     {

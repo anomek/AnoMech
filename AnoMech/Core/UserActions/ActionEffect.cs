@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -70,6 +71,9 @@ internal static class HostReport
         if (Mitigation.ByStatusId.ContainsKey(statusId))
             Plugin.MultiplayerInstance?.ReportAppliedRoleStatus(roles, statusId, duration);
     }
+
+    // The host's copy would otherwise keep counting what a dispel took off.
+    public static void OwnStatusesCleared(List<ushort> statusIds) => Plugin.MultiplayerInstance?.ReportClearedOwnStatuses(statusIds);
 }
 
 // Leaf: grant a status to the action's friendly recipients (see ActionTargets).
@@ -100,6 +104,33 @@ internal sealed class EnemyStatusEffect(ushort statusId, float duration, int sta
             enemy.AddStatusParam(statusId, stacks, duration);
         }
         Plugin.MultiplayerInstance?.ReportAppliedEnemyStatus(enemies, statusId, duration);
+    }
+}
+
+// Leaf: a tank LB3's party-wide status.
+internal sealed class TankLimitBreakEffect(ushort statusId, float duration) : IActionEffect
+{
+    private const float FirstLands = 1.34f;
+    private const float NextLands = 0.1335f;
+
+    public void Apply(ActionContext ctx)
+    {
+        if (Plugin.GameInstance is not { } game) return;
+        var order = ActionTargets.Friendly(ctx)
+            .OrderBy(member => ReferenceEquals(member, ctx.Caster) ? 0 : 1)
+            .ThenBy(_ => ctx.Rng.Next())
+            .ToList();
+        for (var k = 0; k < order.Count; k++)
+        {
+            var member = order[k];
+            game.World.Events.Add(FirstLands + NextLands * k, () =>
+            {
+                if (!member.IsAlive()) return;
+                member.RemoveStatus(statusId);
+                member.AddStatusParam(statusId, 0, duration);
+                if (member is ISimPartyMember slot) HostReport.RoleStatus([slot.Role], statusId, duration);
+            });
+        }
     }
 }
 

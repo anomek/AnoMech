@@ -56,14 +56,18 @@ public record struct EnemySpawnConfig(
     // Only for a ModelChara.Type==0 (Character) row, whose look is Customize+equipment driven;
     // without it the engine never builds a DrawObject for such a spawn.
     CustomizeData? Customize = null,
-    // A captured real NpcSpawn packet body (see UmadRealPackets): the engine's own spawn
+    // A captured real NpcSpawn packet body (see NpcSpawnTemplates): the engine's own spawn
     // handler builds the actor from it, and of the fields above only NameId, Targetable,
     // EnemyList and Placement still apply.
     byte[]? NpcSpawnTemplate = null,
     // Packet path only: request the draw object ourselves. The engine never draws a packet
     // actor on its own, and a caster without a draw object has its action timeline cleared
     // within frames. With IsVisible=false the built model is hidden the moment it appears.
-    bool PacketSpawnEnableDraw = false);
+    bool PacketSpawnEnableDraw = false,
+    // A real spawn with DisplayFlags bit 0 enters with its weapon drawn, i.e. in its battle idle.
+    // A model that ships only battle-mode animations has no idle while sheathed and holds its
+    // bind pose. Plain path only; a packet spawn takes this from its template.
+    bool WeaponDrawn = false);
 
 public sealed class SimEnemy : SimNpc
 {
@@ -215,6 +219,9 @@ public sealed class SimEnemy : SimNpc
     public float CastTotalSeconds => cast.Total;
     public float CastOmenDelay => cast.OmenDelay;
     public float CastOmenRotate => cast.OmenRotate;
+    public float CastAnimationLock => cast.CastAnimationLock;
+    public float CastFireDelay => cast.CastFireDelay;
+    public float CastStartElapsed => cast.CastStartElapsed;
     public int LastInstantCastSeq => cast.LastInstantCastSeq;
     public uint LastInstantCastActionId => cast.LastInstantCastActionId;
     public Vector3? LastInstantCastTargetLocation => cast.LastInstantCastTargetLocation;
@@ -395,6 +402,46 @@ public sealed class SimEnemy : SimNpc
     private static readonly GameObjectId NoTarget = 0xE0000000;
 
     public void SetVisible(bool visible) => desiredVisible = visible;
+
+    // Sampled for peers, edge-triggered like the cast seqs.
+    public int DeathSeq { get; private set; }
+    // 0 = none.
+    public int CancelledCastSeq { get; private set; }
+
+    // The server's cancel of the running cast: ActorControl 15 stops the bar and the casting
+    // pose, and the action never fires.
+    public void CancelCast()
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        var actionId = cast.ActionId != 0 ? cast.ActionId : chara.CastActionId;
+        var seq = cast.CastSeq;
+        chara.ActorControl(15, 0x219, 1, actionId);
+        if (cast.Cancel()) CancelledCastSeq = seq;
+    }
+
+    // Opens the running bar part-filled, for a cast the real fight began before the scenario's start.
+    public void SkipCastAhead(float seconds) => cast.SkipAhead(seconds);
+
+    // The server's kill as it arrives: ActorControl 14 (death animation) then 2 (state 2, dead).
+    public void PlayDeath()
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        DeathSeq++;
+        chara.Health = 0;
+        chara.ActorControl(14);
+        chara.ActorControl(2, 2);
+    }
+
+    // Sampled for peers, like DeathSeq.
+    public int FadeOutSeq { get; private set; }
+
+    // The server's fade-out ahead of removing an actor.
+    public void FadeOut()
+    {
+        FadeOutSeq++;
+        if (Proxy is not { Exists: true } chara) return;
+        chara.ActorControl(607, chara.EntityId, 1, 0, 100);
+    }
 
     // RenderFlags Model|Nameplate. The engine then drops the DrawObject entirely, so this does
     // not keep action VFX alive on a hidden carrier; kept for the Flood carrier A/B.
@@ -642,9 +689,11 @@ public sealed class SimEnemy : SimNpc
     // Scenario-local ground target, fixed at the call.
     public void Cast(EnemyAction action, Vector3 location) => actions.Start(action, null, location);
 
-    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null)
+    // animationLock and fireDelay are only what a peer's replay of the bar uses; the caller fires
+    // the resolve itself.
+    public void NativeCast(uint actionId, ActionType actionType, float omenDelay, float castTime, bool interruptible, float? rotation = null, Vector3? position = null, GameObjectId? targetId = null, GameObjectId? ballistaId = null, float animationLock = 0.6f, float fireDelay = 0f)
     {
-        cast.NativeCast(actionId, actionType, omenDelay, castTime, interruptible, rotation, position, targetId, ballistaId);
+        cast.NativeCast(actionId, actionType, omenDelay, castTime, interruptible, rotation, position, targetId, ballistaId, animationLock, fireDelay);
     }
 
     public void NativeActionEffect(uint actionId, float animationLock, ushort spellId, byte animationVariaton, ActionType actionType, byte flags, float? rotation = null, Vector3? position = null, GameObjectId? animationTargetId = null, GameObjectId? actionTargetId = null, GameObjectId? ballistaId = null)

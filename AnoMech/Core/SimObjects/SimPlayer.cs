@@ -35,6 +35,14 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
         chara.Health = Math.Min(currentHp, maxHp);
     }
 
+    // The real MaxHealth is captured first, so Despawn restores it however the run ends.
+    public override void SetMaxHealth(uint maxHealth)
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        realMaxHealth ??= chara.MaxHealth;
+        base.SetMaxHealth(maxHealth);
+    }
+
     // Must run before RestoreHpBar: restore MaxHealth first, then clamp Health down.
     public void RestoreRealMaxHealth()
     {
@@ -56,6 +64,8 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
     public bool IsActing { get; private set; }
 
     internal override IBattleCharaProxy Proxy => Natives.BattleCharas.LocalPlayer;
+
+    public byte ClassJob => Proxy.ClassJob;
 
     private protected override PlayerMovement Movement => field ??= new PlayerMovement(this);
 
@@ -79,23 +89,42 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
 
     public void PushInDirectionEased(float heading, float distance, float durationSeconds) => Movement.PushInDirectionEased(heading, distance, durationSeconds);
 
+    public void WalkInDirection(float heading, float distance, float speed) => Movement.WalkInDirection(heading, distance, speed);
+
+    // Under the debug bot a limit break roots the character as it roots its player: through the
+    // cast, then for the animation its presser holds it.
+    private float heldStillFor;
+
+    public override bool AnimationLock => DebugBotControl.Enabled && !Dead && (IsLimitBreaking || heldStillFor > 0f);
+
+    public void HoldStill(float seconds)
+    {
+        PauseMoveAnimation();
+        heldStillFor = MathF.Max(heldStillFor, seconds);
+    }
+
     // The input lock is re-derived every tick from Dead/Movement/statuses.
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        if (heldStillFor > 0f) heldStillFor = MathF.Max(0f, heldStillFor - deltaSeconds);
+        SampleLimitBreak(deltaSeconds);
         SampleActivity();
         SyncInputLock();
     }
 
     // The client's own prediction runs the whole cast; this only counts it as activity for
     // stillness mechanics.
-    public bool IsLimitBreaking
+    public bool IsLimitBreaking { get; private set; }
+    private float limitBreakCastWatched;
+
+    // Past the overstay, pinning IsActing true for the rest of the run is worse.
+    private void SampleLimitBreak(float deltaSeconds)
     {
-        get
-        {
-            var chara = Proxy;
-            return chara.IsCasting && LimitBreakHandler.IsLimitBreak(chara.CastActionId);
-        }
+        var chara = Proxy;
+        var casting = chara.IsCasting && LimitBreakHandler.IsLimitBreak(chara.CastActionId);
+        limitBreakCastWatched = casting ? limitBreakCastWatched + deltaSeconds : 0f;
+        IsLimitBreaking = casting && limitBreakCastWatched <= chara.TotalCastTime + CastInterruptHandler.OverstaySeconds;
     }
 
     private void SampleActivity()
@@ -115,9 +144,18 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
         IsActing = IsMoving || hooks.IsAutoAttacking || IsLimitBreaking;
     }
 
+    // Dying stops a cast the way the server's interrupt does, so a limit break cast into death never lands.
+    private void InterruptOwnCast()
+    {
+        var chara = Proxy;
+        if (chara.IsCasting)
+            chara.ActorControl(CastInterruptHandler.InterruptCastControl, CastInterruptHandler.InterruptCastReason, 1, chara.CastActionId);
+    }
+
     public void OnKilled()
     {
         Dead = true;
+        InterruptOwnCast();
         StopMoving();
         DropHpBar(); // godmode preview skips this path
         AddStatus(StunStatusId);
@@ -129,6 +167,7 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
     {
         base.Despawn();
         StopMoving();
+        heldStillFor = 0f;
         // Order matters; see RestoreRealMaxHealth.
         RestoreRealMaxHealth();
         // Unconditional: also covers a godmode preview drop, where Dead is never set.
@@ -145,17 +184,18 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
         SyncInputLock();
     }
 
-    // Real FFXIV ids: Confused and Sleep take control away in retail, so the local player is
-    // locked out the way a bot doppel has no input.
+    // Real FFXIV ids: Confused, Sleep and Memory Loss take control away in retail, so the local
+    // player is locked out the way a bot doppel has no input.
     private const ushort StatusIdConfused = 0x503;
     private const ushort StatusIdSleep = 0x131E;
+    private const ushort StatusIdMemoryLoss = 0x65A;
     private const ushort StatusIdBind = 0x9D6;
 
     private void SyncInputLock()
     {
         var hooks = Natives.PlayerInput;
         var asleep = !Dead && HasStatus(StatusIdSleep);
-        var confused = !Dead && HasStatus(StatusIdConfused);
+        var confused = !Dead && (HasStatus(StatusIdConfused) || HasStatus(StatusIdMemoryLoss));
         var bound = !Dead && HasStatus(StatusIdBind);
         var incapacitated = asleep || confused;
         hooks.ZeroMovement = Dead || Movement.IsMoving || incapacitated || bound;

@@ -74,14 +74,6 @@ internal static class UmadRealPackets
         [nameof(GravenImageNpcSpawn)] = GravenImageNpcSpawn,
     };
 
-    public static string? NpcSpawnTemplateName(byte[]? template)
-    {
-        if (template == null) return null;
-        foreach (var (name, bytes) in NpcSpawnTemplates)
-            if (ReferenceEquals(bytes, template)) return name;
-        return null;
-    }
-
     // Opcodes are reassigned every client build, so a raw replay is only valid on this version.
     public const string CapturedGameVersion = "2026.09.01.0000.0000";
 

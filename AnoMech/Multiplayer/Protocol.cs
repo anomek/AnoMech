@@ -43,6 +43,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(P2LockonsUpdateMessage), "p2LockonsUpdate")]
 [JsonDerivedType(typeof(MapEffectMessage), "mapEffect")]
 [JsonDerivedType(typeof(MapDirectorUpdateMessage), "mapDirectorUpdate")]
+[JsonDerivedType(typeof(MapBattleTalkMessage), "mapBattleTalk")]
 [JsonDerivedType(typeof(SetWeatherMessage), "setWeather")]
 [JsonDerivedType(typeof(SetFogHoldMessage), "setFogHold")]
 [JsonDerivedType(typeof(AnnouncementMessage), "announcement")]
@@ -64,6 +65,8 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
+[JsonDerivedType(typeof(PeerLimitBreakMessage), "peerLimitBreak")]
+[JsonDerivedType(typeof(PeerClearedStatusMessage), "peerClearedStatus")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 public abstract record MpMessage;
 
@@ -99,7 +102,9 @@ public sealed record LobbyStateMessage(
     int SelectedWaymark,
     List<string>? ScenarioSettings = null,
     string? ScenarioSettingsJson = null,
-    RunClockState? Clock = null) : MpMessage, IHostOnlyMessage;
+    RunClockState? Clock = null,
+    bool ResolveOwnActions = true,
+    bool RequireTankMitigation = true) : MpMessage, IHostOnlyMessage;
 
 // The host's event clock when the message left. A peer starts its run from it instead of from
 // zero, which would leave it behind by the host's load time plus the travel time. FrameSeconds is
@@ -148,12 +153,13 @@ public sealed record ActorEngineState(
     ushort DirectTimelineId, int DirectTimelineSeq,
     int ForceLoadTimelineSeq);
 
-// NpcSpawnTemplate names a UmadRealPackets capture (resolved by name on receipt): a
+// NpcSpawnTemplate names a captured spawn packet (NpcSpawnTemplates, resolved by name on receipt): a
 // packet-spawned carrier's real, model-less look is what its action VFX attach to.
 // LastInstantCastIsNativeEffect: the host fired a bare NativeActionEffect; a peer replays it
 // with the same animation target, action target, position and lock instead of a Cast().
 // LastInstantCastRawPacket instead names a captured resolve the receiver replays from its own
 // copy of the bytes. PersistentVfx is a reconciled set, unlike the one-shot NewVfx.
+// ModeAttributeFlags is the live value, which a boss changing form rewrites after its spawn.
 public sealed record EnemyState(
     int NetId, uint BNpcBaseId, uint NameId, byte Level, bool Targetable,
     EnemyListMode EnemyList, uint ModelCharaId, float Scale, float HitboxRadius,
@@ -172,7 +178,10 @@ public sealed record EnemyState(
     int? LastInstantCastActionTargetEnemyNetId = null, PartyRole? LastInstantCastActionTargetRole = null,
     IReadOnlyList<AttachedVfxState>? NewVfx = null,
     string? LastInstantCastRawPacket = null, ActorEngineState? Engine = null,
-    IReadOnlyList<string>? PersistentVfx = null);
+    IReadOnlyList<string>? PersistentVfx = null,
+    float CastAnimationLock = 0.6f, float CastFireDelay = 0f,
+    uint CurrentHp = 0, uint MaxHp = 0, int DeathSeq = 0, int CancelledCastSeq = 0, int FadeOutSeq = 0,
+    float CastStartElapsed = 0f, byte? ModeAttributeFlags = null, bool WeaponDrawn = false, bool InEnemyList = false);
 
 // Each end resolves to a live enemy (by NetId) or a party role.
 public sealed record TetherState(int NetId, ushort TetherId, int? AEnemyNetId, PartyRole? ARole, int? BEnemyNetId, PartyRole? BRole);
@@ -181,14 +190,18 @@ public sealed record TetherState(int NetId, ushort TetherId, int? AEnemyNetId, P
 // lockons and HP all come from here. The animation
 // timeline is a scripted pose (Umad P1's sleep, a confused member's swing); the KO pose travels
 // as RoleKilledMessage, so a dead role's timeline is not replayed. PlayedAction is a doppel's
-// own action animation (a bot tank's limit break), edge-triggered on its seq.
+// own action animation (a bot's limit break, with its bar and enemy target or ground location),
+// edge-triggered on its seq.
 public sealed record RoleState(
     PartyRole Role, bool Filled, bool Dead, float X, float Y, float Z, float Rotation,
     IReadOnlyList<EnemyStatusState> Statuses, IReadOnlyList<uint> NewLockonVfxIds,
     uint CurrentHp, uint MaxHp,
     ushort? AnimationTimelineId = null, ushort AnimationTimelineLoopId = 0, int AnimationTimelineSeq = 0,
     IReadOnlyList<AttachedVfxState>? NewVfx = null, IReadOnlyList<string>? PersistentVfx = null,
-    uint PlayedActionId = 0, float PlayedActionAnimationLock = 0.6f, int PlayedActionSeq = 0);
+    uint PlayedActionId = 0, float PlayedActionAnimationLock = 0.6f, int PlayedActionSeq = 0,
+    float PlayedActionCastSeconds = 0f, float PlayedActionEffectDelay = 0f, int? PlayedActionTargetEnemyNetId = null,
+    float? PlayedActionLocationX = null, float? PlayedActionLocationY = null, float? PlayedActionLocationZ = null,
+    bool PlayedActionHoldsStill = false);
 
 // LayoutId picks the SharedGroup the engine attaches; 0 requests the wrong one. EventId binds
 // the prop to the instance director as the real spawn packets do. Animation* is the last
@@ -203,9 +216,11 @@ public sealed record EventObjectState(
     uint DirectorState = 0, int DirectorModSeq = 0, ushort HideAtState = 0);
 
 // Full-state, so a dropped frame costs one tick of staleness, not a wrong reconstruction.
+// LimitBreakBars is the party's gauge, set only while the scenario keeps one
+// (IPartyLimitBreakScenario).
 public sealed record WorldSnapshotMessage(
     List<EnemyState> Enemies, List<TetherState> Tethers,
-    List<EventObjectState> EventObjects) : MpMessage, IHostOnlyMessage;
+    List<EventObjectState> EventObjects, float? LimitBreakBars = null) : MpMessage, IHostOnlyMessage;
 
 // Paced independently of WorldSnapshotMessage (see RelayClient's priority queue): role
 // positions are small and urgent, enemy data can be large.
@@ -219,10 +234,10 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 
 // The other forced movements a scenario applies to a party member, each from the matching
 // SimNetworkPuppet call. Teleport is an ISimPartyMember.TeleportTo (Umad P1's arrow snap);
-// Push is eased when DurationSeconds > 0, else a constant-speed slide; Follow with a null
-// TargetRole releases the follow.
+// Push is a run when Walk, eased when DurationSeconds > 0, else a constant-speed slide; Follow
+// with a null TargetRole releases the follow.
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
-public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
+public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds, bool Walk = false) : MpMessage, IHostOnlyMessage;
 public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z, int Mode = 0) : MpMessage, IHostOnlyMessage;
 public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, int? TargetEnemyNetId, float Speed) : MpMessage, IHostOnlyMessage;
 
@@ -277,6 +292,9 @@ public sealed record P2LockonsUpdateMessage(Dictionary<PartyRole, uint> Lockons)
 public sealed record MapEffectMessage(uint PacketFlags, byte Index) : MpMessage, IHostOnlyMessage;
 public sealed record MapDirectorUpdateMessage(
     uint Category, uint Arg1, uint Arg2, uint Arg3, uint Arg4, uint Arg5, uint Arg6) : MpMessage, IHostOnlyMessage;
+
+// Replay of MapController.BattleTalk, a boss line.
+public sealed record MapBattleTalkMessage(uint SpeakerNameId, uint TextId, uint DurationMs) : MpMessage, IHostOnlyMessage;
 
 // Replay of world.SetWeather; scenarios use it mid-fight for lighting cues.
 public sealed record SetWeatherMessage(byte WeatherId, float Transition) : MpMessage, IHostOnlyMessage;
@@ -391,3 +409,11 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<int> EnemyN
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration) : MpMessage;
+
+// Peer -> host: the peer's own limit break landed, and where it was aimed (LimitBreakAim,
+// scenario-local). The host's scenario owns what it does.
+public sealed record PeerLimitBreakMessage(Guid PeerId, uint ActionId, float X = 0f, float Y = 0f, float Z = 0f, float Heading = 0f,
+    float? LocationX = null, float? LocationY = null, float? LocationZ = null) : MpMessage;
+
+// Peer -> host: statuses the peer's own press took off itself (Shake It Off's dispel).
+public sealed record PeerClearedStatusMessage(Guid PeerId, List<ushort> StatusIds) : MpMessage;

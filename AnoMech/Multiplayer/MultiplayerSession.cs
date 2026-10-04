@@ -23,7 +23,7 @@ public sealed class MultiplayerSession
     public int SelectedAi { get; set; }
     public int SelectedWaymark { get; set; }
 
-    // Display lines from ScenarioSettingsSummary.
+    // Display lines from IScenario.SettingsSummary.
     public List<string> ScenarioSettings { get; set; } = new();
     private const int MaxScenarioSettingLines = 64;
 
@@ -31,6 +31,10 @@ public sealed class MultiplayerSession
     // rather than Cleaned: stripping characters would only produce unparsable JSON.
     public string? ScenarioSettingsJson { get; set; }
     private const int MaxScenarioSettingsJson = 4096;
+
+    // The host's "Resolve your own actions" and "Require tank mitigation", which hold for everyone.
+    public bool ResolveOwnActions { get; set; } = true;
+    public bool RequireTankMitigation { get; set; } = true;
 
     // Sanitised once here. Indices stay as sent and are validated where used
     // (TryResolveScenario): clamping would silently run the wrong scenario.
@@ -48,12 +52,14 @@ public sealed class MultiplayerSession
         SelectedWaymark = msg.SelectedWaymark;
         ScenarioSettings = NetGuard.Cap(msg.ScenarioSettings, MaxScenarioSettingLines).Select(NetGuard.Clean).ToList();
         ScenarioSettingsJson = msg.ScenarioSettingsJson is { Length: > 0 and <= MaxScenarioSettingsJson } json ? json : null;
+        ResolveOwnActions = msg.ResolveOwnActions;
+        RequireTankMitigation = msg.RequireTankMitigation;
     }
 
     public LobbyStateMessage ToMessage() => new(
         HostId, new Dictionary<PartyRole, Guid>(ClaimedBy), new Dictionary<Guid, string>(Names),
         new Dictionary<Guid, PeerBuildInfo>(Builds), new Dictionary<Guid, byte>(Jobs), Started, ScenarioIndex, SelectedAi, SelectedWaymark,
-        new List<string>(ScenarioSettings), ScenarioSettingsJson);
+        new List<string>(ScenarioSettings), ScenarioSettingsJson, ResolveOwnActions: ResolveOwnActions, RequireTankMitigation: RequireTankMitigation);
 
     public PartyRole? RoleOf(Guid peerId) =>
         ClaimedBy.Where(kv => kv.Value == peerId).Select(kv => (PartyRole?)kv.Key).FirstOrDefault();

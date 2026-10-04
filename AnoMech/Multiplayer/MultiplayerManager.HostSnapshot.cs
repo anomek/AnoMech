@@ -59,7 +59,7 @@ public sealed partial class MultiplayerManager
             }
             if (puppet.PendingNetworkPush is { } push)
             {
-                _ = relay!.SendAsync(new PushMessage(role, push.Heading, push.Distance, push.Speed, push.DurationSeconds));
+                _ = relay!.SendAsync(new PushMessage(role, push.Heading, push.Distance, push.Speed, push.DurationSeconds, push.Walk));
                 puppet.ClearPendingNetworkPush();
             }
             if (puppet.PendingNetworkCarry is { } carry)
@@ -156,7 +156,7 @@ public sealed partial class MultiplayerManager
                 enemy.LastInstantCastSeq, enemy.LastInstantCastActionId,
                 enemy.LastInstantCastTargetLocation?.X, enemy.LastInstantCastTargetLocation?.Y, enemy.LastInstantCastTargetLocation?.Z,
                 instantTargetEnemyNetId, instantTargetRole,
-                UmadRealPackets.NpcSpawnTemplateName(cfg.NpcSpawnTemplate), cfg.PacketSpawnEnableDraw,
+                NpcSpawnTemplates.NameOf(cfg.NpcSpawnTemplate), cfg.PacketSpawnEnableDraw,
                 enemy.LastInstantCastIsNativeEffect, enemy.LastInstantCastAnimationLock,
                 instantActionTargetEnemyNetId, instantActionTargetRole,
                 newVfx, enemy.LastInstantCastRawPacket,
@@ -166,7 +166,10 @@ public sealed partial class MultiplayerManager
                         enemy.TimelineHoldState, enemy.TimelineHoldId, enemy.TimelineHoldSeq,
                         enemy.DirectTimelineId, enemy.DirectTimelineSeq, enemy.ForceLoadTimelineSeq)
                     : null,
-                PersistentVfxForPeers(enemy, who)));
+                PersistentVfxForPeers(enemy, who),
+                enemy.CastAnimationLock, enemy.CastFireDelay,
+                enemy.Health, enemy.MaxHealth, enemy.DeathSeq, enemy.CancelledCastSeq, enemy.FadeOutSeq,
+                enemy.CastStartElapsed, enemy.ModeAttributeFlags, cfg.WeaponDrawn, enemy.InEnemyList));
         }
 
         var liveTethers = world.Children.OfType<SimTether>().Where(t => t.IsActive).ToList();
@@ -221,7 +224,8 @@ public sealed partial class MultiplayerManager
                 eo.LastDirectorState, eo.DirectorModSeq, eoConfig?.HideAtState ?? (ushort)0));
         }
 
-        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects));
+        var limitBreakBars = Plugin.GameInstance.ActiveScenario is IPartyLimitBreakScenario ? Plugin.GameInstance.World.Party.LimitBreak.CurrentBars : null;
+        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects, limitBreakBars));
     }
 
     private static void WarnOverVfxCap(string who, int dropped, string what)
@@ -312,7 +316,11 @@ public sealed partial class MultiplayerManager
                 member?.AnimationTimelineId, member?.AnimationTimelineLoopId ?? 0, member?.AnimationTimelineSeq ?? 0, newVfx,
                 PersistentVfxForPeers(member, $"role {role}"),
                 (member as SimNpc)?.PlayedActionId ?? 0, (member as SimNpc)?.PlayedActionAnimationLock ?? 0.6f,
-                (member as SimNpc)?.PlayedActionSeq ?? 0));
+                (member as SimNpc)?.PlayedActionSeq ?? 0,
+                (member as SimNpc)?.PlayedActionCastSeconds ?? 0f, (member as SimNpc)?.PlayedActionEffectDelay ?? 0f,
+                ResolveEnd(world, (member as SimNpc)?.PlayedActionTarget).enemyNetId,
+                (member as SimNpc)?.PlayedActionLocation?.X, (member as SimNpc)?.PlayedActionLocation?.Y,
+                (member as SimNpc)?.PlayedActionLocation?.Z, (member as SimNpc)?.PlayedActionHoldsStill ?? false));
         }
         return relay!.SendAsync(new RolesSnapshotMessage(roles));
     }
