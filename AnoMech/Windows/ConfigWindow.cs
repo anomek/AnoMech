@@ -46,7 +46,10 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
-        var userActions = configuration.EnableUserActions;
+        // A peer follows the host's choices for the whole session.
+        var session = Plugin.MultiplayerInstance is { InSession: true, IsHost: false } mp ? mp.Session : null;
+        var userActions = session?.ResolveOwnActions ?? configuration.EnableUserActions;
+        ImGui.BeginDisabled(session != null);
         if (ImGui.Checkbox("Resolve your own actions", ref userActions))
         {
             configuration.EnableUserActions = userActions;
@@ -54,8 +57,11 @@ public class ConfigWindow : Window, IDisposable
             if (userActions) Plugin.UserActions.Enable();
             else Plugin.UserActions.Disable();
         }
+        ImGui.EndDisabled();
+        if (session != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip("The host sets this for everyone in the session.");
 
-        if (configuration.EnableUserActions)
+        if (userActions)
         {
             var threshold = configuration.CastInterruptThreshold;
             ImGui.SetNextItemWidth(90 * ImGuiHelpers.GlobalScale);
@@ -65,14 +71,18 @@ public class ConfigWindow : Window, IDisposable
                 configuration.Save();
             }
 
-            var tankMitigation = configuration.EnableTankMitigation;
+            var tankMitigation = session?.RequireTankMitigation ?? configuration.EnableTankMitigation;
+            ImGui.BeginDisabled(session != null);
             if (ImGui.Checkbox("Require tank mitigation", ref tankMitigation))
             {
                 configuration.EnableTankMitigation = tankMitigation;
                 configuration.Save();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Some tankbusters (depending on scenario support) will check your mitigation.");
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(session != null
+                    ? "The host sets this for everyone in the session."
+                    : "Some tankbusters (depending on scenario support) will check your mitigation.");
         }
 
         ImGui.Separator();

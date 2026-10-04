@@ -53,11 +53,15 @@ public sealed partial class MultiplayerManager : IDisposable
     // Peer-only: last applied value per NetId. Re-issuing an unchanged ModelState rebuilds the
     // model (visible flicker) and re-playing an animation restarts it.
     private readonly Dictionary<int, byte> peerEnemyModelState = new();
+    private readonly Dictionary<int, byte> peerEnemyModeAttributeFlags = new();
     private readonly Dictionary<int, Dictionary<(ushort Id, int Ordinal), ushort>> peerEnemyLastLoggedStatuses = new();
     private readonly Dictionary<int, int> peerEnemyAnimationTimeline = new();
     private readonly Dictionary<int, int> peerEnemyAnimationState = new();
     private readonly Dictionary<int, int> peerEnemyLastInstantCastSeq = new();
     private readonly Dictionary<int, int> peerEnemyLastCastSeq = new();
+    private readonly Dictionary<int, int> peerEnemyDeathSeq = new();
+    private readonly Dictionary<int, int> peerEnemyFadeSeq = new();
+    private readonly Dictionary<int, int> peerEnemyCastCancelSeq = new();
     // NetIds whose real-packet spawn the engine dropped locally; recreated as plain doppels.
     private readonly HashSet<int> peerEnemyTemplateFailed = new();
     private readonly Dictionary<int, ushort> peerEventObjectState = new();
@@ -375,11 +379,15 @@ public sealed partial class MultiplayerManager : IDisposable
         hostEventObjectNetIds.Clear();
         peerEnemies.Clear();
         peerEnemyModelState.Clear();
+        peerEnemyModeAttributeFlags.Clear();
         peerEnemyLastLoggedStatuses.Clear();
         peerEnemyAnimationTimeline.Clear();
         peerEnemyAnimationState.Clear();
         peerEnemyLastInstantCastSeq.Clear();
         peerEnemyLastCastSeq.Clear();
+        peerEnemyDeathSeq.Clear();
+        peerEnemyFadeSeq.Clear();
+        peerEnemyCastCancelSeq.Clear();
         peerEnemyTemplateFailed.Clear();
         peerRoleLastLoggedStatuses.Clear();
         peerRoleAnimationTimelineSeq.Clear();
@@ -413,6 +421,7 @@ public sealed partial class MultiplayerManager : IDisposable
         aiReplayStateSent = false;
         pendingEndResendReturnedToInn = null;
         RestoreOwnScenarioSettings();
+        RestoreOwnActionSettings();
         StopDebugBotReplay();
     }
 
@@ -635,7 +644,7 @@ public sealed partial class MultiplayerManager : IDisposable
     {
         if (!IsHost) return;
         var overrides = scenario is { SupportsMultiplayer: true } ? scenario.SettingsOverrides : null;
-        var lines = ScenarioSettingsSummary.Describe(overrides);
+        var lines = scenario is { SupportsMultiplayer: true } ? scenario.SettingsSummary.ToList() : new List<string>();
         var json = ScenarioSettingsSync.Serialize(overrides);
         if (lines.SequenceEqual(Session.ScenarioSettings) && json == Session.ScenarioSettingsJson) return;
         Session.ScenarioSettings = lines;
@@ -727,6 +736,32 @@ public sealed partial class MultiplayerManager : IDisposable
             return;
         }
         _ = relay?.SendAsync(new HelloMessage(MyPeerId, DisplayName, PluginBuildInfo.Version, PluginBuildInfo.Checksum, job));
+    }
+
+    // The host's "Resolve your own actions" holds for everyone in the session: its tank checks read
+    // it, and a peer's presses must resolve (and report) exactly when the host's would.
+    private void PublishActionSettingsIfChanged()
+    {
+        var resolve = Plugin.Config.EnableUserActions;
+        var tanks = Plugin.Config.EnableTankMitigation;
+        if (resolve == Session.ResolveOwnActions && tanks == Session.RequireTankMitigation) return;
+        Session.ResolveOwnActions = resolve;
+        Session.RequireTankMitigation = tanks;
+        BroadcastLobbyState();
+    }
+
+    private void ApplyHostActionSettings()
+    {
+        if (Session.ResolveOwnActions == Plugin.UserActions.Enabled) return;
+        DiagnosticLog.Info($"[Multiplayer] The host has \"Resolve your own actions\" {(Session.ResolveOwnActions ? "on" : "off")} -- following it.");
+        if (Session.ResolveOwnActions) Plugin.UserActions.Enable();
+        else Plugin.UserActions.Disable();
+    }
+
+    private static void RestoreOwnActionSettings()
+    {
+        if (Plugin.Config.EnableUserActions) Plugin.UserActions.Enable();
+        else Plugin.UserActions.Disable();
     }
 
     // A Hello is the peer's only way into the roster and can be lost; retried until a lobby
@@ -1038,11 +1073,15 @@ public sealed partial class MultiplayerManager : IDisposable
 
         peerEnemies.Clear();
         peerEnemyModelState.Clear();
+        peerEnemyModeAttributeFlags.Clear();
         peerEnemyLastLoggedStatuses.Clear();
         peerEnemyAnimationTimeline.Clear();
         peerEnemyAnimationState.Clear();
         peerEnemyLastInstantCastSeq.Clear();
         peerEnemyLastCastSeq.Clear();
+        peerEnemyDeathSeq.Clear();
+        peerEnemyFadeSeq.Clear();
+        peerEnemyCastCancelSeq.Clear();
         peerEnemyTemplateFailed.Clear();
         peerRoleLastLoggedStatuses.Clear();
         peerRoleAnimationTimelineSeq.Clear();

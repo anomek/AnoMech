@@ -18,6 +18,15 @@ public sealed class LimitBreakGauge
 
     public int FilledBars => (units ?? 0) / UnitsPerBar;
 
+    // Null while no scenario grants a gauge.
+    public float? CurrentBars => units / (float)UnitsPerBar;
+
+    // The local player's own limit break as it resolves, and where it was aimed: a scenario reacts to
+    // what it did (a healer LB3's cleanse, where a caster LB3 came down).
+    public event Action<uint, LimitBreakAim>? Landed;
+
+    internal void Land(uint actionId, LimitBreakAim aim) => Landed?.Invoke(actionId, aim);
+
     public void Set(float bars)
         => units = (ushort)(Math.Clamp(bars, 0f, Bars) * UnitsPerBar);
 

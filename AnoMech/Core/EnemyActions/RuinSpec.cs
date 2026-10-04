@@ -22,10 +22,30 @@ public sealed class RuinSpec
         death = statuses.Aggregate(1, (lcm, s) => Lcm(lcm, s.Times));
     }
 
+    // Set, the stack that completes a death takes the family's statuses away and leaves this one,
+    // whose holder dies when it runs out: TOP's Doom.
+    public (ushort StatusId, float Duration)? Doom { get; init; }
+
     internal ushort StatusId(int times)
         => statuses.TryGetValue(times, out var statusId)
             ? statusId
             : throw new ArgumentException($"No ruin status is lethal on hit {times}.", nameof(times));
+
+    // One more stack of the `times` status, from `actionId`'s hit. False when it completes a death
+    // with no Doom to leave: the caller deals that death.
+    public bool Land(SimCharacter target, int times, float duration, uint actionId)
+    {
+        if (!Overloads(target, times))
+        {
+            target.AddStatus(StatusId(times), duration);
+            return true;
+        }
+        if (Doom is not { } doom) return false;
+        foreach (var statusId in statuses.Values) target.RemoveStatus(statusId);
+        if (target.AddStatus(doom.StatusId, doom.Duration) is { } status)
+            status.RanOut = () => target.Die(actionId, StatusLookup.Name(doom.StatusId));
+        return true;
+    }
 
     internal bool Overloads(SimCharacter target, int times)
     {

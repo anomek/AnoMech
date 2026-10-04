@@ -158,6 +158,15 @@ internal class Movement(SimCharacter parent)
         InternalMoveTo(dest, pushSpeed, tl: KnockbackTimelineId, baseOverride: false, faceTravel: false, avoid: false);
     }
 
+    // Forced movement that runs rather than slides: the character's own run along a fixed heading
+    // (TOP P1's Memory Loss).
+    public void WalkInDirection(float heading, float distance, float walkSpeed)
+    {
+        var dir = new Vector2(MathF.Sin(heading), MathF.Cos(heading));
+        var dest = parent.Position + new Vector3(dir.X * distance, 0f, dir.Y * distance);
+        InternalMoveTo(dest, walkSpeed, avoid: false);
+    }
+
     // Same forced-move semantics, but smoothstep-eased over durationSeconds: a real arrow push
     // eases in, holds and eases out over ~1s rather than sliding at one speed.
     public void PushInDirectionEased(float heading, float distance, float durationSeconds)
@@ -212,8 +221,13 @@ internal class Movement(SimCharacter parent)
         var sameAnim = animActive && timelineId == tl;
         timelineId = tl;
         timelineBaseOverride = baseOverride;
-        if (!sameAnim) StartAnim();
+        // A locked character keeps its action's animation; Tick starts this one when the lock lifts.
+        if (!sameAnim && !parent.AnimationLock) StartAnim();
     }
+
+    // Clears the way for an action's own animation; a pending move resumes, animated, once the
+    // lock lifts.
+    public void PauseAnimation() => StopAnim();
 
     public void Tick(float deltaSeconds)
     {

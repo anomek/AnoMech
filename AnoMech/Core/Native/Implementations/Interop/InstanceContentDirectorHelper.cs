@@ -43,6 +43,31 @@ internal static unsafe class InstanceContentDirectorHelper
         return true;
     }
 
+    // A boss line (InstanceContentTextData) in the BattleTalk box, voiced, as the duty's own
+    // director shows it. Same readiness contract as ProcessDirectorUpdate.
+    public static bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    {
+        if (Plugin.GameInstance?.World.Map.IsInInstance != true)
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.BattleTalk] no sim in progress -- ignoring.");
+            return false;
+        }
+
+        var eventFramework = EventFramework.Instance();
+        if (eventFramework == null) return false;
+        var director = eventFramework->GetInstanceContentDirector();
+        if (director == null) return false;
+
+        if (EventFrameworkPointers.ProcessBattleTalk is not { } processBattleTalk)
+        {
+            Plugin.Log.Warning($"[EventFrameworkHelper.BattleTalk] signature not found -- text {textId} not shown.");
+            return true;
+        }
+        const byte battleNpcKind = 2;
+        processBattleTalk(eventFramework, director->GetEventId(), 0xE0000000, battleNpcKind, speakerNameId, textId, durationMs, 0, 0, null, 0);
+        return true;
+    }
+
     public static void SetDirectorData(byte sequence, byte unknown, byte* unionData, ulong length = 12)
     {
         var eventFramework = EventFramework.Instance();

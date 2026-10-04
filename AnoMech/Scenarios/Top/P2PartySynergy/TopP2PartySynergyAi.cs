@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Numerics;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
@@ -17,32 +19,60 @@ public class TopP2PartySynergyAi : IScenarioAi<TopP2PartySynergyState>
         var ai = new AiManager(world);
         ai.Move(1f, CongaLine, jitter: 0.7f);
         ai.Move(11f, AttackDodge, arrivalTime: 14.8f);
-        ai.Move(16f, SpreadPositions, arrivalTime: 21.5f);
-        ai.Move(23f, KnockbackPositions, arrivalTime: 28.4f);
-        ai.Move(30f, StackPositions, arrivalTime: 33f);
+        ai.Move(15.4f, SpreadPositions);
+        ai.Move(22.3f, KnockbackPositions, arrivalTime: 26.5f);
+        ai.Move(30.1f, StackPositions);
     }
+
+    private static readonly Vector2[] CongaSpots =
+    [
+        new(-2.3f, 6.6f),
+        new(0.9f, 6.1f),
+        new(-12f, 5.2f),
+        new(7.7f, 5.9f),
+        new(-5.7f, 6.1f),
+        new(3.2f, 5.8f),
+        new(5.3f, 5.7f),
+        new(-9.1f, 5.5f),
+    ];
+
+    private static readonly Vector2 LegsSwordSafeSpot = new(0, -8f);
+    private static readonly Vector2 LegsShieldSafeSpot = new(0, 8.4f);
+    private static readonly Vector2 StaffShieldSafeSpot = new(-7.07f, 7.07f);
+    private static readonly Vector2 StaffSwordWestSafeSpot = new(-13.5f, 2f);
+    private static readonly Vector2 StaffSwordEastSafeSpot = new(13.5f, 4f);
 
     private IAiMove CongaLine()
     {
-        return AiMove.Create(
-            new(-1.2f, 2),
-            new(1.2f, 2),
-            new(-8.4f, 2),
-            new(8.4f, 2),
-            new(-3.6f, 2),
-            new(3.6f, 2),
-            new(6, 2),
-            new(-6, 2)
-        ).NaturalOrder();
+        return AiMove.Create(CongaSpots.Select(spot => (Vector2?)spot).ToArray()).NaturalOrder();
     }
 
     private IAiMove AttackDodge()
     {
-        return AiMove.All(new(0, -1f))
-                     .ApplyPositions(
-                         AttackSafeCardinal,
-                         AttackSafeSpot
-                     );
+        return AiMove.Create(Enum.GetValues<PartyRole>().Select(role => (Vector2?)AttackSafeSpot(role)).ToArray())
+                     .NaturalOrder()
+                     .ApplyPositions(state.AttackDir.Apply);
+    }
+
+    private Vector2 AttackSafeSpot(PartyRole role)
+    {
+        if (state.AttackF == OmegaAttack.Legs)
+            return state.AttackM == OmegaAttack.Sword ? LegsSwordSafeSpot : LegsShieldSafeSpot;
+        if (state.AttackM == OmegaAttack.Shield)
+            return StaffShieldSafeSpot;
+        return NearerToCongaSpot(role, StaffSwordWestSafeSpot, StaffSwordEastSafeSpot);
+    }
+
+    private Vector2 NearerToCongaSpot(PartyRole role, Vector2 first, Vector2 second)
+    {
+        var conga = CongaSpots[(int)role];
+        return Vector2.Distance(OnArena(first), conga) <= Vector2.Distance(OnArena(second), conga) ? first : second;
+    }
+
+    private Vector2 OnArena(Vector2 attackFrameSpot)
+    {
+        var spot = state.AttackDir.Apply(new Vector3(attackFrameSpot.X, 0f, attackFrameSpot.Y));
+        return new Vector2(spot.X, spot.Z);
     }
 
 
@@ -66,18 +96,18 @@ public class TopP2PartySynergyAi : IScenarioAi<TopP2PartySynergyState>
     private IAiMove KnockbackPositions()
     {
         return AiMove.Create(
-                         new(-2, 0),
-                         new(2, 0),
-                         new(-2, 0),
-                         new(2, 0),
-                         new(-2, 0),
-                         new(2, 0),
-                         new(-2, 0),
-                         new(2, 0)
+                         new(-3.2f, 0),
+                         new(3.2f, 0),
+                         new(-3.2f, 0),
+                         new(3.2f, 0),
+                         new(-3.2f, 0),
+                         new(3.2f, 0),
+                         new(-3.2f, 0),
+                         new(3.2f, 0)
                      )
                      .Assignments(state.Order.List)
                      .ApplySwaps(SwapForCongaOrder, GlitchSwap, AdjustForStacks)
-                     .ApplyPositions(AdjustKbForFarGlitch, state.NewNorthB.Apply);
+                     .ApplyPositions(TurnSecondGroupSouthForMidGlitch, state.NewNorthB.Apply);
     }
 
     private IAiMove StackPositions()
@@ -94,23 +124,7 @@ public class TopP2PartySynergyAi : IScenarioAi<TopP2PartySynergyState>
                      )
                      .Assignments(state.Order.List)
                      .ApplySwaps(SwapForCongaOrder, GlitchSwap, AdjustForStacks)
-                     .ApplyPositions(AdjustKbForFarGlitch, state.NewNorthB.Apply);
-    }
-
-
-    private void AttackSafeCardinal(IAiPositions move)
-    {
-        state.AttackDir.Rotate(1).Apply(move);
-    }
-
-    private void AttackSafeSpot(IAiPositions move)
-    {
-        float mul;
-        if (state.AttackF == OmegaAttack.Legs)
-            mul = state.AttackM == OmegaAttack.Sword ? 2.5f : -2.5f;
-        else
-            mul = state.AttackM == OmegaAttack.Sword ? -17f : -10f;
-        move.Multiply(mul);
+                     .ApplyPositions(TurnSecondGroupSouthForMidGlitch, WidenStacksForFarGlitch, state.NewNorthB.Apply);
     }
 
     private void SwapForCongaOrder(IAiRoles s)
@@ -160,12 +174,16 @@ public class TopP2PartySynergyAi : IScenarioAi<TopP2PartySynergyState>
         }
     }
 
-    private void AdjustKbForFarGlitch(IAiPositions move)
+    private void TurnSecondGroupSouthForMidGlitch(IAiPositions move)
     {
-        if (state.Glitch == GlitchType.Mid)
-            for (var i = 0; i < 4; i++)
-                move.Rotate(i * 2 + 1, MathF.PI / 2);
-        else
+        if (state.Glitch != GlitchType.Mid) return;
+        for (var i = 0; i < 4; i++)
+            move.Rotate(i * 2 + 1, MathF.PI / 2);
+    }
+
+    private void WidenStacksForFarGlitch(IAiPositions move)
+    {
+        if (state.Glitch == GlitchType.Far)
             move.Multiply(19f / 15);
     }
 

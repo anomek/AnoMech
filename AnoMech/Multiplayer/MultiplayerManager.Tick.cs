@@ -79,6 +79,12 @@ public sealed partial class MultiplayerManager
             DiagnosticLog.Info($"[Multiplayer] Host: broadcasting MapDirectorUpdate category=0x{category:X8}.");
             _ = relay.SendAsync(new MapDirectorUpdateMessage(category, arg1, arg2, arg3, arg4, arg5, arg6));
         };
+        Plugin.GameInstance.World.Map.BattleTalked += (speakerNameId, textId, durationMs) =>
+        {
+            if (!IsHost || relay is not { IsConnected: true }) return;
+            DiagnosticLog.Info($"[Multiplayer] Host: broadcasting BattleTalk text={textId}.");
+            _ = relay.SendAsync(new MapBattleTalkMessage(speakerNameId, textId, durationMs));
+        };
         Plugin.GameInstance.World.Map.WeatherChanged += (weatherId, transition) =>
         {
             if (!IsHost || relay is not { IsConnected: true }) return;
@@ -138,6 +144,7 @@ public sealed partial class MultiplayerManager
 
         AnnounceOwnJobIfChanged();
         ResendHelloUntilAcknowledged(deltaSeconds);
+        if (IsHost) PublishActionSettingsIfChanged();
 
         if (IsHost)
         {

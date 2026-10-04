@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using AnoMech.Core.Game.Ai;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios;
@@ -42,9 +43,18 @@ public interface IScenario
     // tank's mitigation plan).
     void DrawMultiplayerSettings() { }
 
+    // Settings each player keeps for themselves, never sent to the host: drawn for a peer too,
+    // above the host's summary. localRole is null while a peer has no seat yet.
+    bool HasLocalSettings => false;
+    void DrawLocalSettings(PartyRole? localRole) { }
+
     // The overrides object DrawSettings edits, for the lobby's read-only summary
     // (ScenarioSettingsSummary); null when there is nothing to configure.
     object? SettingsOverrides => null;
+
+    // The lobby's read-only lines for those overrides. A scenario whose settings read badly as
+    // property names and values words its own.
+    IReadOnlyList<string> SettingsSummary => ScenarioSettingsSummary.Describe(SettingsOverrides);
 
     // Per-player settings the fight can't produce together (see SettingsConflicts). A start is
     // refused while this is non-empty, rather than running something the host didn't ask for.

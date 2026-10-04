@@ -82,9 +82,7 @@ public unsafe class MainWindow : Window, IDisposable
     // The last region picked per grouped scenario, restored on a switch back to it.
     private readonly Dictionary<IScenario, string> _stratGroupMemory = new();
 
-    // Index 0 = Auto (null override); indices 1..8 map to (PartyRole)(idx - 1).
-    // Labels are the canonical raid role abbreviations: MT/OT tanks, H1/H2 healers
-    // (H1 = regen), M1/M2 melee DPS, R1/R2 ranged DPS (R1 = phys).
+    // Index 0 = Auto (null override); indices 1..8 are SettingsGrid.Seats.
     private static readonly string[] RoleLabels =
         ["Auto", "MT", "OT", "H1", "H2", "M1", "M2", "R1", "R2"];
 
@@ -617,6 +615,8 @@ public unsafe class MainWindow : Window, IDisposable
                 multiplayerUi.DrawScenarioSettings(scenario);
             else
             {
+                if (scenario.HasLocalSettings)
+                    scenario.DrawLocalSettings(_roleOverride ?? PartyPresets.SkipRoleForJob(Plugin.ObjectTable.LocalPlayer?.ClassJob.RowId ?? 0));
                 scenario.DrawSettings();
                 scenario.DrawMultiplayerSettings();
             }
@@ -951,11 +951,11 @@ public unsafe class MainWindow : Window, IDisposable
 
     private void DrawRoleSelector()
     {
-        var idx = _roleOverride is { } role ? (int)role + 1 : 0;
+        var idx = _roleOverride is { } role ? SettingsGrid.SeatIndex(role) + 1 : 0;
         SettingsGrid.Row("Role:");
         ImGui.SetNextItemWidth(SetupDropdownWidth * ImGuiHelpers.GlobalScale);
         if (ImGui.Combo("##role", ref idx, RoleLabels, RoleLabels.Length))
-            _roleOverride = idx == 0 ? null : (PartyRole)(idx - 1);
+            _roleOverride = idx == 0 ? null : SettingsGrid.Seats[idx - 1];
     }
 
     // Only meaningful when a scenario offers more than one strat; hidden otherwise.

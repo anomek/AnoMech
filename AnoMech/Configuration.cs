@@ -58,8 +58,9 @@ public class Configuration : IPluginConfiguration
         return PeerSecret;
     }
     // Resolve the player's own actions client-side, since the sim firewall blocks
-    // the server responses that normally grant them. Sprint is always resolved;
-    // this gates everything else (shared actions + per-job kits).
+    // the server responses that normally grant them. Sprint and limit breaks are always
+    // resolved; this gates everything else (shared actions + per-job kits). A multiplayer
+    // host's choice holds for its whole session.
     public bool EnableUserActions { get; set; } = true;
 
     // Seconds before a player cast finishes during which it can no longer be

@@ -145,6 +145,14 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
         => children.Add(new SimArenaBoundary(Party, this, radius, cause, showVfx: !Map.IsInInstance));
 
+    // The fence stops killing for the rest of the run, as a death wall does when its arena
+    // edge comes down.
+    public void LowerArenaBoundary()
+    {
+        foreach (var boundary in children.OfType<SimArenaBoundary>())
+            boundary.Lower();
+    }
+
     // True when `local` (scenario-local) is outside the active arena fence; false
     // when the current scenario enforces no boundary.
     public bool IsOutsideArena(Vector3 local)
@@ -203,6 +211,9 @@ public sealed class SimWorld : ISimObject, IDisposable
         children.Add(party);
         Party = party;
     }
+
+    // Each client's own: a peer applies its own order to its own party list.
+    public void SetPartyListOrder(IReadOnlyList<PartyRole>? order) => Natives.PartyHud.SetDisplayOrder(order);
 
     public void Tick(float deltaSeconds)
     {

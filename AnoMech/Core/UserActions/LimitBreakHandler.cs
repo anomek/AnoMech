@@ -29,7 +29,11 @@ internal sealed class LimitBreakHandler : IUserActionHandler
     public void OnAction(ActionType actionType, uint actionId)
     {
         if (actionType != ActionType.Action || !IsLimitBreak(actionId)) return;
-        Plugin.GameInstance?.World.Party.LimitBreak.Spend();
+        if (Plugin.GameInstance?.World is not { } world) return;
+        world.Party.LimitBreak.Spend();
         DiagnosticLog.Info($"[LimitBreak] {ActionLookup.Name(actionId)} ({actionId}) resolved -- the gauge is spent.");
+        var aim = Plugin.PlayerInputHooks.LimitBreakAimNow(world);
+        Plugin.MultiplayerInstance?.ReportLimitBreak(actionId, aim);
+        world.Party.LimitBreak.Land(actionId, aim);
     }
 }

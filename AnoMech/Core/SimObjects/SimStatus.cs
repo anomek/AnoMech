@@ -22,6 +22,9 @@ public sealed class SimStatus : ISimObject
     // 0 = permanent until removed, so a peer replicating it gets the same behaviour.
     public float RemainingTime => duration > 0f ? Math.Max(0f, duration - elapsed) : 0f;
 
+    // Runs when the status times out, never when it is removed first.
+    public Action? RanOut { get; set; }
+
     internal SimStatus(SimCharacter target, ushort statusId, float duration, ushort stacks, GameObjectId sourceObject = default)
     {
         this.target = target;
@@ -55,6 +58,7 @@ public sealed class SimStatus : ISimObject
         if (duration > 0f && elapsed >= duration)
         {
             Despawn();
+            RanOut?.Invoke();
             return;
         }
 

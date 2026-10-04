@@ -12,4 +12,7 @@ internal sealed class InstanceContentDirector : IInstanceContentDirector
         => InstanceContentDirectorHelper.SetDirectorData(sequence, unknown, unionData, fillExtraData);
 
     public void Commence() => InstanceContentDirectorHelper.Commence();
+
+    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+        => InstanceContentDirectorHelper.BattleTalk(speakerNameId, textId, durationMs);
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.UserActions.Jobs;
@@ -9,9 +10,9 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 namespace AnoMech.Core.UserActions;
 
 // Optional, self-contained module: resolves the local player's own actions
-// client-side, filling in the server responses the sim firewall blocks. Sprint is
-// resolved unconditionally; the feature handlers only while Enabled. Nothing in the
-// engine depends on it.
+// client-side, filling in the server responses the sim firewall blocks. Sprint and limit
+// breaks are resolved unconditionally, since mechanics are built around the limit breaks;
+// everything else only while Enabled.
 public sealed unsafe class UserActions : IUserActions, IDisposable
 {
     private readonly LocalPlayerInputHooks hooks;
@@ -53,12 +54,16 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
         new AutoAttackHandler(),
     ];
 
+    private readonly List<IUserActionHandler> alwaysHandlers = [new JobActionHandler(), new LimitBreakHandler()];
+    private readonly IUserActionHandler castInterrupt;
+
     // A hard cast whose effects are deferred until it completes.
     private bool pendingResolve;
     private ActionType pendingType;
     private uint pendingAction;
     private ulong pendingTarget;
-    private float pendingTotal, pendingMax;
+    private float pendingTotal, pendingMax, pendingWatched;
+    private List<IUserActionHandler> pendingHandlers = [];
 
     // Dedup gate: LastUsedActionSequence advances only at an action's actual execution,
     // so this skips both a queued (spammed) press carrying the PRIOR action's sequence
@@ -88,6 +93,7 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
     public UserActions(LocalPlayerInputHooks hooks)
     {
         this.hooks = hooks;
+        castInterrupt = tickHandlers.OfType<CastInterruptHandler>().First();
         hooks.ActionExecuted += OnActionExecuted;
     }
 
@@ -98,12 +104,12 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
     public void OnScenarioStart()
     {
         sprint.OnScenarioStart();
+        pendingResolve = false;
         if (!Enabled) return;
         castTime.OnScenarioStart();
         foreach (var handler in effectHandlers) handler.OnScenarioStart();
         foreach (var handler in tickHandlers) handler.OnScenarioStart();
         startingResources.OnScenarioStart();
-        pendingResolve = false;
     }
 
     // Called by Game when the sim zone first loads (a true session start, not a restart within
@@ -138,11 +144,18 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
     {
         if (!SimActive) return;
         sprint.OnTick(deltaSeconds);
-        if (!Enabled) return;
+        if (!Enabled)
+        {
+            // A limit break's cast still resolves, and still breaks on movement.
+            if (pendingResolve) castInterrupt.OnTick(deltaSeconds);
+            else hooks.PollCancelCast();
+            ResolvePendingCast(deltaSeconds);
+            return;
+        }
         castTime.OnTick(deltaSeconds);
         foreach (var handler in effectHandlers) handler.OnTick(deltaSeconds);
         foreach (var handler in tickHandlers) handler.OnTick(deltaSeconds);
-        ResolvePendingCast();
+        ResolvePendingCast(deltaSeconds);
     }
 
     private void OnActionExecuted(ActionType actionType, uint actionId, ulong targetId)
@@ -155,10 +168,11 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
         processedSeq = seq;
 
         sprint.OnAction(actionType, actionId);
-        if (!Enabled) return;
+        var handlers = Enabled ? effectHandlers : IsAlwaysResolved(actionType, actionId) ? alwaysHandlers : null;
+        if (handlers == null) return;
 
         // Enabler bookkeeping happens as the cast begins.
-        castTime.OnAction(actionType, actionId);
+        if (Enabled) castTime.OnAction(actionType, actionId);
 
         // Effects resolve when the cast finishes. Instant (or made instant) → now; a real cast bar
         // this action started → deferred to completion (see ResolvePendingCast). The ActionId match
@@ -174,15 +188,20 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
             pendingTarget = targetId;
             pendingTotal = bc->CastInfo.TotalCastTime;
             pendingMax = bc->CastInfo.CurrentCastTime;
+            pendingWatched = 0f;
+            pendingHandlers = handlers;
         }
         else
         {
-            foreach (var handler in effectHandlers) handler.OnAction(actionType, actionId, targetId);
+            foreach (var handler in handlers) handler.OnAction(actionType, actionId, targetId);
         }
     }
 
+    private static bool IsAlwaysResolved(ActionType actionType, uint actionId)
+        => actionType == ActionType.Action && LimitBreakHandler.IsLimitBreak(actionId);
+
     // Fires the deferred hard-cast effects once the cast completes; drops them if it was interrupted.
-    private void ResolvePendingCast()
+    private void ResolvePendingCast(float deltaSeconds)
     {
         if (!pendingResolve) return;
         var bc = (BattleChara*)(Plugin.ObjectTable.LocalPlayer?.Address ?? 0);
@@ -191,7 +210,9 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
         if (bc->CastInfo.IsCasting && bc->CastInfo.ActionId == pendingAction)
         {
             if (bc->CastInfo.CurrentCastTime > pendingMax) pendingMax = bc->CastInfo.CurrentCastTime;
-            return;
+            pendingWatched += deltaSeconds;
+            if (pendingWatched <= pendingTotal + CastInterruptHandler.OverstaySeconds) return;
+            pendingMax = pendingTotal;
         }
 
         // Cast ended: apply only if it reached the slidecast window, which an interrupt never does.
@@ -199,7 +220,7 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
         {
             var am = ActionManager.Instance();
             if (am != null) processedSeq = am->LastUsedActionSequence; // dedup any re-entrant combo fire during dispatch
-            foreach (var handler in effectHandlers) handler.OnAction(pendingType, pendingAction, pendingTarget);
+            foreach (var handler in pendingHandlers) handler.OnAction(pendingType, pendingAction, pendingTarget);
         }
         pendingResolve = false;
         pendingMax = 0;

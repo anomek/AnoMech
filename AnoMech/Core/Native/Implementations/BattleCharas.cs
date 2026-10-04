@@ -171,6 +171,10 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         chara->ModeParam = 0;
         if (config.InitialModeAttributeFlags is { } maf)
             chara->ModelContainer.ModeAttributeFlags = maf;
+        // What the spawn handler's TimelineContainer weapon setter writes: bit 7 marks the state
+        // as set, bit 6 is IsWeaponDrawn.
+        if (config.WeaponDrawn)
+            chara->Timeline.Flags3 |= 0xC0;
         chara->CastInfo.IsCasting = false;
         if (config.NameId != 0) chara->NameId = config.NameId;
         if (config.Level != 0) chara->Level = config.Level;

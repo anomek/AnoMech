@@ -107,10 +107,17 @@ public sealed partial class MultiplayerManager
 
     private static readonly Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.Weather> WeatherSheet =
         Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Weather>();
+    private static readonly Lumina.Excel.ExcelSheet<Lumina.Excel.Sheets.BNpcName> BNpcNameSheet =
+        Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.BNpcName>();
 
     // Host-driven world state is applied only inside a live run; outside one it would act on
     // the real inn.
     private bool PeerInRun => !IsHost && running && peerEnteredInstance && Plugin.GameInstance.World.Map.IsInInstance;
+
+    private bool IsOwnLimitBreak(Guid peerId, uint actionId)
+        => Session.Jobs.TryGetValue(peerId, out var job)
+           && Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>().TryGetRow(job, out var row)
+           && (row.LimitBreak1.RowId == actionId || row.LimitBreak2.RowId == actionId || row.LimitBreak3.RowId == actionId);
 
     private static Guid? ClaimedPeerId(MpMessage message) => message switch
     {
@@ -126,6 +133,8 @@ public sealed partial class MultiplayerManager
         LeaveRequestMessage m => m.PeerId,
         PeerAppliedEnemyStatusMessage m => m.PeerId,
         PeerAppliedRoleStatusMessage m => m.PeerId,
+        PeerLimitBreakMessage m => m.PeerId,
+        PeerClearedStatusMessage m => m.PeerId,
         _ => null,
     };
 
@@ -242,6 +251,7 @@ public sealed partial class MultiplayerManager
                         DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported status {applied.StatusId} on unknown enemy NetId {netId} -- dropping.");
                         continue;
                     }
+                    enemy.RemoveStatus(applied.StatusId);
                     enemy.AddStatus(applied.StatusId, duration);
                     DiagnosticLog.Info($"[Multiplayer] Host: applied {who}'s reported status {applied.StatusId} (duration={duration:F1}) to enemy NetId {netId}.");
                 }
@@ -272,10 +282,44 @@ public sealed partial class MultiplayerManager
                 break;
             }
 
+            case PeerClearedStatusMessage cleared when IsHost:
+            {
+                var who = Session.NameOf(cleared.PeerId);
+                if (Session.RoleOf(cleared.PeerId) is not { } clearedRole || Plugin.GameInstance.World.Party.Get(clearedRole) is not { } clearedMember) break;
+                foreach (var statusId in NetGuard.Cap(cleared.StatusIds, NetGuard.MaxStatusesPerEntity))
+                {
+                    if (!AnoMech.Core.UserActions.Mitigation.ByStatusId.ContainsKey(statusId)) continue;
+                    clearedMember.RemoveStatus(statusId);
+                    DiagnosticLog.Info($"[Multiplayer] Host: {who}'s own press cleared status {statusId} off role {clearedRole}.");
+                }
+                break;
+            }
+
+            case PeerLimitBreakMessage limitBreak when IsHost:
+            {
+                var who = Session.NameOf(limitBreak.PeerId);
+                if (!running || Session.RoleOf(limitBreak.PeerId) is not { } limitBreakRole) break;
+                if (!IsOwnLimitBreak(limitBreak.PeerId, limitBreak.ActionId))
+                {
+                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported action {limitBreak.ActionId} as a limit break, which isn't one of its job's -- dropping.");
+                    break;
+                }
+                // An aim that fails the checks keeps the host's own view of the peer instead.
+                var puppet = Plugin.GameInstance.World.Party.Get(limitBreakRole);
+                var origin = NetGuard.TryPosition(limitBreak.X, limitBreak.Y, limitBreak.Z, out var sent) ? sent : puppet?.Position ?? Vector3.Zero;
+                var aim = new LimitBreakAim(origin, NetGuard.Rotation(limitBreak.Heading),
+                    NetGuard.TryPosition(limitBreak.LocationX, limitBreak.LocationY, limitBreak.LocationZ));
+                DiagnosticLog.Info($"[Multiplayer] Host: {who} ({limitBreakRole})'s {ActionLookup.Name(limitBreak.ActionId)} landed, aimed from "
+                                    + $"({aim.Origin.X:F2},{aim.Origin.Z:F2}) heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
+                (Plugin.GameInstance.ActiveScenario as IPartyLimitBreakScenario)?.OnPartyLimitBreak(limitBreakRole, limitBreak.ActionId, aim);
+                break;
+            }
+
             case LobbyStateMessage lobby when !IsHost:
                 Session.ApplyLobbyState(lobby);
                 NoteHelloAcknowledged();
                 ApplyHostScenarioSettings();
+                ApplyHostActionSettings();
                 LobbyChanged?.Invoke();
                 // A late join or mid-fight rejoin never gets a StartMessage; OnStartReceived is
                 // idempotent, so this is safe on a fresh start too.
@@ -409,6 +453,14 @@ public sealed partial class MultiplayerManager
                 Plugin.GameInstance.World.Map.DirectorUpdate(
                     directorUpdate.Category, directorUpdate.Arg1, directorUpdate.Arg2,
                     directorUpdate.Arg3, directorUpdate.Arg4, directorUpdate.Arg5, directorUpdate.Arg6);
+                break;
+            case MapBattleTalkMessage battleTalk when PeerInRun:
+                if (!SimAssets.Allow(SimAssetKind.BattleTalk, battleTalk.TextId, "BattleTalk")
+                    || !BNpcNameSheet.HasRow(battleTalk.SpeakerNameId))
+                    break;
+                DiagnosticLog.Info($"[Multiplayer] Peer: applying BattleTalk text={battleTalk.TextId}.");
+                Plugin.GameInstance.World.Map.BattleTalk(
+                    battleTalk.SpeakerNameId, battleTalk.TextId, (uint)NetGuard.Clamp(battleTalk.DurationMs, 0f, 30_000f));
                 break;
             case SetWeatherMessage weather when PeerInRun:
                 if (!WeatherSheet.HasRow(weather.WeatherId))

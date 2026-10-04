@@ -10,4 +10,5 @@ internal sealed class FakeInstanceContentDirector(FakeZoneSession zone) : IInsta
 
     public void SetDirectorData(byte sequence, byte unknown, byte[] unionData, bool fillExtraData = true) { }
     public void Commence() { }
+    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs) => zone.IsActive;
 }

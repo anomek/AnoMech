@@ -185,7 +185,7 @@ public class TopP5SigmaScenarioTests
     public void DiesToSuperliminalSteel()
         => Sigma(MainTank, o => o.OmegaFForm = OmegaAttack.Legs)
             .TeleportAt(58.5f, to: new(-6.5f, -17))
-            .ShouldKill(ActionId.SuperliminalSteelOmenL, MainTank);
+            .ShouldKill(ActionId.SuperliminalSteelOmenR, MainTank);
 
     // Steps onto the second arm's line to MT just after Near World's first hit made it vulnerable.
     [Test]

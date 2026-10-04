@@ -7,7 +7,7 @@ using AnoMech.Core;
 
 namespace AnoMech.Multiplayer;
 
-internal enum SimAssetKind { Action, BNpcBase, EObj, Lockon, Tether, Timeline, OmenPath, Layout, EventId, ModelChara }
+internal enum SimAssetKind { Action, BNpcBase, EObj, Lockon, Tether, Timeline, OmenPath, Layout, EventId, ModelChara, BattleTalk }
 
 // A peer rebuilds the world from raw engine ids the host sends and runs no scenario logic, so
 // it cannot judge whether an id belongs to the fight. Handing the engine an id loads that
@@ -37,6 +37,7 @@ internal static class SimAssets
         [SimAssetKind.Layout] = ["LayoutId"],
         [SimAssetKind.EventId] = ["EventId"],
         [SimAssetKind.ModelChara] = ["ModelCharaId"],
+        [SimAssetKind.BattleTalk] = ["BattleTalkId"],
     };
 
     private static Dictionary<SimAssetKind, HashSet<ulong>>? numbers;

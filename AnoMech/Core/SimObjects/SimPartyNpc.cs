@@ -57,6 +57,8 @@ public sealed class SimPartyNpc : SimNpc, ISimPartyMember
 
     public void PushInDirectionEased(float heading, float distance, float durationSeconds) => Movement.PushInDirectionEased(heading, distance, durationSeconds);
 
+    public void WalkInDirection(float heading, float distance, float speed) => Movement.WalkInDirection(heading, distance, speed);
+
     public override void Despawn()
     {
         base.Despawn();
@@ -66,6 +68,7 @@ public sealed class SimPartyNpc : SimNpc, ISimPartyMember
     {
         Dead = true;
         StopMoving();
+        AbortPlayedAction();
         if (Proxy is not { Exists: true } chara) return;
         chara.ApplyDeadState();
         this.PlayKoActionTimeline();

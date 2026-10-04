@@ -25,7 +25,7 @@ public sealed class SettingsConflicts
     }
 
     public static string Seats(IEnumerable<PartyRole> roles)
-        => string.Join(", ", roles.OrderBy(r => (int)r).Select(SettingsGrid.RoleLabel));
+        => string.Join(", ", roles.OrderBy(SettingsGrid.SeatIndex).Select(SettingsGrid.RoleLabel));
 
     // More seats want the thing than the fight has places for it.
     public void AtMost(int places, IReadOnlyCollection<PartyRole> claimants, string what)

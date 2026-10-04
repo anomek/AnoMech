@@ -278,10 +278,10 @@ internal static unsafe class JobActions
         [7535] = [EnemyStatus(1193, 15f)],   // Reprisal
 
         // Tank LB3
-        [199]   = [TargetStatus(196, 8f)],    // Last Bastion
-        [4240]  = [TargetStatus(863, 8f)],    // Land Waker
-        [4241]  = [TargetStatus(864, 8f)],    // Dark Force
-        [17105] = [TargetStatus(1931, 8f)],   // Gunmetal Soul
+        [199]   = [TankLimitBreak(196, 8f)],    // Last Bastion
+        [4240]  = [TankLimitBreak(863, 8f)],    // Land Waker
+        [4241]  = [TankLimitBreak(864, 8f)],    // Dark Force
+        [17105] = [TankLimitBreak(1931, 8f)],   // Gunmetal Soul
 
         // WAR
         [37] = [Combo(Gauge(WarBeast, 10))],   // Maim
@@ -690,6 +690,11 @@ internal static unsafe class JobActions
         [3688] = [AnyGcd()],           // Hyperphantasia: one stack per pictomancy GCD
     };
 
+    // For a scenario applying a press it plays itself: the rolls (a mitigation's proc) are engine
+    // noise, not the run's.
+    public static void ApplyEffects(SimCharacter caster, uint actionId, ulong targetId)
+        => ApplyEffects(caster, actionId, targetId, System.Random.Shared);
+
     public static void ApplyEffects(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)
     {
         if (!Actions.TryGetValue(actionId, out var effects)) return;
@@ -715,9 +720,16 @@ internal static unsafe class JobActions
     // → 0 → removed), so both cases fall out of one call.
     public static void ClearStatuses(SimPlayer player, uint actionId)
     {
+        List<ushort>? mitigation = null;
         foreach (var (statusId, predicates) in StatusClearedOnAction)
             foreach (var predicate in predicates)
-                if (predicate.Matches(actionId)) { player.AddStatus(statusId, 0f, -1); break; }
+                if (predicate.Matches(actionId))
+                {
+                    if (Mitigation.ByStatusId.ContainsKey(statusId) && player.HasStatus(statusId)) (mitigation ??= []).Add(statusId);
+                    player.AddStatus(statusId, 0f, -1);
+                    break;
+                }
+        if (mitigation != null) HostReport.OwnStatusesCleared(mitigation);
     }
 
     // (job, Action-sheet PrimaryCostType) → the gauge(s) an action spends; PrimaryCostValue is
@@ -760,6 +772,7 @@ internal static unsafe class JobActions
     private static IActionEffect Status(ushort statusId, float duration, int stacks = 0) => new StatusEffect(statusId, duration, stacks);
     private static IActionEffect TargetStatus(ushort statusId, float duration, int stacks = 0) => new TargetStatusEffect(statusId, duration, stacks);
     private static IActionEffect EnemyStatus(ushort statusId, float duration, int stacks = 0) => new EnemyStatusEffect(statusId, duration, stacks);
+    private static IActionEffect TankLimitBreak(ushort statusId, float duration) => new TankLimitBreakEffect(statusId, duration);
     private static IActionEffect Combo(params IActionEffect[] inner) => new ComboEffect(inner);
     private static IActionEffect Random(float chance, params IActionEffect[] inner) => new RandomEffect(chance, inner);
 

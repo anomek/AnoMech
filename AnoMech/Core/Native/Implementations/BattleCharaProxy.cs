@@ -194,6 +194,15 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         if (obj != null) TimelineFunctions.SetModelState(&obj->Timeline, value);
     }
 
+    public byte ModeAttributeFlags
+    {
+        get
+        {
+            var obj = Ptr;
+            return obj == null ? (byte)0 : obj->ModelContainer.ModeAttributeFlags;
+        }
+    }
+
     public void SetModeAttributeFlags(byte value)
     {
         var obj = Ptr;
@@ -334,6 +343,12 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
             var obj = Ptr;
             return obj == null ? 0f : obj->CastInfo.TotalCastTime;
         }
+    }
+
+    public void SetCurrentCastTime(float seconds)
+    {
+        var obj = Ptr;
+        if (obj != null) obj->CastInfo.CurrentCastTime = seconds;
     }
 
     public void ClearCast()
@@ -517,6 +532,14 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         // val1 is the number, text1 the label: putting the number in both prints it twice.
         Plugin.FlyText.AddFlyText(FlyTextKind.Damage, ((GameObject*)obj)->ObjectIndex, amount, 0,
             new SeString(new TextPayload(label)), new SeString(), DamageColorAbgr, 0, damageTypeIcon);
+    }
+
+    public void ShowMissFlyText(string label)
+    {
+        var obj = Ptr;
+        if (obj == null) return;
+        Plugin.FlyText.AddFlyText(FlyTextKind.NamedMiss, ((GameObject*)obj)->ObjectIndex, 0, 0,
+            new SeString(new TextPayload(label)), new SeString(), DamageColorAbgr, 0, 0);
     }
 
     public void CarryTo(Vector3 destination, float rotation, bool selfTarget)

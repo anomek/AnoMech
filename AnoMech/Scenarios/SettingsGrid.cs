@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game.Party;
 using Dalamud.Bindings.ImGui;
@@ -21,7 +22,18 @@ internal static class SettingsGrid
 
     private static readonly string[] RoleLabels = ["MT", "OT", "H1", "H2", "M1", "M2", "R1", "R2"];
 
-    public static string RoleLabel(PartyRole role) => RoleLabels[(int)role];
+    // The selected fight's seats in label order: its strats decide which ranged seat is R1.
+    public static IReadOnlyList<PartyRole> Seats => Plugin.MainWindow?.SelectedScenario?.Phase.Zone.SeatOrder ?? PerRole.All;
+
+    public static int SeatIndex(PartyRole role)
+    {
+        var seats = Seats;
+        for (var i = 0; i < seats.Count; i++)
+            if (seats[i] == role) return i;
+        return (int)role;
+    }
+
+    public static string RoleLabel(PartyRole role) => RoleLabels[SeatIndex(role)];
 
     // A divider inside the grid: the rows below it are a different kind of setting. Used to
     // split a panel's fight-wide rolls from its per-player ones.
@@ -53,21 +65,21 @@ internal static class SettingsGrid
         var mp = Plugin.MultiplayerInstance;
         if (!PerRole.SeatsActive || mp == null) return current;
         Row("Editing:");
-        var labels = new string[8];
-        for (var i = 0; i < 8; i++)
+        var seats = Seats;
+        var labels = new string[seats.Count];
+        for (var i = 0; i < seats.Count; i++)
         {
-            var role = (PartyRole)i;
-            var seat = mp.Session.ClaimedBy.TryGetValue(role, out var peerId)
+            var seat = mp.Session.ClaimedBy.TryGetValue(seats[i], out var peerId)
                 ? peerId == mp.MyPeerId ? "you" : mp.Session.NameOf(peerId)
                 : "bot";
-            labels[i] = $"{RoleLabel(role)} — {seat}";
+            labels[i] = $"{RoleLabels[i]} — {seat}";
         }
-        var idx = (int)current;
+        var idx = SeatIndex(current);
         ItemWidth(220);
-        if (ImGui.Combo(id, ref idx, labels, labels.Length) && idx is >= 0 and < 8)
-            current = (PartyRole)idx;
+        if (ImGui.Combo(id, ref idx, labels, labels.Length) && idx >= 0 && idx < seats.Count)
+            current = seats[idx];
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Which seat the rows below are for. Each seat keeps its own settings; everyone left on Random gets the fight's usual roll.");
+            ImGui.SetTooltip("Which seat the rows below are for. Each seat keeps its own settings, and anything left unset gets the fight's usual roll.");
         return current;
     }
 

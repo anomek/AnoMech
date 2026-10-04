@@ -90,7 +90,7 @@ public sealed class PerRoleSetting<T> : IPerRoleSetting where T : struct
         if (!AnySet) return null;
         if (!PerRole.SeatsActive)
             return Mine is { } mine ? ScenarioSettingsSummary.FormatValue(mine) : null;
-        var parts = PerRole.All
+        var parts = SettingsGrid.Seats
             .Where(r => this[r].HasValue)
             .Select(r => $"{SettingsGrid.RoleLabel(r)} {ScenarioSettingsSummary.FormatValue(this[r]!.Value)}")
             .ToList();

@@ -32,8 +32,10 @@ public static class SimObjectExtensions
 {
     public static void Update<T>(this List<T> children, float tick) where T : ISimObject
     {
-        foreach (var child in children)
-            child.Tick(tick);
+        // By index: a child's tick may add to the list (a status running out can kill, and a death
+        // adds statuses).
+        for (var i = 0; i < children.Count; i++)
+            children[i].Tick(tick);
         for (int i = children.Count - 1; i >= 0; i--)
         {
             if (children[i].IsActive) continue;

@@ -48,7 +48,7 @@ public class TopP2PartySynergyScenarioTests
     public void DiesToLegs()
         => Healer(PlaystationSymbol.Cross, GlitchType.Mid, f: OmegaAttack.Legs, m: OmegaAttack.Sword)
             .TeleportAt(12f, to: new(8, -5))
-            .ShouldKill(ActionId.SuperliminalSteelOmenR, RegenHealer);
+            .ShouldKill(ActionId.SuperliminalSteelOmenL, RegenHealer);
 
     [Test]
     public void DiesToStaff()
@@ -68,16 +68,17 @@ public class TopP2PartySynergyScenarioTests
             .TeleportAt(12f, to: new(0, -8))
             .ShouldKill(ActionId.BeyondStrength, RegenHealer);
 
+    // These two stand just west of the Optical Laser's band (x = ±8): its damage lands before Fire III's.
     [Test]
     public void DiesWhenTooCloseOnMidTether()
         => Healer(PlaystationSymbol.Circle, GlitchType.Mid)
-            .TeleportAt(17f, to: new(-2, 5.5f))
+            .TeleportAt(17f, to: new(-8.5f, 5.5f))
             .ShouldKill(ActionId.OptimizedFireIII, RegenHealer, OffTank);
 
     [Test]
     public void DiesWhenTooCloseOnFarTether()
         => Healer(PlaystationSymbol.Circle, GlitchType.Far)
-            .TeleportAt(17f, to: new(-2, 5.5f))
+            .TeleportAt(17f, to: new(-8.5f, 5.5f))
             .ShouldKill(ActionId.OptimizedFireIII, RegenHealer, OffTank);
 
     [Test]

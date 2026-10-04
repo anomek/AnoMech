@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using AnoMech.Core.Game;
+using AnoMech.Core.SimObjects;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
@@ -12,6 +14,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Input;
 using AnoMech.Core.Native.Interfaces;
+using NativeLimitBreakController = FFXIVClientStructs.FFXIV.Client.Game.UI.LimitBreakController;
 
 namespace AnoMech.Core.Native.Implementations;
 
@@ -229,11 +232,105 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput, IDisposabl
         if (autosOn) self->UseAction(ActionType.GeneralAction, 1);
     }
 
+    // Null outside a scenario too: there the gauge is the player's own and none of this applies.
+    private int? LimitBreakLevel(ActionType actionType, uint actionId)
+    {
+        if (actionType != ActionType.Action) return null;
+        if (Plugin.GameInstance is not { } game || !game.World.Map.IsInInstance) return null;
+        if (Plugin.ObjectTable.LocalPlayer is not { } local) return null;
+        var lb = NativeLimitBreakController.Instance();
+        if (lb == null) return null;
+        var character = (Character*)local.Address;
+        for (byte i = 0; i < 3; i++)
+            if (lb->GetActionId(character, i) == actionId) return i;
+        return null;
+    }
+
+    // The client's own refusal reason is the only way to see why a press did nothing.
+    private void NoteLimitBreakPress(uint actionId, ulong targetId, int level, bool accepted, bool fired)
+    {
+        var name = Core.ActionLookup.Name(actionId);
+        var job = Plugin.ObjectTable.LocalPlayer?.ClassJob.RowId;
+        if (!accepted)
+        {
+            var am = ActionManager.Instance();
+            var status = am == null ? 0u : am->GetActionStatus(ActionType.Action, actionId, targetId);
+            var reason = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.LogMessage>()
+                .GetRowOrDefault(status)?.Text.ExtractText() ?? "";
+            Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, job={job}) refused by the client -- status {status} \"{reason}\".");
+            return;
+        }
+        // A queued press comes back through UseAction (mode Queue) when the lock ends, and an
+        // area-targeted one through UseActionLocation once it is placed; only that call is the LB
+        // going off.
+        if (!fired)
+        {
+            Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, LB{level + 1}, job={job}) queued or awaiting its ground target -- nothing happens until it fires.");
+            return;
+        }
+        Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, LB{level + 1}, job={job}) fired by the client, target 0x{targetId:X}"
+            + $"{(limitBreakLocation is { } at ? $", ground target ({at.X:F2},{at.Z:F2})" : "")}.");
+    }
+
+    private ulong limitBreakTargetId;
+    private Vector3? limitBreakLocation;
+
+    private void NoteLimitBreakAim(uint actionId, ulong targetId, Vector3* location)
+    {
+        limitBreakTargetId = targetId;
+        var areaTargeted = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>().TryGetRow(actionId, out var row) && row.TargetArea;
+        limitBreakLocation = areaTargeted && location != null ? *location : null;
+    }
+
+    // Where the local player's limit break was aimed as it resolves, scenario-local: toward the enemy
+    // it was used on, else the way the player faced, and an area-targeted one's ground location.
+    public LimitBreakAim LimitBreakAimNow(SimWorld world)
+    {
+        if (world.Party.Player is not { } player) return default;
+        var aim = new Placement(player.Position, player.Rotation);
+        if (world.Children.OfType<SimEnemy>().FirstOrDefault(e => e.IsActive && (ulong)e.GameObjectId == limitBreakTargetId) is { } target)
+            aim = aim.Face(target.Position);
+        var location = limitBreakLocation is { } global ? world.Coordinates.ToLocal(global) : (Vector3?)null;
+        return new LimitBreakAim(aim.Position, aim.Rotation, location);
+    }
+
+    public bool PressLimitBreakThree(ulong targetId, Vector3? worldLocation)
+    {
+        if (Plugin.ObjectTable.LocalPlayer is not { } local) return false;
+        var lb = NativeLimitBreakController.Instance();
+        var actions = ActionManager.Instance();
+        if (lb == null || actions == null) return false;
+        var actionId = lb->GetActionId((Character*)local.Address, 2);
+        if (actionId == 0) return false;
+        if (worldLocation is not { } at) return actions->UseAction(ActionType.Action, actionId, targetId);
+        return actions->UseActionLocation(ActionType.Action, actionId, 0xE0000000, &at);
+    }
+
+    // UseAction runs UseActionLocation inside itself for everything it executes; an area-targeted
+    // action is the exception, executed later from the client's targeting mode.
+    private int useActionDepth;
+
     private bool UseActionDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, uint extraParam, ActionManager.UseActionMode mode, uint comboRouteId, bool* outOptAreaTargeted)
     {
         RecordRecentAction(actionId, actionType);
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
-        var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        var limitBreakLevel = LimitBreakLevel(actionType, actionId);
+        // The UseActionLocation it runs, if it executes, names the resolved target instead.
+        if (limitBreakLevel != null) NoteLimitBreakAim(actionId, targetId, null);
+        // Advances only when the client actually sends the action, not when it queues it.
+        var sequence = self->LastUsedActionSequence;
+        bool result;
+        useActionDepth++;
+        try
+        {
+            result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        }
+        finally
+        {
+            useActionDepth--;
+        }
+        if (limitBreakLevel is { } pressedLevel)
+            NoteLimitBreakPress(actionId, targetId, pressedLevel, result, fired: self->LastUsedActionSequence != sequence);
         // Ignore the auto-attack-cancel general action that UpdateDetour issues while stunned.
         if (result && !IsStopAutosAction(actionType, actionId))
         {
@@ -243,10 +340,22 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput, IDisposabl
         return result;
     }
 
+    // An area-targeted limit break (a caster's) fires here once its ground target is placed, with
+    // no UseAction around it, so the press bookkeeping runs here for it instead.
     private bool UseActionLocationDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, Vector3* location, uint extraParam, byte a7)
     {
         if (DisableAllActions && !IsStopAutosAction(actionType, actionId)) return false;
+        var limitBreakLevel = LimitBreakLevel(actionType, actionId);
+        var fromTargetingMode = useActionDepth == 0;
+        var sequence = self->LastUsedActionSequence;
         var result = useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
+        if (limitBreakLevel is { } firedLevel)
+        {
+            // Nothing here queues: a true result is the action going off.
+            var fired = result || self->LastUsedActionSequence != sequence;
+            if (fired) NoteLimitBreakAim(actionId, targetId, location);
+            if (fromTargetingMode) NoteLimitBreakPress(actionId, targetId, firedLevel, result, fired);
+        }
         if (result)
         {
             actionUsedSincePoll = true;

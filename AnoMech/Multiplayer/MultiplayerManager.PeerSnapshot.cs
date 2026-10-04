@@ -49,6 +49,28 @@ public sealed partial class MultiplayerManager
         _ = relay.SendAsync(new PeerAppliedEnemyStatusMessage(MyPeerId, netIds, statusId, duration));
     }
 
+    // The host's gauge would read full until this report reaches it; the local spend stands
+    // over the snapshots meanwhile.
+    private const long OwnLimitBreakGraceMs = 1500;
+    private long ownLimitBreakAtMs = long.MinValue / 2;
+
+    public void ReportLimitBreak(uint actionId, LimitBreakAim aim)
+    {
+        if (IsHost || relay is not { IsConnected: true } || !PeerInRun || Plugin.GameInstance.RunningScenario is not IPartyLimitBreakScenario) return;
+        ownLimitBreakAtMs = Environment.TickCount64;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting limit break {actionId} to host, aimed from ({aim.Origin.X:F2},{aim.Origin.Z:F2}) "
+                            + $"heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
+        _ = relay.SendAsync(new PeerLimitBreakMessage(MyPeerId, actionId, aim.Origin.X, aim.Origin.Y, aim.Origin.Z, aim.Heading,
+            aim.Location?.X, aim.Location?.Y, aim.Location?.Z));
+    }
+
+    public void ReportClearedOwnStatuses(List<ushort> statusIds)
+    {
+        if (IsHost || relay is not { IsConnected: true } || statusIds.Count == 0) return;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting cleared statuses [{string.Join(",", statusIds)}] to host.");
+        _ = relay.SendAsync(new PeerClearedStatusMessage(MyPeerId, statusIds));
+    }
+
     public void ReportAppliedRoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration)
     {
         if (IsHost || relay is not { IsConnected: true } || roles.Count == 0) return;
@@ -81,6 +103,8 @@ public sealed partial class MultiplayerManager
         // peerEnemies still tracked them.
         if (!PeerInRun) return;
         var world = Plugin.GameInstance.World;
+        if (snap.LimitBreakBars is { } bars && Environment.TickCount64 - ownLimitBreakAtMs > OwnLimitBreakGraceMs)
+            world.Party.LimitBreak.Set(NetGuard.Clamp(bars, 0f, 3f));
 
         var seenEnemyIds = new HashSet<int>();
         foreach (var e in NetGuard.Cap(snap.Enemies, NetGuard.MaxEnemiesPerSnapshot))
@@ -102,7 +126,7 @@ public sealed partial class MultiplayerManager
                 var enableDraw = false;
                 if (e.NpcSpawnTemplate is { } templateName && !peerEnemyTemplateFailed.Contains(e.NetId))
                 {
-                    if (UmadRealPackets.NpcSpawnTemplates.TryGetValue(templateName, out var bytes))
+                    if (NpcSpawnTemplates.TryGet(templateName, out var bytes))
                     {
                         template = bytes;
                         enableDraw = e.PacketSpawnEnableDraw;
@@ -120,7 +144,7 @@ public sealed partial class MultiplayerManager
                         ? e.ModelCharaId : 0,
                     NetGuard.Clamp(e.Scale, 0f, 100f), NetGuard.Clamp(e.HitboxRadius, 0f, 100f),
                     e.InitialModeAttributeFlags,
-                    NpcSpawnTemplate: template, PacketSpawnEnableDraw: enableDraw);
+                    NpcSpawnTemplate: template, PacketSpawnEnableDraw: enableDraw, WeaponDrawn: e.WeaponDrawn);
                 DiagnosticLog.Info($"[Multiplayer] Peer: first snapshot of enemy NetId {e.NetId} -- BNpcBase {e.BNpcBaseId}, pos ({e.X:F2},{e.Y:F2},{e.Z:F2}), rot {e.Rotation:F2}, visible {e.Visible}"
                     + $", cast {e.CastActionId}/seq {e.CastSeq}, instant {e.LastInstantCastActionId}/seq {e.LastInstantCastSeq}"
                     + $"{(template != null ? $", template {e.NpcSpawnTemplate}" : "")} -- spawning local doppel.");
@@ -145,9 +169,21 @@ public sealed partial class MultiplayerManager
             enemy.ApplyNetworkPosition(placement.Position, placement.Rotation);
             enemy.SetVisible(e.Visible);
             enemy.SetTargetable(e.Targetable);
+            if (enemy.EnemyListMode == EnemyListMode.Manual) enemy.SetVisibleInEnemyList(e.InEnemyList);
             // Nothing below lands on an actor the engine hasn't created yet; leaving the seqs
             // unrecorded makes the next snapshot retry.
             if (enemy.PacketSpawnPending) continue;
+            // Only on change, and before the model state as the host writes them: both rebuild the model.
+            if (e.ModeAttributeFlags is { } modeFlags && enemy.ModeAttributeFlags is { } localModeFlags
+                && (!peerEnemyModeAttributeFlags.TryGetValue(e.NetId, out var lastModeFlags) || lastModeFlags != modeFlags))
+            {
+                peerEnemyModeAttributeFlags[e.NetId] = modeFlags;
+                if (localModeFlags != modeFlags)
+                {
+                    DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) ModeAttributeFlags -> 0x{modeFlags:X2}.");
+                    enemy.SetModeAttributeFlags(modeFlags);
+                }
+            }
             // Only on change: SetModelState rebuilds the model.
             if (!peerEnemyModelState.TryGetValue(e.NetId, out var lastModelState) || lastModelState != e.ModelState)
             {
@@ -168,6 +204,8 @@ public sealed partial class MultiplayerManager
                 enemyStatuses.Select(s => (s.StatusId, s.Stacks, s.RemainingTime)).ToList(), lastStatuses);
             // Replayed through the real SimCast pipeline so the cast bar and omen match. Keyed
             // on CastSeq (see EnemyState); seq 0 is the never-cast default.
+            if (e.CastSeq > 0 && e.CastSeq == e.CancelledCastSeq)
+                peerEnemyLastCastSeq[e.NetId] = e.CastSeq;
             if (e.CastSeq > 0
                 && (!peerEnemyLastCastSeq.TryGetValue(e.NetId, out var lastCastSeq) || lastCastSeq != e.CastSeq))
             {
@@ -178,10 +216,25 @@ public sealed partial class MultiplayerManager
                 var targetLocation = NetGuard.TryPosition(e.CastTargetX, e.CastTargetY, e.CastTargetZ);
                 var targetId = ResolvePeerEnd(world, e.CastTargetEnemyNetId, e.CastTargetRole)?.GameObjectId;
                 if (SimAssets.Allow(SimAssetKind.Action, e.CastActionId, $"enemy NetId {e.NetId} cast"))
+                {
                     enemy.Cast(e.CastActionId, targetLocation: targetLocation,
                         castSeconds: NetGuard.Clamp(e.CastSeconds, 0f, 600f),
                         omenDelay: NetGuard.Clamp(e.CastOmenDelay, 0f, 60f),
-                        omenRotate: NetGuard.Clamp(e.CastOmenRotate, -MathF.Tau, MathF.Tau), targetId: targetId);
+                        omenRotate: NetGuard.Clamp(e.CastOmenRotate, -MathF.Tau, MathF.Tau), targetId: targetId,
+                        animationLock: NetGuard.Clamp(e.CastAnimationLock, 0f, 60f, 0.6f),
+                        fireDelay: NetGuard.Clamp(e.CastFireDelay, 0f, 10f));
+                    if (e.CastStartElapsed > 0f) enemy.SkipCastAhead(NetGuard.Clamp(e.CastStartElapsed, 0f, 600f));
+                }
+            }
+            if (e.CancelledCastSeq > 0
+                && (!peerEnemyCastCancelSeq.TryGetValue(e.NetId, out var lastCancelled) || lastCancelled != e.CancelledCastSeq))
+            {
+                peerEnemyCastCancelSeq[e.NetId] = e.CancelledCastSeq;
+                if (peerEnemyLastCastSeq.TryGetValue(e.NetId, out var replayed) && replayed == e.CancelledCastSeq && enemy.IsCasting)
+                {
+                    DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) cast {e.CancelledCastSeq} cancelled.");
+                    enemy.CancelCast();
+                }
             }
             var instantKnown = peerEnemyLastInstantCastSeq.TryGetValue(e.NetId, out var lastInstantSeq);
             // NetIds are never reused, so a recorded seq here means state outlived its enemy.
@@ -222,6 +275,24 @@ public sealed partial class MultiplayerManager
             ApplyNewVfx(enemy, e.NewVfx, $"enemy NetId {e.NetId}");
             ReconcilePersistentVfx(enemy, e.PersistentVfx, $"enemy NetId {e.NetId}");
             ApplyEngineState(enemy, e.NetId, e.Engine);
+            if (e.MaxHp > 0)
+            {
+                var maxHp = Math.Min(e.MaxHp, NetGuard.MaxHp);
+                if (enemy.MaxHealth != maxHp) enemy.SetMaxHealth(maxHp);
+                enemy.SetHealth(Math.Min(e.CurrentHp, maxHp));
+            }
+            if (e.DeathSeq > 0 && (!peerEnemyDeathSeq.TryGetValue(e.NetId, out var lastDeathSeq) || lastDeathSeq != e.DeathSeq))
+            {
+                peerEnemyDeathSeq[e.NetId] = e.DeathSeq;
+                DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) died (seq {e.DeathSeq}).");
+                enemy.PlayDeath();
+            }
+            if (e.FadeOutSeq > 0 && peerEnemyFadeSeq.GetValueOrDefault(e.NetId) != e.FadeOutSeq)
+            {
+                peerEnemyFadeSeq[e.NetId] = e.FadeOutSeq;
+                DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) fading out (seq {e.FadeOutSeq}).");
+                enemy.FadeOut();
+            }
             // Keyed on the seq, not the id: a reused enemy replays the same timeline id.
             if (e.AnimationTimelineId is { } timelineId
                 && (!peerEnemyAnimationTimeline.TryGetValue(e.NetId, out var lastSeq) || lastSeq != e.AnimationTimelineSeq))
@@ -420,8 +491,15 @@ public sealed partial class MultiplayerManager
             var source = StatusSource(targets, target, tracked);
             wanted.Add((target.StatusId, source));
             if (character.FindStatus(target.StatusId, source) is { } held && held.Stacks == target.Stacks) continue;
-            character.AddStatus(target.StatusId, duration: NetGuard.Clamp(target.RemainingTime, -1f, 3600f),
-                stacks: target.Stacks, overrideStacks: true, sourceObject: source);
+            var duration = NetGuard.Clamp(target.RemainingTime, -1f, 3600f);
+            // A plain buff pressed through UserActions carries param 0, which AddStatus reads as "remove".
+            if (target.Stacks == 0 && source == default)
+            {
+                character.RemoveStatus(target.StatusId);
+                character.AddStatusParam(target.StatusId, 0, duration);
+                continue;
+            }
+            character.AddStatus(target.StatusId, duration: duration, stacks: target.Stacks, overrideStacks: true, sourceObject: source);
         }
         foreach (var stale in tracked.Where(s => !wanted.Contains(s)).ToList())
             character.RemoveStatus(stale.Id, stale.Source);
@@ -457,11 +535,15 @@ public sealed partial class MultiplayerManager
         peerEnemyStatusInstances.Remove(netId);
         peerEnemyReconciledStatuses.Remove(netId);
         peerEnemyModelState.Remove(netId);
+        peerEnemyModeAttributeFlags.Remove(netId);
         peerEnemyLastLoggedStatuses.Remove(netId);
         peerEnemyAnimationTimeline.Remove(netId);
         peerEnemyAnimationState.Remove(netId);
         peerEnemyLastInstantCastSeq.Remove(netId);
         peerEnemyLastCastSeq.Remove(netId);
+        peerEnemyDeathSeq.Remove(netId);
+        peerEnemyFadeSeq.Remove(netId);
+        peerEnemyCastCancelSeq.Remove(netId);
         peerEnemyEngineSeqs.Remove(netId);
         peerEnemyModelHidden.Remove(netId);
     }
@@ -603,16 +685,21 @@ public sealed partial class MultiplayerManager
             }
             ApplyNewVfx(member, r.NewVfx, $"role {r.Role}");
             ReconcilePersistentVfx(member, r.PersistentVfx, $"role {r.Role}");
-            // A doppel's own action animation (a bot tank's limit break). Our own seat is a
+            // A doppel's own action animation (a bot's limit break). Our own seat is a
             // SimPlayer, whose actions are its owner's real button presses.
-            if (r.PlayedActionSeq > 0 && member is SimNpc actor
+            if (!r.Dead && r.PlayedActionSeq > 0 && member is SimNpc actor
                 && (!peerRolePlayedActionSeq.TryGetValue(r.Role, out var lastPlayed) || lastPlayed != r.PlayedActionSeq))
             {
                 peerRolePlayedActionSeq[r.Role] = r.PlayedActionSeq;
                 if (SimAssets.Allow(SimAssetKind.Action, r.PlayedActionId, $"role {r.Role} action"))
                 {
-                    DiagnosticLog.Info($"[Multiplayer] Peer: role {r.Role} plays action {r.PlayedActionId} (seq {r.PlayedActionSeq}).");
-                    actor.PlayAction(r.PlayedActionId, NetGuard.Clamp(r.PlayedActionAnimationLock, 0f, 60f, 0.6f));
+                    var castSeconds = NetGuard.Clamp(r.PlayedActionCastSeconds, 0f, 30f, 0f);
+                    var target = r.PlayedActionTargetEnemyNetId is { } targetNetId && peerEnemies.TryGetValue(targetNetId, out var targetEnemy) ? targetEnemy : null;
+                    var location = NetGuard.TryPosition(r.PlayedActionLocationX, r.PlayedActionLocationY, r.PlayedActionLocationZ);
+                    DiagnosticLog.Info($"[Multiplayer] Peer: role {r.Role} plays action {r.PlayedActionId} (seq {r.PlayedActionSeq}, cast {castSeconds:F2}s, target NetId {r.PlayedActionTargetEnemyNetId?.ToString() ?? "-"}"
+                        + $"{(location is { } at ? $", at ({at.X:F2},{at.Z:F2})" : "")}{(r.PlayedActionHoldsStill ? ", held still" : "")}).");
+                    actor.PlayAction(r.PlayedActionId, NetGuard.Clamp(r.PlayedActionAnimationLock, 0f, 60f, 0.6f),
+                        castSeconds, NetGuard.Clamp(r.PlayedActionEffectDelay, 0f, castSeconds, 0f), target, location, r.PlayedActionHoldsStill);
                 }
             }
             // The KO pose comes with RoleKilledMessage; id 0 is a reset.
@@ -661,7 +748,9 @@ public sealed partial class MultiplayerManager
         if (OwnMember(msg.Role, "Push") is not { } member) return;
         var heading = NetGuard.Rotation(msg.Heading);
         var distance = NetGuard.Clamp(msg.Distance, 0f, 200f);
-        if (msg.DurationSeconds > 0f)
+        if (msg.Walk)
+            member.WalkInDirection(heading, distance, NetGuard.Clamp(msg.Speed, 0f, 500f));
+        else if (msg.DurationSeconds > 0f)
             member.PushInDirectionEased(heading, distance, NetGuard.Clamp(msg.DurationSeconds, 0.01f, 60f));
         else
             member.PushInDirection(heading, distance, NetGuard.Clamp(msg.Speed, 0f, 500f));

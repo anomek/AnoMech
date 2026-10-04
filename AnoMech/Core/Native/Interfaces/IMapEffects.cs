@@ -11,6 +11,10 @@ public interface IMapEffects
 
     bool Apply(uint packetFlags, byte index);
 
+    // The slot's current state; 0 until something sets it after the territory loads, null while
+    // not Loaded.
+    ushort? StateOf(byte index);
+
     // Hard-deactivates the slot (geometry, VFX and sound); KeepSlotSuppressed re-silences the
     // sound children the engine turns back on.
     bool SuppressSlot(byte index);

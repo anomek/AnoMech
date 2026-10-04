@@ -1,6 +1,9 @@
+using System;
+using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native.Interfaces;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -41,6 +44,8 @@ public class SimNpc : SimCharacter
         this.pendingDraw = pendingDraw;
     }
 
+    // Some real hits carry the new model state in their effect, on the hit frame; only the
+    // ActorControl that follows (0.14-0.8s later) is sent here.
     public void SetModelState(byte value) => proxy?.SetModelState(value);
 
     // Sampled for peers.
@@ -62,6 +67,9 @@ public class SimNpc : SimCharacter
         chara.SetModeAttributeFlags(value);
         ReloadModel();
     }
+
+    // Sampled for peers: a runtime write has no other signal.
+    public byte? ModeAttributeFlags => Proxy is { Exists: true } chara ? chara.ModeAttributeFlags : null;
 
     // Forces a model rebuild via DisableDraw -> EnableDraw so the engine re-reads
     // ModeAttributeFlags and rebuilds the sub-meshes. The re-enable is deferred through the
@@ -86,21 +94,96 @@ public class SimNpc : SimCharacter
     // Sampled for peers, same edge trigger as SimCast.LastInstantCastSeq.
     public uint PlayedActionId { get; private set; }
     public float PlayedActionAnimationLock { get; private set; }
+    public float PlayedActionCastSeconds { get; private set; }
+    public float PlayedActionEffectDelay { get; private set; }
+    public SimCharacter? PlayedActionTarget { get; private set; }
+    public Vector3? PlayedActionLocation { get; private set; }
+    public bool PlayedActionHoldsStill { get; private set; }
     public int PlayedActionSeq { get; private set; }
 
-    public void PlayAction(uint actionId, float animationLock = 0.6f)
+    private (uint ActionId, float AnimationLock, SimCharacter? Target, Vector3? Location)? pendingActionEffect;
+    private float pendingActionEffectIn;
+    private float heldStillFor;
+
+    public override bool AnimationLock => PlayedActionHoldsStill && (pendingActionEffect != null || heldStillFor > 0f);
+
+    // castSeconds > 0 puts the bar up first. A player's cast resolves before its bar fills, so
+    // the effect lands effectDelay into it and the bar goes with it. A ground-targeted action goes
+    // to `location` instead of a target. holdStill roots the user through the bar and the
+    // animation lock, as a limit break does; a move ordered meanwhile waits for it.
+    public void PlayAction(uint actionId, float animationLock = 0.6f, float castSeconds = 0f, float effectDelay = 0f, SimCharacter? target = null,
+        Vector3? location = null, bool holdStill = false)
     {
         PlayedActionId = actionId;
         PlayedActionAnimationLock = animationLock;
+        PlayedActionCastSeconds = castSeconds;
+        PlayedActionEffectDelay = effectDelay;
+        PlayedActionTarget = target;
+        PlayedActionLocation = location;
+        PlayedActionHoldsStill = holdStill;
         PlayedActionSeq++;
+        heldStillFor = 0f;
         actionCast ??= new SimCast(this, Coordinates);
-        actionCast.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0,
-            animationTargetId: GameObjectId, actionTargetId: GameObjectId);
+        if (holdStill) PauseMoveAnimationForAction();
+        if (location is { } at) Face(at);
+        else if (target != null) Face(target);
+        if (castSeconds <= 0f)
+        {
+            FireAction(actionId, animationLock, target, location);
+            return;
+        }
+        actionCast.NativeCast(actionId, ActionType.Action, 0f, castSeconds, false, position: location,
+            targetId: location != null ? null : TargetOrSelf(target));
+        pendingActionEffect = (actionId, animationLock, target, location);
+        pendingActionEffectIn = effectDelay > 0f ? MathF.Min(effectDelay, castSeconds) : castSeconds;
+    }
+
+    private protected virtual void PauseMoveAnimationForAction() => PauseMoveAnimation();
+
+    private void FireAction(uint actionId, float animationLock, SimCharacter? target, Vector3? location)
+    {
+        if (PlayedActionHoldsStill) heldStillFor = animationLock;
+        if (location is { } at)
+        {
+            actionCast!.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0, position: at);
+            return;
+        }
+        var targetId = TargetOrSelf(target);
+        actionCast!.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0,
+            position: target != null && targetId.ObjectId != GameObjectId.ObjectId ? target.Position : null,
+            animationTargetId: targetId, actionTargetId: targetId);
+    }
+
+    // A target that left the world can't take the effect: ActionEffectHandler dereferences it.
+    private GameObjectId TargetOrSelf(SimCharacter? target)
+    {
+        return target is { IsActive: true, Proxy.Exists: true } ? target.GameObjectId : GameObjectId;
+    }
+
+    // Death takes the cast with it, bar and all.
+    protected void AbortPlayedAction()
+    {
+        heldStillFor = 0f;
+        if (pendingActionEffect == null) return;
+        pendingActionEffect = null;
+        Proxy?.ClearCast();
+    }
+
+    private void TickPendingAction(float deltaSeconds)
+    {
+        if (heldStillFor > 0f) heldStillFor = MathF.Max(0f, heldStillFor - deltaSeconds);
+        if (pendingActionEffect is not { } pending) return;
+        pendingActionEffectIn -= deltaSeconds;
+        if (pendingActionEffectIn > 0f) return;
+        pendingActionEffect = null;
+        FireAction(pending.ActionId, pending.AnimationLock, pending.Target, pending.Location);
+        Proxy?.ClearCast();
     }
 
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        TickPendingAction(deltaSeconds);
 
         if (pendingDraw)
         {

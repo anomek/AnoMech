@@ -13,7 +13,7 @@ public enum HelloWorldOption { Auto, Near, Far, No }
 public sealed class TopP5DeltaStateOverrides
 {
     // --- Fight-wide: one roll the whole sim shares -------------------------------------
-    public NorthSouth? EyeSpawn { get; set; }
+    public EyeDirection? EyeSpawn { get; set; }
     public Side? SwivelCannonSide { get; set; }
 
     // --- Per player: everyone has their own ---------------------------------------------
@@ -26,7 +26,8 @@ public sealed class TopP5DeltaStateOverrides
     // Headless runs pin the rest of the roll. Internal, so settings sync and the summary skip them.
     internal IReadOnlyList<PartyRole>? TetherOrder { get; set; }
     internal IReadOnlyList<uint>? FistColors { get; set; }
-    internal IReadOnlyList<Side>? ArmHandedness { get; set; }
+    internal IReadOnlyList<ArmModel>? ArmModels { get; set; }
+    internal IReadOnlyList<ArmRotation>? ArmRotations { get; set; }
     internal Side? OmegaMonitorSide { get; set; }
     internal Side? PlayerMonitorSide { get; set; }
 
@@ -45,9 +46,10 @@ public sealed class TopP5DeltaStateOverrides
         return tether;
     }
 
-    // Eight tether slots in four bands of two, one monitor, one Near and one Far tether, one
-    // Beyond Defence. The jobs are all taken from the close four, so asking for one of them and
-    // for a far tether is a contradiction the run would quietly resolve against the host.
+    // Eight tether slots in four bands of two, one monitor, one Near and one Far tether (never on
+    // the same pair), one Beyond Defence. The jobs are all taken from the close four, so asking for
+    // one of them and for a far tether is a contradiction the run would quietly resolve against
+    // the host.
     public SettingsConflicts Validate()
     {
         var conflicts = new SettingsConflicts();
@@ -74,6 +76,11 @@ public sealed class TopP5DeltaStateOverrides
         if (bdOutside.Count > 0)
             conflicts.Add($"{SettingsConflicts.Seats(bdOutside)} asked to eat Beyond Defence on a close outer tether, and it is taken close inner.");
 
+        var near = PerRole.All.Where(r => HelloWorld[r] == HelloWorldOption.Near).ToList();
+        var far = PerRole.All.Where(r => HelloWorld[r] == HelloWorldOption.Far).ToList();
+        if (near.Count == 1 && far.Count == 1 && !FitOnDifferentPairs(near[0], far[0]))
+            conflicts.Add($"{SettingsConflicts.Seats([near[0], far[0]])} asked for the Near and Far tethers on the same pair, but they are always on different pairs.");
+
         var bands = PerRole.All.ToLookup(EffectiveTether);
         conflicts.AtMost(2, bands[PlayerTetherAssignment.CloseInner].ToList(), "a close inner tether");
         conflicts.AtMost(2, bands[PlayerTetherAssignment.CloseOuter].ToList(), "a close outer tether");
@@ -86,5 +93,22 @@ public sealed class TopP5DeltaStateOverrides
                                                        or PlayerTetherAssignment.FarInner
                                                        or PlayerTetherAssignment.FarOuter).ToList(), "a far tether");
         return conflicts;
+    }
+
+    // Near on one blue pair and Far on the other, either way round, with every other seat still
+    // in the band it asked for.
+    private bool FitOnDifferentPairs(PartyRole near, PartyRole far)
+    {
+        var constrained = PerRole.All.Where(r => r != near && r != far)
+                              .Select(r => (Role: r, Slots: TopP5DeltaState.SlotsFor(EffectiveTether(r))))
+                              .Where(r => r.Slots != null)
+                              .ToDictionary(r => r.Role, r => r.Slots!);
+        int[] Within(PartyRole role, int[] pair) => pair.Intersect(TopP5DeltaState.SlotsFor(EffectiveTether(role)) ?? pair).ToArray();
+        foreach (var (nearPair, farPair) in new[] { (new[] { 0, 1 }, new[] { 2, 3 }), (new[] { 2, 3 }, new[] { 0, 1 }) })
+        {
+            var slots = new Dictionary<PartyRole, int[]>(constrained) { [near] = Within(near, nearPair), [far] = Within(far, farPair) };
+            if (SettingsConflicts.CanPlaceAll(slots, 8)) return true;
+        }
+        return false;
     }
 }

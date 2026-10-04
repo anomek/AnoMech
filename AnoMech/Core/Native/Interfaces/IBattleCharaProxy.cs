@@ -46,6 +46,7 @@ public interface IBattleCharaProxy
     byte ModelState { get; }
     void SetModelState(byte value);
 
+    byte ModeAttributeFlags { get; }
     // Read only while the model is built: takes effect on the next DisableDraw/EnableDraw.
     void SetModeAttributeFlags(byte value);
 
@@ -80,6 +81,8 @@ public interface IBattleCharaProxy
     // The engine advances it once ReceiveActorCast started the bar.
     float CurrentCastTime { get; }
     float TotalCastTime { get; }
+    // Opens the running bar part-filled.
+    void SetCurrentCastTime(float seconds);
 
     void ClearCast();
     void ReceiveActorCast(ActorCastData cast);
@@ -121,6 +124,8 @@ public interface IBattleCharaProxy
     void ClearTether(byte slot);
 
     void ShowFlyText(uint amount, string label, uint damageTypeIcon = 0);
+    // The action's name beside MISS, for a target an action lists but leaves untouched.
+    void ShowMissFlyText(string label);
 
     // The server's forced carry, which the client animates itself.
     void CarryTo(Vector3 destination, float rotation, bool selfTarget);

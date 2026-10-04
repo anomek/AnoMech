@@ -17,6 +17,8 @@ public interface ISimPartyMember : ISimObject, IPositioned
 {
     PartyRole Role { get; set;}
 
+    byte ClassJob { get; }
+
     // KO state. Set by the implementer's OnKilled; the member stays present
     // (IsActive) but lies on the floor. Implementers reset it on revive.
     bool Dead { get; }
@@ -46,6 +48,9 @@ public interface ISimPartyMember : ISimObject, IPositioned
     // Same as PushInDirection, but eased (ramp up, hold, ramp down) instead of constant-speed
     // -- see Movement.PushInDirectionEased's own doc comment for why this exists separately.
     void PushInDirectionEased(float heading, float distance, float durationSeconds);
+
+    // Forced like PushInDirection, but the member runs there -- see Movement.WalkInDirection.
+    void WalkInDirection(float heading, float distance, float speed);
 
     // A scripted snap, as opposed to SetPosition's engine-side use; SimNetworkPuppet hands it to
     // the owning peer.

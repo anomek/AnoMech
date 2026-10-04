@@ -92,6 +92,23 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
         vfx.Despawn();
     }
 
+    // A mechanic capping max HP (TOP's HP Penalty); HP above the new cap is lost.
+    public virtual void SetMaxHealth(uint maxHealth)
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        chara.MaxHealth = maxHealth;
+        if (chara.Health > maxHealth) chara.Health = maxHealth;
+    }
+
+    public void SetHealth(uint health)
+    {
+        if (Proxy is not { Exists: true } chara) return;
+        chara.Health = Math.Min(health, chara.MaxHealth);
+    }
+
+    public uint Health => Proxy?.Health ?? 0u;
+    public uint MaxHealth => Proxy?.MaxHealth ?? 0u;
+
     // -------------------------
     // Location Subsystem
     // -------------------------
@@ -136,6 +153,8 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
         => Movement.MoveTo(target, speed, finalRotation);
     public void MoveTo(Placement p) => MoveTo(p.Position);
     public void StopMoving() => Movement.Stop();
+    public bool HasMoveInFlight => Movement.IsMoving;
+    private protected void PauseMoveAnimation() => Movement.PauseAnimation();
 
     public void Intercept(SimTether? tether, float margin = 3f) => Movement.Intercept(tether, margin);
     public bool IsIntercepting => Movement.IsIntercepting;
@@ -248,7 +267,8 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
     // -------------------------
 
     // sourceObject distinguishes independent same-id instances (UMAD P1 Tele-portent applies
-    // the same id twice with separate expiries).
+    // the same id twice with separate expiries). Written straight into the status list, so the
+    // client's "+status" flytext for a status gained from a hit never shows.
     public SimStatus? AddStatus(ushort statusId, float duration = 0f, int stacks = 1, bool overrideStacks = false, GameObjectId sourceObject = default)
     {
         Core.DiagnosticLog.Info($"[SimCharacter] AddStatus: {DiagnosticName} gets status {statusId} (duration={duration:F1}, stacks={stacks}, overrideStacks={overrideStacks}, source=0x{sourceObject.ObjectId:X}).");
