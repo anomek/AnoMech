@@ -223,37 +223,40 @@ public sealed class CharacterFind<T> where T : IPositioned
 
     // size is extra dimension, that's not present in game data.
     // Exact interpretation depends on spell type
-    // 3, 13 (cones) -> halfAngleRad default PI/6
-    // 8 (charge) -> charge length default 100
-    // 10 (donut) -> inner safe radius default 0
-    // castType replaces the sheet's, for an action whose sheet shape is custom (e.g. CastType 6).
-    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement target, float omenRotate = 0f, float? size = null, byte? castType = null)
+    // cones -> halfAngleRad default PI/6
+    // charge -> charge length default 100
+    // donut -> inner safe radius default 0
+    // castTypeOverride replaces the sheet's, for an action whose sheet shape is CastType.Custom.
+    // casterHitboxRadius extends the *2 cast types; pass it only when target is the caster's own spot.
+    public IReadOnlyList<T> InsideActionAoe(uint actionId, Placement target, float omenRotate = 0f, float? size = null,
+        CastType? castTypeOverride = null, float casterHitboxRadius = 0f)
     {
         if (Natives.Data.Action(actionId) is not { } action)
         {
             Plugin.Log.Warning($"InsideActionAoe: action {actionId} not found");
             return Array.Empty<T>();
         }
-        AoeQuery.RaiseEvaluated(new AoeQuery(actionId, target, omenRotate, size, castType));
-        var range = (float)action.EffectRange;
-        var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
+        AoeQuery.RaiseEvaluated(new AoeQuery(actionId, target, omenRotate, size, castTypeOverride, casterHitboxRadius));
+        var castType = castTypeOverride ?? action.CastType;
+        var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : action.EffectRange;
+        var range = action.EffectRange + (castType.AddsCasterHitbox() ? casterHitboxRadius : 0f);
         var forward = new Placement(target.Position, target.Rotation + omenRotate);
-        var hits = (castType ?? action.CastType) switch
+        var hits = castType switch
         {
-            2 or 5 or 6 // Probably different targeting: ground / caster / target. Doesn't matter for us
+            CastType.Circle or CastType.Circle2 or CastType.Custom
                   => InsideCircle(target.Position, range),
-            3 or 13     // 3 - frontal cone, 13 - special variant (no idea what's difference)
+            CastType.Cone2 or CastType.Cone
                   => InsideCone(forward, size ?? MathF.PI / 6f, range),
-            8   // this is charge, from caster (target) to destination (just pass distance as size)
+            CastType.Charge // from caster (target) to destination (just pass distance as size)
                   => InsideRect(forward, halfWidth, size ?? 100),
-            4 or 12 // standard rectangle, 12 seems to just be newer kind of spells
+            CastType.Rectangle2 or CastType.Rectangle
                   => InsideRect(forward, halfWidth, range),
-            10  // donut
+            CastType.Donut
                   => InsideRing(target.Position, size ?? 0f, range),
-            11  // +
+            CastType.Cross
                   => InsideCross(forward, halfWidth, range),
             _ =>
-                LogUnknownCastType(actionId, castType ?? action.CastType),
+                LogUnknownCastType(actionId, castType),
         };
         return SortByDistanceTo(hits, target.Position);
     }
@@ -275,7 +278,7 @@ public sealed class CharacterFind<T> where T : IPositioned
         return sorted;
     }
 
-    private static IReadOnlyList<T> LogUnknownCastType(uint actionId, byte castType)
+    private static IReadOnlyList<T> LogUnknownCastType(uint actionId, CastType castType)
     {
         Plugin.Log.Warning($"InsideActionAoe: action {actionId} has unsupported CastType {castType}");
         return Array.Empty<T>();
@@ -315,16 +318,17 @@ public sealed class CharacterFind<T> where T : IPositioned
 // exactly one place (Run), so any parameter it grows is carried to both callers
 // automatically — the debug picture can't drift from the resolved AOE.
 public readonly struct AoeQuery(uint actionId, Placement source,
-    float omenRotate = 0f, float? size = null, byte? castType = null)
+    float omenRotate = 0f, float? size = null, CastType? castTypeOverride = null, float casterHitboxRadius = 0f)
 {
     public uint ActionId { get; } = actionId;
     public Placement Source { get; } = source;
     public float OmenRotate { get; } = omenRotate;
     public float? Size { get; } = size;
-    public byte? CastType { get; } = castType;
+    public CastType? CastTypeOverride { get; } = castTypeOverride;
+    public float CasterHitboxRadius { get; } = casterHitboxRadius;
 
     public IReadOnlyList<T> Run<T>(CharacterFind<T> find) where T : IPositioned =>
-        find.InsideActionAoe(ActionId, Source, OmenRotate, Size, CastType);
+        find.InsideActionAoe(ActionId, Source, OmenRotate, Size, CastTypeOverride, CasterHitboxRadius);
 
     // Every InsideActionAoe check, for the headless test harness's death reports.
     public static event Action<AoeQuery>? Evaluated;
@@ -336,22 +340,23 @@ public readonly struct AoeQuery(uint actionId, Placement source,
     public float? SignedDistance(Vector3 point)
     {
         if (Natives.Data.Action(ActionId) is not { } action) return null;
-        var range = (float)action.EffectRange;
-        var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
+        var castType = CastTypeOverride ?? action.CastType;
+        var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : action.EffectRange;
+        var range = action.EffectRange + (castType.AddsCasterHitbox() ? CasterHitboxRadius : 0f);
         var rotation = Source.Rotation + OmenRotate;
         var dx = point.X - Source.Position.X;
         var dz = point.Z - Source.Position.Z;
         var fwd = dx * MathF.Sin(rotation) + dz * MathF.Cos(rotation);
         var side = dx * MathF.Cos(rotation) - dz * MathF.Sin(rotation);
         var dist = MathF.Sqrt(dx * dx + dz * dz);
-        return (CastType ?? action.CastType) switch
+        return castType switch
         {
-            2 or 5 or 6 => dist - range,
-            3 or 13 => ConeDistance(fwd, side, dist, Size ?? MathF.PI / 6f, range),
-            8 => BoxDistance(fwd - (Size ?? 100f) / 2f, side, (Size ?? 100f) / 2f, halfWidth),
-            4 or 12 => BoxDistance(fwd - range / 2f, side, range / 2f, halfWidth),
-            10 => MathF.Max(dist - range, (Size ?? 0f) - dist),
-            11 => MathF.Min(BoxDistance(fwd, side, range, halfWidth), BoxDistance(fwd, side, halfWidth, range)),
+            CastType.Circle or CastType.Circle2 or CastType.Custom => dist - range,
+            CastType.Cone2 or CastType.Cone => ConeDistance(fwd, side, dist, Size ?? MathF.PI / 6f, range),
+            CastType.Charge => BoxDistance(fwd - (Size ?? 100f) / 2f, side, (Size ?? 100f) / 2f, halfWidth),
+            CastType.Rectangle2 or CastType.Rectangle => BoxDistance(fwd - range / 2f, side, range / 2f, halfWidth),
+            CastType.Donut => MathF.Max(dist - range, (Size ?? 0f) - dist),
+            CastType.Cross => MathF.Min(BoxDistance(fwd, side, range, halfWidth), BoxDistance(fwd, side, halfWidth, range)),
             _ => null,
         };
     }

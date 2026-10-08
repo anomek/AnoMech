@@ -6,7 +6,7 @@ public sealed record ActionRow(
     uint Id,
     string Name,
     float CastSeconds,
-    byte CastType,
+    CastType CastType,
     byte EffectRange,
     byte XAxisModifier,
     string? OmenPath,

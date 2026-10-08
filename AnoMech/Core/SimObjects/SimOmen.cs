@@ -19,7 +19,7 @@ namespace AnoMech.Core.SimObjects;
 // reaps it automatically.
 //
 // One SimOmen owns at most two native StaticVfx pointers: `primary` plus an
-// optional `alt` — the perpendicular arm of a CastType-11 "+" cross, or a
+// optional `alt` — the perpendicular arm of a "+" cross, or a
 // paired shape some actions declare in OmenAlt. Despawn() frees both.
 //
 // Bad VFX paths crash on the file thread, so every candidate is validated via
@@ -96,21 +96,21 @@ public sealed class SimOmen : ISimObject
 
         var range = action.EffectRange;
         if (range <= 0) range = 1;
-        // CastType 4/11/12 use XAxisModifier as the rectangle's full width along X.
+        // Rectangles and crosses use XAxisModifier as the rectangle's full width along X.
         var halfWidth = action.XAxisModifier > 0 ? action.XAxisModifier * 0.5f : range;
         var scale = action.CastType switch
         {
-            4 or 11 or 12 => new Vector3(halfWidth, 1f, range),
+            CastType.Rectangle2 or CastType.Rectangle or CastType.Cross => new Vector3(halfWidth, 1f, range),
             _ => new Vector3(range, 1f, range),
         };
         var globalOrigin = coordinates.ToGlobal(origin);
         Plugin.Log.Information($"SimOmen: action {actionId:X} origin(local)=<{origin.X:F2},{origin.Y:F2},{origin.Z:F2}> rot={rotation:F3} scale=<{scale.X:F2},{scale.Y:F2},{scale.Z:F2}>");
         primary = Natives.Vfx.SpawnStatic(resolvedPath, new Placement(globalOrigin, rotation), scale);
 
-        // CastType 11 is a "+" cross whose Omen sheet entry points at the same single-bar
+        // A cross is a "+" whose Omen sheet entry points at the same single-bar
         // file (`general_x02f`) as a regular rect; the cross visual is formed by spawning
         // that bar twice — second copy rotated 90° to make the perpendicular arm.
-        if (action.CastType == 11)
+        if (action.CastType == CastType.Cross)
         {
             var perpRotation = MathUtil.NormalizeRotation(rotation + MathF.PI / 2f);
             alt = Natives.Vfx.SpawnStatic(resolvedPath, new Placement(globalOrigin, perpRotation), scale);

@@ -26,7 +26,7 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
             actionId,
             rsv.Resolve(row.Text("Name")),
             row.UInt("Cast100ms") / 10f,
-            row.Byte("CastType"),
+            (CastType)row.Byte("CastType"),
             row.Byte("EffectRange"),
             row.Byte("XAxisModifier"),
             OmenPath(row.UInt("Omen")),

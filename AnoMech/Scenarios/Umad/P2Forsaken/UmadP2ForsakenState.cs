@@ -49,10 +49,10 @@ public sealed record EndAttack(uint CastBarAction)
     // the tower that follows. UNVERIFIED in game.
     private static EnemyAction AllThingsEndingHit(uint actionId, float rotation) => new(actionId)
     {
-        Cast = new() { AnimationLock = 3f },
-        Area = new() { Size = Geometry.AllThingsEndHalfCone, Rotation = rotation },
+        Cast = new() { AnimationLock = 3f, Rotation = rotation },
+        Area = new() { Size = Geometry.AllThingsEndHalfCone },
         Effects = [Damage(UmadActions.Magic, Lethal)],
-        Timing = new() { ResolveSnapshotOffset = CastSpec.ReleaseLead },
+        Timing = new() { ResolveSnapshotOffset = CastSpec.ActionEffectOffset },
     };
 }
 

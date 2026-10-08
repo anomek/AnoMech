@@ -19,7 +19,7 @@ internal sealed class GameData : IGameData
             actionId,
             row.Name.ExtractText(),
             row.Cast100ms / 10f,
-            row.CastType,
+            (CastType)row.CastType,
             row.EffectRange,
             row.XAxisModifier,
             row.Omen.ValueNullable is { RowId: not 0 } omen ? omen.Path.ToString() : null,

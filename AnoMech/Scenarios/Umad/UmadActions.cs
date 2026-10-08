@@ -266,7 +266,7 @@ public static class UmadActions
     // Kefka's second trance beat: instant, although the sheet gives it a 3s cast.
     public static readonly EnemyAction RingOfFire = new(UmadConstants.ActionId.RingOfFire)
     {
-        Cast = new() { CastSeconds = 0f },
+        Cast = new() { CastSecondsOverride = 0f },
     };
 
     public static readonly EnemyAction UmbraSmash = new(UmadConstants.ActionId.UmbraSmash)

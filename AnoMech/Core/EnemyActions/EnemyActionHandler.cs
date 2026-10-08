@@ -22,8 +22,8 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
         var id = action.ActionId;
         var target = at.Character;
         var location = at.Location;
-        var sheetCastTime = action.Cast.CastSeconds ?? Natives.Data.Action(id)?.CastSeconds ?? 0f;
-        var castTime = MathF.Max(0f, sheetCastTime - CastSpec.ReleaseLead);
+        var sheetCastTime = action.Cast.CastSecondsOverride ?? Natives.Data.Action(id)?.CastSeconds ?? 0f;
+        var castTime = MathF.Max(0f, sheetCastTime - CastSpec.ActionEffectOffset);
         GameObjectId? castTarget = location is null ? (target ?? caster).GameObjectId : null;
         DiagnosticLog.Info(
             $"[EnemyAction] Cast: {ActionLookup.Name(id)} ({id}) by {caster.DisplayName} from ({caster.Position.X:F1},{caster.Position.Z:F1}) castSeconds={castTime:F2}.");
@@ -32,7 +32,7 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
         {
             casting = handle;
             cast.NativeCast(id, ActionType.Action, action.Cast.OmenDelay, castTime, interruptible: false,
-                rotation: caster.Rotation + action.Area.Rotation, position: location, targetId: castTarget);
+                rotation: caster.Rotation + action.Cast.Rotation, position: location, targetId: castTarget);
         }
 
         Schedule(sheetCastTime, () =>
@@ -73,7 +73,7 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
             : null;
         cast.NativeActionEffect(
             id, action.Cast.AnimationLock, (ushort)id, animationVariation, ActionType.Action, 0,
-            position: aim ?? caster.Position, animationTargetId: castTarget, actionTargetId: deliverTo);
+            rotation: caster.Rotation + action.Cast.Rotation, position: aim ?? caster.Position, animationTargetId: castTarget, actionTargetId: deliverTo);
     }
 
     private void Resolve(EnemyAction action, SimCharacter? target, Vector3? location, EnemyActionCast handle)
@@ -87,9 +87,11 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
 
         var hits = IsSingleTarget(action)
             ? party.ActiveMembers().Where(m => ReferenceEquals(m, target)).ToList()
-            : AreaHits(action, origin, party);
-        if (action.Area.ExcludeCaster)
-            hits = hits.Where(h => DistanceXZ(h.Position, caster.Position) >= 0.01f).ToList();
+            : AreaHits(action, origin, origin.Position == caster.Position ? caster.HitboxRadius : 0f, party);
+        if (action.Area.ExcludeCaster
+            && hits.MinBy(h => DistanceXZ(h.Position, caster.Position)) is { } baiter
+            && DistanceXZ(baiter.Position, caster.Position) <= ExcludeCasterThreshold)
+            hits = hits.Where(h => h != baiter).ToList();
         if (action.Area.AdjustTargets is { } adjust) hits = adjust(ctx, hits);
         ctx.Hits = hits;
         handle.Resolved(origin, hits.Select(h => (h, h.Position)).ToList());
@@ -119,9 +121,11 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
             run();
     }
 
-    private static IReadOnlyList<SimCharacter> AreaHits(EnemyAction action, Placement origin, SimParty party)
+    private const float ExcludeCasterThreshold = 0.01f;
+
+    private static IReadOnlyList<SimCharacter> AreaHits(EnemyAction action, Placement origin, float casterHitboxRadius, SimParty party)
     {
-        var query = new AoeQuery(action.ActionId, origin, action.Area.Rotation, action.Area.Size, action.Area.CastType);
+        var query = new AoeQuery(action.ActionId, origin, action.Cast.Rotation, action.Area.Size, action.Area.CastTypeOverride, casterHitboxRadius);
 #if DEBUG
         AnoMech.Windows.DamageDebugWindow.Instance?.Record(query);
 #endif
@@ -131,13 +135,14 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
     private static float DistanceXZ(Vector3 a, Vector3 b)
         => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
 
-    // CastType 1: no area, only the cast target is hit.
+    // No area, only the cast target is hit.
     private static bool IsSingleTarget(EnemyAction action)
-        => (action.Area.CastType ?? Natives.Data.Action(action.ActionId)?.CastType) is 1;
+        => (action.Area.CastTypeOverride ?? Natives.Data.Action(action.ActionId)?.CastType) is CastType.SingleTarget;
 
-    // Cones and lines (InsideActionAoe's CastTypes 3, 4, 8, 12, 13).
+    // Cones and lines.
     private static bool IsDirectional(EnemyAction action)
-        => (action.Area.CastType ?? Natives.Data.Action(action.ActionId)?.CastType) is 3 or 4 or 8 or 12 or 13;
+        => (action.Area.CastTypeOverride ?? Natives.Data.Action(action.ActionId)?.CastType)
+            is CastType.Cone2 or CastType.Cone or CastType.Rectangle2 or CastType.Rectangle or CastType.Charge;
 
     private static string? Explain(string? action, string? hit)
         => action is null ? hit : hit is null ? action : $"{action}; {hit}";

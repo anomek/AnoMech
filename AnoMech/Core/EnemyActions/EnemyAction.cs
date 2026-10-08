@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.EnemyActions;
 
-// Everything one enemy action does, cast through SimEnemy.Cast(EnemyAction, ...). Definitions are
-// immutable and meant to live as static readonly fields in a scenario's <Scenario>Actions.cs.
+// Everything one enemy action does; a purely visual cast needs none, use SimEnemy.Cast(actionId).
+// Most defaults (cast time, area shape) come from the game's Action Excel sheet.
+// Lives as a static readonly field in a scenario's <Scenario>Actions.cs.
 public sealed record EnemyAction(uint ActionId)
 {
     public CastSpec Cast { get; init; } = new();
@@ -13,54 +15,58 @@ public sealed record EnemyAction(uint ActionId)
     public IReadOnlyList<IEnemyActionEffect> Effects { get; init; } = [];
     public TimingSpec Timing { get; init; } = new();
 
-    // Said of every death this action deals, ahead of the hit's own reason: "Hello, World (Failed
-    // Hello World mechanic; had vuln up debuff)".
+    // Extra explanation for deaths caused by this action
     public string? DeathExplanation { get; init; }
 }
 
-// The bar runs ReleaseLead short of the Action sheet's Cast100ms, the action effect lands at the
-// sheet's full cast time; a sheet-instant action has no bar and releases at once.
+// Cast bar and animation settings the Action sheet lacks, plus overrides of the ones it has.
 public sealed record CastSpec
 {
-    public const float ReleaseLead = 0.3f;
+    // Delay from cast bar end to action effect. The in-game bar is this much shorter than the
+    // sheet's cast time. Instant actions have neither.
+    public const float ActionEffectOffset = 0.3f;
 
+    // How long after release the caster stays rooted while the animation plays. Read it from an
+    // in-game replay.
     public float AnimationLock { get; init; } = 0.6f;
+    // How long after the bar starts the omen appears. Read it from an in-game replay.
     public float OmenDelay { get; init; }
 
-    // Replaces the sheet's Cast100ms. Set it only when the fight casts the action for a different
-    // time than the sheet says; check the sheet first, it is nearly always right.
-    public float? CastSeconds { get; init; }
+    // Only for the rare case where the in-game cast time differs from the sheet's.
+    public float? CastSecondsOverride { get; init; }
+
+    // Turns the omen, the animation and the area from the caster's facing, in radians.
+    public float Rotation { get; init; }
 }
 
-// Shape defaults to the Action sheet (see CharacterFind.InsideActionAoe), centred on the cast
-// target when there is one, otherwise on the caster. A cone or line cast on a target runs from the
-// caster towards it instead.
+// The sheet's area is enough for most actions; customize it here when it isn't.
 public sealed record AreaSpec
 {
-    // The dimension the sheet lacks; meaning depends on CastType (see InsideActionAoe).
+    // The one dimension the sheet lacks.
+    // Cone: half-angle in radians (default 30°).
+    // Donut: inner safe radius (default 0).
+    // Ignored for other shapes.
     public float? Size { get; init; }
 
-    // Replaces the sheet's CastType, for an action whose sheet shape is custom (CastType 6).
-    public byte? CastType { get; init; }
+    // Changes the area's shape; required when the sheet's CastType is Custom.
+    public CastType? CastTypeOverride { get; init; }
 
-    // Turns the omen and the area from the caster's facing, in radians.
-    public float Rotation { get; init; }
-
-    // Spares anyone standing on the caster's spot: a helper placed on the player who baits it.
+    // Spares the one character on caster's spot.
     public bool ExcludeCaster { get; init; }
 
-    // Runs before any effect, so it also decides who counts toward a stack.
+    // Filters or orders the characters caught in the area before effects are applied.
     public Func<EnemyActionContext, IReadOnlyList<SimCharacter>, IReadOnlyList<SimCharacter>>? AdjustTargets { get; init; }
 }
 
-// Offsets from bar end (the Cast() call itself for an instant action), on the scenario clock: the
-// bar itself runs in real time, so under an EventTimeScale other than 1 they drift from it.
+// When the action's effects land.
+// Offsets count from cast bar end, not from the ActionEffect (vfx, always plays CastSpec.ActionEffectOffset later).
 public sealed record TimingSpec
 {
-    // Who is hit, statuses, and who dies are all decided here.
-    // This is quite hard to measure so leave default unless there is good reason to change
+    // Snapshot: who is hit, when statuses land and who dies are decided here.
+    // Hard to measure; keep 0 (bar end) unless the game clearly snapshots later.
     public float ResolveSnapshotOffset { get; init; }
-    // From resolve: when damage lands (flytext, knockback without its own delay) and a character the hit kills dies.
-    // The default is a placeholder; set each action's own once it's measured from replay data
+    // Visual only: when flytext shows and killed characters die, counted from the snapshot.
+    // Also starts knockbacks that have no delay of their own.
+    // The default is a placeholder; measure each action's from a replay.
     public float DamageDelay { get; init; } = 1f;
 }

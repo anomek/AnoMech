@@ -1,5 +1,6 @@
 using System.Linq;
 using AnoMech.Core.EnemyActions;
+using AnoMech.Core.Native.Interfaces;
 using static AnoMech.Core.EnemyActions.EnemyActionEffects;
 using static AnoMech.Core.EnemyActions.Severity;
 using static AnoMech.Scenarios.Uwu.UwuConstants;
@@ -116,8 +117,8 @@ public static class UwuActions
 
     private static EnemyAction AetherochemicalLaser(uint actionId, float rotationDegrees) => new(actionId)
     {
-        Cast = new() { AnimationLock = 1.1f },
-        Area = SparesGaoled with { Rotation = float.DegreesToRadians(rotationDegrees) },
+        Cast = new() { AnimationLock = 1.1f, Rotation = float.DegreesToRadians(rotationDegrees) },
+        Area = SparesGaoled,
         Effects = [Damage(Magic, Lethal)],
         Timing = new() { DamageDelay = 0.8f }, // TODO: verify with replay
     };
@@ -134,7 +135,7 @@ public static class UwuActions
     public static readonly EnemyAction WickedTornado = new(ActionId.WickedTornado)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Area = new() { Size = 7 },
+        Area = new() { Size = 8.7f }, 
         Effects = [Damage(Magic, Lethal)],
         Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
     };
@@ -158,7 +159,7 @@ public static class UwuActions
     public static readonly EnemyAction MistralSongSuparnaChirada = new(ActionId.MistralSongSuparnaChirada)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Area = new() { CastType = 3 },
+        Area = new() { CastTypeOverride = CastType.Cone2 },
         Effects = [
             Damage(Magic, split: Distribution.WildCharge(front: 1, frontHit: new Hit(Magic.VulnerableTo(StatusId.MistralSongVuln), TankBuster))),
             OnFront(1, ApplyStatus(StatusId.MistralSongVuln, 1f)),

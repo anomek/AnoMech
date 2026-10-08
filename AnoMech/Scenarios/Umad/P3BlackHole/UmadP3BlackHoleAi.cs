@@ -399,7 +399,9 @@ public sealed class UmadP3BlackHoleAi(UmadP3BlackHoleAi.TetherOrder tetherOrder)
             var bestCost = float.MaxValue;
             for (var k = 0; k < 4; k++)
             {
-                var maxDistance = RayToArenaBorder(c, Diagonal(baseAxis, k)) - ImplosionBorderInset;
+                var d = Diagonal(baseAxis, k);
+                var maxDistance = MathF.Min(RayToArenaBorder(c, RotateVec(d, ImplosionConeLean)),
+                                            RayToArenaBorder(c, RotateVec(d, -ImplosionConeLean))) - ImplosionBorderInset;
                 for (var t = ImplosionMinChaosDistance; t <= maxDistance; t += 0.25f)
                 {
                     var first = ImplosionSpot(c, baseAxis, baseAxis, k, t);

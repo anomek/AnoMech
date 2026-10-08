@@ -198,7 +198,7 @@ internal sealed class DamageDebugWindow : Window, IDisposable
                     sb.AppendLine($"  CastType={action.CastType}  EffectRange={action.EffectRange}  XAxisModifier={action.XAxisModifier}");
                 else
                     sb.AppendLine("  (row not found in Action sheet)");
-                sb.AppendLine($"  OmenRotate={q.OmenRotate:F3}  SizeOverride={(q.Size is { } sz ? sz.ToString("F3") : "(none)")}  CastTypeOverride={(q.CastType is { } ct ? ct.ToString() : "(none)")}");
+                sb.AppendLine($"  OmenRotate={q.OmenRotate:F3}  SizeOverride={(q.Size is { } sz ? sz.ToString("F3") : "(none)")}  CastTypeOverride={(q.CastTypeOverride is { } ct ? ct.ToString() : "(none)")}");
                 sb.AppendLine();
 
                 var src = q.Source;

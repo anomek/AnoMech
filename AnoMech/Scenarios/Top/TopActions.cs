@@ -175,8 +175,8 @@ public static class TopActions
 
     private static EnemyAction SwivelCannon(uint actionId, float rotation) => new(actionId)
     {
-        Cast = new() { OmenDelay = 8.5f },
-        Area = new() { Size = Geometry.SwivelCannonHalfAngle, Rotation = rotation },
+        Cast = new() { OmenDelay = 8.5f, Rotation = rotation },
+        Area = new() { Size = Geometry.SwivelCannonHalfAngle },
         Effects = [Damage(Magic, Lethal)],
     };
 
