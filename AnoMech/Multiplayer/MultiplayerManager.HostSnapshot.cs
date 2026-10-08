@@ -88,7 +88,7 @@ public sealed partial class MultiplayerManager
             {
                 netId = nextEnemyNetId++;
                 hostEnemyNetIds[enemy] = netId;
-                DiagnosticLog.Info($"[Multiplayer] Host: broadcasting new enemy NetId {netId} -- BNpcBase {enemy.BNpcBaseId}, pos {enemy.Position}, visible {enemy.Visible}.");
+                DiagnosticLog.Info($"[Multiplayer] Host: broadcasting new enemy NetId {netId} -- BNpcBase {enemy.BNpcBaseId}, pos {enemy.Position}, visible {enemy.SpawnConfig.IsVisible}.");
             }
             var cfg = enemy.SpawnConfig;
             var modelState = enemy.ModelState;
@@ -146,7 +146,7 @@ public sealed partial class MultiplayerManager
                 SimAssets.WarnIfUnknownPath(path, "enemy persistent VFX");
             enemies.Add(new EnemyState(
                 netId, enemy.BNpcBaseId, cfg.NameId, cfg.Level, enemy.Targetable, enemy.EnemyListMode,
-                cfg.ModelCharaId, cfg.Scale, cfg.HitboxRadius, cfg.InitialModeAttributeFlags, enemy.Visible, modelState,
+                cfg.ModelCharaId, cfg.InitialModeAttributeFlags, cfg.IsVisible, modelState,
                 enemy.ActiveStatuses.Where(s => !SimOnlyStatus.Is(s.StatusId)).Select(s => new EnemyStatusState(s.StatusId, s.Stacks, s.RemainingTime, s.Instance)).ToList(),
                 enemy.AnimationTimelineId, enemy.AnimationTimelineSeq, newLockonVfxIds,
                 enemy.AnimationState?.Arg2, enemy.AnimationState?.Arg3, enemy.AnimationStateSeq,

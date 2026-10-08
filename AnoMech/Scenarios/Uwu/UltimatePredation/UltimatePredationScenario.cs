@@ -324,7 +324,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(12.28f, () =>
         {
-            garuda?.SetVisible(true);
             garuda?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 
@@ -373,7 +372,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(12.28f, () =>
         {
-            ifrit?.SetVisible(true);
             ifrit?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 
@@ -435,7 +433,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(12.28f, () =>
         {
-            titan?.SetVisible(true);
             titan?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 
@@ -567,7 +564,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(buryOffset, () =>
         {
-            boulder?.SetVisible(true);
             boulder?.Cast(Actions.Bury);
         });
 

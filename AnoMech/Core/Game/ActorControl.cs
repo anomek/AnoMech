@@ -17,6 +17,7 @@ public sealed class ActorControl
     private const uint ModeAttributeFlagsCategory = 0x31;
     private const uint TargetableCategory = 0x36;
     private const uint ModelStateCategory = 0x3F;
+    private const uint ActionTimelineCategory = 0x197;
 
     // 1 = ActionType Action.
     private const uint ActionTypeAction = 1;
@@ -56,4 +57,7 @@ public sealed class ActorControl
     public void SetModeAttributeFlags(byte value) => Send(ModeAttributeFlagsCategory, value);
 
     public void SetTargetable(bool targetable) => Send(TargetableCategory, targetable ? 1u : 0u);
+
+    // A one-shot; the packet has no loop id.
+    public void PlayActionTimeline(ushort timelineId) => Send(ActionTimelineCategory, timelineId);
 }

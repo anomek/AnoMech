@@ -277,8 +277,6 @@ public static class TopConstants
 
     public static class TimelineId
     {
-        public const ushort Spawn = 7747;                           // warp/warp_end
-        public const ushort WarpOut = 7737;                         // warp/warp_start
         public const ushort RocketPunchSpawn = 1340;
     }
 

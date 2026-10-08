@@ -104,12 +104,9 @@ public class UwuConstants
         public const uint UltimateSuppression = 11597;
     }
 
-    public class ActionTimelineId
+    public static class TimelineId
     {
         public const ushort RazorPlume = 1412;
-        public const ushort WarpStart = 7737;
-        public const ushort WarpStart2 = 7738;
-        public const ushort WarpEnd = 7747;
     }
 
     public class StatusId

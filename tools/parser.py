@@ -1901,12 +1901,9 @@ def emit_csharp_per_npc_action(
         code = _safe(parts, 3).upper()
         param = _safe(parts, 4).upper()
         if code == "0197":
-            if param == "1E39":
-                timeline_expr = consts.register("TimelineId", 0x1E39, "WarpOut")
-                return f"{owner_field}?.PlayActionTimeline({timeline_expr})"
-            if param == "1E43":
-                timeline_expr = consts.register("TimelineId", 0x1E43, "Spawn")
-                return f"{owner_field}?.PlayActionTimeline({timeline_expr})"
+            warp = {"1E39": "WarpStart", "1E3A": "WarpStart2", "1E43": "WarpEnd", "1E44": "WarpEnd2"}.get(param)
+            if warp:
+                return f"{owner_field}?.PlayActionTimeline(ActionTimelineId.{warp})"
         if code == "0031":
             # ActorControl SetModeAttributeFlags — param1 is written to
             # ModelContainer.ModeAttributeFlags (offset 0x22). Empirically the

@@ -336,48 +336,37 @@ public sealed class UmadP3BlackHoleScenario : IMultiplayerReplayable
         world.Events.Add(5.88f, () => kefka_40004141?.AddStatus(StatusId.Max, stacks: (ushort)506, overrideStacks: true));
         world.Events.Add(5.88f, () => kefka_40004141?.SetModelState((byte)0x05));
         world.Events.Add(5.88f, () => kefka_40004141?.SetPosition(kefkaPos));
-        world.Events.Add(11.83f, () => kefka_40004141?.SetVisible(true));
         
-        world.Events.Add(12.39f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.WarpOut));
-        // world.Events.Add(13.82f, () => kefka_40004141?.SetVisible(false));
+        world.Events.Add(12.39f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(14.16f, () => kefka_40004141?.SetPosition(state.KefkaPosition[0].Apply(kefkaPos)));
-        world.Events.Add(14.39f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.Spawn));
-        // world.Events.Add(14.91f, () => kefka_40004141?.SetVisible(true));
+        world.Events.Add(14.39f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(16.39f, () => kefka_40004141?.Cast(state.SlapAttacks[0], animationLock: 6.1f));
         
-        world.Events.Add(42.83f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.WarpOut));
-        // world.Events.Add(44.15f, () => kefka_40004141?.SetVisible(false));
+        world.Events.Add(42.83f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(44.60f, () => kefka_40004141?.SetPosition(state.KefkaPosition[1].Apply(kefkaPos)));
-        world.Events.Add(44.83f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.Spawn));
-        // world.Events.Add(46.53f, () => kefka_40004141?.SetVisible(true));
+        world.Events.Add(44.83f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(46.83f, () => kefka_40004141?.Cast(state.SlapAttacks[1], animationLock: 6.1f));
         
-        world.Events.Add(70.25f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.WarpOut));
-        // world.Events.Add(71.80f, () => kefka_40004141?.SetVisible(false));
+        world.Events.Add(70.25f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(72.02f, () => kefka_40004141?.SetPosition(state.KefkaPosition[2].Apply(kefkaPos)));
-        world.Events.Add(72.25f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.Spawn));
-        // world.Events.Add(73.93f, () => kefka_40004141?.SetVisible(true));
+        world.Events.Add(72.25f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(74.25f, () => kefka_40004141?.Cast(ActionId.LookUponMeAndDespair, animationLock: 3.1f));
         world.Events.Add(79.38f, () => kefka_40004141?.SetModelState((byte)0x07));
         world.Events.Add(81.39f, () => kefka_40004141?.Cast(ActionId.StandUp_ToWall, animationLock: 4.1f));
         world.Events.Add(82.20f, () => kefka_40004141?.SetModelState((byte)0x05));
         
-        world.Events.Add(106.81f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.WarpOut));
-        // world.Events.Add(108.17f, () => kefka_40004141?.SetVisible(false));
+        world.Events.Add(106.81f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(108.56f, () => kefka_40004141?.SetPosition(state.KefkaPosition[3].Apply(kefkaPos)));
-        world.Events.Add(108.81f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.Spawn));
-        // world.Events.Add(114.53f, () => kefka_40004141?.SetVisible(true));
+        world.Events.Add(108.81f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(114.81f, () => kefka_40004141?.Cast(state.SlapAttacks[2], animationLock: 6.1f));
         
-        world.Events.Add(128.26f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.WarpOut));
-        // world.Events.Add(129.77f, () => kefka_40004141?.SetVisible(false));
+        world.Events.Add(128.26f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(130.02f, () => kefka_40004141?.SetPosition(state.KefkaPosition[4].Apply(kefkaPos)));
-        world.Events.Add(130.26f, () => kefka_40004141?.PlayAnimationTimeline(TimelineId.Spawn));
-        // world.Events.Add(132.02f, () => kefka_40004141?.SetVisible(true));
+        world.Events.Add(130.26f, () => kefka_40004141?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(132.26f, () => kefka_40004141?.Cast(ActionId.LookUponMeAndDespair2, animationLock: 3.1f));
         world.Events.Add(137.40f, () => kefka_40004141?.SetModelState((byte)0x07));

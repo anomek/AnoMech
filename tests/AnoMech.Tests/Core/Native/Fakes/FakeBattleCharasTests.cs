@@ -38,16 +38,8 @@ public class FakeBattleCharasTests
     [TestCase(19513u, 0u, 3.5f)]
     public void SpawnedEnemyHasTheGamesHitboxRadius(uint bnpcBaseId, uint modelCharaId, float expected)
     {
-        var enemy = Natives.BattleCharas.SpawnBattleNpc(new EnemySpawnConfig(bnpcBaseId, ModelCharaId: modelCharaId), new Placement());
+        var enemy = Natives.BattleCharas.SpawnBattleNpcFromPacket(new EnemySpawnConfig(bnpcBaseId, ModelCharaId: modelCharaId), new Placement(), out _);
 
         Assert.That(enemy?.HitboxRadius, Is.EqualTo(expected).Within(1e-4f));
-    }
-
-    [Test]
-    public void ModelDerivedHitboxIgnoresTheConfigOverride()
-    {
-        var enemy = Natives.BattleCharas.SpawnBattleNpc(new EnemySpawnConfig(19513, HitboxRadius: 3.7f), new Placement());
-
-        Assert.That(enemy?.HitboxRadius, Is.EqualTo(3.5f).Within(1e-4f));
     }
 }

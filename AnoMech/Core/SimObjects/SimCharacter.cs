@@ -377,12 +377,14 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
     // Same reasoning as SimCast.CastSeq: a repeat of the same id must read as a change.
     public int AnimationTimelineSeq { get; private set; }
 
-    public void PlayActionTimeline(ushort timelineId, ushort loopId = 0, ushort baseOverride = 0)
+    // ActorControl carries no loop id, so a looped timeline goes to the engine directly.
+    public void PlayActionTimeline(ushort timelineId, ushort loopId = 0)
     {
         AnimationTimelineId = timelineId;
         AnimationTimelineLoopId = loopId;
         AnimationTimelineSeq++;
-        PlayActionTimelineNative(timelineId, loopId, baseOverride);
+        if (loopId == 0) ActorControl.PlayActionTimeline(timelineId);
+        else PlayActionTimelineNative(timelineId, loopId);
     }
 
     internal void PlayActionTimelineNative(ushort timelineId, ushort loopId = 0, ushort baseOverride = 0)

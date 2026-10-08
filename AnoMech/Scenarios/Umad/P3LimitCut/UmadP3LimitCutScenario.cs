@@ -144,7 +144,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             state.Objects.Chaos?.Follow(party.Get(PartyRole.MainTank));
             state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank));
         });
-        world.Events.Add(50.581f, () => state.Objects.Kefka?.PlayAnimationTimeline(TimelineId.Spawn));
+        world.Events.Add(50.581f, () => state.Objects.Kefka?.PlayActionTimeline(ActionTimelineId.WarpEnd));
     }
 
     // Scheduled by host and peer alike, so broadcast: false; a peer's own clones play the same
@@ -294,7 +294,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         if (state.Objects.Clones[k] is not { } clone) return;
         var spot = state.PlacementSpot(k);
         clone.SetPosition(new Placement(SpotPosition(spot), SpotHeading(spot) + MathF.PI));
-        clone.SetVisible(true);
         if (k == 0) state.Objects.Kefka?.SetAnimationState(0, 0);
     }
 

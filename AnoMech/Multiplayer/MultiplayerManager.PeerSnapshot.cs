@@ -97,7 +97,7 @@ public sealed partial class MultiplayerManager
             if (!peerEnemies.TryGetValue(e.NetId, out var enemy))
             {
                 // The template is resolved by name from this build's own captures, never from
-                // wire bytes; the plain doppel is the fallback either way.
+                // wire bytes; a packet built from the config is the fallback either way.
                 byte[]? template = null;
                 var enableDraw = false;
                 if (e.NpcSpawnTemplate is { } templateName && !peerEnemyTemplateFailed.Contains(e.NetId))
@@ -108,7 +108,7 @@ public sealed partial class MultiplayerManager
                         enableDraw = e.PacketSpawnEnableDraw;
                     }
                     else
-                        DiagnosticLog.Warn($"[Multiplayer] Peer: enemy NetId {e.NetId} names unknown spawn template '{NetGuard.Clean(templateName)}' -- spawning the plain doppel.");
+                        DiagnosticLog.Warn($"[Multiplayer] Peer: enemy NetId {e.NetId} names unknown spawn template '{NetGuard.Clean(templateName)}' -- spawning from a built packet.");
                 }
                 // A scenario can override the BNpcBase row's model (UCOB P5's Golden Bahamut), so
                 // this has to travel; the allowlist is what stops it naming a foreign one.
@@ -118,7 +118,6 @@ public sealed partial class MultiplayerManager
                     ModelCharaId: e.ModelCharaId != 0
                         && SimAssets.Allow(SimAssetKind.ModelChara, e.ModelCharaId, $"enemy NetId {e.NetId} model")
                         ? e.ModelCharaId : 0,
-                    NetGuard.Clamp(e.Scale, 0f, 100f), NetGuard.Clamp(e.HitboxRadius, 0f, 100f),
                     e.InitialModeAttributeFlags,
                     NpcSpawnTemplate: template, PacketSpawnEnableDraw: enableDraw);
                 DiagnosticLog.Info($"[Multiplayer] Peer: first snapshot of enemy NetId {e.NetId} -- BNpcBase {e.BNpcBaseId}, pos ({e.X:F2},{e.Y:F2},{e.Z:F2}), rot {e.Rotation:F2}, visible {e.Visible}"
@@ -132,10 +131,10 @@ public sealed partial class MultiplayerManager
                 }
                 peerEnemies[e.NetId] = enemy;
             }
-            // The engine dropped the real-packet spawn: the next snapshot recreates it as a plain doppel.
+            // The engine dropped the real-packet spawn: the next snapshot recreates it from a built packet.
             if (enemy.PacketSpawnFailed)
             {
-                DiagnosticLog.Warn($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) packet spawn failed locally -- falling back to the plain doppel.");
+                DiagnosticLog.Warn($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) packet spawn failed locally -- falling back to a built packet.");
                 peerEnemyTemplateFailed.Add(e.NetId);
                 enemy.Despawn();
                 ForgetPeerEnemy(e.NetId);
@@ -143,7 +142,6 @@ public sealed partial class MultiplayerManager
             }
             // Interpolated in Tick; a hard SetPosition every snapshot stutters.
             enemy.ApplyNetworkPosition(placement.Position, placement.Rotation);
-            enemy.SetVisible(e.Visible);
             enemy.SetTargetable(e.Targetable);
             // Nothing below lands on an actor the engine hasn't created yet; leaving the seqs
             // unrecorded makes the next snapshot retry.
@@ -214,7 +212,7 @@ public sealed partial class MultiplayerManager
                 peerEnemyAnimationTimeline[e.NetId] = e.AnimationTimelineSeq;
                 DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) AnimationTimelineId -> 0x{timelineId:X4} (seq {e.AnimationTimelineSeq}).");
                 if (SimAssets.Allow(SimAssetKind.Timeline, timelineId, $"enemy NetId {e.NetId} timeline"))
-                    enemy.PlayAnimationTimeline(timelineId);
+                    enemy.PlayActionTimeline(timelineId);
             }
             if (e.NewLockonVfxIds.Count > 0)
             {

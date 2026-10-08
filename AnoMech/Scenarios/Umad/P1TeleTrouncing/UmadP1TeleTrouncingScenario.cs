@@ -118,29 +118,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     private int statueCatchUpStage;
     private float statueCatchUpReadyAt;
 
-    // Graven Image is ModelChara Type=0: no baked-in mesh, the engine builds one from
-    // CustomizeData. The party doppels' Lalafell values, proven to load a body.
-    // EyeShape (0x10) and Mouth (0x13) are written by offset: they are 1-based rows where the 0
-    // an initializer leaves aborts the whole human model build, and their bitfield accessors
-    // aren't verified in this CS build.
-    private static readonly CustomizeData GravenImageCustomize = BuildGravenImageCustomize();
-
-    private static CustomizeData BuildGravenImageCustomize()
-    {
-        var c = new CustomizeData
-        {
-            Race = 3, Tribe = 5, Sex = 1, BodyType = 1, Height = 50,
-            Face = 1, Hairstyle = 1, SkinColor = 1,
-            EyeColorRight = 1, EyeColorLeft = 1, HairColor = 1, HighlightsColor = 1, TattooColor = 1,
-            Eyebrows = 1, Nose = 1, Jaw = 1, LipColorFurPattern = 1,
-            MuscleMass = 50, TailShape = 1, BustSize = 50, FacePaintColor = 1,
-        };
-        var raw = System.Runtime.InteropServices.MemoryMarshal.AsBytes(new Span<CustomizeData>(ref c));
-        raw[0x10] = 1; // EyeShape
-        raw[0x13] = 1; // Mouth
-        return c;
-    }
-
     public void DrawSettings() => settingsWindow.Draw(FireAppearNow, FireWindUpNow);
 
     public void Run(SimWorld worldParam, int? selectedAi)
@@ -488,7 +465,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     public void Tick(float delta, float elapsed)
     {
         TickArrows(delta, elapsed);
-        TickGravenImageFallback();
         TickStatueCatchUp(elapsed);
         TickHazeHold();
         FaceMainTank();
@@ -727,7 +703,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
                 member.Die(UmadConstants.ActionId.LightOfJudgment_Enrage, "not all arrows were soaked by confused players");
         }
         kefka?.SetTargetable(false);
-        kefka?.SetVisible(false);
     }
 
     // Collisions and resets only: a used or expired arrow is retired, not removed.
@@ -957,42 +932,12 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     }
 
     // The real Graven Image: the captured NpcSpawn packet through the engine's own handler,
-    // hidden by its display flags, which is what the gaze/tether VFX bind to. The Lalafell
-    // doppel stays as the fallback; its Pc-path 0.6 Height / 0.4 VfxScale put the gaze's bone
-    // attach ~1y low at 40% size.
+    // hidden by its display flags, which is what the gaze/tether VFX bind to.
     private SimEnemy? SpawnGravenImage(Vector3 position)
-    {
-        var real = world.SpawnEnemy(new EnemySpawnConfig(
+        => world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: Constants.BNpcBaseId.GravenImage, NameId: Constants.BNpcNameId.GravenImage, Level: 100,
             Targetable: false, EnemyList: EnemyListMode.Never,
             Placement: new Placement(position, 0f), NpcSpawnTemplate: UmadRealPackets.GravenImageNpcSpawn));
-        if (real != null) return real;   // pending until the engine fills the slot (SimEnemy.PacketSpawnPending)
-        DiagnosticLog.Warn($"[UmadP1TeleTrouncing] Graven Image packet spawn at {position} was refused -- falling back to the Lalafell doppel.");
-        return SpawnLalafellDoppel(position);
-    }
-
-    private SimEnemy? SpawnLalafellDoppel(Vector3 position)
-        => world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: Constants.BNpcBaseId.GravenImage, NameId: Constants.BNpcNameId.GravenImage, Level: 100,
-            Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: true,
-            Placement: new Placement(position, 0f), Customize: GravenImageCustomize));
-
-    // A Graven Image whose packet spawn the engine dropped is replaced by the Lalafell doppel.
-    private void TickGravenImageFallback()
-    {
-        ReplaceIfDropped(ref confusedStatue, ConfusedStatuePos);
-        ReplaceIfDropped(ref sleepStatue, SleepStatuePos);
-        ReplaceIfDropped(ref gazeCasterInverted, GazeStatueInvertedAnimPos);
-        ReplaceIfDropped(ref gazeCasterNormal, GazeStatueNormalAnimPos);
-    }
-
-    private void ReplaceIfDropped(ref SimEnemy? actor, Vector3 position)
-    {
-        if (actor is not { PacketSpawnFailed: true }) return;
-        DiagnosticLog.Warn($"[UmadP1TeleTrouncing] Graven Image packet spawn at {position} was dropped by the engine -- falling back to the Lalafell doppel.");
-        actor.Despawn();
-        actor = SpawnLalafellDoppel(position);
-    }
 
     private void DespawnProp(ref SimEventObject? prop)
     {
@@ -1264,14 +1209,11 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
     private void EndP1()
     {
-        // A failed set keeps Kefka up for the deaths; ResolveArrowSoakPunishment hides him.
+        // A failed set keeps Kefka targetable for the deaths.
         if (!ArrowSoakFailed)
         {
             kefka?.SetTargetable(false);
-            kefka?.SetVisible(false);
         }
-        confusedStatue?.SetVisible(false);
-        sleepStatue?.SetVisible(false);
         // The EObj slots are released a beat later by DespawnGazeProps so the animation plays.
         Beat(gazeStatueNormal, EObjAnimDespawn);
         Beat(gazeStatueInverted, EObjAnimDespawn);

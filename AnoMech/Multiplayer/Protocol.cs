@@ -155,7 +155,7 @@ public sealed record ActorEngineState(
 // one-shot NewVfx.
 public sealed record EnemyState(
     int NetId, uint BNpcBaseId, uint NameId, byte Level, bool Targetable,
-    EnemyListMode EnemyList, uint ModelCharaId, float Scale, float HitboxRadius,
+    EnemyListMode EnemyList, uint ModelCharaId,
     byte? InitialModeAttributeFlags, bool Visible, byte ModelState,
     IReadOnlyList<EnemyStatusState> Statuses, ushort? AnimationTimelineId, int AnimationTimelineSeq, IReadOnlyList<uint> NewLockonVfxIds,
     int? AnimationStateArg2, int? AnimationStateArg3, int AnimationStateSeq,

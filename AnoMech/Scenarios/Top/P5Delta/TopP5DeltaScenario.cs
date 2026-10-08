@@ -70,7 +70,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         world.Events.Add(26.1f, EyeStartCharging);
         world.Events.Add(29f, EyeDoneCharging);
         world.Events.Add(44f, EyeDespawn);
-        world.Events.Add(10f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(10f, () => omega?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(10.1f, ApplyDeltaTethers);           // HW debuffs confirmed at t=10.053s
         world.Events.Add(10.1f, SpawnDeltaAdds);
         world.Events.Add(10f, () => omega?.SetTargetable(false));
@@ -80,7 +80,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         world.Events.Add(25.3f, MarkArmUnitRotations);        // +1s after arm spawn
         world.Events.Add(28.1f, ApplyDeltaRealTethers); // same window as optical laser
         world.Events.Add(28.2f, () => opticalUnit?.Cast(Actions.OpticalLaser));
-        world.Events.Add(28.4f, () => omega?.PlayActionTimeline(TimelineId.Spawn));
+        world.Events.Add(28.4f, () => omega?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(30.5f, StartMonitors);         // BeyondDefense + OWC casts start t=30.43/30.47s
         world.Events.Add(30.1f, StartPunchExplosions);  // 3s cast, resolves at 33.5f
         world.Events.Add(35.3f, FireBeyondDefenseAoe);        // BeyondDefense jump t=35.336s, AOE lands t=35.649s
@@ -93,22 +93,22 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         world.Events.Add(40.5f, FireMonitors);                // OWC AOE fires t=40.509s
         world.Events.Add(41.0f, NextHyperPulse);              // last HP step, same tick as pile pitch t=40.999s
         world.Events.Add(41.0f, FirePilePitch);               // Pile Pitch fires t=40.999s
-        world.Events.Add(44.5f, () => armUnits?.ForEach(unit => unit?.PlayActionTimeline(TimelineId.WarpOut)));
+        world.Events.Add(44.5f, () => armUnits?.Select((unit, i) => (unit, i)).ToList().ForEach(t => t.unit?.PlayActionTimeline(state.ArmHandedness[t.i].ArmUnitWarpStartTimelineId)));
         world.Events.Add(45.5f, () => armUnits?.ForEach(unit => unit?.Despawn()));
         world.Events.Add(43.5f, StartSwivelCannon);           // Swivel Cannon cast starts t=43.458s
-        world.Events.Add(44.1f, () => omega?.PlayActionTimeline(TimelineId.WarpOut));
-        world.Events.Add(43.5f, () => finalHelper?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(44.1f, () => omega?.PlayActionTimeline(ActionTimelineId.WarpStart));
+        world.Events.Add(43.5f, () => finalHelper?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(45.5f, () => finalHelper?.Despawn());  // despawn signal t=43.591s
         world.Events.Add(47.5f, () => CheckTethersExpired(tethersShort));             // tethers applied t=30.2, 18s life → expire 48.2
         world.Events.Add(53.2f, EndSwivelCannon);             // 43.458 + 9.7s cast = t=53.158s
         world.Events.Add(53.2f, () => DropHelloPuddle(state.NearWorldRole, true));
         world.Events.Add(53.2f, () => DropHelloPuddle(state.FarWorldRole, false));
-        world.Events.Add(54.2f, () => omega?.PlayActionTimeline(TimelineId.Spawn));
+        world.Events.Add(54.2f, () => omega?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(54.2f, () => HopHelloPuddle(true));
         world.Events.Add(54.2f, () => HopHelloPuddle(false));
         world.Events.Add(55.2f, () => HopHelloPuddle(true));
         world.Events.Add(55.2f, () => HopHelloPuddle(false));
-        world.Events.Add(56.6f, () => beetle?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(56.6f, () => beetle?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(58.6f, () => beetle?.Despawn());
         world.Events.Add(56.5f, () => omega?.SetTargetable(true));
         world.Events.Add(65.1f, () => CheckTethersExpired(tethersLong));             // tethers expire t=30.2+36=66.2
@@ -159,7 +159,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(-20f, 0f, 0f) * state.EyeSpawn.Mul, MathF.PI / 2f * state.EyeSpawn.Mul)));
-        beetle?.PlayActionTimeline(TimelineId.Spawn);
+        beetle?.PlayActionTimeline(ActionTimelineId.WarpEnd);
 
         opticalUnit = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.OpticalUnit,
@@ -176,7 +176,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
             Targetable: false,
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(new Vector3(20f, 0f, 0f) * state.EyeSpawn.Mul, -MathF.PI / 2f * state.EyeSpawn.Mul)));
-        finalHelper?.PlayActionTimeline(TimelineId.Spawn);
+        finalHelper?.PlayActionTimeline(ActionTimelineId.WarpEnd);
     }
 
     private void ApplyDeltaTethers()
@@ -225,7 +225,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
                 Targetable: false,
                 EnemyList: EnemyListMode.Always,
                 Placement: new Placement(Geometry.ArmUnitPlacements[i].Position * new Vector3(state.EyeSpawn.Mul, 1, 1), Geometry.ArmUnitPlacements[i].Rotation)));
-            unit?.PlayActionTimeline(TimelineId.Spawn);
+            unit?.PlayActionTimeline(state.ArmHandedness[i].ArmUnitWarpEndTimelineId);
             return unit;
         }).ToList();
     }

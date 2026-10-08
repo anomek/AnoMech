@@ -253,8 +253,7 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         SimEnemy? neo_Exdeath_400041A4 = null;
         world.Events.Add(0f, () => neo_Exdeath_400041A4 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.NeoExdeath, NameId: BNpcNameId.NeoExdeath, Level: 100, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, Placement: new Placement(new Vector3(20.000f, 0.000f, 0.000f), -1.570f))));
         world.Events.Add(6.32f, () => neo_Exdeath_400041A4?.SetPosition(new Placement(new Vector3(14.142f, 0.000f, -14.142f), -0.785f)));
-        world.Events.Add(6.46f, () => neo_Exdeath_400041A4?.PlayAnimationTimeline(TimelineId.NeoExdeathShow));
-        world.Events.Add(6.46f, () => neo_Exdeath_400041A4?.SetVisible(true));
+        world.Events.Add(6.46f, () => neo_Exdeath_400041A4?.PlayActionTimeline(TimelineId.NeoExdeathShow));
         
         world.Events.Add(11.28f, () => neo_Exdeath_400041A4?.AddStatus(StatusId.KefkaLiesVfx, stacks: state.Wave1TrueVal, overrideStacks: true));
         world.Events.Add(11.37f, () => neo_Exdeath_400041A4?.Cast(ActionId.GrandCross, animationLock: 3.0f));
@@ -266,16 +265,15 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         world.Events.Add(41.26f, () => neo_Exdeath_400041A4?.Cast(ActionId.GrandCross, animationLock: 3.0f));
         world.Events.Add(51.26f, () => neo_Exdeath_400041A4?.RemoveStatus(StatusId.KefkaLiesVfx));
         
-        world.Events.Add(53.28f, () => neo_Exdeath_400041A4?.PlayAnimationTimeline(TimelineId.WarpOut));
+        world.Events.Add(53.28f, () => neo_Exdeath_400041A4?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(55.25f, () => neo_Exdeath_400041A4?.SetPosition(state.NeoExdeathDirection.Apply(new Placement(new Vector3(0, 0, -20), 0))));
-        world.Events.Add(55.58f, () => neo_Exdeath_400041A4?.PlayAnimationTimeline(TimelineId.NeoExdeathShow));
+        world.Events.Add(55.58f, () => neo_Exdeath_400041A4?.PlayActionTimeline(TimelineId.NeoExdeathShow));
         
         world.Events.Add(57.30f, () => neo_Exdeath_400041A4?.AddStatus(StatusId.KefkaLiesVfx, stacks: state.Wave4TrueVal, overrideStacks: true));
         world.Events.Add(57.39f, () => neo_Exdeath_400041A4?.Cast(state.Antilights[0].ResolveFloodAction, animationLock: 3.1f));
         world.Events.Add(63.39f, () => neo_Exdeath_400041A4?.RemoveStatus(StatusId.KefkaLiesVfx));
         
-        world.Events.Add(65.52f, () => neo_Exdeath_400041A4?.PlayAnimationTimeline(TimelineId.WarpOut));
-        world.Events.Add(65.52f, () => neo_Exdeath_400041A4?.SetVisible(false));
+        world.Events.Add(65.52f, () => neo_Exdeath_400041A4?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
     private void Run_Chaos_400041A5()
@@ -283,8 +281,7 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         SimEnemy? chaos_400041A5 = null;
         world.Events.Add(0f, () => chaos_400041A5 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.Chaos, NameId: BNpcNameId.Chaos, Level: 100, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, Placement: new Placement(new Vector3(-18.000f, 0.000f, 0.000f), 1.570f))));
         world.Events.Add(6.37f, () => chaos_400041A5?.SetPosition(new Placement(new Vector3(-12.728f, 0.000f, -12.728f), 0.785f)));
-        world.Events.Add(6.46f, () => chaos_400041A5?.PlayAnimationTimeline(TimelineId.Spawn));
-        world.Events.Add(6.46f, () => chaos_400041A5?.SetVisible(true));
+        world.Events.Add(6.46f, () => chaos_400041A5?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         
         world.Events.Add(16.42f, () => chaos_400041A5?.AddStatus(StatusId.KefkaLiesVfx, stacks: state.ChaosMysteries[0].StatusValue, overrideStacks: true));
         world.Events.Add(16.51f, () => chaos_400041A5?.Cast(state.ChaosMysteries[0].Cast.Action, animationLock: 3.0f));
@@ -293,7 +290,7 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         world.Events.Add(31.43f, () => chaos_400041A5?.Cast(state.ChaosMysteries[1].Cast.Action, animationLock: 3.0f));
         world.Events.Add(41.43f, () => chaos_400041A5?.RemoveStatus(StatusId.KefkaLiesVfx));
         
-        world.Events.Add(43.49f, () => chaos_400041A5?.PlayAnimationTimeline(TimelineId.WarpOut));
+        world.Events.Add(43.49f, () => chaos_400041A5?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
     private void Run_Kefka_400040E5_1()

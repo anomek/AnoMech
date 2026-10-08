@@ -30,176 +30,31 @@ internal sealed unsafe class BattleCharas : IBattleCharas
     private const float LalafellHeight = 0.6f;
 
     private const uint DoppelMaxHealth = 100_000;
+    private const uint EnemyMaxHealth = 1_000_000;
 
     // Outside the engine's player/server-actor ranges and CreateCharacter's 0xE00000xx ids.
     private const uint PacketSpawnEntityIdBase = 0x4000FE00u;
 
-    // A Character-type mesh won't build from Customize alone. PartyPresets' White Mage set,
-    // not Graven Image's real gear.
-    private static readonly (DrawDataContainer.EquipmentSlot Slot, uint ItemId)[] Type0PlaceholderEquipment =
-    [
-        (DrawDataContainer.EquipmentSlot.Head, 2902),
-        (DrawDataContainer.EquipmentSlot.Body, 3225),
-        (DrawDataContainer.EquipmentSlot.Hands, 3687),
-        (DrawDataContainer.EquipmentSlot.Legs, 3463),
-        (DrawDataContainer.EquipmentSlot.Feet, 3894),
-    ];
-
     public IBattleCharaProxy LocalPlayer => BattleCharaProxy.LocalPlayer;
 
-    public IBattleCharaProxy? SpawnBattleNpc(EnemySpawnConfig config, Placement placement)
-    {
-        var player = Plugin.ObjectTable.LocalPlayer;
-        if (player == null) return null;
-
-        var bnpcSheet = Plugin.DataManager.GetExcelSheet<BNpcBase>();
-        if (!bnpcSheet.TryGetRow(config.BNpcBaseId, out var bnpc))
-        {
-            Plugin.Log.Warning($"BNpcBase row {config.BNpcBaseId} (0x{config.BNpcBaseId:X}) not found");
-            return null;
-        }
-
-        var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
-        var modelCharaSheet = Plugin.DataManager.GetExcelSheet<ModelChara>();
-        if (!modelCharaSheet.TryGetRow(modelCharaId, out var modelChara))
-        {
-            Plugin.Log.Warning($"ModelChara row {config.BNpcBaseId} (0x{config.BNpcBaseId:X}) not found");
-            return null;
-        }
-
-        if (!CharacterManagerHelper.CreateCharacter(out var idx, out var obj)) return null;
-
-        var gameObj = (GameObject*)obj;
-        var chara = (BattleChara*)obj;
-        // SetupBNpc populates ModelContainer (incl. ModeAttributeFlags) from BNpcBase and must
-        // run before the overrides below. Skipped for a Type 0 row with a Customize: a PC-style
-        // actor is Customize+equipment driven and SetupBNpc left it permanently un-rendered.
-        // Gated on Customize, not Type 0 alone: the invisible Type 0 helpers rely on the
-        // BattleNpc path loading no mesh, and routing them through the Pc path built a player
-        // mesh out of the reused slot's stale CustomizeData.
-        var pcStyle = modelChara.Type == 0 && config.Customize is not null;
-        if (pcStyle)
-        {
-            chara->ObjectKind = ObjectKind.Pc;
-            // Match SpawnDoppel field for field: a reused slot's stale skeleton id and equipment
-            // compete with the engine's Race/Tribe resolution and half-load a broken mesh.
-            chara->ModelContainer.ModelCharaId = 0;
-            chara->ModelContainer.ModelSkeletonId = 0;
-            chara->VfxScale = LalafellVfxScale;
-            chara->Height = LalafellHeight;
-            chara->Mode = CharacterModes.Normal;
-            chara->ModeParam = 0;
-        }
-        else
-        {
-            chara->CharacterSetup.SetupBNpc(config.BNpcBaseId, config.NameId);
-            chara->ObjectKind = ObjectKind.BattleNpc;
-            chara->ModelContainer.ModelCharaId = (int)modelCharaId;
-        }
-        chara->Position = placement.Position;
-        chara->SetRotation(MathUtil.NormalizeRotation(placement.Rotation));
-        var scale = config.Scale > 0f ? config.Scale : bnpc.Scale;
-        chara->Scale = scale;
-        chara->SEPack = bnpc.SEPack;
-
-        var nativeHitbox = true;
-
-        // From Client::Game::Character::CharacterSetupContainer_SetupRaw
-        switch (modelChara.Type)
-        {
-            // A Customize-less Type 0 (invisible helper) matches no case and keeps nativeHitbox.
-            case 0 when pcStyle:
-                // The engine resolves a PC skeleton from Race/Tribe once CustomizeData is
-                // written; the hitbox is the doppels' fixed 0.5.
-                if (config.Customize is { } customize)
-                {
-                    chara->DrawData.CustomizeData = customize;
-                    // Zero every slot first: the reused slot's previous occupant leaves stale ids
-                    // in the slots the placeholder set doesn't write.
-                    foreach (DrawDataContainer.EquipmentSlot slot in Enum.GetValues<DrawDataContainer.EquipmentSlot>())
-                        chara->DrawData.Equipment(slot).Value = 0;
-                    // An all-zero CustomizeData is the real invisible helpers' own spawn data and
-                    // must stay bare.
-                    if (customize.Race != 0)
-                    {
-                        var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
-                        foreach (var (slot, itemId) in Type0PlaceholderEquipment)
-                            if (itemSheet.TryGetRow(itemId, out var item))
-                                chara->DrawData.Equipment(slot).Value = item.ModelMain;
-                    }
-                }
-                chara->HitboxRadius = config.HitboxRadius > 0f ? config.HitboxRadius : 0.5f;
-                nativeHitbox = false;
-                break;
-            case 1:
-                // TODO: This Type in the game's .exe is a bit complex, for now we just fallback to the previous solving method
-                chara->HitboxRadius = config.HitboxRadius > 0f ? config.HitboxRadius : ResolveHitboxRadius(modelCharaId, scale);
-                nativeHitbox = false;
-                break;
-            case 2:
-                chara->ModelContainer.ModelSkeletonId = modelChara.Model + 10000;
-                break;
-            case 3:
-                chara->ModelContainer.ModelSkeletonId = modelChara.Model;
-                break;
-        }
-
-        if (nativeHitbox)
-        {
-            chara->ModelContainer.UnscaledRadius = ModelContainerPointers.CalculateUnscaledRadius(&chara->ModelContainer);
-            chara->HitboxRadius = chara->Scale * chara->ModelContainer.UnscaledRadius; // From Client::Game::Character::ModelContainer_UpdateHitboxRadius
-        }
-
-        // Engine-resolved name (vfunc 6), same source as the nameplate. Empty for Type 0 (it
-        // resolves from state SetupBNpc sets up), so fall back to the BNpcName sheet.
-        var displayName = gameObj->GetName().ToString();
-        if (string.IsNullOrEmpty(displayName)) displayName = BNpcName(config.NameId) ?? $"BNpc {config.BNpcBaseId:X}";
-        GameObjectHelper.WriteName(gameObj, displayName);
-        obj->RenderFlags = 0;
-
-        chara->CharacterSetup.CopyFromCharacter((Character*)chara, CharacterSetupContainer.CopyFlags.None);
-
-        chara->BattleNpcSubKind = BattleNpcSubKind.Combatant;
-        chara->MaxHealth = 1_000_000;
-        chara->Health = 1_000_000;
-        chara->Battalion = 4;
-        chara->IsHostile = true;
-        chara->InCombat = true;
-        chara->CombatTagType = 1;
-        chara->CombatTaggerId = ((GameObject*)player.Address)->GetGameObjectId();
-        chara->Mode = CharacterModes.Normal;
-        chara->ModeParam = 0;
-        if (config.InitialModeAttributeFlags is { } maf)
-            chara->ModelContainer.ModeAttributeFlags = maf;
-        chara->CastInfo.IsCasting = false;
-        if (config.NameId != 0) chara->NameId = config.NameId;
-        if (config.Level != 0) chara->Level = config.Level;
-
-        DiagnosticLog.Info($"[BattleCharas.SpawnBattleNpc] BNpcBase {config.BNpcBaseId}: resolved modelCharaId={modelCharaId} (sheet default {bnpc.ModelChara.RowId}), scale={scale} (sheet default {bnpc.Scale}), hitboxRadius={chara->HitboxRadius} (nativeHitbox={nativeHitbox}), modelChara.Type={modelChara.Type}, ModelSkeletonId={chara->ModelContainer.ModelSkeletonId}, ModeAttributeFlags=0x{chara->ModelContainer.ModeAttributeFlags:X2} -- at index {idx}, goid {gameObj->GetGameObjectId()}, pos {placement.Position}, visible {config.IsVisible}.");
-        return BattleCharaProxy.ForSlot(idx);
-    }
-
-    private static float ResolveHitboxRadius(uint modelCharaId, float scale)
-    {
-        const float DefaultUnscaledRadius = 0.5f;
-        var sheet = Plugin.DataManager.GetExcelSheet<ModelChara>();
-        var unscaled = DefaultUnscaledRadius;
-        if (sheet.TryGetRow(modelCharaId, out var row) && row.Unknown0 > 0f)
-            unscaled = row.Unknown0;
-        return unscaled * scale;
-    }
-
-    // Only per-instance fields are patched: slot, position/rotation, the English name, and a
-    // dangling owner reference.
+    // Without a template the packet is built from the config. Only per-instance fields are
+    // patched: slot, position/rotation, the English name, and a dangling owner reference.
     public IBattleCharaProxy? SpawnBattleNpcFromPacket(EnemySpawnConfig config, Placement placement, out uint entityId)
     {
         entityId = 0;
-        if (config.NpcSpawnTemplate is not { } template) return null;
-        if (template.Length != sizeof(SpawnNpcPacket))
+        if (config.NpcSpawnTemplate is { Length: var length } && length != sizeof(SpawnNpcPacket))
         {
-            DiagnosticLog.Warn($"[BattleCharas.SpawnBattleNpcFromPacket] template is {template.Length} bytes, expected {sizeof(SpawnNpcPacket)}.");
+            DiagnosticLog.Warn($"[BattleCharas.SpawnBattleNpcFromPacket] template is {length} bytes, expected {sizeof(SpawnNpcPacket)}.");
             return null;
         }
+        SpawnNpcPacket packet;
+        if (config.NpcSpawnTemplate is { } template)
+        {
+            packet = new SpawnNpcPacket();
+            fixed (byte* src = template) Buffer.MemoryCopy(src, &packet, sizeof(SpawnNpcPacket), template.Length);
+        }
+        else if (BuildSpawnPacket(config) is { } built) packet = built;
+        else return null;
         if (CharacterManager.Instance() == null) return null;
         var idx = CharacterManagerHelper.FindFreeIndex();
         if (idx < 0)
@@ -208,8 +63,6 @@ internal sealed unsafe class BattleCharas : IBattleCharas
             return null;
         }
 
-        var packet = new SpawnNpcPacket();
-        fixed (byte* src = template) Buffer.MemoryCopy(src, &packet, sizeof(SpawnNpcPacket), template.Length);
         var id = PacketSpawnEntityIdBase + (uint)idx;
         packet.Common.SpawnIndex = (byte)idx;
         packet.Common.Position = placement.Position;
@@ -239,6 +92,55 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         CharacterManagerHelper.Reserve(idx);
         entityId = id;
         return BattleCharaProxy.ForSlot(idx);
+    }
+
+    // The values every captured server spawn of a combatant BNpc carries. DisplayFlags bit
+    // 0x20000 spawns the actor hidden until a warp_end/show timeline reveals it. Meshless helpers
+    // (ModelChara Type 0, Model 0) carry their own flags and no MP whatever their visibility.
+    private const uint DisplayFlagsVisible = 0x4000B;
+    private const uint DisplayFlagsHiddenUntilRevealed = 0x6000B;
+    private const uint DisplayFlagsMeshlessHelper = 0x40008;
+    private const byte SpawnCharacterDataFlags = 0x3;
+    private const byte SpawnCharacterDataFlagsMeshlessHelper = 0x1;
+    private const byte SpawnLinkRange = 0x14;
+    private const ushort SpawnResourcePoints = 10000;
+    private const byte SpawnBattalion = 4;
+
+    private static SpawnNpcPacket? BuildSpawnPacket(EnemySpawnConfig config)
+    {
+        if (!Plugin.DataManager.GetExcelSheet<BNpcBase>().TryGetRow(config.BNpcBaseId, out var bnpc))
+        {
+            Plugin.Log.Warning($"BNpcBase row {config.BNpcBaseId} (0x{config.BNpcBaseId:X}) not found");
+            return null;
+        }
+        var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
+        var meshless = Plugin.DataManager.GetExcelSheet<ModelChara>().TryGetRow(modelCharaId, out var modelChara)
+            && modelChara is { Type: 0, Model: 0 };
+        var packet = new SpawnNpcPacket
+        {
+            CharacterDataFlags = meshless ? SpawnCharacterDataFlagsMeshlessHelper : SpawnCharacterDataFlags,
+            LinkRange = SpawnLinkRange,
+        };
+        ref var common = ref packet.Common;
+        common.TargetId = 0xE0000000;
+        common.OwnerId = 0xE0000000;
+        common.TetherTargetId = 0xE0000000;
+        common.BaseId = config.BNpcBaseId;
+        common.NameId = config.NameId;
+        common.MaxHealthPoints = EnemyMaxHealth;
+        common.HealthPoints = EnemyMaxHealth;
+        common.DisplayFlags = meshless ? DisplayFlagsMeshlessHelper
+            : config.IsVisible ? DisplayFlagsVisible : DisplayFlagsHiddenUntilRevealed;
+        common.MaxResourcePoints = meshless ? (ushort)0 : SpawnResourcePoints;
+        common.ResourcePoints = common.MaxResourcePoints;
+        common.ModelChara = (ushort)modelCharaId;
+        common.CharacterMode = CharacterModes.Normal;
+        common.ObjectKind = ObjectKind.BattleNpc;
+        common.SubKind = (byte)BattleNpcSubKind.Combatant;
+        common.Battalion = SpawnBattalion;
+        common.Level = config.Level;
+        common.ModelAttributeFlags = config.InitialModeAttributeFlags ?? 0;
+        return packet;
     }
 
     public IBattleCharaProxy? SpawnDoppel(PartyMemberPreset preset, Placement placement)

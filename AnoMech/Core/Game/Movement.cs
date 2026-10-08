@@ -359,7 +359,7 @@ internal class Movement(SimCharacter parent)
     //     loop the pose forever (the original "knockback stuck" bug).
     protected void StartAnim()
     {
-        // Native entry point: SimEnemy's PlayActionTimeline override broadcasts scenario cues,
+        // Native entry point: SimCharacter.PlayActionTimeline broadcasts scenario cues,
         // which movement must not trigger.
         parent.PlayActionTimelineNative(timelineId, baseOverride: timelineBaseOverride ? timelineId : (ushort)0);
         animActive = true;

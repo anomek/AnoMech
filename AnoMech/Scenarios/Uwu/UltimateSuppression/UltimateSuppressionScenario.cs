@@ -344,17 +344,14 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(12.37f, () =>
         {
-            garuda?.SetVisible(true);
             garuda?.PlayActionTimeline(ActionTimelineId.WarpEnd);
 
-            chirada?.SetVisible(true);
             chirada?.PlayActionTimeline(ActionTimelineId.WarpEnd);
 
-            suparna?.SetVisible(true);
             suparna?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 
-        world.Events.Add(14.50f, () => garuda?.PlayActionTimeline(ActionTimelineId.RazorPlume));
+        world.Events.Add(14.50f, () => garuda?.PlayActionTimeline(TimelineId.RazorPlume));
 
         world.Events.Add(15.48f, () =>
         {
@@ -477,7 +474,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(12.37f, () =>
         {
-            ifrit?.SetVisible(true);
             ifrit?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 
@@ -521,7 +517,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(12.37f, () =>
         {
-            titan?.SetVisible(true);
             titan?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
 

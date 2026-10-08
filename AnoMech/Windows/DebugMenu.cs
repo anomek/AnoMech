@@ -55,7 +55,6 @@ internal sealed unsafe class DebugMenu
     }
 
     private string debugBNpcBaseIdText = "15720";
-    private string debugSpawnScaleText = "0";
     private string debugSpawnModeAttrFlagsText = "";
     private string debugTimelineIdText = "0x53C";
     private string debugModelStateText = "0x00";
@@ -266,8 +265,6 @@ internal sealed unsafe class DebugMenu
         ImGui.SetNextItemWidth(120 * uiScale);
         ImGui.InputText("BNpcBaseId", ref debugBNpcBaseIdText, 16);
         ImGui.SetNextItemWidth(80 * uiScale);
-        ImGui.InputText("Scale (0 = default)", ref debugSpawnScaleText, 16);
-        ImGui.SetNextItemWidth(80 * uiScale);
         ImGui.InputText("ModeAttrFlags (blank = none)", ref debugSpawnModeAttrFlagsText, 16);
         if (ImGui.Button("Spawn"))
         {
@@ -277,10 +274,6 @@ internal sealed unsafe class DebugMenu
             }
             else
             {
-                float scale = 0f;
-                var trimmed = debugSpawnScaleText.Trim();
-                if (trimmed.Length > 0 && !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out scale))
-                    Plugin.Log.Warning($"Spawn: can't parse Scale '{debugSpawnScaleText}', using default");
                 byte? initialModeAttrFlags = null;
                 var mafTrimmed = debugSpawnModeAttrFlagsText.Trim();
                 if (mafTrimmed.Length > 0)
@@ -296,7 +289,6 @@ internal sealed unsafe class DebugMenu
                 TimelineDebug.LastSpawn = plugin.Game.World.SpawnEnemy(new EnemySpawnConfig(
                     BNpcBaseId: baseId,
                     Targetable: true,
-                    Scale: scale,
                     InitialModeAttributeFlags: initialModeAttrFlags));
             }
         }

@@ -3,34 +3,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P5Delta;
 
-public sealed class Side
+public sealed record Side(
+    uint DeltaOversampledWaveCannonActionId,
+    uint SwivelCannonActionId,
+    ushort MonitorDebuffId,
+    int Mul,
+    uint ArmUnitId,
+    uint ArmUnitNameId,
+    uint RotateLockonId,
+    ushort ArmUnitWarpStartTimelineId,
+    ushort ArmUnitWarpEndTimelineId)
 {
-    public uint DeltaOversampledWaveCannonActionId { get; }
-    public uint SwivelCannonActionId { get; }
-    public ushort MonitorDebuffId { get; }
-    public int Mul { get; }
-    public uint ArmUnitId { get; }
-    public uint ArmUnitNameId { get; }
-    public uint RotateLockonId { get; }
-
-    private Side(uint waveCannonActionId, uint swivelCannonActionId, ushort monitorDebuffId, int mul, uint armUnitId, uint armUnitNameId, uint rotateLockonId)
-    {
-        DeltaOversampledWaveCannonActionId = waveCannonActionId;
-        SwivelCannonActionId = swivelCannonActionId;
-        MonitorDebuffId = monitorDebuffId;
-        Mul = mul;
-        ArmUnitId = armUnitId;
-        ArmUnitNameId = armUnitNameId;
-        RotateLockonId = rotateLockonId;
-    }
-
-    public static readonly Side Right = new(ActionId.OversampledWaveCannonRight, ActionId.SwivelCannonR, StatusId.PlayerMonitorRight,  -1, BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw);
-    public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw);
+    public static readonly Side Right = new(ActionId.OversampledWaveCannonRight, ActionId.SwivelCannonR, StatusId.PlayerMonitorRight,  -1, BNpcBaseId.RightArmUnit, BNpcNameId.RightArmUnit, LockonId.RotateCw, ActionTimelineId.WarpStart, ActionTimelineId.WarpEnd);
+    public static readonly Side Left = new(ActionId.OversampledWaveCannonLeft, ActionId.SwivelCannonL, StatusId.PlayerMonitorLeft, 1, BNpcBaseId.LeftArmUnit, BNpcNameId.LeftArmUnit, LockonId.RotateCcw, ActionTimelineId.WarpStart2, ActionTimelineId.WarpEnd2);
 }
 
 public record NorthSouth(float Mul, byte EffectIndex)

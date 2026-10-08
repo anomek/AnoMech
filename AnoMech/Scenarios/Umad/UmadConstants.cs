@@ -279,10 +279,8 @@ public static class UmadConstants
 
     public static class TimelineId
     {
-        public const ushort WarpOut = (ushort)0x1E39;
-        public const ushort Spawn   = (ushort)0x1E43;
         // Neo Exdeath's own appear (mon_sp/m0418/show/mon_sp001), which carries his warp sound and
-        // VFX; the generic Spawn has neither on his model.
+        // VFX; the generic WarpEnd has neither on his model.
         public const ushort NeoExdeathShow = (ushort)0x11D1;
     }
 

@@ -271,14 +271,13 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
     {
         var end = state.EndAttacks[number];
         world.Events.Add(start - 0.5f, () => enemy?.SetPosition(new Vector3(0, 0, 0)));
-        world.Events.Add(start - 0.2f, () => enemy?.SetVisible(true));
         world.Events.Add(start, () =>
         {
             if (EndAttackTargets.Count > index + 1) enemy?.Cast(end.CloneHit, EndAttackTargets[index + 1]);
         });
         world.Events.Add(start + 6f, () => enemy?.Face(party.Player));
         world.Events.Add(start + 6.1f, () => enemy?.Cast(end.AllThingsEnding));
-        world.Events.Add(start + 14.1f, () => enemy?.PlayAnimationTimeline(TimelineId.WarpOut));
+        world.Events.Add(start + 14.1f, () => enemy?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
     
@@ -286,7 +285,7 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
     {
         for (int i = 0; i < 3; i++)
         {
-            SimEnemy? kefka_40004FD0 = world.SpawnEnemy(new EnemySpawnConfig(HitboxRadius: 3.5f + 0.2f, BNpcBaseId: BNpcBaseId.KefkaClone, NameId: BNpcNameId.Kefka, Level: 100, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
+            SimEnemy? kefka_40004FD0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaClone, NameId: BNpcNameId.Kefka, Level: 100, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
             RunCloneEndAttack(kefka_40004FD0, 32.35f, 0, i);
             RunCloneEndAttack(kefka_40004FD0, 53.36f, 1, i);
             RunCloneEndAttack(kefka_40004FD0, 74.24f, 2, i);

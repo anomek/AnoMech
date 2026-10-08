@@ -67,12 +67,12 @@ internal static class WorldSnapshot
     private static void AppendEnemies(StringBuilder text, SimWorld world, bool includeHidden)
     {
         var enemies = world.Children.OfType<SimEnemy>().ToList();
-        var shown = enemies.Where(e => includeHidden || e.Visible).ToList();
+        var shown = enemies.Where(e => includeHidden || e.SpawnConfig.IsVisible).ToList();
         var omitted = enemies.Count - shown.Count;
         text.AppendLine($"Enemies ({enemies.Count}{(omitted > 0 ? $", {omitted} hidden not shown" : "")}):");
         foreach (var enemy in shown)
         {
-            var flags = $"{(enemy.IsActive ? "" : " INACTIVE")}{(enemy.Visible ? "" : " hidden")}";
+            var flags = $"{(enemy.IsActive ? "" : " INACTIVE")}{(enemy.SpawnConfig.IsVisible ? "" : " spawned hidden")}";
             text.AppendLine($"  {Label(world, enemy)} (BNpcBase {enemy.BNpcBaseId}, id 0x{enemy.GameObjectId.ObjectId:X}) {P(enemy.Position)} facing {F(enemy.Rotation)}{flags}{Moving(enemy)}");
             if (enemy.IsCasting)
             {

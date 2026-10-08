@@ -107,9 +107,9 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
         world.Events.Add(2.46f, () => omega_M_4000A63C?.Cast(ActionId.Teleport7b42, Vector3.Zero));
         world.Events.Add(3.75f, () => omega_M_4000A63C?.Cast(Actions.RunMiSigmaVersion));
         world.Events.Add(11.82f, () => omega_M_4000A63C?.SetTargetable(false));
-        world.Events.Add(11.87f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(11.87f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(13f, () => omega_M_4000A63C?.SetPosition(state.NewNorthA.Apply(new Placement(new(0f, 0f, -20f), 0f))));
-        world.Events.Add(13.96f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
+        world.Events.Add(13.96f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(26.16f, () => omega_M_4000A63C?.Cast(ActionId.SubjectSimulationFDynamis));
         world.Events.Add(27.23f, () => omega_M_4000A63C?.SetModelState(0x06));
         world.Events.Add(27.23f, () => omega_M_4000A63C?.RemoveStatus(StatusId.OmegaM));
@@ -125,8 +125,7 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
         world.Events.Add(38.56f, () => omega_M_4000A63C?.Cast(ActionId.Teleport7b43, Vector3.Zero));
         world.Events.Add(38.56f, () => omega_M_4000A63C?.SetPosition(Vector3.Zero));
         world.Events.Add(39.68f, () => omega_M_4000A63C?.Cast(Actions.Discharger));
-        world.Events.Add(42.79f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.WarpOut));
-        world.Events.Add(44.33f, () => omega_M_4000A63C?.SetVisible(false));
+        world.Events.Add(42.79f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetModeAttributeFlags(state.OmegaFAttack.AttributeFlags));
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetModelState(0x04));
         world.Events.Add(45.88f, () => omega_M_4000A63C?.SetPosition(state.NewNorthB.Apply(new Placement(new Vector3(0f, 0f, -10f), 0))));
@@ -136,16 +135,13 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
             var position = state.NewNorthB.Apply(new Placement(new Vector3(0f, 0f, -10f), 0));
             omega_M_4000A63C = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: state.OmegaFAttack.AttributeFlags, BNpcBaseId: BNpcBaseId.OmegaFDynamis, NameId: BNpcNameId.OmegaFDynamis, Level: 90, Targetable: false, EnemyList: EnemyListMode.Always, IsVisible: false, Placement: position));
         });
-        world.Events.Add(45.97f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
-        world.Events.Add(46.93f, () => omega_M_4000A63C?.SetVisible(true));
+        world.Events.Add(45.97f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(59.62f, () => omega_M_4000A63C?.Cast(state.OmegaFAttack.Action));
-        world.Events.Add(64.21f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.WarpOut));
-        world.Events.Add(65.77f, () => omega_M_4000A63C?.SetVisible(false));
+        world.Events.Add(64.21f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(66.26f, () => omega_M_4000A63C?.SetModeAttributeFlags(0x32));
         world.Events.Add(66.26f, () => omega_M_4000A63C?.SetModelState(0x00));
         world.Events.Add(69.29f, () => omega_M_4000A63C?.SetPosition(new Placement(Vector3.Zero, 3.142f)));
-        world.Events.Add(69.38f, () => omega_M_4000A63C?.PlayActionTimeline(TimelineId.Spawn));
-        world.Events.Add(70.35f, () => omega_M_4000A63C?.SetVisible(true));
+        world.Events.Add(69.38f, () => omega_M_4000A63C?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(72.46f, () => omega_M_4000A63C?.SetTargetable(true));
     }
 
@@ -154,10 +150,9 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     {
         SimEnemy? omega_4000A68F = null;
         world.Events.Add(3.94f, () => omega_4000A68F = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.BeetleHelper, NameId: BNpcNameId.OmegaBeetle, Level: 90, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 20f), MathF.PI)))));
-        world.Events.Add(19.93f, () => omega_4000A68F?.PlayAnimationTimeline(TimelineId.Spawn));
-        world.Events.Add(20.04f, () => omega_4000A68F?.SetVisible(true));
+        world.Events.Add(19.93f, () => omega_4000A68F?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(27.63f, () => omega_4000A68F?.Cast(ActionId.ProgramLoop));
-        world.Events.Add(30.75f, () => omega_4000A68F?.PlayAnimationTimeline(TimelineId.WarpOut));
+        world.Events.Add(30.75f, () => omega_4000A68F?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(45.27f, () => omega_4000A68F?.Despawn());
     }
 
@@ -165,10 +160,9 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     {
         SimEnemy? omega_4000A690 = null;
         world.Events.Add(3.94f, () => omega_4000A690 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.FinalHelper, NameId: BNpcNameId.OmegaFinal, Level: 90, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0.000f, -0.000f, 0.000f), 0)))));
-        world.Events.Add(16.95f, () => omega_4000A690?.PlayActionTimeline(TimelineId.Spawn));
-        world.Events.Add(17.06f, () => omega_4000A690?.SetVisible(true));
+        world.Events.Add(16.95f, () => omega_4000A690?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(22.11f, () => omega_4000A690?.Cast(ActionId.WaveCannon));
-        world.Events.Add(33.25f, () => omega_4000A690?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(33.25f, () => omega_4000A690?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(35.65f, () => omega_4000A690?.Despawn());
     }
 
@@ -181,20 +175,19 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
             SimTether? tether = null;
             world.Events.Add(1, () => unit = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.RightArmUnit, NameId: BNpcNameId.RightArmUnit, Level: 90, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, IsVisible: false, 
                                                                   Placement: state.NewNorthA.Apply(new Placement(new Vector3(7.07f * offset, -0.000f, 7.07f), 3.140f)))));
-            world.Events.Add(11.91f, () => unit?.PlayActionTimeline(TimelineId.Spawn));
-            world.Events.Add(11.91f, () => unit?.SetVisible(true));
+            world.Events.Add(11.91f, () => unit?.PlayActionTimeline(ActionTimelineId.WarpEnd));
             world.Events.Add(12.53f, () => tether = world.TetherFarestPlayer(unit, TetherId.AutoTarget)
                                                          .SetAutoFaceTarget(true));
             world.Events.Add(30.93f, () => unit?.Cast(Actions.HyperPulseSigma, tether?.B));
             world.Events.Add(30.96f, () => tether?.Despawn());
-            world.Events.Add(32.98f, () => unit?.PlayActionTimeline(TimelineId.WarpOut));
+            world.Events.Add(32.98f, () => unit?.PlayActionTimeline(ActionTimelineId.WarpStart));
             world.Events.Add(45.88f, () => unit?.SetPosition(state.NewNorthB.Apply(new Placement(new Vector3(14.14f * offset, 0.000f, 14.14f), MathF.PI))));
-            world.Events.Add(45.97f, () => unit?.PlayActionTimeline(TimelineId.Spawn));
+            world.Events.Add(45.97f, () => unit?.PlayActionTimeline(ActionTimelineId.WarpEnd));
             world.Events.Add(46.59f, () => tether = world.TetherFarestPlayer(unit, TetherId.AutoTarget)
                   .SetAutoFaceTarget(true));
             world.Events.Add(68.00f, () => unit?.Cast(Actions.HyperPulseSigma, tether?.B));
             world.Events.Add(68.20f, () => tether?.Despawn());
-            world.Events.Add(70.05f, () => unit?.PlayActionTimeline(TimelineId.WarpOut));
+            world.Events.Add(70.05f, () => unit?.PlayActionTimeline(ActionTimelineId.WarpStart));
         }
     }
 
@@ -273,8 +266,7 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     {
         SimEnemy? rear_Power_Unit_4000A641 = null;
         world.Events.Add(1f, () => rear_Power_Unit_4000A641 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.RearPowerUnit, NameId: BNpcNameId.RearPowerUnit, Level: 90, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: state.NewNorthB.Apply(new Placement(new Vector3(0.000f, -0.000f, 0.000f), 0f)))));
-        world.Events.Add(45.97f, () => rear_Power_Unit_4000A641?.PlayActionTimeline(TimelineId.Spawn));
-        world.Events.Add(46.00f, () => rear_Power_Unit_4000A641?.SetVisible(true));
+        world.Events.Add(45.97f, () => rear_Power_Unit_4000A641?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(47.88f, () => rear_Power_Unit_4000A641?.AttachLockonVfx(state.SpinnerRotation.LockonId, persistent: false));
         world.Events.Add(54.97f, () => rear_Power_Unit_4000A641?.Cast(Actions.RearLasersCharging, state.NewNorthB.Apply(new Vector3(0f, 0f, -25f))));
         for (int i = 0; i < 13; i++)
@@ -283,7 +275,7 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
             world.Events.Add(58.54f + i * 0.58f, () => rear_Power_Unit_4000A641?.SetPosition(placement));
             world.Events.Add(58.59f + i * 0.58f, () => rear_Power_Unit_4000A641?.Cast(Actions.RearLasersShoot, placement.MoveForward(-25f).Position));
         }
-        world.Events.Add(66.13f, () => rear_Power_Unit_4000A641?.PlayActionTimeline(TimelineId.WarpOut));
+        world.Events.Add(66.13f, () => rear_Power_Unit_4000A641?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
     private void Run_Omega_F_4000A40B_2()
