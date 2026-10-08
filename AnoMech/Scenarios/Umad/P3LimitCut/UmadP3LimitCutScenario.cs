@@ -109,7 +109,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             world.Events.Add(CloneAppearAt[k], () => CloneAppear(clone));
         }
         world.Events.Add(14.55f, ChaosLands);
-        world.Events.Add(14.94f, BotTankLimitBreak);
         world.Events.Add(17.56f, () => state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank)));
         world.Events.Add(NumbersAt, AttachNumbers);
         world.Events.Add(19.967f, ResolveCyclones);
@@ -281,14 +280,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         umbraImpact = bait?.Position ?? chaos.Position;
         DiagnosticLog.Info($"[UmadP3LimitCut] Umbra Smash: bait {(bait as ISimPartyMember)?.Role.ToString() ?? "none"} at ({umbraImpact.X:F1},{umbraImpact.Z:F1}), {Vector3.Distance(umbraImpact, chaos.Position):F1}y from Chaos.");
         chaos.Cast(UmadActions.UmbraSmash, umbraImpact);
-    }
-
-    // Skipped by default when the human is a tank, so the press is theirs to make.
-    private void BotTankLimitBreak()
-    {
-        if (!(settingsWindow.Overrides.BotTankLimitBreak ?? !party.PlayerRole.IsTank())) return;
-        if (party.UseLimitBreak(PartyRole.MainTank) || party.UseLimitBreak(PartyRole.OffTank)) return;
-        DiagnosticLog.Warn("[UmadP3LimitCut] No bot tank used LB3.");
     }
 
     private void ChaosLands()

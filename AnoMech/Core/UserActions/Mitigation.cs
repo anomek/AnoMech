@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.UserActions;
@@ -17,6 +18,9 @@ public readonly record struct Mitigation(
     public const float ShieldHpPerPotency = 0.00015f;
 
     private const float Invulnerable = 1f;
+
+    // Off, no hit checks mitigation, so nothing a bot could press would change the outcome.
+    public static bool Required => Plugin.Config.EnableTankMitigation && Natives.UserActions.Enabled;
 
     public bool IsShield => ShieldHp > 0f || ShieldPotency > 0f;
 

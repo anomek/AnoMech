@@ -18,9 +18,6 @@ public sealed class UmadP3LimitCutStateOverrides
     // Who the bots send out as the Umbra Smash bait; null = the physical ranged. One seat is
     // named, but the choice is the fight's, not that player's own setting.
     public PartyRole? BaitRole { get; set; } = null;
-    // Whether a bot tank pops LB3 at the real 13.5s; null = only when the real player is not a
-    // tank (a tank practises their own press).
-    public bool? BotTankLimitBreak { get; set; } = null;
     // Black Hole's Thunder III plan for the one set that follows the charges (see
     // ThunderIIIAssignment). The default is what the fight almost always does: the Chaos tank
     // steps onto Exdeath and invulns both.

@@ -49,6 +49,5 @@ internal static class DamageCheck
     }
 
     private static bool ChecksMitigation(SimCharacter target, SimParty party)
-        => Plugin.Config.EnableTankMitigation && Natives.UserActions.Enabled
-           && target is ISimPartyMember && !party.IsBotDriven(target);
+        => Mitigation.Required && target is ISimPartyMember && !party.IsBotDriven(target);
 }

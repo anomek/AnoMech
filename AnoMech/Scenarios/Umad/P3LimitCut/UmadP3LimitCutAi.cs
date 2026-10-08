@@ -25,6 +25,7 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
         ai.Move(4.5f, BaitOut, arrivalTime: 7.5f);
         ai.Move(8.3f, TanksIntoStack, arrivalTime: 12.0f);
         ai.Move(8.4f, BaitBack, arrivalTime: 12.6f);
+        world.Events.Add(14.94f, MainTankLimitBreakIfBothTanksAreBots);
         world.Events.Add(15.3f, FaceForVacuumWave);
         ai.Move(17.5f, StackForCyclones, arrivalTime: 19.6f);
         ai.Move(20.6f, ChargeSpots, arrivalTime: 30.2f);
@@ -121,6 +122,13 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
         var cos = MathF.Cos(radians);
         var sin = MathF.Sin(radians);
         return new Vector2(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
+    }
+
+    private void MainTankLimitBreakIfBothTanksAreBots()
+    {
+        if (world.Party.Get(PartyRole.MainTank) is not { } mainTank || world.Party.Get(PartyRole.OffTank) is not { } offTank) return;
+        if (!world.Party.IsBotDriven(mainTank) || !world.Party.IsBotDriven(offTank)) return;
+        world.Party.UseLimitBreak(PartyRole.MainTank);
     }
 
     private float Hold => SpotHeading(state.BossSpot);

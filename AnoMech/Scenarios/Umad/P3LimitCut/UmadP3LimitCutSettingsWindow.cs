@@ -17,7 +17,6 @@ public sealed class UmadP3LimitCutSettingsWindow
     private static readonly string[] NumberLabels = ["Random", "1", "2", "3", "4", "5", "6", "7", "8"];
     private static readonly string[] WindLabels = ["Random", "Headwind", "Tailwind"];
     private static readonly string[] BossSpotLabels = ["Random", "NE", "SE", "SW", "NW"];
-    private static readonly string[] LimitBreakLabels = ["Auto (bots, unless you tank)", "Always", "Never"];
     private static readonly int[] BossSpotValues = [3, 1, 7, 5];
     private static readonly string[] BaitLabels =
         ["Phys ranged (default)", "Main tank", "Off tank", "Regen healer", "Shield healer", "Melee A", "Melee B", "Caster"];
@@ -64,12 +63,6 @@ public sealed class UmadP3LimitCutSettingsWindow
             if (ImGui.Combo("##lcbait", ref bait, BaitLabels, BaitLabels.Length))
                 Overrides.BaitRole = bait == 0 ? null : BaitRoles[bait - 1];
 
-            SettingsGrid.Row("Bot tank LB3:");
-            var lb = Overrides.BotTankLimitBreak switch { true => 1, false => 2, null => 0 };
-            SettingsGrid.ItemWidth(200);
-            if (ImGui.Combo("##lclb", ref lb, LimitBreakLabels, LimitBreakLabels.Length))
-                Overrides.BotTankLimitBreak = lb switch { 1 => true, 2 => false, _ => null };
-
             if (solo) DrawPlayerRows();
             SettingsGrid.End();
         }
@@ -114,7 +107,6 @@ public sealed class UmadP3LimitCutSettingsWindow
         Overrides.Clockwise = null;
         Overrides.BossSpot = null;
         Overrides.BaitRole = null;
-        Overrides.BotTankLimitBreak = null;
         Overrides.ThunderPlan = ThunderIIIAssignment.MtInvulnsBoth;
     }
 
