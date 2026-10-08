@@ -72,13 +72,6 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
     public byte ModelState => Actor?.ModelState ?? 0;
 
-    public void SetModelState(byte value)
-    {
-        if (Actor is { } a) a.ModelState = value;
-    }
-
-    public void SetModeAttributeFlags(byte value) { }
-
     public bool? HasUnloadedModelSlot => Actor is { HasDrawObject: true } ? false : null;
 
     // ── Animation ────────────────────────────────────────────────────────────
@@ -92,7 +85,6 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     public void PlayTimelineDirect(ushort timelineId) { }
     public ulong LoadBaseTimelineResources() => 0;
     public void SetAnimationState(int arg2, int arg3) { }
-    public void SetMode(CharacterModes mode, byte param = 0) { }
 
     // ── Casting ──────────────────────────────────────────────────────────────
 
@@ -119,7 +111,25 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
     public void ReceiveActionEffect(ActionEffectData effect) { }
 
-    public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0) { }
+    // Only the categories whose result sim code reads back.
+    public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)
+    {
+        switch (category)
+        {
+            case 0x0F: // cancel cast
+                ClearCast();
+                break;
+            case 0x3F: // ModelState
+                if (Actor is { } a) a.ModelState = (byte)arg1;
+                break;
+            case 0x36: // targetable
+                if (Actor is { } t)
+                    t.TargetableStatus = arg1 != 0
+                        ? (byte)(t.TargetableStatus | TargetableBits)
+                        : (byte)(t.TargetableStatus & ~TargetableBits);
+                break;
+        }
+    }
 
     // ── Combat state ─────────────────────────────────────────────────────────
 
@@ -144,14 +154,6 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     public void SetTarget(GameObjectId target) { }
 
     public byte TargetableStatus => Actor?.TargetableStatus ?? 0;
-
-    public void SetTargetable(bool targetable)
-    {
-        if (Actor is not { } a) return;
-        a.TargetableStatus = targetable
-            ? (byte)(a.TargetableStatus | TargetableBits)
-            : (byte)(a.TargetableStatus & ~TargetableBits);
-    }
 
     // ── Statuses ─────────────────────────────────────────────────────────────
 

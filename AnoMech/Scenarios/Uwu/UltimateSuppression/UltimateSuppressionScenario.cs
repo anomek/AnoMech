@@ -8,7 +8,6 @@ using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using AnoMech.Multiplayer;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using static AnoMech.Scenarios.Uwu.UwuConstants;
 using AnoMech.Core.Native.Interfaces;
 using Actions = AnoMech.Scenarios.Uwu.UwuActions;
@@ -463,24 +462,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         utils.FeatherRain([() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 41.20f, 42.47f, state.FeatherRainTargets);
 
-        world.Events.Add(42.97f, () =>
-        {
-            foreach (var (razorPlume, _) in razorPlumes)
-            {
-                razorPlume!.ActorControl(14); // Death Animation
-                razorPlume!.ActorControl(2, 2); // Set Mode
-            }
-
-            razorPlumesDamage = false;
-        });
-
-        world.Events.Add(51.12f, () =>
-        {
-            foreach (var (razorPlume, _) in razorPlumes)
-            {
-                razorPlume!.ActorControl(39); // Fade-Out
-            }
-        });
+        world.Events.Add(42.97f, () => razorPlumesDamage = false);
 
         world.Events.Add(52.87f, DespawnRazorPlumes);
     }
@@ -571,7 +553,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
         );
 
         // Unknown
-        world.Events.Add(23.32f, () => graniteGaol!.ActorControl(36, 1, 142));
+        world.Events.Add(23.32f, () => graniteGaol!.ActorControl.Send(36, 1, 142));
 
         world.Events.Add(23.54f, () =>
         {
@@ -589,9 +571,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             state.PlayerGaol!.SetTargetable(true);
             state.PlayerGaol!.RemoveStatus(StatusId.Fetters);
 
-            graniteGaol!.Proxy?.SetMode(CharacterModes.Dead);
-            graniteGaol!.CancelCast();
-            graniteGaol!.ActorControl(14); // Death Animation
+            graniteGaol!.Defeat();
         });
 
         world.Events.Add(32.84f, () =>
@@ -604,10 +584,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
         utils.LandslideLines(() => titan, [() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 32.84f, LandslideType.Normal);
 
         utils.LandslideLines(() => titan, [() => dummies[3], () => dummies[4], () => dummies[5], () => dummies[6], () => dummies[7]], 35.07f, LandslideType.Awaken);
-
-        world.Events.Add(36.95f, () => graniteGaol!.ActorControl(39)); // Fade-Out
-
-        world.Events.Add(38.78f, () => graniteGaol?.Despawn());
 
         world.Events.Add(41.20f, () => titan?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
@@ -665,7 +641,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
     private void Lockon(SimCharacter? target, uint lockonId)
     {
-        target!.ActorControl(34, lockonId, target.GameObjectId.ObjectId);
+        target!.ActorControl.Send(34, lockonId, target.GameObjectId.ObjectId);
     }
 
     public MpMessage? BuildReplayStateMessage()

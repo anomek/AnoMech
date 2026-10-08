@@ -99,10 +99,9 @@ public sealed class SimCast : ISimObject
         RecordEffect(actionId, animationLock, animationVariation, effectRotation, position, animationTargetId, actionTargetId);
     }
 
-    // The ActorControl the server sends for an interrupted enemy cast.
-    public void Cancel()
+    public void Cancel(CastCancelReason reason)
     {
-        parent.ActorControl(15, 540, 1, ActionId, 1);
+        parent.ActorControl.CancelCast(ActionId, reason);
         CancelSeq++;
     }
 

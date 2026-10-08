@@ -41,30 +41,16 @@ public class SimNpc : SimCharacter
         this.pendingDraw = pendingDraw;
     }
 
-    public void SetModelState(byte value) => proxy?.SetModelState(value);
+    public void SetModelState(byte value) => ActorControl.SetModelState(value);
 
     // Sampled for peers.
     public byte ModelState => proxy?.ModelState ?? 0;
 
-    // ModelContainer.ModeAttributeFlags (e.g. Omega-M's shield: 0x00 = shield, 0x10 = none)
-    // is an INPUT the engine reads only while building the monster model
-    // (CharacterSetup.SetupBNpc / Monster::SetupFromData). A bare field write has no visible
-    // effect, and nothing lighter re-applies it — writing the per-frame mask
-    // (Model.EnabledAttributeIndexMask), replaying the ActorControl 0x31 packet, a
-    // SetModelState rebuild, and CharacterBase::SetupSlotModel were all confirmed inert on
-    // our doppels. The only thing that works is a full model rebuild, so we write the field
-    // and force a redraw. The redraw is visibility-aware (see ReloadModel), so setting flags
-    // during an invisible warp window — as the real fight does — doesn't pop the boss into
-    // view early.
-    public void SetModeAttributeFlags(byte value)
-    {
-        if (proxy is not { Exists: true } chara) return;
-        chara.SetModeAttributeFlags(value);
-        ReloadModel();
-    }
+    // Which sub-meshes show, e.g. Omega-M's shield.
+    public void SetModeAttributeFlags(byte value) => ActorControl.SetModeAttributeFlags(value);
 
-    // Forces a model rebuild via DisableDraw -> EnableDraw so the engine re-reads
-    // ModeAttributeFlags and rebuilds the sub-meshes. The re-enable is deferred through the
+    // Forces a model rebuild via DisableDraw -> EnableDraw, which retries a failed slot load
+    // and re-reads ModeAttributeFlags. The re-enable is deferred through the
     // pendingDraw path (the rebuild is async, gated on IsReadyToDraw). Only cycles draw when
     // the model is currently drawn: a hidden NPC keeps the written flags and applies them on
     // its next EnableDraw from the visibility system, so we never force it visible.

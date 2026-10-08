@@ -1,5 +1,6 @@
+using AnoMech.Core.Game;
+using AnoMech.Core.Native.Implementations;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Network;
 
 namespace AnoMech.Core.UserActions;
 
@@ -10,11 +11,7 @@ namespace AnoMech.Core.UserActions;
 // the slidecast window, where the cast is committed.
 internal sealed unsafe class CastInterruptHandler : IUserActionHandler
 {
-    // ActorControl category the server sends to interrupt a cast (0x0F). Captured from
-    // replay data: a real self-cancel is ActorControl(15) on the caster with params
-    // (538, 1, <castActionId>, 0) — param1/2 constant, param3 = the action.
-    private const uint InterruptCastControl = 15;
-    private const uint InterruptCastReason = 538;
+    private readonly ActorControl localPlayer = new(() => BattleCharaProxy.LocalPlayer);
 
     public void OnTick(float deltaSeconds)
     {
@@ -28,13 +25,6 @@ internal sealed unsafe class CastInterruptHandler : IUserActionHandler
         if (remaining <= Plugin.Config.CastInterruptThreshold) return;
 
         if (hooks.MovementInputActive || hooks.IsJumping || cancelRequested)
-            InterruptCast(player);
-    }
-
-    private static void InterruptCast(BattleChara* player)
-    {
-        PacketDispatcher.HandleActorControlPacket(
-            player->EntityId, InterruptCastControl, InterruptCastReason, 1,
-            player->CastInfo.ActionId, 0, 0, 0, 0, 0, 0xE0000000, false);
+            localPlayer.CancelCast(player->CastInfo.ActionId, CastCancelReason.SelfCancelled);
     }
 }

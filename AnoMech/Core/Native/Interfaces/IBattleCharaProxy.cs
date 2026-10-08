@@ -44,10 +44,6 @@ public interface IBattleCharaProxy
     void SetModelHidden(bool hidden);
 
     byte ModelState { get; }
-    void SetModelState(byte value);
-
-    // Read only while the model is built: takes effect on the next DisableDraw/EnableDraw.
-    void SetModeAttributeFlags(byte value);
 
     // Null without a DrawObject.
     bool? HasUnloadedModelSlot { get; }
@@ -70,7 +66,6 @@ public interface IBattleCharaProxy
     ulong LoadBaseTimelineResources();
 
     void SetAnimationState(int arg2, int arg3);
-    void SetMode(CharacterModes mode, byte param = 0);
 
     // ── Casting ──────────────────────────────────────────────────────────────
 
@@ -99,7 +94,6 @@ public interface IBattleCharaProxy
     void ClearShield();
     void SetTarget(GameObjectId target);
     byte TargetableStatus { get; }
-    void SetTargetable(bool targetable);
 
     // ── Statuses ─────────────────────────────────────────────────────────────
 

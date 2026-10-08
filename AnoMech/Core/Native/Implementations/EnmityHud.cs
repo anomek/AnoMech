@@ -40,8 +40,8 @@ internal sealed unsafe class EnmityHud : IEnmityHud, IDisposable
     private const int StrCastname = 1;
 
     // Real-time hysteresis so the list doesn't flap when an enemy's InEnemyList
-    // flips briefly (e.g. SetModelState's transient DisableDraw + pendingDraw
-    // window, or a one-frame visibility blip during a cast). ShowDelay also lets
+    // flips briefly (e.g. a ReloadModel DisableDraw + pendingDraw window, or a
+    // one-frame visibility blip during a cast). ShowDelay also lets
     // a warp-in animation land before the row appears.
     private const float ShowDelay = 0.7f;
     private const float HideDelay = 1.4f;

@@ -398,9 +398,7 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
 
     internal void ResetActionTimelineNative() => Proxy?.ResetActionTimeline();
 
-    public virtual void SetTargetable(bool targetable) => Proxy?.SetTargetable(targetable);
+    public virtual void SetTargetable(bool targetable) => ActorControl.SetTargetable(targetable);
 
-    // The server's ActorControl packet for this character, through the client's own dispatcher.
-    public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)
-        => Proxy?.ActorControl(category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+    public ActorControl ActorControl => field ??= new ActorControl(() => Proxy);
 }

@@ -188,18 +188,6 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         }
     }
 
-    public void SetModelState(byte value)
-    {
-        var obj = Ptr;
-        if (obj != null) TimelineFunctions.SetModelState(&obj->Timeline, value);
-    }
-
-    public void SetModeAttributeFlags(byte value)
-    {
-        var obj = Ptr;
-        if (obj != null) obj->ModelContainer.ModeAttributeFlags = value;
-    }
-
     public bool? HasUnloadedModelSlot
     {
         get
@@ -292,11 +280,6 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         if (obj != null) TimelineContainerPointers.SetAnimationState(&obj->Timeline, arg2, arg3);
     }
 
-    public void SetMode(CharacterModes mode, byte param = 0)
-    {
-        var obj = Ptr;
-        if (obj != null) ((Character*)obj)->SetMode(mode, param);
-    }
 
     // ── Casting ──────────────────────────────────────────────────────────────
 
@@ -458,16 +441,6 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
             var obj = Ptr;
             return obj == null ? (byte)0 : (byte)obj->TargetableStatus;
         }
-    }
-
-    public void SetTargetable(bool targetable)
-    {
-        var obj = Ptr;
-        if (obj == null) return;
-        if (targetable)
-            obj->TargetableStatus |= (ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable;
-        else
-            obj->TargetableStatus &= ~((ObjectTargetableFlags)1 | ObjectTargetableFlags.IsTargetable);
     }
 
     // ── Statuses ─────────────────────────────────────────────────────────────

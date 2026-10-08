@@ -65,6 +65,10 @@ public static class EnemyActionEffects
     // whoever has it in their back 90° arc.
     public static IEnemyActionEffect Gaze(bool lookAway) => new GazeEffect(lookAway);
 
+    // The caster dies by this action (a self-destruct). Its death animation waits for
+    // CastSpec.AnimationLock, so set that from a replay.
+    public static IEnemyActionEffect DefeatCaster() => new DefeatCasterEffect();
+
     // `effect` applied to the cast's target alone, when the area caught it.
     public static IEnemyActionEffect OnTarget(IEnemyActionEffect effect)
         => new FilteredEffect(effect, ctx => ctx.Hits.Where(t => ReferenceEquals(t, ctx.Target)));
@@ -80,6 +84,11 @@ public static class EnemyActionEffects
     // `effect` applied to the `count` hit nearest the origin (the front of a wild charge).
     public static IEnemyActionEffect OnFront(int count, IEnemyActionEffect effect)
         => new FilteredEffect(effect, ctx => ctx.Hits.Take(count));
+}
+
+internal sealed class DefeatCasterEffect : IEnemyActionEffect
+{
+    public void Apply(EnemyActionContext ctx) => ctx.Caster.DefeatByOwnAction(ctx.Action);
 }
 
 internal sealed class FilteredEffect(IEnemyActionEffect effect, Func<EnemyActionContext, IEnumerable<SimCharacter>> select) : IEnemyActionEffect

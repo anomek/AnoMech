@@ -19,6 +19,11 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
     public EnemyActionCast Start(EnemyAction action, CastTarget at, byte animationVariation)
     {
         var handle = new EnemyActionCast();
+        if (caster.IsDefeated)
+        {
+            handle.Cancelled();
+            return handle;
+        }
         var id = action.ActionId;
         var target = at.Character;
         var location = at.Location;
@@ -51,12 +56,12 @@ internal sealed class EnemyActionHandler(SimEnemy caster, SimCast cast, SimWorld
         return handle;
     }
 
-    public void CancelCast()
+    public void CancelCast(CastCancelReason reason)
     {
         if (casting is not { } handle) return;
         casting = null;
         handle.Cancelled();
-        cast.Cancel();
+        cast.Cancel(reason);
     }
 
     // Faces a target first: the packet carries the caster's rotation. A ground location doesn't turn

@@ -19,8 +19,7 @@ namespace AnoMech.Core.SimObjects;
 // Whether a SimEnemy shows in the _EnemyList HUD (read each frame by EnmityHud.Refresh).
 // Always          — listed while alive.
 // OnlyWhenVisible — follows the engine's DrawObject.IsVisible; for adds that warp
-//                   in/out. Don't combine with SetModelState (its rebuild briefly
-//                   DisableDraws and flaps the list); transforming bosses use Always.
+//                   in/out. Transforming bosses use Always.
 // Never           — never listed (AOE-source dummies, tether endpoints).
 // Manual          — scenario drives it via SetInEnemyList(bool); default false.
 public enum EnemyListMode
@@ -70,6 +69,7 @@ public sealed class SimEnemy : SimNpc
     // they go out and what the action does.
     private readonly SimCast cast;
     private readonly EnemyActionHandler actions;
+    private readonly EventScheduler events;
 
     // The server's own ceiling: bosses turn at most ~145° per ~0.3s movement tick.
     private const float BossTurnSpeed = MathF.PI * 8f / 3f;
@@ -199,7 +199,7 @@ public sealed class SimEnemy : SimNpc
 
     // OnlyWhenVisible reads the live DrawObject.IsVisible flag, so any draw-lifecycle
     // toggle is reflected without extra plumbing; Manual lets the scenario drive it.
-    public bool InEnemyList => EnemyListMode switch
+    public bool InEnemyList => !IsDefeated && EnemyListMode switch
     {
         EnemyListMode.Always          => true,
         EnemyListMode.Never           => false,
@@ -228,6 +228,7 @@ public sealed class SimEnemy : SimNpc
         this.packetSpawned = packetSpawned;
         cast = new SimCast(this, world.Coordinates);
         actions = new EnemyActionHandler(this, cast, world);
+        events = world.Events;
     }
 
     // Created by the engine's own NpcSpawn handler (SpawnFromPacket); the engine owns its draw
@@ -423,7 +424,7 @@ public sealed class SimEnemy : SimNpc
         LastMode = ((byte)mode, param);
         ModeSeq++;
         HasEngineState = true;
-        Proxy?.SetMode(mode, param);
+        ActorControl.SetMode(mode, param);
     }
 
     // Logs when the packet actor's draw object appears and hides it per IsVisible.
@@ -623,9 +624,56 @@ public sealed class SimEnemy : SimNpc
         actions.Start(action, target, animationVariation);
 
     // Interrupts the cast still on its bar: neither its effect nor its mechanics go out.
-    public void CancelCast() => actions.CancelCast();
+    public void CancelCast(CastCancelReason reason) => actions.CancelCast(reason);
 
     public override bool AnimationLock => cast.IsBusy;
+
+    public const float DefaultCorpseFadeDelay = 8f;
+    private const float CorpseFadeDuration = 1.7f;
+
+    public bool IsDefeated { get; private set; }
+
+    // Killed by damage. corpseFadeDelay counts from the death animation; a boss leaving at a
+    // phase transition fades sooner (FRU Fatebreaker: 3s).
+    public void Defeat(float corpseFadeDelay = DefaultCorpseFadeDelay)
+    {
+        if (!BeginDefeat(CastCancelReason.Interrupted)) return;
+        PlayDeathAnimation();
+        ScheduleCorpse(0f, corpseFadeDelay);
+    }
+
+    // Only for DefeatCasterEffect. The enemy dies by its own action (a self-destruct): it goes
+    // down as the action lands and plays its death animation once the action's lock ends.
+    internal void DefeatByOwnAction(EnemyAction action)
+    {
+        if (!BeginDefeat(CastCancelReason.Cancelled)) return;
+        SetMode(CharacterModes.Dead, 2);
+        var animationDelay = action.Cast.AnimationLock;
+        events.Add(animationDelay, PlayDeathAnimation);
+        ScheduleCorpse(animationDelay, DefaultCorpseFadeDelay);
+    }
+
+    private bool BeginDefeat(CastCancelReason cancelReason)
+    {
+        if (IsDefeated) return false;
+        IsDefeated = true;
+        actions.CancelCast(cancelReason);
+        StopMoving();
+        if (Proxy is { Exists: true } chara && chara.GetTetherId(0) != 0) ActorControl.ClearTether();
+        return true;
+    }
+
+    private void PlayDeathAnimation()
+    {
+        ActorControl.PlayDeathAnimation();
+        SetMode(CharacterModes.Dead);
+    }
+
+    private void ScheduleCorpse(float animationDelay, float corpseFadeDelay)
+    {
+        events.Add(animationDelay + corpseFadeDelay, ActorControl.FadeCorpse);
+        events.Add(animationDelay + corpseFadeDelay + CorpseFadeDuration, Despawn);
+    }
 
     public override void Tick(float deltaSeconds)
     {

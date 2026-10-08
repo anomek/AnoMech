@@ -69,10 +69,10 @@ public static class SimCharacterDeathExtensions
     public const ushort KoTimelineId = 72;
     public const ushort KoLoopTimelineId = 73;
 
-    // A party member is alive while not KO'd; any other character is alive while
-    // present. Null is not alive.
+    // A party member is alive while not KO'd, an enemy until defeated; any other character
+    // is alive while present. Null is not alive.
     public static bool IsAlive(this SimCharacter? c)
-        => c is { IsActive: true } and not ISimPartyMember { Dead: true };
+        => c is { IsActive: true } and not ISimPartyMember { Dead: true } and not SimEnemy { IsDefeated: true };
 
     // A death no action deals (the arena wall, an uncleansed debuff): Die's explanation is then the whole message.
     public const uint Environment = 0;

@@ -215,7 +215,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Lethal)],
+        Effects = [Damage(Lethal), DefeatCaster()],
         Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
     };
 

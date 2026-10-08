@@ -148,7 +148,7 @@ public sealed partial class MultiplayerManager
             // Nothing below lands on an actor the engine hasn't created yet; leaving the seqs
             // unrecorded makes the next snapshot retry.
             if (enemy.PacketSpawnPending) continue;
-            // Only on change: SetModelState rebuilds the model.
+            // Only on change: SetModelState replays the pose transition.
             if (!peerEnemyModelState.TryGetValue(e.NetId, out var lastModelState) || lastModelState != e.ModelState)
             {
                 peerEnemyModelState[e.NetId] = e.ModelState;
@@ -173,7 +173,7 @@ public sealed partial class MultiplayerManager
             var cancelKnown = peerEnemyLastCancelSeq.TryGetValue(e.NetId, out var lastCancelSeq);
             peerEnemyLastCancelSeq[e.NetId] = e.CancelSeq;
             if (cancelKnown && lastCancelSeq != e.CancelSeq)
-                casting.Cancel();
+                casting.Cancel(CastCancelReason.Interrupted);
             if (e.CastSeq > 0
                 && (!peerEnemyLastCastSeq.TryGetValue(e.NetId, out var lastCastSeq) || lastCastSeq != e.CastSeq))
             {

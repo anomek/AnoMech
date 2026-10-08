@@ -32,6 +32,7 @@ namespace AnoMech.Windows;
 internal sealed unsafe class DebugMenu
 {
     private readonly Plugin plugin;
+    private readonly ActorControlDebug actorControlDebug = new();
 
     public DebugMenu(Plugin plugin)
     {
@@ -47,7 +48,11 @@ internal sealed unsafe class DebugMenu
         positionLogActionEffectHook?.Dispose();
     }
 
-    private void OnFrameworkUpdate(IFramework framework) => TickPositionLog();
+    private void OnFrameworkUpdate(IFramework framework)
+    {
+        TickPositionLog();
+        actorControlDebug.Tick();
+    }
 
     private string debugBNpcBaseIdText = "15720";
     private string debugSpawnScaleText = "0";
@@ -514,6 +519,9 @@ internal sealed unsafe class DebugMenu
             var env = EnvManager.Instance();
             if (env != null) env->DayTimeSeconds = debugDayTimeSeconds;
         }
+
+        ImGui.Spacing();
+        actorControlDebug.Draw();
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Director update (ActorControl replay)");

@@ -573,7 +573,7 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(castOffset, () => boulder?.Cast(Actions.Burst));
 
-        world.Events.Add(fadeOffset, () => boulder!.ActorControl(607, boulder.EntityId, 1, 0, 100));
+        world.Events.Add(fadeOffset, () => boulder!.ActorControl.Send(607, boulder.EntityId, 1, 0, 100));
         world.Events.Add(despawnOffset, () => boulder?.Despawn());
     }
 
