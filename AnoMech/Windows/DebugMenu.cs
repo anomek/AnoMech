@@ -49,6 +49,10 @@ internal sealed unsafe class DebugMenu
 
     private void OnFrameworkUpdate(IFramework framework) => TickPositionLog();
 
+    // Targeting a client-side actor sends its fake entity id to the server unless a run's
+    // filter holds it back.
+    private const string SpawnNeedsRun = "only inside a run";
+
     private string debugBNpcBaseIdText = "15720";
     private string debugSpawnScaleText = "0";
     private string debugSpawnModeAttrFlagsText = "";
@@ -266,7 +270,11 @@ internal sealed unsafe class DebugMenu
         ImGui.InputText("ModeAttrFlags (blank = none)", ref debugSpawnModeAttrFlagsText, 16);
         if (ImGui.Button("Spawn"))
         {
-            if (!TryParseId(debugBNpcBaseIdText, out var baseId))
+            if (!plugin.Game.World.Map.IsInInstance)
+            {
+                Plugin.Log.Warning($"Spawn: {SpawnNeedsRun}");
+            }
+            else if (!TryParseId(debugBNpcBaseIdText, out var baseId))
             {
                 Plugin.Log.Warning($"Spawn: can't parse BNpcBaseId '{debugBNpcBaseIdText}'");
             }
@@ -303,7 +311,11 @@ internal sealed unsafe class DebugMenu
         ImGui.InputText("EObjRowId", ref debugEObjRowIdText, 16);
         if (ImGui.Button("Spawn EObj"))
         {
-            if (!TryParseId(debugEObjRowIdText, out var eObjRowId))
+            if (!plugin.Game.World.Map.IsInInstance)
+            {
+                Plugin.Log.Warning($"Spawn EObj: {SpawnNeedsRun}");
+            }
+            else if (!TryParseId(debugEObjRowIdText, out var eObjRowId))
             {
                 Plugin.Log.Warning($"Spawn EObj: can't parse EObjRowId '{debugEObjRowIdText}'");
             }

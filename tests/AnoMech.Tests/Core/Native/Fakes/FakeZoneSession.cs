@@ -19,6 +19,8 @@ internal sealed class FakeZoneSession(FakeCharacter player) : IZoneSession
         return null;
     }
 
+    public void EndSpeedBuffs() { }
+
     public bool Enter(uint territoryId, Vector3 playerSpawn, byte levelSync, ushort itemLevelSync)
     {
         innPosition = player.Position;
