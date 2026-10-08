@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.EnemyActions;
@@ -14,8 +16,18 @@ public interface IEnemyActionEffect
 // Authoring helpers: `using static AnoMech.Core.EnemyActions.EnemyActionEffects;`.
 public static class EnemyActionEffects
 {
-    public static IEnemyActionEffect Damage(DamageSpec spec, Severity? severity = null, Distribution? split = null)
-        => new DamageEffect(spec, severity ?? Severity.Normal, split ?? Distribution.Each);
+    // The damage kind comes from the Action sheet's AttackType; override it only where the game's
+    // own hit carries a different one.
+    public static IEnemyActionEffect Damage(Severity? severity = null, Distribution? split = null, DamageKind? kindOverride = null)
+        => Damage(VulnSpec.None, severity, split, kindOverride);
+
+    public static IEnemyActionEffect Damage(VulnSpec vulns, Severity? severity = null, Distribution? split = null, DamageKind? kindOverride = null)
+        => new DamageEffect(vulns, severity ?? Severity.Normal, split ?? Distribution.Each, kindOverride);
+
+    public static VulnSpec VulnerableTo(ushort statusId, float? requiredMitigation = null, int minStacks = 1)
+        => VulnSpec.None.VulnerableTo(statusId, requiredMitigation, minStacks);
+
+    public static VulnSpec ProtectedBy(ushort statusId) => VulnSpec.None.ProtectedBy(statusId);
 
     // Survivors only.
     public static IEnemyActionEffect ApplyStatus(ushort statusId, float duration) => new ApplyStatusEffect(statusId, duration);
@@ -54,50 +66,46 @@ public static class EnemyActionEffects
     public static IEnemyActionEffect Gaze(bool lookAway) => new GazeEffect(lookAway);
 
     // `effect` applied to the cast's target alone, when the area caught it.
-    public static IEnemyActionEffect OnTarget(IEnemyActionEffect effect) => new FilteredEffect(effect, castTarget: true);
+    public static IEnemyActionEffect OnTarget(IEnemyActionEffect effect)
+        => new FilteredEffect(effect, ctx => ctx.Hits.Where(t => ReferenceEquals(t, ctx.Target)));
 
     // `effect` applied to everyone hit but the cast's target.
-    public static IEnemyActionEffect OnOthers(IEnemyActionEffect effect) => new FilteredEffect(effect, castTarget: false);
+    public static IEnemyActionEffect OnOthers(IEnemyActionEffect effect)
+        => new FilteredEffect(effect, ctx => ctx.Hits.Where(t => !ReferenceEquals(t, ctx.Target)));
+
+    // `effect` applied to those hit who carry `statusId` when it runs.
+    public static IEnemyActionEffect OnHavingStatus(ushort statusId, IEnemyActionEffect effect)
+        => new FilteredEffect(effect, ctx => ctx.Hits.Where(t => t.HasStatus(statusId)));
 
     // `effect` applied to the `count` hit nearest the origin (the front of a wild charge).
-    public static IEnemyActionEffect OnFront(int count, IEnemyActionEffect effect) => new FrontEffect(effect, count);
+    public static IEnemyActionEffect OnFront(int count, IEnemyActionEffect effect)
+        => new FilteredEffect(effect, ctx => ctx.Hits.Take(count));
 }
 
-internal sealed class FrontEffect(IEnemyActionEffect effect, int count) : IEnemyActionEffect
+internal sealed class FilteredEffect(IEnemyActionEffect effect, Func<EnemyActionContext, IEnumerable<SimCharacter>> select) : IEnemyActionEffect
 {
     public void Apply(EnemyActionContext ctx)
     {
         var hits = ctx.Hits;
-        ctx.Hits = hits.Take(count).ToList();
-        try { effect.Apply(ctx); }
-        finally { ctx.Hits = hits; }
-    }
-}
-
-internal sealed class FilteredEffect(IEnemyActionEffect effect, bool castTarget) : IEnemyActionEffect
-{
-    public void Apply(EnemyActionContext ctx)
-    {
-        var hits = ctx.Hits;
-        ctx.Hits = hits.Where(t => ReferenceEquals(t, ctx.Target) == castTarget).ToList();
+        ctx.Hits = select(ctx).ToList();
         try { effect.Apply(ctx); }
         finally { ctx.Hits = hits; }
     }
 }
 
 // A hit on someone an earlier hit already kills still shows its own number.
-internal sealed class DamageEffect(DamageSpec spec, Severity severity, Distribution split) : IEnemyActionEffect
+internal sealed class DamageEffect(VulnSpec vulns, Severity severity, Distribution split, DamageKind? kindOverride) : IEnemyActionEffect
 {
     public void Apply(EnemyActionContext ctx)
     {
+        var kind = kindOverride ?? DamageKinds.FromAttackType(Natives.Data.Action(ctx.Action.ActionId)?.AttackType ?? 0);
         for (var i = 0; i < ctx.Hits.Count; i++)
         {
             var target = ctx.Hits[i];
             var (hit, reason) = split.Assign(ctx, i, target);
-            var hitSpec = hit?.Spec ?? spec;
             var hitSeverity = hit?.Severity ?? severity;
-            var cause = DamageCheck.LethalCause(target, hitSpec, hitSeverity, ctx.Party);
-            ctx.ShowDamage(target, hitSeverity.FlyTextAmount(kills: cause != null), hitSpec.Icon);
+            var cause = DamageCheck.LethalCause(target, hit?.Vulns ?? vulns, hitSeverity, kind, ctx.Party);
+            ctx.ShowDamage(target, hitSeverity.FlyTextAmount(kills: cause != null), kind.Icon());
             if (cause != null) ctx.Kill(target, Explain(reason, cause));
         }
     }

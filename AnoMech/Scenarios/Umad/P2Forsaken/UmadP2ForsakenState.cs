@@ -41,7 +41,7 @@ public sealed record EndAttack(uint CastBarAction)
     private static EnemyAction EndHit(uint actionId) => new(actionId)
     {
         Cast = new() { AnimationLock = 6f },
-        Effects = [Damage(UmadActions.Magic), UmadActions.LongMagicVulnerabilityUp],
+        Effects = [Damage(UmadActions.MagicVulns), UmadActions.LongMagicVulnerabilityUp],
         Timing = new() { DamageDelay = 0.75f },
     };
 
@@ -51,7 +51,7 @@ public sealed record EndAttack(uint CastBarAction)
     {
         Cast = new() { AnimationLock = 3f, Rotation = rotation },
         Area = new() { Size = Geometry.AllThingsEndHalfCone },
-        Effects = [Damage(UmadActions.Magic, Lethal)],
+        Effects = [Damage(UmadActions.MagicVulns, Lethal)],
         Timing = new() { ResolveSnapshotOffset = CastSpec.ActionEffectOffset },
     };
 }

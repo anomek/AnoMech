@@ -10,12 +10,11 @@ namespace AnoMech.Scenarios.Top;
 
 public static class TopActions
 {
-    private static readonly DamageSpec Magic = DamageType.Magic
+    private static readonly VulnSpec MagicVulns = VulnSpec.None
         .VulnerableTo(StatusId.MagicVulnerabilityUp)
         .VulnerableTo(StatusId.VulnerabilityUp)
         .VulnerableTo(StatusId.MagicVulnerabilityUpMini, minStacks: 2);
 
-    private static readonly DamageSpec Physical = DamageType.Physical;
 
     private static readonly RuinSpec ComeRuin = new((2, StatusId.TwiceComeRuin), (3, StatusId.TriceComeRuin));
 
@@ -23,20 +22,20 @@ public static class TopActions
     public static readonly EnemyAction EfficientBladework = new(ActionId.EfficientBladework)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
     };
 
     public static readonly EnemyAction BeyondStrength = new(ActionId.BeyondStrength)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
         Area = new() { Size = Geometry.BeyondStrengthSafeRadius },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
     };
 
     public static readonly EnemyAction OptimizedBlizzardIII = new(ActionId.OptimizedBlizzardIII)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // Visual only: the two helpers' SuperliminalSteelL/R deal the damage.
@@ -51,22 +50,22 @@ public static class TopActions
     private static EnemyAction SuperliminalSteelSide(uint actionId) => new(actionId)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
     {
         Effects =
         [
-            OnOthers(Damage(Magic, Lethal)),
-            OnTarget(Damage(Physical)),
+            OnOthers(Damage(Lethal)),
+            OnTarget(Damage()),
             OnTarget(ApplyRuin(ComeRuin, 2, 6.96f)),
         ],
     };
 
     public static readonly EnemyAction PilePitch = new(ActionId.PilePitch)
     {
-        Effects = [Damage(Magic, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
+        Effects = [Damage(MagicVulns, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
     };
 
     public static readonly EnemyAction Discharger = new(ActionId.Discharger)
@@ -76,7 +75,7 @@ public static class TopActions
 
     public static readonly EnemyAction OptimizedFireIII = new(ActionId.OptimizedFireIII)
     {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
     };
 
     // -- Wave Cannon / Oversampled / Diffuse --
@@ -84,7 +83,7 @@ public static class TopActions
     {
         Effects =
         [
-            Damage(Magic),
+            Damage(MagicVulns),
             ApplyRuin(ComeRuin, 2, 6.96f),
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
         ],
@@ -92,26 +91,26 @@ public static class TopActions
 
     public static readonly EnemyAction WaveCannon = new(ActionId.WaveCannonAoe)
     {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
     };
 
     public static readonly EnemyAction DiffuseWaveCannon = new(ActionId.OmegaDiffuseWaveCannonAOE)
     {
         Area = new() { Size = MathF.PI / 3f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Omega-specific --
     public static readonly EnemyAction RunMiOmegaVersion = new(ActionId.RunMiOmegaVersion)
     {
-        Effects = [Damage(Magic)],
+        Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction Blaster = new(ActionId.BlasterAoe)
     {
         Effects =
         [
-            Damage(Magic),
+            Damage(MagicVulns),
             ApplyRuin(ComeRuin, 2, 10.96f),
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
             ApplyStatus(StatusId.HPPenalty, 3f),
@@ -126,7 +125,7 @@ public static class TopActions
     {
         Effects =
         [
-            Damage(Magic),
+            Damage(MagicVulns),
             ApplyRuin(ComeRuin, 2, 10.96f),
             RemoveStatus(StatusId.Looper),
         ],
@@ -134,40 +133,40 @@ public static class TopActions
 
     public static readonly EnemyAction StorageViolationObliteration = new(ActionId.StorageViolationObliteration)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
         DeathExplanation = "tower unfilled",
     };
 
     // -- Hyper Pulse --
     public static readonly EnemyAction HyperPulseSigma = new(ActionId.HyperPulseSigma)
     {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f)],
     };
 
     public static readonly EnemyAction HyperPulseCharging = new(ActionId.HyperPulseDeltaCharging)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction HyperPulseShoot = new(ActionId.HyperPulseDeltaShoot)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Delta-specific --
     public static readonly EnemyAction RunMiDeltaVersion = new(ActionId.RunMiDeltaVersion)
     {
-        Effects = [Damage(Magic)],
+        Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction DeltaExplosion = new(ActionId.DeltaExplosion)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction DeltaUnmitigatedExplosion = new(ActionId.DeltaUnmitigatedExplosion)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction SwivelCannonLeft = SwivelCannon(ActionId.SwivelCannonL, MathF.PI / 2);
@@ -177,14 +176,14 @@ public static class TopActions
     {
         Cast = new() { OmenDelay = 8.5f, Rotation = rotation },
         Area = new() { Size = Geometry.SwivelCannonHalfAngle },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction HwTetherBreak = new(ActionId.HwTetherBreak)
     {
         Effects =
         [
-            Damage(Magic),
+            Damage(MagicVulns),
             ApplyRuin(ComeRuin, 3, Duration.HwTetherBreakStack),
             ApplyStatus(StatusId.MagicVulnerabilityUpMini, Duration.HwTetherBreakStack),
         ],
@@ -192,30 +191,30 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherFail = new(ActionId.HwTetherFail)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Sigma-specific --
     public static readonly EnemyAction RunMiSigmaVersion = new(ActionId.RunMiSigmaVersion)
     {
-        Effects = [Damage(Magic)],
+        Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction RearLasersCharging = new(ActionId.RearLasersCharging)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction RearLasersShoot = new(ActionId.RearLasersShoot)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Hello World --
     // Above the soaks, whose FollowUp captures it at initialization.
     public static readonly EnemyAction HelloWorldFail = new(ActionId.HelloWorldFail)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
         DeathExplanation = "Failed Hello World mechanic",
     };
 
@@ -228,7 +227,7 @@ public static class TopActions
     {
         Effects =
         [
-            Damage(Magic),
+            Damage(MagicVulns),
             ApplyStatusOrOverload(StatusId.QuickeningDynamis, maxStacks: 3),
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
             FollowUp(HelloWorldFail, when: ctx => ctx.Hits.Count != 1 || ctx.Hits.Any(ctx.IsKilled)),
@@ -238,33 +237,33 @@ public static class TopActions
     // -- Optical Unit --
     public static readonly EnemyAction OpticalLaser = new(ActionId.OpticalLaser)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- P2 Party Synergy --
     public static readonly EnemyAction Spotlight = new(ActionId.Spotlight)
     {
-        Effects = [Damage(Magic, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        Effects = [Damage(MagicVulns, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
     };
 
     // -- P6 Wave Cannon 2 --
     public static readonly EnemyAction CosmoArrowOmen = new(ActionId.CosmoArrowOmen)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction CosmoArrowLine = new(ActionId.CosmoArrowDamage)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction WaveCannonProtean = new(ActionId.WaveCannonProtean)
     {
-        Effects = [Damage(Magic), ApplyStatus(StatusId.MagicVulnerabilityUp, 2.5f)],
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 2.5f)],
     };
 
     public static readonly EnemyAction WaveCannonWildCharge = new(ActionId.WaveCannonWildCharge)
     {
-        Effects = [Damage(Magic, split: WildCharge(front: 2, min: 8, frontHit: TankBuster))],
+        Effects = [Damage(MagicVulns, split: WildCharge(front: 2, min: 8, frontHit: TankBuster))],
     };
 }

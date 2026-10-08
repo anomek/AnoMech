@@ -1,11 +1,9 @@
 using System.Collections.Generic;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.UserActions;
-
-// Unique damage is cut only by mitigation that reduces all damage.
-public enum DamageKind { Physical, Magic, Unique }
 
 // What one status contributes to surviving a hit. Everything is a fraction (0.20f = 20%)
 // except ShieldPotency; a status sets only what it grants. ShieldHp and MaxHp are fractions

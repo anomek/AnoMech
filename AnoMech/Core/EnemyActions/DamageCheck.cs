@@ -10,23 +10,23 @@ namespace AnoMech.Core.EnemyActions;
 internal static class DamageCheck
 {
     // Null when the hit is survivable, otherwise why it kills ("" when it simply does).
-    public static string? LethalCause(SimCharacter target, DamageSpec spec, Severity severity, SimParty party)
+    public static string? LethalCause(SimCharacter target, VulnSpec spec, Severity severity, DamageKind kind, SimParty party)
     {
         if (spec.Protections.Any(id => target.FindStatus(id) != null)) return null;
         if (severity.Kind == SeverityKind.Lethal) return MissingProtection(spec) ?? "";
         var vuln = CarriedVulnerability(target, spec);
         if (vuln is { RequiredMitigation: null }) return "had vuln up debuff";
         if (severity.Kind == SeverityKind.TankBuster && !IsTank(target)) return "tank buster";
-        if (Survives(target, party, MathF.Max(severity.MinMitigation, vuln?.RequiredMitigation ?? 0f), spec.Kind)) return null;
+        if (Survives(target, party, MathF.Max(severity.MinMitigation, vuln?.RequiredMitigation ?? 0f), kind)) return null;
         return vuln != null ? "not enough mitigation for a hit with vuln up" : "not enough mitigation";
     }
 
-    private static string? MissingProtection(DamageSpec spec)
+    private static string? MissingProtection(VulnSpec spec)
         => spec.Protections.Count > 0 ? $"no {StatusLookup.Name(spec.Protections[0])}" : null;
 
     public static bool IsTank(SimCharacter target) => target is ISimPartyMember { Role: PartyRole.OffTank or PartyRole.MainTank };
 
-    private static Vulnerability? CarriedVulnerability(SimCharacter target, DamageSpec spec)
+    private static Vulnerability? CarriedVulnerability(SimCharacter target, VulnSpec spec)
     {
         foreach (var vuln in spec.Vulnerabilities)
         {

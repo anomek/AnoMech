@@ -13,4 +13,5 @@ public sealed record ActionRow(
     string? OmenAltPath,
     uint ActionCategory,
     bool CanTargetSelf,
-    bool CanTargetParty);
+    bool CanTargetParty,
+    sbyte AttackType);

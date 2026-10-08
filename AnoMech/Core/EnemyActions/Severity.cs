@@ -22,8 +22,8 @@ public sealed record Severity(SeverityKind Kind, float MinMitigation = 0f)
         => kills ? 120_000u : Kind == SeverityKind.TankBuster ? 80_000u : 40_000u;
 }
 
-// A null Spec is the cast's own.
-public sealed record Hit(DamageSpec? Spec, Severity Severity)
+// A null Vulns is the cast's own.
+public sealed record Hit(VulnSpec? Vulns, Severity Severity)
 {
     public static implicit operator Hit(Severity severity) => new(null, severity);
 }

@@ -7,7 +7,6 @@ namespace AnoMech.Scenarios.Ucob;
 
 public static class UcobActions
 {
-    private static readonly DamageSpec Magic = DamageType.Magic;
 
     // -- Exaflare --
     // The kill is held past the snapshot so the KO reads off the visible bloom.
@@ -15,14 +14,14 @@ public static class UcobActions
 
     public static readonly EnemyAction ExaflareFirst = new(ActionId.ExaflareFirst)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = ExaflareTiming,
     };
 
     public static readonly EnemyAction ExaflareRest = new(ActionId.ExaflareRest)
     {
         Cast = new() { AnimationLock = 0f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = ExaflareTiming,
     };
 }

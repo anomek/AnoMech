@@ -26,7 +26,8 @@ internal sealed class GameData : IGameData
             row.OmenAlt.ValueNullable is { RowId: not 0 } omenAlt ? omenAlt.Path.ToString() : null,
             row.ActionCategory.RowId,
             row.CanTargetSelf,
-            row.CanTargetParty);
+            row.CanTargetParty,
+            (sbyte)row.AttackType.RowId);
     }
 
     public KnockbackRow? Knockback(uint knockbackId)

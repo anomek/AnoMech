@@ -9,8 +9,6 @@ namespace AnoMech.Scenarios.Uwu;
 
 public static class UwuActions
 {
-    private static readonly DamageSpec Magic = DamageType.Magic;
-    private static readonly DamageSpec Physical = DamageType.Physical;
 
     private static readonly AreaSpec SparesGaoled = new() { AdjustTargets = (_, hits) =>
         hits.Where(h => !h.HasStatus(StatusId.Fetters)).ToList() };
@@ -23,7 +21,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.4f },
     };
 
@@ -31,7 +29,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 0.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.96f }, // TODO: verify with replay
     };
 
@@ -51,14 +49,14 @@ public static class UwuActions
     public static readonly EnemyAction UltimaAttack = new(ActionId.UltimaAttack)
     {
         Cast = new() { AnimationLock = 0.1f },
-        Effects = [Damage(Physical)],
+        Effects = [Damage()],
         Timing = new() { DamageDelay = 1.16f },
     };
 
     public static readonly EnemyAction ViscousAetheroplasmUltima = new(ActionId.ViscousAetheroplasmUltima) 
     {
        Cast = new() { AnimationLock = 2.1f },
-       Effects = [Damage(Magic), ApplyStatus(1532, 10)], 
+       Effects = [Damage(), ApplyStatus(1532, 10)], 
        Timing = new() { DamageDelay = 1.1f },
     };
     
@@ -66,7 +64,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [
-            Damage(Magic.VulnerableTo(StatusId.ViscousVuln), split: Distribution.Stack(8, understacked: TankBuster.MinMit(1f))),
+            Damage(VulnerableTo(StatusId.ViscousVuln), split: Distribution.Stack(8, understacked: TankBuster.MinMit(1f))),
             ApplyStatus(StatusId.ViscousVuln, 1f),
         ],
         Timing = new() { DamageDelay = 0.6f },
@@ -75,21 +73,21 @@ public static class UwuActions
     public static readonly EnemyAction CeruleumVent = new(ActionId.CeruleumVent)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.6f }, // TODO: verify with replay
     };
 
     public static readonly EnemyAction RadiantPlumePuddle = new(ActionId.RadiantPlumePuddle)
     {
         Cast = new() { AnimationLock = 0.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.86f }, // TODO: verify with replay
     };
 
     public static readonly EnemyAction HomingLasers = new(ActionId.HomingLasers)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, TankBuster)],
+        Effects = [Damage(TankBuster)],
         Timing = new() { DamageDelay = 2.6f },
     };
 
@@ -100,7 +98,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 0.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.9f }, // TODO: verify with replay
     };
 
@@ -119,7 +117,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 1.1f, Rotation = float.DegreesToRadians(rotationDegrees) },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.8f }, // TODO: verify with replay
     };
 
@@ -127,7 +125,7 @@ public static class UwuActions
     public static readonly EnemyAction WickedWheelAwaken = new(ActionId.WickedWheelAwaken)
     {
         Cast = new() { AnimationLock = 2.8f },
-        Effects = [Damage(Physical, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 1.31f }, // TODO: verify with replay
     };
 
@@ -136,14 +134,14 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Area = new() { Size = 8.7f }, 
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
     };
 
     public static readonly EnemyAction WickedWheel = new(ActionId.WickedWheel)
     {
         Cast = new() { AnimationLock = 2.8f },
-        Effects = [Damage(Physical, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 1.37f }, // TODO: verify with replay
     };
 
@@ -153,7 +151,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 1.8f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.6f }, // TODO: verify with replay
     };
     public static readonly EnemyAction MistralSongSuparnaChirada = new(ActionId.MistralSongSuparnaChirada)
@@ -161,7 +159,7 @@ public static class UwuActions
         Cast = new() { AnimationLock = 2.1f },
         Area = new() { CastTypeOverride = CastType.Cone2 },
         Effects = [
-            Damage(Magic, split: Distribution.WildCharge(front: 1, frontHit: new Hit(Magic.VulnerableTo(StatusId.MistralSongVuln), TankBuster))),
+            Damage(split: Distribution.WildCharge(front: 1, frontHit: new Hit(VulnerableTo(StatusId.MistralSongVuln), TankBuster))),
             OnFront(1, ApplyStatus(StatusId.MistralSongVuln, 1f)),
         ],
         Timing = new() { DamageDelay = 0.4f },
@@ -170,14 +168,14 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.6f }, // TODO: verify with replay
     };
     public static readonly EnemyAction Mesohigh = new(ActionId.Mesohigh)
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [
-            Damage(Magic.ProtectedBy(StatusId.ThermalLow), Lethal),
+            Damage(ProtectedBy(StatusId.ThermalLow), Lethal),
         ],
         Timing = new() { DamageDelay = 0.83f }, // TODO: verify with replay
     };
@@ -192,7 +190,7 @@ public static class UwuActions
     private static readonly EnemyAction SuperCyclone1 = new(ActionId.SuperCyclone1)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic)],
+        Effects = [Damage()],
         Timing = new() { DamageDelay = 0.5f },
     };
 
@@ -200,7 +198,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [
-            Damage(Magic.VulnerableTo(StatusId.SuperCycloneVuln)),
+            Damage(VulnerableTo(StatusId.SuperCycloneVuln)),
             ApplyStatus(StatusId.SuperCycloneVuln, 2f),
         ],
         Timing = new() { DamageDelay = 0.5f }, 
@@ -209,7 +207,7 @@ public static class UwuActions
     private static readonly EnemyAction SuperCyclone3 = new(ActionId.SuperCyclone3)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.5f }, 
     };
 
@@ -217,7 +215,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Area = SparesGaoled,
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
     };
 
@@ -225,14 +223,14 @@ public static class UwuActions
     public static readonly EnemyAction CrimsonCyclone = new(ActionId.CrimsonCyclone)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.4f },
     };
 
     public static readonly EnemyAction CrimsonCycloneAwaken = new(ActionId.CrimsonCycloneAwaken)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.6f },
         DeathExplanation = "Awaken",
     };
@@ -241,7 +239,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [
-            Damage(Magic, split: Distribution.Stack(6)), 
+            Damage(split: Distribution.Stack(6)), 
             ApplyStatus(StatusId.AccursedFlame, 3f)
         ],
         Timing = new() { DamageDelay = 0.73f }, // TODO: verify with replay
@@ -255,21 +253,21 @@ public static class UwuActions
 
     public static readonly EnemyAction Bury = new(ActionId.Bury)
     {
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.53f }, // TODO: verify with replay
     };
 
     public static readonly EnemyAction Burst = new(ActionId.Burst)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Magic, Lethal)],
+        Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.46f }, // TODO: verify with replay
     };
 
     private static EnemyAction Raidwide(uint actionId, float animationLock, float damage) => new(actionId)
     {
         Cast = new() { AnimationLock = animationLock },
-        Effects = [Damage(Magic)],
+        Effects = [Damage()],
         Timing = new() { DamageDelay = damage },
     };
 }

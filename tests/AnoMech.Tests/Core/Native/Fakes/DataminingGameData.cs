@@ -33,7 +33,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
             OmenPath(row.UInt("OmenAlt")),
             row.UInt("ActionCategory"),
             row.Bool("CanTargetSelf"),
-            row.Bool("CanTargetParty"));
+            row.Bool("CanTargetParty"),
+            row.SByte("AttackType"));
     }
 
     public KnockbackRow? Knockback(uint knockbackId)
@@ -180,6 +181,7 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
         public string Text(string column) => fields[sheet.Column(column)];
         public uint UInt(string column) => uint.Parse(Text(column), CultureInfo.InvariantCulture);
         public byte Byte(string column) => byte.Parse(Text(column), CultureInfo.InvariantCulture);
+        public sbyte SByte(string column) => sbyte.Parse(Text(column), CultureInfo.InvariantCulture);
         public ushort UShort(string column) => ushort.Parse(Text(column), CultureInfo.InvariantCulture);
         public float Float(string column) => float.Parse(Text(column), CultureInfo.InvariantCulture);
         public bool Bool(string column) => bool.Parse(Text(column));
