@@ -638,7 +638,7 @@ internal sealed unsafe class DebugMenu
             Plugin.Log.Warning($"Lockon: no IconName for LockonId {lockonId}");
             return;
         }
-        chara.AttachLockonVfx(lockonId, persistent: false);
+        chara.AttachLockonVfx(lockonId);
         Plugin.Log.Info($"Lockon: attached {lockonId} ({iconName}) on '{target.Name}'");
     }
 

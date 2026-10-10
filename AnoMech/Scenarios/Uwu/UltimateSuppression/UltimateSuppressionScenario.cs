@@ -151,7 +151,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: true,
                     EnemyList: EnemyListMode.Always,
-                    IsVisible: true,
+                    Visibility: SpawnVisibility.Visible,
                     Placement: new Placement(
                         new Vector3(0, 0, -10),
                         0),
@@ -165,7 +165,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: false,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0))
@@ -180,7 +180,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: false,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0))
@@ -195,7 +195,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: false,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0))
@@ -215,7 +215,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: false,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0))
@@ -228,7 +228,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: false,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0))
@@ -243,7 +243,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Level: 70,
                     Targetable: false,
                     EnemyList: EnemyListMode.Never,
-                    IsVisible: true,
+                    Visibility: SpawnVisibility.InvisibleHelper,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
                         0)
@@ -355,11 +355,8 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(15.48f, () =>
         {
-            var playerMistral1 = state.PlayerMistralSongs[0]!;
-            var playerMistral2 = state.PlayerMistralSongs[1]!;
-
-            Lockon(playerMistral1, LockonId.MistralSong);
-            Lockon(playerMistral2, LockonId.MistralSong);
+            state.PlayerMistralSongs[0]?.AttachLockonVfx(LockonId.MistralSong);
+            state.PlayerMistralSongs[1]?.AttachLockonVfx(LockonId.MistralSong);
         });
 
         world.Events.Add(17.95f, () =>
@@ -497,7 +494,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(31.60f, () => ifrit?.PlayActionTimeline(ActionTimelineId.WarpEnd));
 
-        world.Events.Add(33.60f, () => Lockon(state.PlayerFlamingCrush, LockonId.FlamingCrush));
+        world.Events.Add(33.60f, () => state.PlayerFlamingCrush?.AttachLockonVfx(LockonId.FlamingCrush));
 
         world.Events.Add(38.78f, () =>
         {
@@ -541,7 +538,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                 Level: 70,
                 Targetable: false,
                 EnemyList: EnemyListMode.Manual,
-                IsVisible: true,
+                Visibility: SpawnVisibility.Visible,
                 Placement: new(state.PlayerGaol!.Position, 0)
                 )
             )
@@ -614,7 +611,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                 Level: 70,
                 Targetable: false,
                 EnemyList: EnemyListMode.Never,
-                IsVisible: true,
+                Visibility: SpawnVisibility.Visible,
                 Placement: placement,
                 InitialModeAttributeFlags: 0x0
                 )
@@ -632,11 +629,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
         {
             plume?.Despawn();
         }
-    }
-
-    private void Lockon(SimCharacter? target, uint lockonId)
-    {
-        target!.ActorControl.Send(34, lockonId, target.GameObjectId.ObjectId);
     }
 
     public MpMessage? BuildReplayStateMessage()

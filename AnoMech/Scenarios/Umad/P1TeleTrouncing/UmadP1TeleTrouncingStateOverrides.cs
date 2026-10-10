@@ -15,7 +15,6 @@ public sealed class UmadP1TeleTrouncingStateOverrides
 {
     // 106 through the dispatcher leaves our arrows untouched: the director never registered them.
     public ArrowSoakMode ArrowSoak { get; set; } = ArrowSoakMode.SetSharedTimelineState;
-    public CarryMode ArrowCarry { get; set; } = CarryMode.Native;
     // true = DPS gets the "different" arrow pairs; false = supports do.
     public bool? DpsGetsDifferent { get; set; }
     public bool? DpsGetsConfused { get; set; }

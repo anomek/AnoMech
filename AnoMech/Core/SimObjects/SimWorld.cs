@@ -200,6 +200,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     {
         var party = new SimParty();
         PartyCreator.Populate(party, new SimPlayer(Coordinates), playerJob, this, roleOverride, solo, networkRoles, networkSeats);
+        party.SetInCombat(true);
         children.Add(party);
         Party = party;
     }

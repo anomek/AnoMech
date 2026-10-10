@@ -13,7 +13,23 @@ namespace AnoMech.Core.SimObjects;
 // coordinate space as the rest of the SimXxx API: +X = east, +Z = south.
 // Placement.Rotation is absolute radians: 0 = south, π/2 = east, π = north, -π/2 = west.
 // ModelCharaId (non-zero) overrides the BNpcBase visual, e.g. a no-shield variant.
-// IsVisible=false spawns the actor hidden until a warp_end/show timeline reveals it.
+
+// How the engine shows the actor on spawn; the value is the SpawnNpcPacket DisplayFlags every
+// captured server spawn of that kind carries.
+// Visible          — drawn at spawn.
+// HiddenUntilShown — bit 0x20000; hidden until a warp_end/show timeline reveals it (bosses,
+//                    clones, arm units).
+// HiddenUntilPopIn — bit 0x20; hidden until ActorControl.PopIn (0x24) ~0.8s
+//                    later (summoned adds, pets). UNVERIFIED on our actors.
+// InvisibleHelper  — the meshless helper that casts a fight's AoEs (ModelChara 480); never
+//                    drawn, and spawned with no MP.
+public enum SpawnVisibility : uint
+{
+    Visible = 0x4000B,
+    HiddenUntilShown = 0x6000B,
+    HiddenUntilPopIn = 0x4002B,
+    InvisibleHelper = 0x40008,
+}
 
 // Whether a SimEnemy shows in the _EnemyList HUD (read each frame by EnmityHud.Refresh).
 // Always          — listed while alive.
@@ -44,7 +60,7 @@ public record struct EnemySpawnConfig(
     byte Level = 0,
     bool Targetable = false,
     EnemyListMode EnemyList = EnemyListMode.Always,
-    bool IsVisible = true,
+    SpawnVisibility Visibility = SpawnVisibility.Visible,
     Placement Placement = default,
     uint ModelCharaId = 0,
     byte? InitialModeAttributeFlags = null, // null = engine default; set when the idle sub-mesh variant differs (Omega-M = 0x10)
@@ -233,14 +249,8 @@ public sealed class SimEnemy : SimNpc
     internal static SimEnemy? Spawn(EnemySpawnConfig config, SimWorld world)
     {
         if (!Natives.BattleCharas.LocalPlayer.Exists) return null;
-        if (config.NpcSpawnTemplate is null && IsMeshless(config)) config = config with { PacketSpawnEnableDraw = true };
+        if (config.NpcSpawnTemplate is null && config.Visibility == SpawnVisibility.InvisibleHelper) config = config with { PacketSpawnEnableDraw = true };
         return SpawnFromPacket(config, world);
-    }
-
-    private static bool IsMeshless(EnemySpawnConfig config)
-    {
-        var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : Natives.Data.BNpcBase(config.BNpcBaseId)?.ModelChara ?? 0;
-        return Natives.Data.ModelChara(modelCharaId) is { Type: 0, Model: 0 };
     }
 
     // Null when the handler refused the packet.
@@ -285,6 +295,10 @@ public sealed class SimEnemy : SimNpc
         }
         var targetableBefore = chara.TargetableStatus;
         SetTargetable(SpawnConfig.Targetable);
+        // Retail engages every enemy, helpers included, ~0.8s into the pull and adds on arrival;
+        // the sim has no pre-pull, so every enemy is engaged from its spawn.
+        ActorControl.SetWeaponDrawn(true);
+        ActorControl.SetInCombat(true);
         if (SpawnConfig.PacketSpawnEnableDraw) RequestDraw();
         DiagnosticLog.Info($"[SimEnemy.SpawnFromPacket] {DisplayName} (goid 0x{GameObjectId.ObjectId:X}) created by the engine after {packetSpawnFrames} frames: {DescribeDrawState()} "
             + $"Targetable=0x{targetableBefore:X}->0x{chara.TargetableStatus:X} name=\"{chara.Name}\" pos {chara.Position}.");
@@ -579,6 +593,15 @@ public sealed class SimEnemy : SimNpc
         events.Add(animationDelay + corpseFadeDelay + CorpseFadeDuration, Despawn);
     }
 
+    private const float FadeOutDuration = 1.3f;
+
+    // A spent add or a boss leaving at a phase transition: gone without dying.
+    public void FadeOut()
+    {
+        ActorControl.FadeOut();
+        events.Add(FadeOutDuration, Despawn);
+    }
+
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
@@ -588,7 +611,7 @@ public sealed class SimEnemy : SimNpc
         TickTimelineWatch(deltaSeconds);
         TickPacketSpawnCheckpoints();
 
-        if (!slotCheckDone && SpawnConfig.IsVisible)
+        if (!slotCheckDone && SpawnConfig.Visibility == SpawnVisibility.Visible)
         {
             slotCheckFrames++;
             if (slotCheckFrames == 1) LogModelSlotState("+1 frame");

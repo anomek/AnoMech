@@ -133,14 +133,14 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
 
     private void Run_PlayerLockons()
     {
-        world.Events.Add(11.04f, () => party.ForEachActive(c => c.AttachLockonVfx(state.Lockons[((ISimPartyMember)c).Role], persistent: false))); 
+        world.Events.Add(11.04f, () => party.ForEachActive(c => c.AttachLockonVfx(state.Lockons[((ISimPartyMember)c).Role]))); 
     }
 
     public void Tick(float delta, float elapsed) { }
     
     private void Run_Kefka_40004FD3()
     {
-        SimEnemy? kefka_40004FD3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.GodKefka, NameId: BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
+        SimEnemy? kefka_40004FD3 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.GodKefka, NameId: BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
         foreach (var at in new[] { 1.30f, 11.35f, 14.39f, 17.43f, 20.47f, 23.51f })
             world.Events.Add(at, () => kefka_40004FD3?.Cast(UmadActions.AutoAttack, party.Get(PartyRole.OffTank)));
         world.Events.Add(2.46f, () => kefka_40004FD3?.Cast(UmadActions.Forsaken));
@@ -210,7 +210,7 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
            var role = (list[i] as ISimPartyMember)!.Role;
            if (list[i].HasStatus(StatusId.SpellsTrouble))
            {
-               list[i].AttachLockonVfx(lockons[i], persistent: false);
+               list[i].AttachLockonVfx(lockons[i]);
                state.Lockons[role] = lockons[i];
                s += $"{role}={lockons[i]},";
            }
@@ -247,8 +247,8 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
     
     private void Run_Kefka_40004FAC()
     {
-        SimEnemy? towerHelper1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f)));
-        SimEnemy? towerHelper2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f)));
+        SimEnemy? towerHelper1 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f)));
+        SimEnemy? towerHelper2 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f)));
         RunTower(towerHelper1, towerHelper2, 22.66f, 0);
         RunTower(towerHelper1, towerHelper2, 32.67f, 1);
         RunTower(towerHelper1, towerHelper2, 43.71f, 2);
@@ -261,7 +261,7 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
         towerHelper.Clear();
         for (int i = 0; i < 4; i++)
         {
-            towerHelper.Add(world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
+            towerHelper.Add(world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaHelper, NameId: BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, -10.000f), 0.000f))));
         }
     }
     
@@ -285,7 +285,7 @@ public sealed class UmadP2ForsakenScenario : IMultiplayerReplayable
     {
         for (int i = 0; i < 3; i++)
         {
-            SimEnemy? kefka_40004FD0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaClone, NameId: BNpcNameId.Kefka, Level: 100, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
+            SimEnemy? kefka_40004FD0 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.KefkaClone, NameId: BNpcNameId.Kefka, Level: 100, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.HiddenUntilShown, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
             RunCloneEndAttack(kefka_40004FD0, 32.35f, 0, i);
             RunCloneEndAttack(kefka_40004FD0, 53.36f, 1, i);
             RunCloneEndAttack(kefka_40004FD0, 74.24f, 2, i);

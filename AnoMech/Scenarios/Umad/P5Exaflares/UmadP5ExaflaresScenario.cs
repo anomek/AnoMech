@@ -104,7 +104,7 @@ public sealed class UmadP5ExaflaresScenario : IMultiplayerReplayable
             Level: Level,
             Targetable: true,
             EnemyList: EnemyListMode.Always,
-            IsVisible: true,
+            Visibility: SpawnVisibility.Visible,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
 
@@ -177,7 +177,7 @@ public sealed class UmadP5ExaflaresScenario : IMultiplayerReplayable
             Level: 1,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
-            IsVisible: false,
+            Visibility: SpawnVisibility.InvisibleHelper,
             Placement: new Placement(position, rotation)));
 
     public MpMessage? BuildReplayStateMessage()

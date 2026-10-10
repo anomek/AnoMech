@@ -143,7 +143,6 @@ public sealed class Plugin : IDalamudPlugin
             RsfPointers.Initialize();
             StatusManagerPointers.Initialize();
             TimelineContainerPointers.Initialize();
-            VfxContainerPointers.Initialize();
             VfxDataPointers.Initialize();
 
             Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");

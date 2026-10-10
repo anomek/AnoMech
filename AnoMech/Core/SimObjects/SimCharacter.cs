@@ -50,42 +50,8 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
         vfx.Update(deltaSeconds);
         Movement.Tick(deltaSeconds);
         TickTurn(deltaSeconds);
-        TickCarry(deltaSeconds);
     }
 
-    // The real client's carry: still for 0.2s, settled by 0.9s. The client ignores an injected
-    // one, so a native carry that hasn't moved by the check is finished by the sim's slide.
-    private const float CarryStartDelay = 0.2f;
-    private const float CarrySlideSeconds = 0.7f;
-    private const float CarryCheckSeconds = 0.35f;
-    private const float CarryMinProgress = 0.5f;
-    private Vector3 carryStart;
-    private Vector3? carryDestination;
-    private float carryElapsed;
-
-    public virtual void CarryTo(Vector3 destination, CarryMode mode = CarryMode.Native)
-    {
-        if (mode == CarryMode.Push)
-        {
-            Movement.Carry(destination, CarryStartDelay, CarrySlideSeconds);
-            return;
-        }
-        Proxy?.CarryTo(Coordinates.ToGlobal(destination), Rotation, selfTarget: mode == CarryMode.NativeSelfTarget);
-        carryStart = Position;
-        carryDestination = destination;
-        carryElapsed = 0f;
-    }
-
-    private void TickCarry(float deltaSeconds)
-    {
-        if (carryDestination is not { } destination) return;
-        carryElapsed += deltaSeconds;
-        if (carryElapsed < CarryCheckSeconds) return;
-        carryDestination = null;
-        if (Vector3.Distance(Position, carryStart) >= CarryMinProgress) return;
-        DiagnosticLog.Warn($"[SimCharacter] {GetType().Name} 0x{EntityId:X} was not carried by the client ({Vector3.Distance(Position, carryStart):F2}y in {CarryCheckSeconds:F2}s) -- sliding it the remaining {Vector3.Distance(Position, destination):F1}y instead.");
-        Movement.Carry(destination, 0f, CarryStartDelay + CarrySlideSeconds - CarryCheckSeconds);
-    }
 
     public virtual void Despawn()
     {
@@ -190,11 +156,6 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
     // persistent: true  → tracked by sim (might crash if we try to remove vfx after game already did that)
     // persistent: false → fire-and-forget (game is responsible for duration and cleaning of vfx)
     public void AddVfx(string path, float duration = 0f, bool persistent = true)
-        => AddVfx(path, duration, persistent, fromLockon: false);
-
-    // fromLockon keeps a marker out of both VFX replication channels: its own id is what travels
-    // (see AttachLockonVfx), and the derived path names no VfxPath constant a peer would accept.
-    private void AddVfx(string path, float duration, bool persistent, bool fromLockon)
     {
         if (!Natives.Data.FileExists(path))
         {
@@ -207,10 +168,10 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
             existing.Refresh(duration);
             return;
         }
-        var spawned = new SimVfx(this, path, duration, fromLockon);
+        var spawned = new SimVfx(this, path, duration);
         if (persistent && spawned.IsActive)
             vfx.Add(spawned);
-        else if (!persistent && !fromLockon)
+        else if (!persistent)
         {
             if (pendingVfx.Count < AnoMech.Multiplayer.NetGuard.MaxVfxPerEntity) pendingVfx.Add((path, duration));
             else droppedPendingVfx++;
@@ -231,9 +192,6 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
         return result;
     }
 
-    // Fire-and-forget marker of the last attached lockon (every call site uses persistent: false).
-    public uint? LastLockonVfxId { get; private set; }
-
     // Every lockon attached since the last drain, so two in one tick (P4's Blizzard+Lightning
     // orbs) both replicate.
     private readonly List<uint> pendingLockonVfxIds = [];
@@ -249,11 +207,11 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
         return result;
     }
 
-    public void AttachLockonVfx(uint lockonId, float duration = 0f, bool persistent = true)
+    // The Lockon check keeps an id a peer sent from reaching the client's handler.
+    public void AttachLockonVfx(uint lockonId)
     {
-        if (Natives.Vfx.LockonIconName(lockonId) is not {} iconName) return;
-        AddVfx($"vfx/lockon/eff/{iconName}.avfx", duration, persistent, fromLockon: true);
-        LastLockonVfxId = lockonId;
+        if (!IsActive || Natives.Vfx.LockonIconName(lockonId) is null) return;
+        ActorControl.HeadMarker(lockonId);
         if (pendingLockonVfxIds.Count < AnoMech.Multiplayer.NetGuard.MaxLockonVfxPerEntity) pendingLockonVfxIds.Add(lockonId);
         else droppedPendingLockonVfxIds++;
     }
@@ -261,7 +219,7 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
     // Sampled for peers and reconciled there like the statuses: unlike the fire-and-forget ones
     // above, a persistent VFX ends by removal, which no one-shot event could carry.
     public IReadOnlyList<string> ActivePersistentVfxPaths
-        => vfx.Count == 0 ? [] : vfx.Where(v => v.IsActive && !v.FromLockon).Select(v => v.Path).Distinct().ToList();
+        => vfx.Count == 0 ? [] : vfx.Where(v => v.IsActive).Select(v => v.Path).Distinct().ToList();
 
     public SimVfx? FindVfx(string path)
     {
@@ -402,5 +360,7 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
 
     public virtual void SetTargetable(bool targetable) => ActorControl.SetTargetable(targetable);
 
+    public virtual void CarryTo(Vector3 destination) => ActorControl.CarryTo(Coordinates.ToGlobal(destination), Rotation);
+    
     public ActorControl ActorControl => field ??= new ActorControl(() => Proxy);
 }

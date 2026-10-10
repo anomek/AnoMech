@@ -54,7 +54,7 @@ public sealed class HelloWorld(SimParty party, PartyRole holder, bool near)
             if (status == 0) continue;
             member.RemoveStatus(status);
             var helper = world.SpawnEnemy(new EnemySpawnConfig(
-                BNpcBaseId: BNpcBaseId.OmegaHelper,
+                BNpcBaseId: BNpcBaseId.OmegaHelper, Visibility: SpawnVisibility.InvisibleHelper,
                 Targetable: false,
                 EnemyList: EnemyListMode.Never,
                 Placement: new Placement(member.Position, 0f)));

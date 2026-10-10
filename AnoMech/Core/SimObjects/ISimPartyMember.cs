@@ -52,7 +52,7 @@ public interface ISimPartyMember : ISimObject, IPositioned
     void TeleportTo(Placement placement) => ((SimCharacter)this).SetPosition(placement);
 
     // SimNetworkPuppet hands it to the owning peer.
-    void CarryTo(Vector3 destination, CarryMode mode = CarryMode.Native);
+    void CarryTo(Vector3 destination);
 
     // A no-op for humans, who press their own Sprint; only bots cast, including a debug bot in the
     // local player's seat.

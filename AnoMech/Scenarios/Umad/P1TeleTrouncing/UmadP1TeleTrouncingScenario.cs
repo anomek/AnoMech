@@ -155,7 +155,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         {
             kefka = world.SpawnEnemy(new EnemySpawnConfig(
                 BNpcBaseId: Constants.BNpcBaseId.KefkaP3, NameId: Constants.BNpcNameId.Kefka, Level: 100,
-                Targetable: true, EnemyList: EnemyListMode.Always, IsVisible: true,
+                Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
                 Placement: new Placement(Vector3.Zero, -float.Pi)));
             for (var i = 0; i < helpers.Length; i++) helpers[i] = SpawnHelper();
             // Applied here rather than resolved from the earlier, unmodeled wave, so the
@@ -335,8 +335,8 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         // cast start; a lie flips the shown fire icon. The Ai reads state directly.
         world.Events.Add(36.31f, () =>
         {
-            kefka?.AttachLockonVfx(state.FireIsLie ? Constants.LockonId.FireFalse : Constants.LockonId.FireTrue, persistent: false);
-            kefka?.AttachLockonVfx(state.ThunderIsLie ? Constants.LockonId.LightningFalse : Constants.LockonId.LightningTrue, persistent: false);
+            kefka?.AttachLockonVfx(state.FireIsLie ? Constants.LockonId.FireFalse : Constants.LockonId.FireTrue);
+            kefka?.AttachLockonVfx(state.ThunderIsLie ? Constants.LockonId.LightningFalse : Constants.LockonId.LightningTrue);
             AttachFireMarkers();
         });
 
@@ -483,14 +483,14 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     {
         var real = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: UmadConstants.BNpcBaseId.KefkaHelper, NameId: UmadConstants.BNpcNameId.Kefka,
-            Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false,
+            Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper,
             Placement: new Placement(Vector3.Zero, 0f),
             NpcSpawnTemplate: UmadRealPackets.HelperNpcSpawn, PacketSpawnEnableDraw: true));
         if (real != null) return real;   // pending until the engine fills the slot (SimEnemy.PacketSpawnPending)
         DiagnosticLog.Warn("[UmadP1TeleTrouncing] real-packet helper spawn was refused -- falling back to the plain KefkaHelper (no action VFX).");
         return world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: UmadConstants.BNpcBaseId.KefkaHelper, NameId: UmadConstants.BNpcNameId.Kefka,
-            Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false,
+            Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper,
             Placement: new Placement(Vector3.Zero, 0f)));
     }
 
@@ -504,7 +504,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             helper.Despawn();
             helper = helpers[index] = world.SpawnEnemy(new EnemySpawnConfig(
                 BNpcBaseId: UmadConstants.BNpcBaseId.KefkaHelper, NameId: UmadConstants.BNpcNameId.Kefka,
-                Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false,
+                Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper,
                 Placement: new Placement(Vector3.Zero, 0f)));
         }
         if (helper is { PacketSpawnPending: true })
@@ -825,7 +825,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         arrowPushLock[role] = ArrowBindDuration;
         var heading = arrow.Rotation;
         var destination = arrow.Position + new Vector3(MathF.Sin(heading), 0f, MathF.Cos(heading)) * ArrowPushDistance;
-        (member as ISimPartyMember)?.CarryTo(destination, settingsWindow.Overrides.ArrowCarry);
+        (member as ISimPartyMember)?.CarryTo(destination);
     }
 
     // Heading as SimCast's facing calc: south=0, increasing clockwise toward east (north matches
@@ -1103,11 +1103,11 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             if (state.FireShowsStackIcon)
             {
                 if (role == state.FireStackSupport || role == state.FireStackDps)
-                    member.AttachLockonVfx(Constants.LockonId.FireStack, persistent: false);
+                    member.AttachLockonVfx(Constants.LockonId.FireStack);
             }
             else
             {
-                member.AttachLockonVfx(Constants.LockonId.FireSpread, persistent: false);
+                member.AttachLockonVfx(Constants.LockonId.FireSpread);
             }
         }
     }

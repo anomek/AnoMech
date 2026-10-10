@@ -122,14 +122,27 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
             case 0x3F: // ModelState
                 if (Actor is { } a) a.ModelState = (byte)arg1;
                 break;
+            case 0x23: // tether, slot 0
+                if (Actor is { } tethered) tethered.Tethers[0] = (ushort)arg2;
+                break;
+            case 0x2F: // tether clear, slot 0
+                if (Actor is { } cleared) cleared.Tethers[0] = 0;
+                break;
             case 0x36: // targetable
                 if (Actor is { } t)
                     t.TargetableStatus = arg1 != 0
                         ? (byte)(t.TargetableStatus | TargetableBits)
                         : (byte)(t.TargetableStatus & ~TargetableBits);
                 break;
+            case 0xF1: // warp, p1 = x<<16|y, p2 = z<<16|rotation
+                Actor?.StartCarry(
+                    new Vector3(Position16(arg1 >> 16), Position16(arg1 & 0xFFFF), Position16(arg2 >> 16)),
+                    (arg2 & 0xFFFF) / (float)ushort.MaxValue * MathF.Tau - MathF.PI);
+                break;
         }
     }
+
+    private static float Position16(uint value) => value / 32.767f - 1000f;
 
     // ── Combat state ─────────────────────────────────────────────────────────
 
@@ -165,18 +178,9 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
     public IActorVfxProxy? AttachVfx(string path) => Actor != null ? new FakeVfxHandle() : null;
 
-    public void SetTether(byte slot, ushort tetherId, GameObjectId target, byte progress)
-    {
-        if (Actor is { } a) a.Tethers[slot] = tetherId;
-    }
-
     public ushort GetTetherId(byte slot) => Actor is { } a && a.Tethers.TryGetValue(slot, out var id) ? id : (ushort)0;
 
-    public void ClearTether(byte slot) => SetTether(slot, 0, default, 0);
-
     public void ShowFlyText(uint amount, string label, uint damageTypeIcon = 0) { }
-
-    public void CarryTo(Vector3 destination, float rotation, bool selfTarget) => Actor?.StartCarry(destination, rotation);
 
     public void Despawn()
     {

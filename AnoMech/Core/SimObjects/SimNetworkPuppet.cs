@@ -146,9 +146,9 @@ public sealed class SimNetworkPuppet : SimNpc, ISimPartyMember
     public void ClearPendingNetworkTeleport() => PendingNetworkTeleport = null;
 
     // The owner's client performs the carry; this copy follows their reported poses.
-    public (Vector3 Destination, CarryMode Mode)? PendingNetworkCarry { get; private set; }
+    public Vector3? PendingNetworkCarry { get; private set; }
 
-    public override void CarryTo(Vector3 destination, CarryMode mode = CarryMode.Native) => PendingNetworkCarry = (destination, mode);
+    public override void CarryTo(Vector3 destination) => PendingNetworkCarry = destination;
 
     public void ClearPendingNetworkCarry() => PendingNetworkCarry = null;
 

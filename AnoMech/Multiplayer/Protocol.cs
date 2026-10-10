@@ -156,7 +156,7 @@ public sealed record ActorEngineState(
 public sealed record EnemyState(
     int NetId, uint BNpcBaseId, uint NameId, byte Level, bool Targetable,
     EnemyListMode EnemyList, uint ModelCharaId,
-    byte? InitialModeAttributeFlags, bool Visible, byte ModelState,
+    byte? InitialModeAttributeFlags, SpawnVisibility Visibility, byte ModelState,
     IReadOnlyList<EnemyStatusState> Statuses, ushort? AnimationTimelineId, int AnimationTimelineSeq, IReadOnlyList<uint> NewLockonVfxIds,
     int? AnimationStateArg2, int? AnimationStateArg3, int AnimationStateSeq,
     float X, float Y, float Z, float Rotation,
@@ -222,7 +222,7 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 // TargetRole releases the follow.
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
 public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
-public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z, int Mode = 0) : MpMessage, IHostOnlyMessage;
+public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z) : MpMessage, IHostOnlyMessage;
 public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, int? TargetEnemyNetId, float Speed) : MpMessage, IHostOnlyMessage;
 
 // One per SimWorld.OmenSpawned. Path is checked against SimAssets on receipt: it is the one

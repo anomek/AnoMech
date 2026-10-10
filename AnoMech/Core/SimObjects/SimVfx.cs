@@ -2,7 +2,7 @@ using AnoMech.Core.Native.Interfaces;
 
 namespace AnoMech.Core.SimObjects;
 
-// A single actor-attached VFX (head markers, looping arm-unit arrows, etc.)
+// A single actor-attached VFX (looping arm-unit arrows, etc.)
 // bound to a SimCharacter. Spawned and tracked by SimCharacter.AddVfx; ticks
 // its own optional auto-expire countdown and frees the native VfxData on
 // Despawn.
@@ -23,13 +23,9 @@ public sealed class SimVfx : ISimObject
     private IActorVfxProxy? handle;
     public bool IsActive => handle != null;
 
-    // A marker's own lockon id is what replicates, not this derived path.
-    public bool FromLockon { get; }
-
-    internal SimVfx(SimCharacter target, string path, float duration, bool fromLockon = false)
+    internal SimVfx(SimCharacter target, string path, float duration)
     {
         Path = path;
-        FromLockon = fromLockon;
         this.duration = duration;
         handle = target.Proxy?.AttachVfx(path);
     }

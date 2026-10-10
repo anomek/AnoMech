@@ -176,7 +176,7 @@ public sealed class SimTether : ISimObject
     private void CreateVfx()
     {
         if (currentSource != null && currentTarget != null)
-            currentSource.Proxy?.SetTether(Slot, TetherId, currentTarget.GameObjectId, 1);
+            currentSource.ActorControl.SetTether(TetherId, currentTarget.GameObjectId);
     }
 
     // Sentinel-checked clear: only wipe a slot we still own. A chained tether
@@ -184,8 +184,8 @@ public sealed class SimTether : ISimObject
     // overwritten Vfx.Tethers[slot].Id; we leave that alone.
     private void ClearTetherVfxIfOwned()
     {
-        if (currentSource?.Proxy is { } source && source.GetTetherId(Slot) == TetherId)
-            source.ClearTether(Slot);
+        if (currentSource is { Proxy: { } source } owner && source.GetTetherId(Slot) == TetherId)
+            owner.ActorControl.ClearTether();
     }
 
     public SimTether SetConditionalStatus(ushort statusId, Predicate<SimTether> predicate)

@@ -198,7 +198,7 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             Level: Level,
             Targetable: true,
             EnemyList: EnemyListMode.Always,
-            IsVisible: true,
+            Visibility: SpawnVisibility.Visible,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
 
         // ~6s before its first cast, so its DrawObject is live by then.
@@ -268,7 +268,7 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             Level: 1,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
-            IsVisible: false,
+            Visibility: SpawnVisibility.InvisibleHelper,
             Placement: new Placement(position, rotation),
             NpcSpawnTemplate: UmadRealPackets.HelperNpcSpawn,
             PacketSpawnEnableDraw: true));
@@ -300,7 +300,7 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             Level: 1,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
-            IsVisible: false,
+            Visibility: SpawnVisibility.HiddenUntilShown,
             Placement: new Placement(position, rotation)));
 
     // The gimmick timelines this mechanic plays (LoadType 0: not resident, not in Kefka's own

@@ -114,7 +114,7 @@ internal static unsafe class TimelineDebug
         var local = world.Coordinates.ToLocal(player.Position + forward * 4f);
         LastSpawn = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: ChaosBNpcBase, NameId: HelperNameId, Level: 1,
-            Targetable: false, EnemyList: EnemyListMode.Never, IsVisible: false,
+            Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.HiddenUntilShown,
             Placement: new Placement(local, player.Rotation)));
         DiagnosticLog.Info($"[TimelineDebug] spawned Chaos test carrier at {local} (territory {Plugin.ClientState.TerritoryType}): {(LastSpawn == null ? "failed" : LastSpawn.DescribeDrawState())}");
     }

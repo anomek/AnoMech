@@ -92,7 +92,7 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
             Level: 100,
             Targetable: true,
             EnemyList: EnemyListMode.Always,
-            IsVisible: true,
+            Visibility: SpawnVisibility.Visible,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
 
@@ -130,7 +130,7 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
                 Level: 1,
                 Targetable: false,
                 EnemyList: EnemyListMode.Never,
-                IsVisible: false,
+                Visibility: SpawnVisibility.InvisibleHelper,
                 Placement: new Placement(tower.Position, 0f)));
             // Keep this aligned with state.AllTowers: active-tower selections use those indices.
             towerInstances.Add(new TowerInstance(tower.Element, tower.SubIndex, eobj, null, marker));

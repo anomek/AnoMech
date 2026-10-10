@@ -49,6 +49,10 @@ the obvious approach was avoided. Avoid comments that:
 When unsure, cut it — sparse and load-bearing beats thorough. Scenario AI strats (`*Ai.cs`) go
 stricter: no comments, intent carried entirely by descriptive method names.
 
+**Don't trust comment**. They are often straight up wrong, written based on false evidence, not true in every 
+context or just out of date. Always take into consideration that comment might be false,
+communicate that with user and try to verify first.
+
 ## Architecture
 
 - **Projects.** `AnoMech/` (the plugin), `AnoMech.Relay/` (multiplayer relay library: wire format

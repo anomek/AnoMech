@@ -177,8 +177,15 @@ public sealed class SimParty : ISimObject
         LimitBreak.Tick();
     }
 
+    // The whole party, the local player included, is in combat for the whole run.
+    internal void SetInCombat(bool inCombat)
+    {
+        foreach (var member in AllMembers()) member.ActorControl.SetInCombat(inCombat);
+    }
+
     public void Despawn()
     {
+        SetInCombat(false);
         LimitBreak.Restore();
         for (int i = 0; i < slots.Length; i++)
         {

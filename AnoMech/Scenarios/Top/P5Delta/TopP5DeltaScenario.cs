@@ -75,6 +75,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         world.Events.Add(10.1f, SpawnDeltaAdds);
         world.Events.Add(10f, () => omega?.SetTargetable(false));
         world.Events.Add(17.3f, SpawnRocketPunches); // Peripheral Synthesis fires t=17.31s
+        world.Events.Add(18.15f, () => rocketPunches?.ForEach(punch => punch?.ActorControl.PopIn()));
         world.Events.Add(20.3f, () =>finalHelper?.Cast(ActionId.ArchivePeripheral));
         world.Events.Add(23.5f, SpawnArmUnits);               // Archive Peripheral fires t=20.30s
         world.Events.Add(25.3f, MarkArmUnitRotations);        // +1s after arm spawn
@@ -204,9 +205,10 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
                                              NameId: BNpcNameId.RocketPunch,
                                              Level: 90,
                                              Targetable: false,
+                                             Visibility: SpawnVisibility.HiddenUntilPopIn,
                                              EnemyList: EnemyListMode.Always,
                                              Placement: placement));
-            punch?.AddVfx(VfxPath.RocketPunchSpawn, persistent: false);
+            // punch?.AddVfx(VfxPath.RocketPunchSpawn, persistent: false);
             return punch;
         }).ToList();
     }
@@ -234,7 +236,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     {
         armUnits?.Select((unit, i) => (unit, i))
             .ToList()
-            .ForEach(t => t.unit?.AttachLockonVfx(state.ArmHandedness[t.i].RotateLockonId, persistent: false));
+            .ForEach(t => t.unit?.AttachLockonVfx(state.ArmHandedness[t.i].RotateLockonId));
     }
 
     private void ApplyDeltaRealTethers()
@@ -282,7 +284,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     private SimEnemy? SpawnHelper(Vector3 pos)
     {
         var helper = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.OmegaHelper,
+            BNpcBaseId: BNpcBaseId.OmegaHelper, Visibility: SpawnVisibility.InvisibleHelper,
             Targetable: false,
             EnemyList: EnemyListMode.Never,
             Placement: new Placement(pos, 0f)));

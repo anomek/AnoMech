@@ -94,14 +94,9 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         return BattleCharaProxy.ForSlot(idx);
     }
 
-    // The values every captured server spawn of a combatant BNpc carries. DisplayFlags bit
-    // 0x20000 spawns the actor hidden until a warp_end/show timeline reveals it. Meshless helpers
-    // (ModelChara Type 0, Model 0) carry their own flags and no MP whatever their visibility.
-    private const uint DisplayFlagsVisible = 0x4000B;
-    private const uint DisplayFlagsHiddenUntilRevealed = 0x6000B;
-    private const uint DisplayFlagsMeshlessHelper = 0x40008;
+    // The values every captured server spawn of a combatant BNpc carries.
     private const byte SpawnCharacterDataFlags = 0x3;
-    private const byte SpawnCharacterDataFlagsMeshlessHelper = 0x1;
+    private const byte SpawnCharacterDataFlagsHelper = 0x1;
     private const byte SpawnLinkRange = 0x14;
     private const ushort SpawnResourcePoints = 10000;
     private const byte SpawnBattalion = 4;
@@ -114,11 +109,10 @@ internal sealed unsafe class BattleCharas : IBattleCharas
             return null;
         }
         var modelCharaId = config.ModelCharaId != 0 ? config.ModelCharaId : bnpc.ModelChara.RowId;
-        var meshless = Plugin.DataManager.GetExcelSheet<ModelChara>().TryGetRow(modelCharaId, out var modelChara)
-            && modelChara is { Type: 0, Model: 0 };
+        var helper = config.Visibility == SpawnVisibility.InvisibleHelper;
         var packet = new SpawnNpcPacket
         {
-            CharacterDataFlags = meshless ? SpawnCharacterDataFlagsMeshlessHelper : SpawnCharacterDataFlags,
+            CharacterDataFlags = helper ? SpawnCharacterDataFlagsHelper : SpawnCharacterDataFlags,
             LinkRange = SpawnLinkRange,
         };
         ref var common = ref packet.Common;
@@ -129,9 +123,8 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         common.NameId = config.NameId;
         common.MaxHealthPoints = EnemyMaxHealth;
         common.HealthPoints = EnemyMaxHealth;
-        common.DisplayFlags = meshless ? DisplayFlagsMeshlessHelper
-            : config.IsVisible ? DisplayFlagsVisible : DisplayFlagsHiddenUntilRevealed;
-        common.MaxResourcePoints = meshless ? (ushort)0 : SpawnResourcePoints;
+        common.DisplayFlags = (uint)config.Visibility;
+        common.MaxResourcePoints = helper ? (ushort)0 : SpawnResourcePoints;
         common.ResourcePoints = common.MaxResourcePoints;
         common.ModelChara = (ushort)modelCharaId;
         common.CharacterMode = CharacterModes.Normal;

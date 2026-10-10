@@ -9,10 +9,9 @@ public sealed class UmadP1TeleTrouncingSettingsWindow
     public UmadP1TeleTrouncingStateOverrides Overrides { get; } = new();
 
 #if DEBUG
-    // Index-aligned with PropBeatMode, ArrowSoakMode and CarryMode.
+    // Index-aligned with PropBeatMode and ArrowSoakMode.
     private static readonly string[] BeatModeLabels = ["ActorControl 413", "PlayAnimation", "SetSharedTimelineState"];
     private static readonly string[] SoakModeLabels = ["ActorControl 106", "SetSharedTimelineState", "Despawn"];
-    private static readonly string[] CarryModeLabels = ["ActorControl 241", "ActorControl 241, self-targeted", "Sim slide"];
 #endif
 
     // fireAppear/fireWindUp: fire the statue beats right now (null while no run is active), so
@@ -63,18 +62,12 @@ public sealed class UmadP1TeleTrouncingSettingsWindow
         SettingsGrid.ItemWidth(170);
         if (ImGui.Combo("##arrowsoak", ref soakIdx, SoakModeLabels, SoakModeLabels.Length))
             Overrides.ArrowSoak = (ArrowSoakMode)soakIdx;
-        SettingsGrid.Row("Arrow carry (debug):");
-        var carryIdx = (int)Overrides.ArrowCarry;
-        SettingsGrid.ItemWidth(170);
-        if (ImGui.Combo("##arrowcarry", ref carryIdx, CarryModeLabels, CarryModeLabels.Length))
-            Overrides.ArrowCarry = (AnoMech.Core.SimObjects.CarryMode)carryIdx;
     }
 #endif
 
     private void ResetAll()
     {
         Overrides.ArrowSoak = ArrowSoakMode.SetSharedTimelineState;
-        Overrides.ArrowCarry = AnoMech.Core.SimObjects.CarryMode.Native;
         Overrides.DpsGetsDifferent = null;
         Overrides.GazeInverted = null;
         Overrides.FireIsStack = null;

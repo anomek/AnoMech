@@ -64,7 +64,7 @@ public sealed partial class MultiplayerManager
             }
             if (puppet.PendingNetworkCarry is { } carry)
             {
-                _ = relay!.SendAsync(new CarryMessage(role, carry.Destination.X, carry.Destination.Y, carry.Destination.Z, (int)carry.Mode));
+                _ = relay!.SendAsync(new CarryMessage(role, carry.X, carry.Y, carry.Z));
                 puppet.ClearPendingNetworkCarry();
             }
         }
@@ -88,7 +88,7 @@ public sealed partial class MultiplayerManager
             {
                 netId = nextEnemyNetId++;
                 hostEnemyNetIds[enemy] = netId;
-                DiagnosticLog.Info($"[Multiplayer] Host: broadcasting new enemy NetId {netId} -- BNpcBase {enemy.BNpcBaseId}, pos {enemy.Position}, visible {enemy.SpawnConfig.IsVisible}.");
+                DiagnosticLog.Info($"[Multiplayer] Host: broadcasting new enemy NetId {netId} -- BNpcBase {enemy.BNpcBaseId}, pos {enemy.Position}, visibility {enemy.SpawnConfig.Visibility}.");
             }
             var cfg = enemy.SpawnConfig;
             var modelState = enemy.ModelState;
@@ -146,7 +146,7 @@ public sealed partial class MultiplayerManager
                 SimAssets.WarnIfUnknownPath(path, "enemy persistent VFX");
             enemies.Add(new EnemyState(
                 netId, enemy.BNpcBaseId, cfg.NameId, cfg.Level, enemy.Targetable, enemy.EnemyListMode,
-                cfg.ModelCharaId, cfg.InitialModeAttributeFlags, cfg.IsVisible, modelState,
+                cfg.ModelCharaId, cfg.InitialModeAttributeFlags, cfg.Visibility, modelState,
                 enemy.ActiveStatuses.Where(s => !SimOnlyStatus.Is(s.StatusId)).Select(s => new EnemyStatusState(s.StatusId, s.Stacks, s.RemainingTime, s.Instance)).ToList(),
                 enemy.AnimationTimelineId, enemy.AnimationTimelineSeq, newLockonVfxIds,
                 enemy.AnimationState?.Arg2, enemy.AnimationState?.Arg3, enemy.AnimationStateSeq,

@@ -72,7 +72,7 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
             Level: UcobConstants.Level,
             Targetable: true,
             EnemyList: EnemyListMode.Always,
-            IsVisible: true,
+            Visibility: SpawnVisibility.Visible,
             Placement: new Placement(Vector3.Zero, 0f),
             ModelCharaId: ModelCharaId.GoldenBahamut));
     }
@@ -113,7 +113,7 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
             // Drawn on purpose: the eruption is an ActionTimeline on the helper, and a
             // DisableDraw'd actor plays none. BNpcBase 0x18D6's ModelChara has no mesh,
             // so "visible" still shows nothing but the fire.
-            IsVisible: true,
+            Visibility: SpawnVisibility.InvisibleHelper,
             Placement: new Placement(position, rotation)));
         if (helper != null) helpers.Add(helper);
         return helper;
