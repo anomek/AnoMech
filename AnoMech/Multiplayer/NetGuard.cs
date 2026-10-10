@@ -24,7 +24,7 @@ internal static class NetGuard
     public const int MaxSessionPeers = 64;
     public const uint MaxHp = 50_000_000;
     public const float MaxMitigationSeconds = 120f;
-    public const int MaxAnimationStateArg = 0xFFFF;
+    public const int MaxAnimationStateArg = byte.MaxValue;
 
     private const float MaxCoordinate = 4096f;
 

@@ -141,11 +141,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                         0))
             );
 
-            utils.Awaken(ultima, true);
-            utils.Awaken(garuda, false);
-            utils.Awaken(ifrit, false);
-            utils.Awaken(titan, false);
-
             state.ScenarioObjects.Titan = titan;
 
             for (int i = 0; i < dummies.Length; i++)
@@ -164,6 +159,15 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                     )
                 );
             }
+        });
+
+        // Once the engine has created the actors; an ActorControl sent before that is dropped.
+        world.Events.Add(0.5f, () =>
+        {
+            utils.Awaken(ultima, true);
+            utils.Awaken(garuda, false);
+            utils.Awaken(ifrit, false);
+            utils.Awaken(titan, false);
         });
     }
 

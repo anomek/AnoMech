@@ -23,6 +23,10 @@ public sealed class ActorControl
     private const uint ClearTetherCategory = 0x2F;
     private const uint ModeAttributeFlagsCategory = 0x31;
     private const uint TargetableCategory = 0x36;
+    private const uint AnimationStateCategory = 0x3E;
+    private const uint VoiceLineCategory = 0x46;
+    private const uint LimitBreakCastCategory = 0x47;
+    private const uint LimitBreakResolveCategory = 0x48;
     private const uint ModelStateCategory = 0x3F;
     private const uint WarpCategory = 0xF1;
     private const uint ActionTimelineCategory = 0x197;
@@ -69,45 +73,43 @@ public sealed class ActorControl
 
     public void PlayDeathAnimation() => Send(DeathAnimationCategory);
 
-    // Reveals an actor spawned SpawnVisibility.HiddenUntilPopIn; the server sends it 0.6–0.9s
-    // after the spawn. Timeline 0 = no animation, when an action fired in the same frame plays its
-    // own (UWU bomb boulder). Effect on our actors UNVERIFIED.
+    // Reveals an actor spawned SpawnVisibility.HiddenUntilPopIn; 
+    // Timeline 0 = no animation, in cases when an action fired in the same frame plays its own animation
     public void PopIn(ushort timelineId = SpecialPopTimeline) => Send(PopInCategory, timelineId != 0 ? 1u : 0u, timelineId);
 
-    // The corpse fades out; the server despawns the actor about 1.7s later.
     public void FadeCorpse() => Send(CorpseFadeCategory);
 
-    // The server despawns the actor 1.0–1.5s later; SimEnemy.FadeOut schedules that.
     public void FadeOut()
     {
         if (proxy() is { } chara) chara.ActorControl(FadeOutCategory, chara.EntityId, 1, 0, 100);
     }
 
-    // Drawn from this character to target, in tether slot 0. Every server tether carries
-    // p1 = 0 and p4 = 15; their meaning is UNVERIFIED.
     public void SetTether(ushort tetherId, GameObjectId target) => Send(SetTetherCategory, 0, tetherId, target.ObjectId, 15);
 
-    // Clears slot 0. The server sends it before every new tether on the same actor.
     public void ClearTether() => Send(ClearTetherCategory);
 
-    // A Lockon row; the marker's VFX plays out and removes itself.
     public void HeadMarker(uint lockonId)
     {
         if (proxy() is { } chara) chara.ActorControl(HeadMarkerCategory, lockonId, chara.EntityId);
     }
 
-    // The pose; the visible sub-meshes are ModeAttributeFlags. A model swap sends both.
     public void SetModelState(byte value) => Send(ModelStateCategory, value);
 
     public void SetModeAttributeFlags(byte value) => Send(ModeAttributeFlagsCategory, value);
 
+    public void SetAnimationState(byte slot, byte value) => Send(AnimationStateCategory, slot, value);
+
+    public void PlayVoiceLine(uint voiceLineId) => Send(VoiceLineCategory, voiceLineId);
+
+    public void LimitBreakCast(uint actionId, bool isUser) => Send(LimitBreakCastCategory, actionId, isUser ? 0u : 1u);
+
+    public void LimitBreakResolve(uint actionId, bool isUser, uint group)
+        => Send(LimitBreakResolveCategory, actionId, isUser ? 0u : 1u, group);
+
     public void SetTargetable(bool targetable) => Send(TargetableCategory, targetable ? 1u : 0u);
 
-    // A one-shot; the packet has no loop id.
     public void PlayActionTimeline(ushort timelineId) => Send(ActionTimelineCategory, timelineId);
 
-    // The client plays the timeline and lands the character on the destination ~1.0s later,
-    // however far it is. The high half of p3 is always 1 in retail; its meaning is UNVERIFIED.
     public void CarryTo(Vector3 worldDestination, float rotation)
     {
         var position = ((uint)MathUtil.QuantizePosition(worldDestination.X) << 16) | MathUtil.QuantizePosition(worldDestination.Y);

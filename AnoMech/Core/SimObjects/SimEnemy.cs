@@ -515,16 +515,15 @@ public sealed class SimEnemy : SimNpc
 
     internal string DescribeDrawState() => Proxy?.DescribeDrawState() ?? "no BattleChara";
 
-    // Same as AnimationTimelineId for a raw SetAnimationState call, which has no replication
-    // path of its own.
-    public (int Arg2, int Arg3)? AnimationState { get; private set; }
+    // Edge-tracked like AnimationTimelineId, and sampled for peers.
+    public (byte Slot, byte Value)? AnimationState { get; private set; }
     public int AnimationStateSeq { get; private set; }
 
-    public void SetAnimationState(int arg2, int arg3)
+    public void SetAnimationState(byte slot, byte value)
     {
-        AnimationState = (arg2, arg3);
+        AnimationState = (slot, value);
         AnimationStateSeq++;
-        Proxy?.SetAnimationState(arg2, arg3);
+        ActorControl.SetAnimationState(slot, value);
     }
 
     // Authoritative draw state (DrawObject.Flags bits 0 and 3, set by Enable/DisableDraw).

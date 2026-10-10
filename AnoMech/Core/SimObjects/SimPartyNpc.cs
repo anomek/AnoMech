@@ -33,14 +33,15 @@ public sealed class SimPartyNpc : SimNpc, ISimPartyMember
         return true;
     }
 
-    // level 1-3. False if KO'd, mitigation is not required, or the job has no limit break at that level.
-    internal bool UseLimitBreak(int level)
+    // level 1-3. The action id used; 0 if KO'd, mitigation is not required, or the job has no limit
+    // break at that level.
+    internal uint UseLimitBreak(int level)
     {
-        if (!this.IsAlive() || ActionsLocked) return false;
+        if (!this.IsAlive() || ActionsLocked) return 0;
         var actionId = LimitBreakHandler.ActionId(ClassJob, level);
-        if (actionId == 0 || !UseAction(actionId)) return false;
+        if (actionId == 0 || !UseAction(actionId)) return 0;
         DiagnosticLog.Info($"[SimPartyNpc] {Role} (job {ClassJob}) uses LB{level} {ActionLookup.Name(actionId)}.");
-        return true;
+        return actionId;
     }
 
     public void UseSprint(float duration)

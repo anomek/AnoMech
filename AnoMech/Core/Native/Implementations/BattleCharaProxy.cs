@@ -274,12 +274,6 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         return scheduler == null ? 0 : scheduler->LoadTimelineResources();
     }
 
-    public void SetAnimationState(int arg2, int arg3)
-    {
-        var obj = Ptr;
-        if (obj != null) TimelineContainerPointers.SetAnimationState(&obj->Timeline, arg2, arg3);
-    }
-
 
     // ── Casting ──────────────────────────────────────────────────────────────
 

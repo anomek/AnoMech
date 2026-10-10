@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.UserActions;
 using AnoMech.Scenarios;
 
 namespace AnoMech.Core.SimObjects;
@@ -41,8 +42,9 @@ public sealed class SimParty : ISimObject
             DiagnosticLog.Info($"[SimParty] {role} limit break skipped: no bar is filled.");
             return false;
         }
-        if (!bot.UseLimitBreak(level)) return false;
-        LimitBreak.Spend();
+        var actionId = bot.UseLimitBreak(level);
+        if (actionId == 0) return false;
+        LimitBreakHandler.Resolve(this, bot, actionId);
         return true;
     }
 
@@ -174,7 +176,6 @@ public sealed class SimParty : ISimObject
                 slots[i] = null;
             }
         }
-        LimitBreak.Tick();
     }
 
     // The whole party, the local player included, is in combat for the whole run.

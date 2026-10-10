@@ -174,6 +174,7 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
             pendingTarget = targetId;
             pendingTotal = bc->CastInfo.TotalCastTime;
             pendingMax = bc->CastInfo.CurrentCastTime;
+            foreach (var handler in effectHandlers) handler.OnCastStart(actionType, actionId);
         }
         else
         {

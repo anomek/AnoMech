@@ -78,17 +78,6 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
         SyncInputLock();
     }
 
-    // The client's own prediction runs the whole cast; this only counts it as activity for
-    // stillness mechanics.
-    public bool IsLimitBreaking
-    {
-        get
-        {
-            var chara = Proxy;
-            return chara.IsCasting && LimitBreakHandler.IsLimitBreak(chara.CastActionId);
-        }
-    }
-
     private void SampleActivity()
     {
         var hooks = Natives.PlayerInput;
@@ -101,9 +90,9 @@ public sealed class SimPlayer(Coordinates coordinates) : SimCharacter(coordinate
             return;
         }
         IsMoving = hooks.MovementInputActive || actedThisFrame || hooks.IsJumping || Movement.IsMoving;
-        // A limit break casts for seconds, and an Acceleration Bomb landing in that window has
-        // caught the player acting, exactly as it would in the fight.
-        IsActing = IsMoving || hooks.IsAutoAttacking || IsLimitBreaking;
+        // The press is one frame, but the whole cast bar counts: an Acceleration Bomb landing
+        // mid-cast catches the player acting, exactly as it would in the fight.
+        IsActing = IsMoving || hooks.IsAutoAttacking || Proxy.IsCasting;
     }
 
     public void OnKilled()

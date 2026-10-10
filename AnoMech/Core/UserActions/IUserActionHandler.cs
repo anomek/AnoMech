@@ -15,6 +15,9 @@ internal interface IUserActionHandler
     // Same, for a handler that needs who the action was aimed at.
     void OnAction(ActionType actionType, uint actionId, ulong targetId) => OnAction(actionType, actionId);
 
+    // A player action began a cast bar; its OnAction follows only if the cast completes.
+    void OnCastStart(ActionType actionType, uint actionId) { }
+
     // A scenario started — reset cooldowns/gauges the server would otherwise track.
     void OnScenarioStart() { }
 

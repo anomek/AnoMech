@@ -203,11 +203,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
             titan?.AddStatusParam(StatusId.Woken, 0);
 
-            utils.Awaken(ultima!, true);
-            utils.Awaken(garuda!, false);
-            utils.Awaken(ifrit!, false);
-            utils.Awaken(titan!, false);
-
             chirada = world.SpawnEnemy(
                 new EnemySpawnConfig(
                     BNpcBaseId: BNpcBaseId.SuparnaChirada,
@@ -256,6 +251,15 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
             mt?.AddStatus(StatusId.ThermalLow);
             healer?.AddStatus(StatusId.ThermalLow);
+        });
+
+        // Once the engine has created the actors; an ActorControl sent before that is dropped.
+        world.Events.Add(0.5f, () =>
+        {
+            utils.Awaken(ultima, true);
+            utils.Awaken(garuda, false);
+            utils.Awaken(ifrit, false);
+            utils.Awaken(titan, false);
         });
     }
 

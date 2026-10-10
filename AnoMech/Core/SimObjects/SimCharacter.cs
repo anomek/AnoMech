@@ -358,6 +358,8 @@ public abstract class SimCharacter(Coordinates coordinates) : ISimObject, IPosit
 
     internal void ResetActionTimelineNative() => Proxy?.ResetActionTimeline();
 
+    public void VoiceLine(uint voiceLineId) => ActorControl.PlayVoiceLine(voiceLineId);
+
     public virtual void SetTargetable(bool targetable) => ActorControl.SetTargetable(targetable);
 
     public virtual void CarryTo(Vector3 destination) => ActorControl.CarryTo(Coordinates.ToGlobal(destination), Rotation);

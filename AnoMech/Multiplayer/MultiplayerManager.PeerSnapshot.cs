@@ -228,7 +228,7 @@ public sealed partial class MultiplayerManager
                 peerEnemyAnimationState[e.NetId] = e.AnimationStateSeq;
                 DiagnosticLog.Info($"[Multiplayer] Peer: enemy NetId {e.NetId} (BNpcBase {e.BNpcBaseId}) AnimationState -> ({arg2},{arg3}) (seq {e.AnimationStateSeq}).");
                 if (arg2 is >= 0 and <= NetGuard.MaxAnimationStateArg && arg3 is >= 0 and <= NetGuard.MaxAnimationStateArg)
-                    enemy.SetAnimationState(arg2, arg3);
+                    enemy.SetAnimationState((byte)arg2, (byte)arg3);
             }
         }
         foreach (var staleId in peerEnemies.Keys.Where(id => !seenEnemyIds.Contains(id)).ToList())

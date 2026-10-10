@@ -84,7 +84,6 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     public void SetSlotTimeline(uint slot, ushort timelineId) { }
     public void PlayTimelineDirect(ushort timelineId) { }
     public ulong LoadBaseTimelineResources() => 0;
-    public void SetAnimationState(int arg2, int arg3) { }
 
     // ── Casting ──────────────────────────────────────────────────────────────
 

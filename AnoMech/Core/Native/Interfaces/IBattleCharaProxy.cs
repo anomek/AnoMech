@@ -65,8 +65,6 @@ public interface IBattleCharaProxy
     // 0 when slot 0 has no scheduler timeline.
     ulong LoadBaseTimelineResources();
 
-    void SetAnimationState(int arg2, int arg3);
-
     // ── Casting ──────────────────────────────────────────────────────────────
 
     bool IsCasting { get; }
