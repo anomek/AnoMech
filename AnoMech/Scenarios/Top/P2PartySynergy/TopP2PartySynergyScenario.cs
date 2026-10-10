@@ -26,7 +26,7 @@ public sealed class TopP2PartySynergyScenario : IMultiplayerReplayable
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly TopP2PartySynergySettingsWindow settingsWindow = new();
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP2PartySynergyAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP2PartySynergyAi(), new TopP2PartySynergyLpduAi()];
 
     private SimWorld world = null!;
     private SimParty party = null!;
