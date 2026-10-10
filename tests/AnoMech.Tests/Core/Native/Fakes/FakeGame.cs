@@ -33,7 +33,7 @@ internal sealed class FakeGame
         Natives.Rsv = rsv;
         Natives.Rsf = new FakeRsfFunctions();
         Natives.PartyHud = new FakePartyHud();
-        Natives.EnmityHud = new FakeEnmityHud();
+        Natives.HaterList = new FakeHaterList();
         Natives.LimitBreak = new FakeLimitBreakController();
         Natives.Markings = new FakeMarkings();
         Natives.Waymarks = new FakeWaymarks();

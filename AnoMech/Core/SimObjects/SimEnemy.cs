@@ -31,7 +31,7 @@ public enum SpawnVisibility : uint
     InvisibleHelper = 0x40008,
 }
 
-// Whether a SimEnemy shows in the _EnemyList HUD (read each frame by EnmityHud.Refresh).
+// Whether a SimEnemy shows in the _EnemyList HUD (sent in the Hater packet by EnemyList).
 // Always          — listed while alive.
 // OnlyWhenVisible — follows the engine's DrawObject.IsVisible; for adds that warp
 //                   in/out. Transforming bosses use Always.

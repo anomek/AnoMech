@@ -22,6 +22,7 @@ public sealed class SimWorld : ISimObject, IDisposable
 {
     // Ownership
     private readonly List<ISimObject> children = new();
+    private readonly EnemyList enemyList = new();
 
     // Zone loading and map effects entry point.
     public MapController Map { get; } = new();
@@ -114,9 +115,9 @@ public sealed class SimWorld : ISimObject, IDisposable
     // many party members stand within `radius` of the EObj (counts past the
     // array length clamp to the last entry). Bound to the current Party so AI
     // and scenario movement drive the visual.
-    public SimTower? SpawnTower(EventObjectSpawnConfig config, ushort[] states, float radius)
+    public SimTower? SpawnTower(EventObjectSpawnConfig config, ushort[] states, uint stateUnk, float radius)
     {
-        var tower = SimTower.Spawn(config, Coordinates, Events, states, radius, Party);
+        var tower = SimTower.Spawn(config, Coordinates, Events, states, stateUnk, radius, Party);
         if (tower != null) children.Add(tower);
         return tower;
     }
@@ -211,7 +212,7 @@ public sealed class SimWorld : ISimObject, IDisposable
         Natives.VfxSpawnLog.Tick();
         Natives.BattleCharas.SweepOrphans();
         children.Update(deltaSeconds);
-        Natives.EnmityHud.Refresh(children.OfType<SimEnemy>(), deltaSeconds);
+        enemyList.Tick(children.OfType<SimEnemy>(), deltaSeconds);
         Natives.PartyHud.Refresh(Party);
     }
 
@@ -219,7 +220,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     {
         children.Despawn();
         Party = SimParty.Empty;
-        Natives.EnmityHud.Clear();
+        enemyList.Clear();
         Natives.PartyHud.Clear();
         Natives.Markings.ClearAll();
         Natives.Waymarks.ClearAll();

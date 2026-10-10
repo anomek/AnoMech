@@ -58,7 +58,7 @@ communicate that with user and try to verify first.
 - **Projects.** `AnoMech/` (the plugin), `AnoMech.Relay/` (multiplayer relay library: wire format
   in `Network/`, server in `Server/`), `AnoMech.Relay.Host/` (standalone relay exe + Dockerfile).
 - **Frame loop.** `Plugin.OnFrameworkUpdate` → `Game.Tick` (`Core/Game/Game.cs`) → `EventScheduler`
-  (scaled by `EventTimeScale`) → `SimWorld.Tick` (map, children, then `EnmityHud` / `PartyHud`
+  (scaled by `EventTimeScale`) → `SimWorld.Tick` (map, children, then `EnemyList` / `PartyHud`
   refresh). All on the Framework thread. `EventTimeScale` only scales the scheduler; casts,
   animation, movement and statuses run at real time.
 - **`Core/SimObjects/`** — in-world entities (`SimWorld` root, `SimCharacter` / `SimEnemy` /

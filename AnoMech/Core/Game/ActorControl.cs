@@ -27,10 +27,14 @@ public sealed class ActorControl
     private const uint VoiceLineCategory = 0x46;
     private const uint LimitBreakCastCategory = 0x47;
     private const uint LimitBreakResolveCategory = 0x48;
+    private const uint WallDeathCategory = 0x50;
     private const uint ModelStateCategory = 0x3F;
+    private const uint GimmickJumpCategory = 0xDC;
+    private const uint SlideCategory = 0xDF;
     private const uint WarpCategory = 0xF1;
     private const uint ActionTimelineCategory = 0x197;
     private const uint FadeOutCategory = 0x25F;
+    private const uint TransformCategory = 0x5FB;
 
     // 1 = ActionType Action.
     private const uint ActionTypeAction = 1;
@@ -40,6 +44,9 @@ public sealed class ActorControl
 
     // ActionTimeline pc_contentsaction/force_warp.
     private const ushort ForceWarpTimeline = 6192;
+
+    // ActionTimeline pc_contentsaction/icefloor_short.
+    private const ushort IceFloorShortTimeline = 3788;
 
     // The server numbers every warp in the instance, counting up by one.
     private static uint warpSequence;
@@ -73,6 +80,10 @@ public sealed class ActorControl
 
     public void PlayDeathAnimation() => Send(DeathAnimationCategory);
 
+    // Retail sends it only for deaths no action dealt (death wall, falling off), never for
+    // a mechanic's hit. What the client does with it is UNVERIFIED.
+    public void WallDeath(uint health) => Send(WallDeathCategory, health);
+
     // Reveals an actor spawned SpawnVisibility.HiddenUntilPopIn; 
     // Timeline 0 = no animation, in cases when an action fired in the same frame plays its own animation
     public void PopIn(ushort timelineId = SpecialPopTimeline) => Send(PopInCategory, timelineId != 0 ? 1u : 0u, timelineId);
@@ -97,6 +108,10 @@ public sealed class ActorControl
 
     public void SetModeAttributeFlags(byte value) => Send(ModeAttributeFlagsCategory, value);
 
+    // Plays the NPC's transformation into a BNpcState row. Retail sends the end state's 0x31 / 0x3F
+    // separately on the same tick.
+    public void Transform(uint bnpcStateId) => Send(TransformCategory, bnpcStateId);
+
     public void SetAnimationState(byte slot, byte value) => Send(AnimationStateCategory, slot, value);
 
     public void PlayVoiceLine(uint voiceLineId) => Send(VoiceLineCategory, voiceLineId);
@@ -115,5 +130,22 @@ public sealed class ActorControl
         var position = ((uint)MathUtil.QuantizePosition(worldDestination.X) << 16) | MathUtil.QuantizePosition(worldDestination.Y);
         var facing = ((uint)MathUtil.QuantizePosition(worldDestination.Z) << 16) | MathUtil.QuantizeRotation(rotation);
         Send(WarpCategory, position, facing, 0x10000u | ForceWarpTimeline, ++warpSequence);
+    }
+
+    // Launches the character through the air to the destination. The GimmickJump row picks height and
+    // loop/landing motions; 5 is UMAD's Death Bomb launch. Unk has no visible effect.
+    public void GimmickJump(Vector3 worldDestination, uint gimmickJumpId = 5, uint unk = 151)
+    {
+        var position = ((uint)MathUtil.QuantizePosition(worldDestination.X) << 16) | MathUtil.QuantizePosition(worldDestination.Y);
+        Send(GimmickJumpCategory, position, MathUtil.QuantizePosition(worldDestination.Z), gimmickJumpId, unk);
+    }
+
+    // Slides the character in a straight line to the destination, as on FRU's Frost Armor ice.
+    // Rotation is the facing during the slide, which retail sets to the slide's direction.
+    public void Slide(Vector3 worldDestination, float rotation, ushort timelineId = IceFloorShortTimeline, uint unk = 1)
+    {
+        var position = ((uint)MathUtil.QuantizePosition(worldDestination.X) << 16) | MathUtil.QuantizePosition(worldDestination.Y);
+        var facing = ((uint)MathUtil.QuantizePosition(worldDestination.Z) << 16) | MathUtil.QuantizeRotation(rotation);
+        Send(SlideCategory, position, facing, unk, timelineId);
     }
 }

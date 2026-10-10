@@ -90,6 +90,9 @@ public static class TopConstants
         public const uint TowerTimer = 2013244;
         public const uint TowerSolo = 2013245;
         public const uint TowerPair = 2013246;
+
+        // EObjSetState p2 for both towers.
+        public const uint TowerStateUnk = 0x800503FE;
     }
 
     public static class ActionId

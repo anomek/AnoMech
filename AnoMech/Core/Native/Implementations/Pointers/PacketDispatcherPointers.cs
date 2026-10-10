@@ -37,6 +37,22 @@ public partial struct UpdateClassInfoPacket
     [FieldOffset(0xC)] public uint BaseRestedExperience;
 }
 
+[StructLayout(LayoutKind.Explicit, Size = 0x8)]
+public struct HaterPacketEntry
+{
+    [FieldOffset(0x0)] public uint EntityId;
+    [FieldOffset(0x4)] public byte Enmity;
+}
+
+[StructLayout(LayoutKind.Explicit, Size = 0x108)]
+public struct HaterPacket
+{
+    public const int Capacity = 32;
+    public const int EntriesOffset = 0x4;
+
+    [FieldOffset(0x0)] public byte Count;
+}
+
 internal unsafe class PacketDispatcherPointers
 {
     [Signature("40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
@@ -52,10 +68,14 @@ internal unsafe class PacketDispatcherPointers
     [Signature("48 89 5C 24 ?? 57 48 83 EC 20 48 8B DA 48 8D 0D ?? ?? ?? ?? 33", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
     public static HandleUpdateClassInfoPacketDelegate HandleUpdateClassInfoPacket { get; private set; } = null!;
 
+    [Signature("48 89 74 24 ?? 57 48 83 EC ?? 0F B6 02 33 F6 89 05 ?? ?? ?? ?? 48 8B FA 40 38 32", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static HandleUpdateHaterPacketDelegate HandleUpdateHaterPacket { get; private set; } = null!;
+
     public delegate void HandleActorCastPacketDelegate(uint entityId, ActorCastPacket* packet);
     public delegate void HandleDespawnObjectPacketDelegate(uint unused, byte* packet);
     public delegate void HandleDespawnCharacterPacketDelegate(ulong unused, DespawnCharacterPacket* packet);
     public delegate void HandleUpdateClassInfoPacketDelegate(ulong unused, UpdateClassInfoPacket* packet);
+    public delegate void HandleUpdateHaterPacketDelegate(ulong unused, HaterPacket* packet);
 
     public static void Initialize()
     {

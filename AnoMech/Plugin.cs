@@ -72,7 +72,6 @@ public sealed class Plugin : IDalamudPlugin
     // The native implementations behind Natives that hold hooks or game state to hand back.
     private ZoneSession? zoneSession;
     private MapEffects? mapEffects;
-    private EnmityHud? enmityHud;
     private Bgm? bgm;
     private VfxSpawnLog? vfxSpawnLog;
     private OpcodeUpdater? opcodeUpdater;
@@ -183,7 +182,7 @@ public sealed class Plugin : IDalamudPlugin
         Natives.Rsv = new RsvFunctions();
         Natives.Rsf = new RsfFunctions();
         Natives.PartyHud = new PartyHud();
-        Natives.EnmityHud = enmityHud = new EnmityHud();
+        Natives.HaterList = new HaterList();
         Natives.LimitBreak = new LimitBreakController();
         Natives.Markings = new Markings();
         Natives.Waymarks = new Waymarks();
@@ -230,7 +229,6 @@ public sealed class Plugin : IDalamudPlugin
         Game?.Dispose();
         // After Game.Dispose, whose World teardown still writes through them.
         bgm?.Dispose();
-        enmityHud?.Dispose();
         mapEffects?.Dispose();
         zoneSession?.Dispose();
         opcodeUpdater?.Dispose();

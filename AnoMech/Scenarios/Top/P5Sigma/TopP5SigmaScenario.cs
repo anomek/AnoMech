@@ -254,9 +254,9 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
             var tower = state.Towers[i];
             if (tower == null) continue;
             var eObjId = tower.MinPlayers == 1 ? EObjId.TowerSolo : EObjId.TowerPair;
-            ushort[] stateIds = tower.MinPlayers == 1 ? [1, 16] : [1, 16, 32];
+            ushort[] stateIds = tower.MinPlayers == 1 ? [0x8, 0x10] : [0x8, 0x10, 0x20];
             SimEventObject? eventObj_1EB83E_4000A6E8 = null;
-            world.Events.Add(33.96f, () => eventObj_1EB83E_4000A6E8 = world.SpawnTower(new EventObjectSpawnConfig { EObjId = eObjId, Placement = new Placement(tower.Position, -0.000f), SpawnVisible = false }, stateIds, Geometry.TowerRadius));
+            world.Events.Add(33.96f, () => eventObj_1EB83E_4000A6E8 = world.SpawnTower(new EventObjectSpawnConfig { EObjId = eObjId, Placement = new Placement(tower.Position, -0.000f), SpawnVisible = false }, stateIds, EObjId.TowerStateUnk, Geometry.TowerRadius));
             world.Events.Add(34.02f, () => eventObj_1EB83E_4000A6E8?.SetVisible(true));
             world.Events.Add(43.66f, () => eventObj_1EB83E_4000A6E8?.Despawn());
         }

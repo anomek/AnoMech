@@ -51,7 +51,11 @@ internal sealed unsafe class ActorControlDebug
         new("0x3E AnimationState (slot, value)", 0x3E, "0", "1"),
         new("0x3F ModelState (value)", 0x3F, "0"),
         new("0x46 voice line (FRU Twin Stillness)", 0x46, "8205521"),
+        new("0x50 wall death (health)", 0x50, "100000"),
+        new("0xDC gimmick jump (xy, z, GimmickJump row 5, 151) -- UMAD arena north",0xDC, "0x8CD57FFF", "0x8B68", "5", "151"),
+        new("0xDF slide (xy, z|rot, 1, icefloor_short) -- FRU arena NE", 0xDF, "0x8E3D7FFF", "0x8B80DFE5", "1", "3788"),
         new("0x197 action timeline (id)", 0x197, "7737"),
+        new("0x5FB transform (BNpcState row) -- FRU P4 Usurper", 0x5FB, "45"),
         new("0x25F prop fade (self, 1, 0, 100)", 0x25F, "self", "1", "0", "100"),
         new("0x25F prop fade (self, 5, 3, 100)", 0x25F, "self", "5", "3", "100"),
     ];

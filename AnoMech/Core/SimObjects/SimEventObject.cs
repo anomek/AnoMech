@@ -222,6 +222,10 @@ public class SimEventObject : ISimObject, IPositioned
         obj?.ActorControl(607, obj.EntityId, 1, 0, 100);
     }
 
+    // ActorControl 409 (EObjSetState). Unk is constant per EObj kind in retail (0x8005xxxx); its
+    // meaning is unknown, so pass the replay's value.
+    public void EObjSetState(ushort state, uint unk) => obj?.ActorControl(409, state, unk);
+
     public uint LastDirectorState { get; private set; }
     public int DirectorModSeq { get; private set; }
 
