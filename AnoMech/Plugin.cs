@@ -200,8 +200,8 @@ public sealed class Plugin : IDalamudPlugin
         }
         finally
         {
-            // Dalamud disposes this plugin's hooks once Dispose returns or throws, so a sim must be
-            // reverted by then even when a step above threw. A no-op after a clean Game.Dispose.
+            // Dalamud disposes this plugin's hooks once Dispose returns or throws, so a run must be
+            // stopped or lifted by then even when a step above threw. A no-op after a clean Game.Dispose.
             ZoneSession.Current?.Dispose();
         }
 

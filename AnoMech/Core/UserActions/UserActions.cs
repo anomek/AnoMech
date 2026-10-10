@@ -112,6 +112,9 @@ public sealed unsafe class UserActions : IUserActions, IDisposable
     // module is enabled/disabled part-way through the session.
     public void OnSessionStart()
     {
+        // The lift rewinds the sequence to here, so a number the last session processed comes again.
+        var am = ActionManager.Instance();
+        if (am != null) processedSeq = am->LastUsedActionSequence;
         var jgm = JobGaugeManager.Instance();
         if (jgm == null) return;
         snapshotJob = jgm->ClassJobId;
