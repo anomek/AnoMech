@@ -120,4 +120,54 @@ public class RelayWireTests
     [TestCase("ws://203.0.113.5:7890", "ws://203.0.113.5:7890")]
     public void RelayOriginsAreCanonical(string url, string origin)
         => Assert.That(RelayWire.Origin(url), Is.EqualTo(origin));
+
+    [Test]
+    public void EachRelayOfAGroupIssuesOnlyItsOwnCodes()
+    {
+        for (var server = 0; server < RelayWire.CodeServers; server++)
+            for (var i = 0; i < 100; i++)
+            {
+                var code = RelayWire.NewCode(server);
+                Assert.That(RelayWire.IsValidCode(code) && RelayWire.CodeServer(code) == server, $"{code} from relay {server}");
+            }
+    }
+
+    // A gap would shrink a relay's share of codes below 32^5, or make its codes guessable.
+    [Test]
+    public void GroupedCodesStayRandomInEveryPosition()
+    {
+        var codes = Enumerable.Range(0, 3000).Select(_ => RelayWire.NewCode(5)).ToList();
+        for (var position = 0; position < RelayWire.CodeLength; position++)
+            Assert.That(codes.Select(c => c[position]).Distinct().Count(), Is.EqualTo(RelayWire.CodeAlphabet.Length), $"position {position}");
+        Assert.That(Enumerable.Range(0, 3000).Select(_ => RelayWire.CodeServer(RelayWire.NewCode())).Distinct().Count(), Is.EqualTo(RelayWire.CodeServers),
+            "a relay outside a group issues codes for every number");
+    }
+
+    [Test]
+    public void CodeNamesItsRelayBySumOfAlphabetPositions()
+    {
+        Assert.That(RelayWire.CodeServer("AAAAAA"), Is.Zero);
+        Assert.That(RelayWire.CodeServer("AAAAAB"), Is.EqualTo(1));
+        Assert.That(RelayWire.CodeServer("999999"), Is.EqualTo(6 * 31 % 32));
+        Assert.That(RelayWire.IsValidCode("ABCDE0"), Is.False, "ambiguous characters are outside the alphabet");
+    }
+
+    // What lets a client catch most typos without asking any relay; swapping two characters
+    // keeps the sum, so that one only the relay can catch.
+    [Test]
+    public void OneMistypedCharacterAlwaysNamesAnotherRelay()
+    {
+        var code = RelayWire.NewCode(3);
+        for (var position = 0; position < RelayWire.CodeLength; position++)
+            foreach (var typo in RelayWire.CodeAlphabet.Where(c => c != code[position]))
+                Assert.That(RelayWire.CodeServer(code[..position] + typo + code[(position + 1)..]), Is.Not.EqualTo(3));
+    }
+
+    [Test]
+    public void MovedReasonNamesTheRelay()
+    {
+        Assert.That(RelayWire.MovedTo(RelayWire.MovedPrefix + "wss://de.example.com"), Is.EqualTo("wss://de.example.com"));
+        Assert.That(RelayWire.MovedTo("session not found"), Is.Null);
+        Assert.That(RelayWire.MovedTo(null), Is.Null);
+    }
 }

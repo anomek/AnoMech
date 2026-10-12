@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using AnoMech.Network;
 
 namespace AnoMech.Relay;
 
@@ -92,6 +94,11 @@ public sealed record RelayOptions
     public List<IPNetwork> TrustedProxies { get; set; } = new();
     public string ClientIpHeader { get; set; } = "X-Forwarded-For";
 
+    // Set together on a relay run as one of a group (RelayGroup): its own number, and every
+    // member, itself included. A relay outside a group issues and serves every code.
+    public int? GroupNumber { get; set; }
+    public List<RelayGroupMember> Group { get; set; } = new();
+
     public const int MinTokenLength = 16;
 
     // Null when the options are usable. The relay refuses to start rather than just warn:
@@ -113,6 +120,11 @@ public sealed record RelayOptions
                    "<cidr> naming the reverse proxy that terminates it (e.g. --trusted-proxy 127.0.0.1/32 " +
                    "for a local Caddy/nginx). Without it, X-Forwarded-Proto could be spoofed by anyone " +
                    "who can reach this port directly. See AnoMech.Relay.Host/README.md.";
+
+        if (Group.Count > 0 && RelayGroup.Validate(Group) is { } invalidGroup)
+            return $"--relays: {invalidGroup}";
+        if ((GroupNumber is null) != (Group.Count == 0) || (GroupNumber is { } number && Group.All(m => m.Number != number)))
+            return "--relay-number and --relays go together, and the number has to be one listed in the --relays file.";
 
         return null;
     }

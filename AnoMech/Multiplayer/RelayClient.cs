@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -18,7 +19,18 @@ namespace AnoMech.Multiplayer;
 // The relay rejected the connection with a close frame right after the upgrade (see
 // ReadGreetingAsync), almost always "session not found" after a relay restart. Retrying the
 // same code can never succeed, so the reconnect loop gives up instead of backing off forever.
-internal sealed class RelaySessionRejectedException(string reason) : Exception(reason);
+// MovedTo: the server in the relay's group that holds the session (RelayWire.MovedTo).
+internal sealed class RelaySessionRejectedException(string reason, string? movedTo = null) : Exception(reason)
+{
+    public string? MovedTo { get; } = movedTo;
+}
+
+// A server's /info. Server and Group are set on a relay run as one of a group (RelayGroups).
+internal sealed record RelayInfo(int RelayVersion, bool RequiresToken, int? Server, RelayGroupMember[]? Group)
+{
+    // Came over https, which the server itself can't vouch for.
+    [JsonIgnore] public bool Encrypted { get; init; }
+}
 
 // ClientWebSocket wrapper for AnoMech.Relay (AnoMech.Relay.Host/README.md). The relay forwards bodies
 // unread, prefixed with who sent them (RelayWire.Envelope): the identity it derived from that
@@ -141,21 +153,18 @@ public sealed class RelayClient(string peerSecret) : IDisposable
         ];
     }
 
-    private sealed record RelayInfo(int RelayVersion, string[]? Capabilities, bool RequiresToken);
-
     private static readonly HttpClient InfoHttpClient = new() { Timeout = TimeSpan.FromSeconds(5), MaxResponseContentBufferSize = 64 * 1024 };
 
     // Plain HTTP, so the UI can learn whether a relay needs a token before the user has one.
     // Null = unreachable or an old relay without /info; callers assume no token needed.
-    public static async Task<(int RelayVersion, bool RequiresToken)?> FetchInfoAsync(string relayUrl, CancellationToken ct = default)
+    internal static async Task<RelayInfo?> FetchInfoAsync(string relayUrl, CancellationToken ct = default)
     {
         foreach (var uri in ResolveInfoCandidateUris(relayUrl))
         {
             try
             {
                 var json = await InfoHttpClient.GetStringAsync(uri, ct).ConfigureAwait(false);
-                var info = JsonSerializer.Deserialize<RelayInfo>(json, JsonOptions);
-                if (info != null) return (info.RelayVersion, info.RequiresToken);
+                if (JsonSerializer.Deserialize<RelayInfo>(json, JsonOptions) is { } info) return info with { Encrypted = uri.Scheme == Uri.UriSchemeHttps };
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
@@ -265,7 +274,12 @@ public sealed class RelayClient(string peerSecret) : IDisposable
             // /session/<code> or /host arrives here as a close frame. Surfaced distinctly so the
             // reconnect loop can tell "give up" from "keep retrying".
             if (result.MessageType == WebSocketMessageType.Close)
-                throw new RelaySessionRejectedException(socket.CloseStatusDescription ?? "the relay closed the connection");
+            {
+                var reason = socket.CloseStatusDescription ?? "the relay closed the connection";
+                throw RelayWire.MovedTo(reason) is { } movedTo
+                    ? new RelaySessionRejectedException("the session is on another server", movedTo)
+                    : new RelaySessionRejectedException(reason);
+            }
             if (result.MessageType != WebSocketMessageType.Text || message.Length + result.Count > 4096 || ++fragments > 16)
                 throw new RelaySessionRejectedException("The relay sent an invalid greeting.");
             message.Write(buffer, 0, result.Count);

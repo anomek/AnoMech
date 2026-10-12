@@ -63,6 +63,19 @@ public sealed partial class MultiplayerManager
             if (!ReferenceEquals(relay, source)) return;
             source.Dispose();
             relay = null;
+            if (IsHost && SessionCode == null && hostFallbacks.TryDequeue(out var next))
+            {
+                DiagnosticLog.Warn($"[Multiplayer] Couldn't host at {RelayUrl} ({failure?.Message}) -- trying {next}.");
+                HostSessionCore(next);
+                return;
+            }
+            if (!IsHost && !everHeardFromHost && !joinRedirected && SessionCode != null
+                && failure is RelaySessionRejectedException { MovedTo: { } movedTo } && RelayGroup.IsRelayAddress(movedTo))
+            {
+                DiagnosticLog.Info($"[Multiplayer] Session {SessionCode} is at {movedTo} -- joining there.");
+                JoinSessionCore(movedTo, SessionCode, redirected: true);
+                return;
+            }
             disconnectedSinceMs ??= Environment.TickCount64;
             if (failure != null)
             {

@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using AnoMech.Network;
 
 namespace AnoMech.Relay;
 
@@ -63,6 +64,24 @@ internal static class Program
         {
             if (RelayOptions.TryParseNetwork(cidr, out var network)) options.TrustedProxies.Add(network);
             else { Console.Error.WriteLine($"--trusted-proxy: '{cidr}' isn't a valid CIDR (e.g. 127.0.0.1/32 or ::1/128)."); return; }
+        }
+        if (GetArg(args, "--relay-number") is { } relayNumber)
+        {
+            if (!int.TryParse(relayNumber, out var number))
+            {
+                Console.Error.WriteLine($"--relay-number: '{relayNumber}' isn't a number.");
+                return;
+            }
+            options.GroupNumber = number;
+        }
+        if (GetArg(args, "--relays") is { } groupFile)
+        {
+            try { options.Group = RelayGroup.Parse(File.ReadAllText(groupFile)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+            {
+                Console.Error.WriteLine($"--relays: couldn't read '{groupFile}': {e.Message}");
+                return;
+            }
         }
 
         if (options.Validate() is { } invalid)

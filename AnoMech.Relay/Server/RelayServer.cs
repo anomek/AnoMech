@@ -10,6 +10,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -62,7 +63,7 @@ public sealed class RelayServer : IAsyncDisposable
     // bodies beyond the host's relayControl frames.
     private const int RelayVersion = RelayWire.Version;
     private static readonly string[] RelayCapabilities = ["binaryCompression", "authenticatedIdentity", "roomModeration"];
-    private static readonly string RelayCapabilitiesJson = string.Join(",", RelayCapabilities.Select(c => $"\"{c}\""));
+    private static readonly JsonSerializerOptions InfoJson = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     // A room idle this long is considered abandoned (crashed host, dead sockets that never
     // closed cleanly). Comfortably above MultiplayerManager's 2s ping, so any live host
@@ -122,7 +123,7 @@ public sealed class RelayServer : IAsyncDisposable
 
     public RelayServer(RelayOptions options, IRelayLog log)
     {
-        this.options = options with { TrustedProxies = [.. options.TrustedProxies] };
+        this.options = options with { TrustedProxies = [.. options.TrustedProxies], Group = [.. options.Group] };
         this.log = log;
         rooms = new RelayRooms(this.options);
     }
@@ -146,6 +147,8 @@ public sealed class RelayServer : IAsyncDisposable
         log.Info(options.TrustedProxies.Count == 0
             ? "[AnoMech.Relay] No --trusted-proxy set: client addresses are read from the transport only, and forwarded headers are ignored."
             : $"[AnoMech.Relay] Trusting {options.ClientIpHeader} / X-Forwarded-Proto from: {string.Join(", ", options.TrustedProxies)}.");
+        if (options.GroupNumber is { } number)
+            log.Info($"[AnoMech.Relay] Relay {number} of a group of {options.Group.Count}: a join for another member's code is sent there.");
         log.Info($"[AnoMech.Relay] Per-connection caps: {options.MaxMessagesPerSecond} msg/s, " +
                  $"{options.MaxBytesPerSecond / (1024.0 * 1024):F1} MB/s, {options.MaxMessageBytes / 1024} KB/message. " +
                  $"Logging a [NEAR-LIMIT] line past {options.UsageWarnFraction:P0} of either rate.");
@@ -515,12 +518,14 @@ public sealed class RelayServer : IAsyncDisposable
                     var reason = join.Reason;
                     // Only "not found" is a guessing signal. A full room or a room ban both mean
                     // the code was right, and charging those toward the lockout would lock a
-                    // whole household out of the relay over a banned player's retries.
+                    // whole household out of the relay over a banned player's retries. Nor is a
+                    // code for another relay of the group: anyone can tell which relay that is.
                     if (join.Outcome == JoinOutcome.NotFound)
                     {
                         CountRejection(ref rejectedSessionNotFound, reason, ip, sessionTag);
                         RecordFailedAuth(FailedJoinsByIp, JoinLockoutUntilByIp, key, "join");
                     }
+                    else if (join.Outcome == JoinOutcome.Moved) log.Detail($"[{sessionTag}] sent {ip} to {join.MovedTo}");
                     else CountRejection(ref join.Outcome == JoinOutcome.Banned ? ref rejectedBanned : ref rejectedSessionFull, reason, ip, sessionTag);
                     await CloseQuietlyAsync(socket, WebSocketCloseStatus.PolicyViolation, reason);
                     return;
@@ -698,7 +703,7 @@ public sealed class RelayServer : IAsyncDisposable
     {
         var parts = path.Split('/');
         if (parts.Length != 2 || parts[0] != "session") return null;
-        return RelayRooms.IsValidCode(parts[1]) ? parts[1] : null;
+        return RelayWire.IsValidCode(parts[1]) ? parts[1] : null;
     }
 
     // Timing-safe: a naive string comparison returns early on the first mismatched byte,
@@ -841,7 +846,11 @@ public sealed class RelayServer : IAsyncDisposable
             await RelayHttp.WriteStatusAsync(stream, 426, token);
             return;
         }
-        var json = $$"""{"relayVersion":{{RelayVersion}},"capabilities":[{{RelayCapabilitiesJson}}],"requiresToken":{{(options.AccessToken != null ? "true" : "false")}}}""";
+        var json = JsonSerializer.Serialize(new
+        {
+            relayVersion = RelayVersion, capabilities = RelayCapabilities, requiresToken = options.AccessToken != null,
+            server = options.GroupNumber, group = options.Group.Count > 0 ? options.Group : null,
+        }, InfoJson);
         await RelayHttp.WriteJsonAsync(stream, json, token);
     }
 

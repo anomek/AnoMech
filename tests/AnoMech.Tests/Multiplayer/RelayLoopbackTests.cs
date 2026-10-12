@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text.Json;
 using AnoMech.Multiplayer;
@@ -91,6 +92,48 @@ public class RelayLoopbackTests
         await server.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
         await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.That(host.IsConnected, Is.False);
+    }
+
+    [Test]
+    public async Task GroupedRelaysSendAJoinToTheRelayHoldingTheCode()
+    {
+        var log = new QuietLog();
+        // Each relay's list names both, so both ports are picked before either starts.
+        int portA = FreePort(), portB = FreePort();
+        List<RelayGroupMember> group = [new(0, $"ws://127.0.0.1:{portA}", "A"), new(1, $"ws://127.0.0.1:{portB}", "B")];
+        await using var relayA = new RelayServer(new RelayOptions { BindAddress = IPAddress.Loopback, Port = portA, GroupNumber = 0, Group = group }, log);
+        await using var relayB = new RelayServer(new RelayOptions { BindAddress = IPAddress.Loopback, Port = portB, GroupNumber = 1, Group = group }, log);
+        relayA.Start();
+        relayB.Start();
+
+        using var host = new RelayClient(RelayWire.NewSecret());
+        var code = await host.ConnectAndHostAsync(group[1].Url);
+        Assert.That(code is not null && RelayWire.CodeServer(code) == 1, "relay B issues its own codes");
+
+        using var lost = new RelayClient(RelayWire.NewSecret());
+        var refused = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lost.Disconnected += e => refused.TrySetResult(e);
+        await lost.ConnectAsync(group[0].Url, code!);
+        var moved = await Within(refused.Task, "redirect") as RelaySessionRejectedException;
+        Assert.That(moved?.MovedTo, Is.EqualTo(group[1].Url), "relay A names the relay holding the session");
+
+        using var peer = new RelayClient(RelayWire.NewSecret());
+        await peer.ConnectAsync(moved!.MovedTo!, code!);
+        Assert.That(peer.IsConnected, "and the session is there");
+
+        var info = await RelayClient.FetchInfoAsync(group[0].Url);
+        Assert.That(info?.Server, Is.EqualTo(0));
+        Assert.That(info?.Group, Is.EqualTo(group));
+        Assert.That(info?.Encrypted, Is.False);
+    }
+
+    private static int FreePort()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
     }
 
     private static async Task<T> Within<T>(Task<T> task, string what)

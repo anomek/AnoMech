@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -29,6 +30,49 @@ public static class RelayWire
     public const int MaxControlBytes = 1024;
     public const string ControlType = "relayControl";
     public const string NoticeType = "relayNotice";
+
+    // Session codes are issued by the relay, the only party that can guarantee no collision; a
+    // host gets its code in the greeting.
+    public const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I, 32 chars
+    public const int CodeLength = 6;
+    // One per alphabet character, so a code's last character can always make up the sum.
+    public const int CodeServers = 32;
+
+    // Checked against the real alphabet, not just a length ceiling, so scanner garbage is a bad
+    // request rather than a session lookup.
+    public static bool IsValidCode(string code) => code.Length == CodeLength && code.All(CodeAlphabet.Contains);
+
+    // The member of a relay group (RelayGroup) that holds a valid code's session: its characters'
+    // alphabet positions summed, mod CodeServers. Members never issue each other's codes, and
+    // anyone can work this out, so it says nothing about whether a session exists.
+    public static int CodeServer(string code) => code.Sum(c => CodeAlphabet.IndexOf(c)) % CodeServers;
+
+    // Cryptographically random: on a public relay, a stranger who has seen a few issued codes must
+    // not be able to predict the next one and race its host into the session. server: the issuing
+    // relay's number in its group, whose codes keep five random characters, the sixth bringing
+    // the sum to that number.
+    public static string NewCode(int? server = null)
+    {
+        // 32 divides 256, so byte % 32 is exactly uniform.
+        var bytes = RandomNumberGenerator.GetBytes(CodeLength);
+        var chars = new char[CodeLength];
+        var sum = 0;
+        for (var i = 0; i < CodeLength; i++)
+        {
+            var index = bytes[i] % CodeAlphabet.Length;
+            if (server is { } own && i == CodeLength - 1) index = ((own - sum) % CodeServers + CodeServers) % CodeServers;
+            sum += index;
+            chars[i] = CodeAlphabet[index];
+        }
+        return new string(chars);
+    }
+
+    // How a relay in a group turns away a join for another member's code: the close reason names
+    // that member, so a client with an out-of-date copy of the group still gets there.
+    public const string MovedPrefix = "moved ";
+
+    public static string? MovedTo(string? closeReason)
+        => closeReason?.StartsWith(MovedPrefix, StringComparison.Ordinal) == true ? closeReason[MovedPrefix.Length..] : null;
 
     public static string NewSecret() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 

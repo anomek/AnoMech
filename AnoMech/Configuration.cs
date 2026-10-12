@@ -1,5 +1,6 @@
 using Dalamud.Configuration;
 using System;
+using AnoMech.Multiplayer;
 using AnoMech.Network;
 
 namespace AnoMech;
@@ -18,9 +19,21 @@ public class Configuration : IPluginConfiguration
     public bool AutoCollapseWhileRunning { get; set; } = false;
     public string LastSelectedScenario { get; set; } = "";
 
-    // Multiplayer relay address (see AnoMech.Relay.Host/README.md) -- remembered across
-    // sessions so the user only has to type it once.
+    // The player's own multiplayer server (see AnoMech.Relay.Host/README.md), used instead of
+    // DefaultRelay while UseCustomRelay is on. Kept while the default is picked, so switching
+    // back doesn't mean typing it again.
     public string RelayServerUrl { get; set; } = "";
+    public bool UseCustomRelay { get; set; }
+
+    public string ActiveRelayUrl() => UseCustomRelay ? RelayServerUrl.Trim() : DefaultRelay.Url;
+
+    // The servers the active one is grouped with (RelayGroups), as its /info last listed them, so
+    // the others stay reachable while it's down. RelayGroupOrigin: the server that listed them.
+    public string RelayGroupJson { get; set; } = "";
+    public string RelayGroupOrigin { get; set; } = "";
+
+    // Where to host when the active server is in a group, by address; empty for the closest.
+    public string HostRelayUrl { get; set; } = "";
 
     // Optional shared secret some relays require to connect. Bound to the relay it was entered
     // for (RelayTokenOrigin) and only ever sent there, so pointing the plugin at another relay
@@ -40,6 +53,7 @@ public class Configuration : IPluginConfiguration
 
     public static string OriginOf(string url)
     {
+        if (string.IsNullOrWhiteSpace(url)) return "";
         try { return RelayWire.Origin(url); }
         catch (Exception) { return ""; }
     }

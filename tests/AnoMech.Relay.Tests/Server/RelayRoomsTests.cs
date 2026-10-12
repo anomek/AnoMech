@@ -1,4 +1,5 @@
 using System.Net;
+using AnoMech.Network;
 
 namespace AnoMech.Relay.Tests;
 
@@ -37,9 +38,26 @@ public class RelayRoomsTests
     [Test]
     public void HostingIssuesAWellFormedCode()
     {
-        Assert.That(RelayRooms.IsValidCode(code), code);
+        Assert.That(RelayWire.IsValidCode(code), code);
         Assert.That(rooms.CountPeers(code), Is.EqualTo(1));
-        Assert.That(RelayRooms.IsValidCode("ABCDE0"), Is.False, "ambiguous characters are outside the alphabet");
+    }
+
+    [Test]
+    public void RelayInAGroupHoldsOnlyItsOwnCodes()
+    {
+        var grouped = new RelayRooms(new RelayOptions
+        {
+            GroupNumber = 1,
+            Group = [new(0, "wss://us.example.com", "US East"), new(1, "wss://de.example.com", "EU Central")],
+        });
+        Assert.That(grouped.TryCreate(Connection(Home), out var own));
+        Assert.That(RelayWire.CodeServer(own), Is.EqualTo(1));
+
+        var moved = grouped.Join(RelayWire.NewCode(0), Connection(Away));
+        Assert.That(moved.Outcome, Is.EqualTo(JoinOutcome.Moved));
+        Assert.That(RelayWire.MovedTo(moved.Reason), Is.EqualTo("wss://us.example.com"));
+        Assert.That(grouped.Join(RelayWire.NewCode(2), Connection(Away)).Outcome, Is.EqualTo(JoinOutcome.NotFound), "no relay in the group has number 2");
+        Assert.That(grouped.Join(RelayWire.NewCode(1), Connection(Away)).Outcome, Is.EqualTo(JoinOutcome.NotFound), "its own number, but never hosted");
     }
 
     [Test]

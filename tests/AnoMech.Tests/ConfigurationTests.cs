@@ -1,3 +1,4 @@
+using AnoMech.Multiplayer;
 using AnoMech.Network;
 
 namespace AnoMech.Tests;
@@ -21,6 +22,15 @@ public class ConfigurationTests
     {
         var config = new Configuration { RelayServerUrl = "relay.example.com", RelayAccessToken = "secret" };
         Assert.That(config.TokenForRelay(url), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void ActiveServerFollowsTheChoice()
+    {
+        var config = new Configuration { RelayServerUrl = " relay.example.com " };
+        Assert.That(config.ActiveRelayUrl(), Is.EqualTo(DefaultRelay.Url));
+        config.UseCustomRelay = true;
+        Assert.That(config.ActiveRelayUrl(), Is.EqualTo("relay.example.com"));
     }
 
     [Test]

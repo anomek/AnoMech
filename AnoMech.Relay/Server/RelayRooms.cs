@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
-using System.Security.Cryptography;
 using System.Threading;
+using AnoMech.Network;
 
 namespace AnoMech.Relay;
 
@@ -28,17 +28,20 @@ internal sealed class PeerConn(WebSocket socket, uint id, IPAddress ip, Guid pee
     public bool NearLimitWarned;
 }
 
-internal enum JoinOutcome { Joined, NotFound, Full, Banned }
+internal enum JoinOutcome { Joined, NotFound, Full, Banned, Moved }
 
 // Evicted/Host: a ban issued while its target was away, learning the target's address on its
 // return and clearing that network. The caller closes Evicted and tells Host who went.
-internal sealed record JoinResult(JoinOutcome Outcome, PeerConn? Replaced = null, IReadOnlyList<PeerConn>? Evicted = null, PeerConn? Host = null)
+// MovedTo: the relay in this one's group that holds the code.
+internal sealed record JoinResult(JoinOutcome Outcome, PeerConn? Replaced = null, IReadOnlyList<PeerConn>? Evicted = null, PeerConn? Host = null,
+    string? MovedTo = null)
 {
     public string Reason => Outcome switch
     {
         JoinOutcome.NotFound => "session not found",
         JoinOutcome.Full => "session full",
         JoinOutcome.Banned => "banned from room",
+        JoinOutcome.Moved => RelayWire.MovedPrefix + MovedTo,
         _ => "",
     };
 }
@@ -50,15 +53,6 @@ internal sealed record ModerationResult(IReadOnlyList<PeerConn> Removed, Guid[] 
 // the connections the caller has to close or notify.
 internal sealed class RelayRooms(RelayOptions options)
 {
-    // The relay owns the room namespace, so it's the only party that can guarantee no
-    // collision (vs. a client picking one locally and hoping). Hosting goes through /host
-    // (no code in the URL); the relay picks a free one and hands it back in the greeting.
-    // Cryptographically random (not System.Random) -- on a public relay, a stranger who's
-    // observed a few issued codes must not be able to predict a future one and race the real
-    // host into a session before they've even shared its code.
-    private const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I, 32 chars
-    private const int CodeLength = 6;
-
     private const int MaxRoomBans = 1024;
 
     private sealed class Room
@@ -86,10 +80,6 @@ internal sealed class RelayRooms(RelayOptions options)
 
     public int TotalPeers => sessions.Values.Sum(r => { lock (r.Lock) return r.Peers.Count; });
 
-    // Validated against the real alphabet/length, not just a length ceiling, so scanner/bot
-    // garbage gets rejected as a bad request instead of doing a session lookup at all.
-    public static bool IsValidCode(string code) => code.Length == CodeLength && code.All(CodeAlphabet.Contains);
-
     public bool TryCreate(PeerConn host, out string sessionCode)
     {
         // A soft cap now, not a hard one -- a burst of concurrent /host requests right at the
@@ -104,20 +94,9 @@ internal sealed class RelayRooms(RelayOptions options)
         var room = new Room { HostPeerId = host.PeerId };
         room.Peers.Add(host);
         string code;
-        do { code = GenerateCode(); } while (!sessions.TryAdd(code, room));
+        do { code = RelayWire.NewCode(options.GroupNumber); } while (!sessions.TryAdd(code, room));
         sessionCode = code;
         return true;
-    }
-
-    private static string GenerateCode()
-    {
-        var chars = new char[CodeLength];
-        // CodeAlphabet.Length (32) divides 256 evenly, so byte % 32 is exactly uniform --
-        // no rejection sampling needed.
-        var bytes = RandomNumberGenerator.GetBytes(CodeLength);
-        for (var i = 0; i < CodeLength; i++)
-            chars[i] = CodeAlphabet[bytes[i] % CodeAlphabet.Length];
-        return new string(chars);
     }
 
     // Peer-join only -- a code nobody actually hosted is rejected immediately instead of
@@ -127,6 +106,10 @@ internal sealed class RelayRooms(RelayOptions options)
     // actually current instead of joining a room that's already been thrown away.
     public JoinResult Join(string sessionCode, PeerConn peer)
     {
+        if (options.GroupNumber is { } own && RelayWire.CodeServer(sessionCode) is var owner && owner != own)
+            return options.Group.FirstOrDefault(m => m.Number == owner) is { } member
+                ? new JoinResult(JoinOutcome.Moved, MovedTo: member.Url)
+                : new JoinResult(JoinOutcome.NotFound);
         while (true)
         {
             if (!sessions.TryGetValue(sessionCode, out var room)) return new JoinResult(JoinOutcome.NotFound);
