@@ -161,6 +161,7 @@ public sealed class Game : IDisposable
 
     public void RunScenario(RunScenarioParams p)
     {
+        Natives.Zone.EndSpeedBuffs();
         if (Natives.Zone.StartBlockedReason(out var settling) != null && settling != null)
         {
             if (waitingStart == null) AnoMech.Core.DiagnosticLog.Info($"[Game] Start waiting for {settling} to settle.");
@@ -177,6 +178,7 @@ public sealed class Game : IDisposable
     private void RetryWaitingStart()
     {
         if (waitingStart is not { } waiting) return;
+        Natives.Zone.EndSpeedBuffs();
         if (Natives.Zone.StartBlockedReason(out var settling) != null && settling != null)
         {
             StartWaitingOn = settling;

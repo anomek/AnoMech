@@ -44,10 +44,22 @@ public sealed unsafe partial class ZoneSession
     private static long? lastTerritoryChangeAt;
     private static long? lastBusyAt;
     private static bool wasServerActing;
+    private static ushort? lastActionSequence;
+    private static long? lastSpeedBuffAt;
+    private static long? speedBuffsOffAt;
+    private const string SpeedBuffSettling = "Sprint (or another speed buff)";
+    private const uint SprintStatusId = 50;
+    private const uint PelotonStatusId = 1199;
+    private const uint SmudgeStatusId = 3684;
+    private const uint ThresholdStatusId = 2595;
+    private const uint ThresholdOtherStatusId = 2860;
+    private static readonly HashSet<uint> timedSpeedBuffs = new();
+    private static readonly HashSet<uint> speedBuffsPresent = new();
 
     public static void NoteActionPressed(ActionType type, uint actionId)
     {
         if (type != ActionType.Action || actionId is not (TeleportActionId or ReturnActionId)) return;
+        if (ZoneChangeCastCompleted) return;
         zoneChangePressedAt = Stopwatch.GetTimestamp();
         zoneChangeActionId = actionId;
         zoneChangeCastSeen = false;
@@ -73,8 +85,10 @@ public sealed unsafe partial class ZoneSession
         // Stamped on the first frame without the state too, so the settle counts from its end:
         // Dalamud reports a zone change as the load begins, not as it ends.
         var acting = IsServerActingSoon();
-        if (acting || wasServerActing) lastBusyAt = Stopwatch.GetTimestamp();
+        if (acting || wasServerActing || ActionInFlight() || ThresholdUp()) lastBusyAt = Stopwatch.GetTimestamp();
         wasServerActing = acting;
+        lastActionSequence = LastActionSequence();
+        if (TimedSpeedBuffActive()) lastSpeedBuffAt = Stopwatch.GetTimestamp();
         TickZoneChangeLatch();
         Current?.TickSessionGuard();
         Current?.TickSendHold();
@@ -82,11 +96,46 @@ public sealed unsafe partial class ZoneSession
 
     private static bool Zoning() => Plugin.Condition[ConditionFlag.BetweenAreas] || Plugin.Condition[ConditionFlag.BetweenAreas51];
 
+    // An instant action or item sets no condition, and the server's answer to one still in flight
+    // at arm would be dropped. Read live too: a press in the frame of the start comes before the tick.
+    private static bool ActionInFlight()
+    {
+        var am = ActionManager.Instance();
+        return am != null && (lastActionSequence is { } seen && am->LastUsedActionSequence != seen || am->ActionQueued || am->AnimationLock > 0);
+    }
+
+    // Regress takes the character back to the Hell's Ingress/Egress portal while Threshold lasts.
+    // Ended by the server during a stay, Threshold would stay on the client and keep offering Regress
+    // after it, and a player can't click it off.
+    private static bool ThresholdUp()
+        => Plugin.ObjectTable.LocalPlayer is { } player && player.StatusList.Any(s => s.StatusId is ThresholdStatusId or ThresholdOtherStatusId);
+
+    // The client ends a status only when the server says so, and a stay drops that word: a speed
+    // buff that runs out during a stay would keep the character fast after it. A buff seen with a
+    // timer counts until it is gone, its timer reading 0 while the server's end is on the way, and
+    // through a moment without a character to read; Jog has no timer. ParamEffect 18, 36 and 37 are
+    // the movement-speed statuses.
+    private static bool TimedSpeedBuffActive()
+    {
+        if (Plugin.ObjectTable.LocalPlayer is not { } player) return timedSpeedBuffs.Count > 0;
+        speedBuffsPresent.Clear();
+        var sheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Status>();
+        foreach (var status in player.StatusList)
+        {
+            if (sheet.GetRowOrDefault(status.StatusId) is not { ParamEffect: 18 or 36 or 37 }) continue;
+            speedBuffsPresent.Add(status.StatusId);
+            if (status.RemainingTime > 0) timedSpeedBuffs.Add(status.StatusId);
+        }
+        timedSpeedBuffs.IntersectWith(speedBuffsPresent);
+        return timedSpeedBuffs.Count > 0;
+    }
+
     // The debug hold keeps the character where the server last placed it; while the server may
     // still move it, or with no character, there is no such place.
     private static string? HoldBlockedReason()
     {
         if (!Plugin.ClientState.IsLoggedIn || Plugin.ObjectTable.LocalPlayer is not { } player) return "no local player";
+        if (!IsInInn()) return "not in an inn";
         if (Zoning()) return "zoning";
         if (player.IsCasting || IsServerActingSoon()) return "the server may still act on the last action";
         if (zoneChangePressedAt != null) return $"{ActionLookup.Name(zoneChangeActionId)} has not resolved";
@@ -143,7 +192,7 @@ public sealed unsafe partial class ZoneSession
         // The cast on screen is what the server acts on, whichever press it came from: a later
         // press the game refused (it re-latches the press hook) must not release it.
         if (player is { IsCasting: true } && player.CastActionId is TeleportActionId or ReturnActionId
-            && (zoneChangePressedAt == null || player.CastActionId != zoneChangeActionId))
+            && (zoneChangePressedAt == null || player.CastActionId != zoneChangeActionId) && !ZoneChangeCastCompleted)
         {
             zoneChangePressedAt = Stopwatch.GetTimestamp();
             zoneChangeActionId = player.CastActionId;
@@ -177,6 +226,11 @@ public sealed unsafe partial class ZoneSession
         zoneChangePressedAt = null;
     }
 
+    // A cast that ran to the end leaves its zone change to come, however late; a later press or cast,
+    // interrupted or not, says nothing about it.
+    private static bool ZoneChangeCastCompleted
+        => zoneChangePressedAt != null && zoneChangeCastSeen && zoneChangeCastProgress >= InterruptedBelowProgress;
+
     private static double SecondsSince(long? stamp) => stamp is { } s ? Stopwatch.GetElapsedTime(s).TotalSeconds : double.PositiveInfinity;
 
     // Null when a scenario may start now, otherwise why not. Every start path ends in Enter,
@@ -204,10 +258,32 @@ public sealed unsafe partial class ZoneSession
         if (zoneChangePressedAt is { } pressed)
             return $"{ActionLookup.Name(zoneChangeActionId)} was used {Stopwatch.GetElapsedTime(pressed).TotalSeconds:F0}s ago and has not resolved";
         if (IsPlayerBusy()) return "busy (cutscene, NPC event, crafting, trading, zoning, combat, mounted, queued, etc.)";
+        // The server keeps a pose or an accessory through the run, which the run's own moves and
+        // actions would end only on the client.
+        if (c[ConditionFlag.Emoting] || c[ConditionFlag.InThatPosition]) return "seated, dozing or in an emote";
+        if (c[ConditionFlag.UsingFashionAccessory]) return "a fashion accessory is out";
+        if (ThresholdUp()) return "Reaper's Threshold is up (the Hell's Ingress/Egress portal); start once it has ended";
         // Nothing the character did during the hold reached the server.
         if (Current is { sendHoldActive: true }) return Settling("the debug send hold", out settling);
-        if (SecondsSince(lastBusyAt) < SettleSeconds) return Settling("the last action", out settling);
+        if (SecondsSince(lastBusyAt) < SettleSeconds || ActionInFlight()) return Settling("the last action", out settling);
+        if (SecondsSince(lastSpeedBuffAt) < SettleSeconds) return Settling(SpeedBuffSettling, out settling);
         return null;
+    }
+
+    // A player can end Sprint, Peloton and Smudge with a right-click or /statusoff, which asks the
+    // server the same way; the start then waits out only the settle, not the buff. Other speed buffs
+    // can't all be clicked off by a player, so they still run out.
+    public static void EndSpeedBuffs()
+    {
+        if (StartBlockedReason(out var settling) == null || settling != SpeedBuffSettling) return;
+        if (SecondsSince(speedBuffsOffAt) < SettleSeconds || Plugin.ObjectTable.LocalPlayer is not { } player) return;
+        var clickable = player.StatusList.Where(s => s.StatusId is SprintStatusId or PelotonStatusId or SmudgeStatusId && s.RemainingTime > 0).Select(s => s.StatusId).ToList();
+        foreach (var statusId in clickable)
+        {
+            speedBuffsOffAt = Stopwatch.GetTimestamp();
+            if (StatusManager.ExecuteStatusOff(statusId))
+                DiagnosticLog.Info($"[ZoneGuard] Asked the server to end status {statusId} so the start need not wait it out.");
+        }
     }
 
     private static string Settling(string subject, out string? settling)
@@ -341,6 +417,72 @@ public sealed unsafe partial class ZoneSession
         armedRotation = sessionSave.Rotation;
     }
 
+    // The client numbers every action request and keeps every recast, and the server tracks both:
+    // what a stay's presses and the sim's resets changed is taken back before the client may send
+    // again, the request number to the last one the server saw, each recast to where the server's
+    // has run on to.
+    private sealed class ClientCounters
+    {
+        public ushort Used;
+        public ushort Handled;
+        public readonly RecastDetail[] Recasts = new RecastDetail[RecastGroups];
+        public long TakenAt;
+    }
+
+    private const int RecastGroups = 80;
+    private ClientCounters? armedCounters;
+
+    private static ushort? LastActionSequence()
+    {
+        var am = ActionManager.Instance();
+        return am == null ? null : am->LastUsedActionSequence;
+    }
+
+    private static ClientCounters? TakeClientCounters()
+    {
+        var am = ActionManager.Instance();
+        if (am == null) return null;
+        var counters = new ClientCounters { Used = am->LastUsedActionSequence, Handled = am->LastHandledActionSequence, TakenAt = Stopwatch.GetTimestamp() };
+        for (var i = 0; i < RecastGroups; i++)
+        {
+            var recast = am->GetRecastGroupDetail(i);
+            if (recast != null) counters.Recasts[i] = *recast;
+        }
+        return counters;
+    }
+
+    // A press still queued from the run would fire right after the lift.
+    private static string RestoreClientCounters(ClientCounters? saved)
+    {
+        var am = ActionManager.Instance();
+        if (am == null || saved == null) return "action counters not restored";
+        var from = am->LastUsedActionSequence;
+        am->LastUsedActionSequence = saved.Used;
+        am->LastHandledActionSequence = saved.Handled;
+        am->ActionQueued = false;
+        var passed = (float)Stopwatch.GetElapsedTime(saved.TakenAt).TotalSeconds;
+        for (var i = 0; i < RecastGroups; i++)
+        {
+            var recast = am->GetRecastGroupDetail(i);
+            if (recast == null) continue;
+            var then = saved.Recasts[i];
+            if (!then.IsActive) *recast = then;
+            else if (then.Elapsed + passed < then.Total)
+            {
+                *recast = then;
+                recast->Elapsed = then.Elapsed + passed;
+            }
+            // Ran out during the stay, so ready on the server: ready here too, even if a press in the
+            // run restarted it.
+            else if (recast->IsActive)
+            {
+                recast->IsActive = false;
+                recast->Elapsed = 0f;
+            }
+        }
+        return $"action sequence {from} -> {saved.Used}, recasts restored";
+    }
+
     private void ArmGuard(uint territoryId)
     {
         loadedTerritory = territoryId;
@@ -351,6 +493,7 @@ public sealed unsafe partial class ZoneSession
         lastHeartbeatAt = guardArmedAt;
         pendingLift = null;
         liftHoldLoggedReason = null;
+        partyResyncDue = true;
         stayId++;
         guardArmed = true;
         DiagnosticLog.Info($"[ZoneGuard] Armed for territory {territoryId}: inn territory {innClientTerritory}, Dalamud now reads {Plugin.ClientState.TerritoryType}, GameMain {lastNativeTerritory} -> {NativeTerritory()}.");
@@ -420,9 +563,9 @@ public sealed unsafe partial class ZoneSession
         if (completedLoad != innClientTerritory || loadedInstanceContent != null)
             return $"the inn reload did not complete (last finished load {completedLoad}, sim duty {(loadedInstanceContent is { } content ? content.ToString() : "none")})";
         // The engine finishes the reload over the next second and then sends its post-load packet;
-        // its territory reads 0 until then. An unload cannot wait for it (no frames are left), so
-        // only a lift that may retry holds on it.
-        if (pendingLiftMayRetry && NativeTerritory() != innClientTerritory)
+        // its territory reads 0 until then. An unload cannot wait for it (no frames are left) and
+        // dies here instead.
+        if (NativeTerritory() != innClientTerritory)
             return $"the client is still loading the inn (the game's territory reads {NativeTerritory()})";
         return TerritoryDrift() ?? PositionDrift();
     }
@@ -478,8 +621,14 @@ public sealed unsafe partial class ZoneSession
         pendingLift = null;
         liftHoldLoggedReason = null;
         guardArmed = false;
+        var counters = RestoreClientCounters(armedCounters);
         if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
-        DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
+        DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, {counters}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
+        if (partyResyncDue)
+        {
+            partyResyncDue = false;
+            OpenSocialForPartyResync();
+        }
     }
 
     private void LogStaySummary()

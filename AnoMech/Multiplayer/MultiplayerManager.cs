@@ -857,6 +857,7 @@ public sealed partial class MultiplayerManager : IDisposable
         }
         if (IsStartCheckPending) return;
 
+        ZoneSession.EndSpeedBuffs();
         if (CheckOwnStartReadiness(out var settling) is { } ownReason)
         {
             if (settling != null)
@@ -898,6 +899,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private void RetryWaitingStart()
     {
         if (StartWaitingOn is not { } waitingOn) return;
+        ZoneSession.EndSpeedBuffs();
         if (ZoneSession.StartBlockedReason(out var settling) != null && settling != null)
         {
             if (settling == waitingOn) return;
@@ -913,6 +915,7 @@ public sealed partial class MultiplayerManager : IDisposable
     {
         if (startCheckReplyWaited is not { } waited) return;
         waited += deltaSeconds;
+        ZoneSession.EndSpeedBuffs();
         var reason = CheckOwnStartReadiness(out var settling);
         if (settling != null && waited < StartCheckReplyMaxWaitSeconds)
         {
