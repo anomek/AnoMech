@@ -30,9 +30,12 @@ internal sealed class PacketRecorder
     private readonly List<GamePacket> pending = [];
     // Host entity ids of the actors spawned while recording: the only ones peers have.
     private readonly HashSet<uint> spawned = [];
+    // Those despawned since, which a status still names as its applier.
+    private readonly HashSet<uint> gone = [];
     private readonly Dictionary<IBattleCharaProxy, (PartyRole Role, SeatKind Kind)> seats = new();
     private readonly Dictionary<PartyRole, (bool Status, bool Control)> afflictions = new();
     private readonly RecordingBattleChara localPlayer;
+    private PartyRole? shownBy;
 
     public bool Recording { get; set; }
     public bool HasPending => pending.Count > 0;
@@ -116,8 +119,19 @@ internal sealed class PacketRecorder
 
     private void Add(GamePacket packet)
     {
-        if (Recording) pending.Add(packet);
+        if (Recording) pending.Add(shownBy is { } seat ? packet with { ShownBy = seat } : packet);
     }
+
+    // What `show` sends is the seat's own action, which its client showed already: tagged so that
+    // client skips it, and kept off the host's own player.
+    public void ShownBy(PartyRole seat, Action show)
+    {
+        shownBy = seat;
+        try { show(); }
+        finally { shownBy = null; }
+    }
+
+    private bool AlreadyShown(RecordingBattleChara proxy) => shownBy != null && ReferenceEquals(proxy, localPlayer);
 
     // ── Addressing ───────────────────────────────────────────────────────────
 
@@ -193,6 +207,13 @@ internal sealed class PacketRecorder
 
     private uint ActorOf(GameObjectId? id) => id is { } objectId ? ActorOf(objectId.ObjectId) : PacketActor.None;
 
+    // The server's status list keeps naming an applier that has since despawned.
+    private uint SourceOf(uint entityId)
+    {
+        var actor = ActorOf(entityId);
+        return actor == PacketActor.None && gone.Contains(entityId) ? entityId : actor;
+    }
+
     // An unknown entity goes out as no target rather than as an id that means nothing elsewhere.
     private (uint[] Args, int Index, uint Actor) WithEntityArg(uint[] args, int index)
     {
@@ -255,7 +276,7 @@ internal sealed class PacketRecorder
             var slots = new List<StatusSlotPacket>();
             for (var i = 0; i < statuses.Count; i++)
                 if (statuses[i] is { StatusId: not 0 } s)
-                    slots.Add(new StatusSlotPacket((byte)i, s.StatusId, s.Param, s.RemainingTime, ActorOf(s.SourceEntityId)));
+                    slots.Add(new StatusSlotPacket((byte)i, s.StatusId, s.Param, s.RemainingTime, SourceOf(s.SourceEntityId)));
             return new StatusListPacket(actor, slots, health, proxy.MaxHealth, mana, shield);
         });
 
@@ -264,6 +285,7 @@ internal sealed class PacketRecorder
     private void RecordDespawn(uint entityId)
     {
         if (!spawned.Remove(entityId)) return;
+        gone.Add(entityId);
         Add(new DespawnPacket(entityId));
     }
 
@@ -390,12 +412,12 @@ internal sealed class PacketRecorder
         public void ReceiveActorCast(ActorCastData cast)
         {
             recorder.RecordCast(this, cast);
-            inner.ReceiveActorCast(cast);
+            if (!recorder.AlreadyShown(this)) inner.ReceiveActorCast(cast);
         }
 
         public uint ReceiveActionEffect(ActionEffectData effect)
         {
-            var sequence = inner.ReceiveActionEffect(effect);
+            var sequence = recorder.AlreadyShown(this) ? 0 : inner.ReceiveActionEffect(effect);
             recorder.RecordEffect(this, sequence, effect);
             return sequence;
         }
@@ -409,7 +431,7 @@ internal sealed class PacketRecorder
         public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)
         {
             recorder.RecordControl(this, category, [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8]);
-            inner.ActorControl(category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            if (!recorder.AlreadyShown(this)) inner.ActorControl(category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
         }
 
         public void ActorControlTarget(uint category, GameObjectId target, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0)

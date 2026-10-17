@@ -16,4 +16,5 @@ public sealed record ActionRow(
     bool CanTargetParty,
     sbyte AttackType,
     // Aimed at a ground point: the server's ActionEffect then carries no animation target.
-    bool TargetArea);
+    bool TargetArea,
+    bool IsPlayerAction);

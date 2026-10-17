@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
 using AnoMech.Scenarios.Umad.P2Forsaken;
 using AnoMech.Scenarios.Umad.P3BlackHole;
+using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace AnoMech.Multiplayer;
 
@@ -62,6 +64,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
+[JsonDerivedType(typeof(ActedMessage), "acted")]
 [JsonDerivedType(typeof(StreamStateMessage), "streamState")]
 [JsonDerivedType(typeof(StreamGapMessage), "streamGap")]
 [JsonDerivedType(typeof(StreamLostMessage), "streamLost")]
@@ -336,3 +339,7 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<uint> Enemi
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration, ushort Param = 0) : MpMessage;
+
+// Peer -> host: a step of this player's own action (IUserActions.Acted), which the host shows on
+// the peer's seat for the rest of the party. Target names an actor as a GamePacket does.
+public sealed record ActedMessage(Guid PeerId, PlayerActionStep Step, ActionType ActionType, uint ActionId, uint Target, float CastSeconds) : MpMessage;

@@ -15,4 +15,8 @@ public interface IUserActions : IDisposable
     void OnSessionEnd();
 
     void Tick(float deltaSeconds);
+
+    // Each step the server would show the rest of the party, whether the module is on or not:
+    // the player's own client has already played it for them.
+    event Action<PlayerAction>? Acted;
 }

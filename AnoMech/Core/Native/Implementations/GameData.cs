@@ -31,7 +31,8 @@ internal sealed class GameData : IGameData
             row.CanTargetSelf,
             row.CanTargetParty,
             (sbyte)row.AttackType.RowId,
-            row.TargetArea);
+            row.TargetArea,
+            row.IsPlayerAction);
     }
 
     public KnockbackRow? Knockback(uint knockbackId)

@@ -6,6 +6,10 @@ namespace AnoMech.Tests;
 internal sealed class FakeUserActions : IUserActions
 {
     public bool Enabled { get; set; }
+    public event Action<PlayerAction>? Acted;
+
+    // The player's client playing a step of their own action.
+    public void Act(PlayerAction action) => Acted?.Invoke(action);
     public void Enable() => Enabled = true;
     public void Disable() => Enabled = false;
     public void OnSessionStart() { }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using AnoMech.Core;
 using AnoMech.Core.EnemyActions;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.UserActions;
 
 namespace AnoMech.Multiplayer;
@@ -110,10 +111,10 @@ internal static class SimAssets
         return numbers![kind].Contains(id);
     }
 
-    // A cast or effect a peer plays: a scenario's own action, or one a party member presses (the
-    // job actions UserActions knows, the limit breaks).
+    // A cast or effect a peer plays: a scenario's own action, or one a party member presses.
     private static bool IsPlayable(uint actionId)
-        => IsKnown(SimAssetKind.Action, actionId) || JobActions.Knows(actionId) || LimitBreakHandler.IsLimitBreak(actionId);
+        => IsKnown(SimAssetKind.Action, actionId) || JobActions.Knows(actionId) || LimitBreakHandler.IsLimitBreak(actionId)
+           || Natives.Data.Action(actionId) is { IsPlayerAction: true };
 
     public static bool AllowAction(uint actionId, string context)
     {

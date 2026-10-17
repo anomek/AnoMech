@@ -95,6 +95,9 @@ public sealed partial class MultiplayerManager : IDisposable
     // Leaves held back by that grace: confirmed unless the peer is heard from again.
     private readonly Dictionary<Guid, long> deferredLeaveMs = new();
     private readonly Dictionary<Guid, float> peerLatencyMs = new();
+    // Host: when the recent pings went out, and the newest each peer has answered (PingClockMs).
+    private readonly Queue<long> pingsSentMs = new();
+    private readonly Dictionary<Guid, long> answeredPingMs = new();
     private readonly HashSet<Guid> warnedStalePeers = new();
     // Rebuilt by the host each ping cycle and broadcast (PeerStatusMessage).
     private readonly Dictionary<Guid, PeerStatusEntry> peerStatuses = new();
@@ -410,6 +413,8 @@ public sealed partial class MultiplayerManager : IDisposable
         peerLastHelloMs.Clear();
         deferredLeaveMs.Clear();
         peerLatencyMs.Clear();
+        pingsSentMs.Clear();
+        answeredPingMs.Clear();
         peerStatuses.Clear();
         warnedStalePeers.Clear();
         pingTimer = 0f;
@@ -518,7 +523,12 @@ public sealed partial class MultiplayerManager : IDisposable
         ConnectionError = null;
         // Re-registering with the host resumes a running scenario the same way a late join does.
         if (!IsHost) _ = SendHelloAsync(relay);
-        else foreach (var peerId in pendingRelayUnbans) _ = relay.ModerateAsync("unban", peerId);
+        else
+        {
+            foreach (var peerId in pendingRelayUnbans) _ = relay.ModerateAsync("unban", peerId);
+            // The drop lost the pings in flight; nobody fell behind on those.
+            foreach (var peerId in answeredPingMs.Keys.ToList()) answeredPingMs[peerId] = PingClockMs();
+        }
         pendingRelayUnbans.Clear();
         LobbyChanged?.Invoke();
     }
@@ -723,6 +733,7 @@ public sealed partial class MultiplayerManager : IDisposable
         peerLastHelloMs.Remove(peerId);
         deferredLeaveMs.Remove(peerId);
         peerLatencyMs.Remove(peerId);
+        answeredPingMs.Remove(peerId);
         peerStatuses.Remove(peerId);
         warnedStalePeers.Remove(peerId);
         startCheckFailures.Remove(peerId);

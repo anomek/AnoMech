@@ -128,7 +128,7 @@ public static class RelayWire
     // MultiplayerManager.ClaimedPeerId.
     private static bool IsPeerMessage(string type) => type is "hello" or "claim" or "release" or "pose" or "pong"
         or "startCheckResponse" or "startAbort" or "entered" or "sessionEnded" or "resetRequest" or "leaveRequest"
-        or "selfMitigation" or "peerAppliedEnemyStatus" or "peerAppliedRoleStatus" or "streamGap" or "streamLost";
+        or "selfMitigation" or "peerAppliedEnemyStatus" or "peerAppliedRoleStatus" or "streamGap" or "streamLost" or "acted";
 
     // Before typed deserialization. A host message only needs its type here: the host already
     // runs the whole simulation, and deserialization refuses anything malformed. A peer message

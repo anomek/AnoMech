@@ -32,12 +32,13 @@ public sealed class ScenarioSession
     private const float MistakeMarkCooldownSeconds = 1f;
 
     // Bardam's Mettle's Success/Failure marks (Checkmark/X): unnamed actions whose AnimationEnd
-    // gimmick timeline plays the mark on the target.
+    // gimmick timeline plays the mark on the target. Every player in the party gets the run's.
     public const uint MechanicSuccessActionId = 9450;
     public const uint MechanicFailureActionId = 9451;
 
-    // The dungeon's invisible helper, which casts both marks at the player.
-    private static readonly EnemySpawnConfig MarkHelper = new(BNpcBaseId: 0x18D6, Level: 1,
+    // The dungeon's invisible helper, which casts both marks at each player.
+    public const uint MarkHelperBNpcBase = 0x18D6;
+    private static readonly EnemySpawnConfig MarkHelper = new(BNpcBaseId: MarkHelperBNpcBase, Level: 1,
         EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper);
 
     private readonly SimWorld world;
@@ -214,8 +215,8 @@ public sealed class ScenarioSession
 
     private void PlayMark(uint actionId)
     {
-        if (Plugin.Config.EnableMechanicResultMarks && markHelper is { IsActive: true } helper && world.Party.Player is { } player)
-            helper.Cast(actionId, player, animationLock: 0f);
+        if (Plugin.Config.EnableMechanicResultMarks && markHelper is { IsActive: true } helper)
+            foreach (var player in world.Party.Players()) helper.Cast(actionId, player, animationLock: 0f);
     }
 
     // A death that took a member down; the first one freezes the run 5s later.

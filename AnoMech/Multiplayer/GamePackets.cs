@@ -52,7 +52,12 @@ internal static class PacketActor
 [JsonDerivedType(typeof(HatersPacket), "haters")]
 [JsonDerivedType(typeof(WeatherPacket), "weather")]
 [JsonDerivedType(typeof(AfflictionsPacket), "afflictions")]
-public abstract record GamePacket;
+public abstract record GamePacket
+{
+    // The seat whose own client showed this already, its player's own action: that client skips it.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PartyRole? ShownBy { get; init; }
+}
 
 // Positions and rotations are world space, as the natives take them.
 public sealed record SpawnNpcPacket(

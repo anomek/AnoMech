@@ -38,8 +38,13 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
             row.Bool("CanTargetSelf"),
             row.Bool("CanTargetParty"),
             row.SByte("AttackType"),
-            row.Bool("TargetArea"));
+            row.Bool("TargetArea"),
+            row.Bool("IsPlayerAction"));
     }
+
+    // Every action a player presses outside PvP.
+    public static IEnumerable<uint> PlayerActionIds()
+        => Actions.Value.Ids.Where(id => Actions.Value.Row(id) is { } row && row.Bool("IsPlayerAction") && !row.Bool("IsPvP"));
 
     public KnockbackRow? Knockback(uint knockbackId)
         => Knockbacks.Value.Row(knockbackId) is { } row
@@ -185,6 +190,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
                     return ReadRecord(text, ref pos);
                 }))
                 : null;
+
+        public IEnumerable<uint> Ids => rows.Keys;
 
         public int Column(string column)
             => columns.TryGetValue(column, out var index) ? index : throw new KeyNotFoundException($"{name}.csv has no column '{column}'.");

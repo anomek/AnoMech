@@ -24,7 +24,7 @@ internal enum PeerSeat
     // Another player's seat: a bot's, plus the steering from that player's poses (RemoteMotion).
     Remote,
     // Our own player: its movement, falls and the client's own presses are ours; its state (HP,
-    // life, statuses the run puts on it) is the host's.
+    // life, statuses, and the casts and actions the run plays on it) is the host's.
     LocalPlayer,
 }
 
@@ -292,13 +292,10 @@ internal sealed class PeerProxy(IBattleCharaProxy inner, PeerSeat seat) : IBattl
 
     public void NpcKnockback(Vector3 position, float rotation, float durationSeconds) { }
 
-    public void ReceiveActorCast(ActorCastData cast)
-    {
-        if (Seat == PeerSeat.LocalPlayer) inner.ReceiveActorCast(cast);
-    }
+    // Our player's own presses reach the client without coming through here.
+    public void ReceiveActorCast(ActorCastData cast) { }
 
-    public uint ReceiveActionEffect(ActionEffectData effect)
-        => Seat == PeerSeat.LocalPlayer ? inner.ReceiveActionEffect(effect) : 0;
+    public uint ReceiveActionEffect(ActionEffectData effect) => 0;
 
     public void ReceiveEffectResult(uint globalSequence, byte targetIndex, uint health) { }
 

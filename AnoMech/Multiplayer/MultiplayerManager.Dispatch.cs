@@ -128,6 +128,7 @@ public sealed partial class MultiplayerManager
         PeerAppliedRoleStatusMessage m => m.PeerId,
         StreamGapMessage m => m.PeerId,
         StreamLostMessage m => m.PeerId,
+        ActedMessage m => m.PeerId,
         _ => null,
     };
 
@@ -194,6 +195,7 @@ public sealed partial class MultiplayerManager
                 }
                 peerLastSeenMs[hello.PeerId] = NowMs;
                 peerLastHelloMs[hello.PeerId] = NowMs;
+                answeredPingMs[hello.PeerId] = PingClockMs();
                 var build = new PeerBuildInfo(NetGuard.Clean(hello.Version), NetGuard.Clean(hello.Checksum));
                 Session.Names[hello.PeerId] = NetGuard.Clean(hello.DisplayName);
                 Session.Builds[hello.PeerId] = build;
@@ -224,6 +226,7 @@ public sealed partial class MultiplayerManager
             case PongMessage pong when IsHost:
                 peerLastSeenMs[pong.PeerId] = NowMs;
                 peerLatencyMs[pong.PeerId] = PingClockMs() - pong.SentAtMs;
+                answeredPingMs[pong.PeerId] = Math.Max(answeredPingMs.GetValueOrDefault(pong.PeerId), Math.Min(pong.SentAtMs, PingClockMs()));
                 if (stream?.Pong(pong.PeerId, pong.StreamEpoch, pong.StreamSent, pong.StreamReceived) is { } askPeer) Transmit(askPeer);
                 break;
             case StreamGapMessage gap when IsHost:
@@ -241,6 +244,9 @@ public sealed partial class MultiplayerManager
                 break;
             case StreamStateMessage state when !IsHost && state.PeerId == MyPeerId:
                 if (stream != null) Transmit(stream.State(senderPeerId, state.StreamEpoch, state.Sent, state.Received));
+                break;
+            case ActedMessage acted when IsHost:
+                OnPeerActed(acted);
                 break;
             // Mitigation reports put statuses on the host's own characters: seated peers only,
             // known ids only, durations clamped.

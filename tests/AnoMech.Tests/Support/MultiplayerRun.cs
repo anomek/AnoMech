@@ -17,8 +17,8 @@ internal sealed class MultiplayerRun
     private const double StartSeconds = 45;
     private const double FlushSeconds = 2;
     // A link that dropped is back within the reconnect backoff, and the ping cycle finds what's
-    // still missing within two more.
-    private const double SettleSeconds = 30;
+    // still missing within two more; a download that fell behind drains what it holds.
+    private const double SettleSeconds = 60;
     // As in game. The host's arrive at once, so a peer has to show everything the host's client
     // was told even while its own copies are still on the way.
     public static readonly (int Min, int Max) PeerSpawnFrames = (2, 6);
@@ -33,6 +33,7 @@ internal sealed class MultiplayerRun
 
     private readonly List<(TestClient Client, double Frame, double LastFrame, double NextFrame, Random Hitches, double NextHitch, ConnectionProfile Link)> clients = [];
     private readonly List<Death> deaths = [];
+    private readonly List<(double At, int Client, Action<TestClient> Input)> inputs = [];
 
     public TestRelay Relay { get; }
     public ConnectionProfile PeerLink { get; }
@@ -66,13 +67,17 @@ internal sealed class MultiplayerRun
     // immortal: nobody dies on the host, so a player who never moves still sees the whole fight.
     // runs: the fight played again after the host's Reset, in the same stay and on the same rolls,
     // as forced rolls replay it. interrupt: the faults to put on the links, by client (the host 0,
-    // then the peers), before anyone connects.
+    // then the peers), before anyone connects. inputs: what a client's player does, by client and
+    // seconds into the host's fight. configure: each client's own settings, before anyone connects.
     public static MultiplayerRun Play(Type scenarioType, int strat, int seed, PlayerSeat host, IReadOnlyList<PlayerSeat> peers,
         ConnectionProfile? hostLink = null, ConnectionProfile? peerLink = null, double timeout = 600, bool immortal = false, int runs = 1,
-        Action<TestRelay>? interrupt = null)
+        Action<TestRelay>? interrupt = null, IEnumerable<(double At, int Client, Action<TestClient> Input)>? inputs = null,
+        Action<TestClient>? configure = null)
     {
         var run = new MultiplayerRun(seed, host, peers, hostLink ?? TestRelay.Perfect, peerLink ?? TestRelay.Perfect);
         interrupt?.Invoke(run.Relay);
+        foreach (var client in run.Peers.Prepend(run.Host)) configure?.Invoke(client);
+        run.inputs.AddRange((inputs ?? []).OrderBy(i => i.At));
         run.Host.Game.GodMode = immortal;
         run.Host.Game.PartyMemberKilled += (role, cause, actionId) => run.deaths.Add(new Death(role, cause, actionId, run.Host.Game.World.Events.Elapsed, ""));
         try
@@ -150,6 +155,9 @@ internal sealed class MultiplayerRun
     // How the host's last fight ended; null when it left the fight before its end.
     public SessionStatus? HostOutcome { get; private set; }
 
+    // The inputs the fight ended before.
+    public int InputsLeft => inputs.Count;
+
     // Each run clock as the host's run ended; a peer's leads the host's by its poses' delay.
     public double HostClockAtEnd { get; private set; }
     public IReadOnlyList<double> PeerClocksAtEnd { get; private set; } = [];
@@ -191,6 +199,7 @@ internal sealed class MultiplayerRun
                 if (clients[i].NextFrame < clients[index].NextFrame) index = i;
             var (client, frame, last, next, hitches, nextHitch, link) = clients[index];
             Relay.AdvanceTo(next);
+            RunInputs(index, client);
             client.Frame((float)(next - last));
             var gap = frame;
             if (next >= nextHitch)
@@ -199,6 +208,18 @@ internal sealed class MultiplayerRun
                 nextHitch = next + gap + Exponential(hitches, link.PeerHitchEvery);
             }
             clients[index] = (client, frame, next, next + gap, hitches, nextHitch, link);
+        }
+    }
+
+    private void RunInputs(int index, TestClient client)
+    {
+        if (double.IsNaN(StartedAt)) return;
+        for (var i = 0; i < inputs.Count && StartedAt + inputs[i].At <= Relay.Now; i++)
+        {
+            var (_, owner, input) = inputs[i];
+            if (owner != index) continue;
+            inputs.RemoveAt(i--);
+            client.Do(() => input(client));
         }
     }
 

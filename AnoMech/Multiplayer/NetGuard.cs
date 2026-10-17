@@ -16,6 +16,8 @@ internal static class NetGuard
     public const int MaxQueuedMessages = 8192;
     public const int MaxMessagesPerDrain = 2048;
     public const int MaxPacketsPerMessage = 4096;
+    // Past the longest cast bar a player action has.
+    public const float MaxPlayerCastSeconds = 10f;
     public const int MaxSessionPeers = 64;
     public const uint MaxHp = 50_000_000;
     public const float MaxMitigationSeconds = 120f;

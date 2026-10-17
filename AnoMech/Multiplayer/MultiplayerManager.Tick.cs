@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Multiplayer;
@@ -73,6 +74,7 @@ public sealed partial class MultiplayerManager
         if (gameEventsSubscribed) return;
         gameEventsSubscribed = true;
         Plugin.Game.InstanceExited += OnInstanceExited;
+        Natives.UserActions.Acted += OnActed;
         Plugin.Game.World.Announced += text =>
         {
             if (!IsHost || stream == null) return;
@@ -206,6 +208,7 @@ public sealed partial class MultiplayerManager
             }
 
             if (deferredLeaveMs.Count > 0) ConfirmDeferredLeaves();
+            if (running && Plugin.Game.World.Map.IsInInstance) EndRunIfBehind();
         }
         else if (IsSessionNotFound)
         {

@@ -31,6 +31,7 @@ internal sealed class TestClient
     // client, on the relay's clock.
     public List<(double At, MpMessage Message, string Json)> StreamSent { get; } = [];
     public List<(double At, Guid From, MpMessage Message)> StreamTaken { get; } = [];
+    public Configuration Config => config;
     public FakeGame Fake { get; }
     public Game Game { get; }
     public MultiplayerManager Multiplayer { get; }
