@@ -12,7 +12,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 namespace AnoMech.Core.SimObjects;
 
 // Common base for anything in the simulated world that has a BattleChara behind it
-public abstract class SimCharacter : ISimObject, IPositioned
+public abstract partial class SimCharacter : ISimObject, IPositioned
 {
     // createMotion gets the character itself, which a derived constructor can't hand its base.
     private protected SimCharacter(Coordinates coordinates, Func<SimCharacter, CharacterMotion> createMotion)

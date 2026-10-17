@@ -352,7 +352,7 @@ internal sealed class PacketRecorder
         public float Rotation => inner.Rotation;
         public float HitboxRadius => inner.HitboxRadius;
         public bool HasDrawObject => inner.HasDrawObject;
-        public bool IsDrawObjectVisible => inner.IsDrawObjectVisible;
+        public bool IsDrawObjectVisible { get => inner.IsDrawObjectVisible; set => inner.IsDrawObjectVisible = value; }
         public byte ModelState => inner.ModelState;
         public bool IsCasting => inner.IsCasting;
         public uint CastActionId => inner.CastActionId;
@@ -452,6 +452,12 @@ internal sealed class PacketRecorder
             recorder.RecordObjectControl(inner, category, [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8]);
             inner.ActorControl(category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
         }
+
+        public void SetState(ushort state) => inner.SetState(state);
+        public ushort SharedTimelineState => inner.SharedTimelineState;
+        public void UpdateSharedTimelineState(ushort from, ushort to) => inner.UpdateSharedTimelineState(from, to);
+        public void ForceSharedGroupActive() => inner.ForceSharedGroupActive();
+        public void DeactivateSharedGroup() => inner.DeactivateSharedGroup();
 
         public void Despawn()
         {

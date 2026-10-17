@@ -17,7 +17,7 @@ public enum LandslideType
     Ultima
 }
 
-public class UwuUtils(SimWorld world)
+public partial class UwuUtils(SimWorld world)
 {
     private readonly SimWorld world = world;
 

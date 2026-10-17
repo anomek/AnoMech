@@ -21,7 +21,7 @@ namespace AnoMech.Core.SimObjects;
 // HUD mirroring is owned by SimWorld (not SimParty) — see SimWorld.partyHud —
 // so the addon-lifecycle listener has the same lifespan as the plugin and the
 // SimParty.Empty sentinel doesn't accidentally register one at static init.
-public sealed class SimParty : ISimObject
+public sealed partial class SimParty : ISimObject
 {
     public static readonly SimParty Empty = new();
 

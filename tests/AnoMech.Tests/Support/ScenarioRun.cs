@@ -12,6 +12,9 @@ internal sealed record Death(PartyRole Role, string Cause, uint? ActionId, float
 
 internal sealed record ScenarioRunOptions
 {
+    // Frames a spawned actor takes to arrive, as the engine's NpcSpawn handler takes.
+    public (int Min, int Max) PacketSpawnFrames { get; init; }
+
     // Ends the run at this scenario time, as a pass unless something already failed.
     public float? StopAt { get; init; }
 
@@ -67,6 +70,7 @@ internal sealed record ScenarioRun(
         options ??= new ScenarioRunOptions();
         var fake = FakeGame.Install();
         fake.UserActions.Enabled = options.UserActionsEnabled;
+        fake.BattleCharas.PacketSpawnFrames = options.PacketSpawnFrames;
         Game? game = null;
         var log = TraceLog.Create(() => game?.World.Events.Elapsed ?? 0f);
         fake.Timeline.Clock = () => game?.World.Events.Elapsed ?? 0f;

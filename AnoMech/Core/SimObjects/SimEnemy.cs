@@ -90,7 +90,7 @@ public sealed record NpcAppearance(
     // The 26 CustomizeData bytes.
     byte[]? Customize = null);
 
-public sealed class SimEnemy : SimNpc
+public sealed partial class SimEnemy : SimNpc
 {
     // The cast packets and the animation lock live in Casting; EnemyActionHandler decides when
     // they go out and what the action does.
@@ -375,6 +375,7 @@ public sealed class SimEnemy : SimNpc
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        TickLegacyVisibility();
         TickTimelineWatch(deltaSeconds);
         TickPacketSpawnCheckpoints();
 
