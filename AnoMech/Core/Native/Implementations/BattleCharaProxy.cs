@@ -5,6 +5,7 @@ using System.Numerics;
 using AnoMech.Core.Native.Implementations.Interop;
 using AnoMech.Core.Native.Implementations.Pointers;
 using AnoMech.Core.Native.Interfaces;
+using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -177,6 +178,35 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
             var obj = Ptr;
             return obj == null ? (byte)0 : obj->Timeline.ModelState;
         }
+    }
+
+    private const int AppearanceCustomizeBytes = 26;
+    private const int AppearanceEquipmentSlots = 10;
+
+    // Gear packs as a spawn packet's legacy slot: model | variant << 16 | first dye << 24.
+    public NpcAppearance? Appearance
+    {
+        get
+        {
+            var obj = Ptr;
+            if (obj == null) return null;
+            var customize = new byte[AppearanceCustomizeBytes];
+            var raw = (byte*)&obj->DrawData.CustomizeData;
+            for (var i = 0; i < customize.Length; i++) customize[i] = raw[i];
+            var equipment = new uint[AppearanceEquipmentSlots];
+            for (var i = 0; i < equipment.Length; i++)
+            {
+                var piece = obj->DrawData.EquipmentModelIds[i];
+                equipment[i] = piece.Id | (uint)piece.Variant << 16 | (uint)piece.Stain0 << 24;
+            }
+            return new NpcAppearance(Weapon(obj, 0), Weapon(obj, 1), equipment, customize);
+        }
+    }
+
+    private static ulong Weapon(BattleChara* obj, int slot)
+    {
+        var model = obj->DrawData.WeaponData[slot].ModelId;
+        return model.Id | (ulong)model.Type << 16 | (ulong)model.Variant << 32 | (ulong)model.Stain0 << 48 | (ulong)model.Stain1 << 56;
     }
 
     // ── Casting ──────────────────────────────────────────────────────────────
@@ -414,6 +444,15 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
             entry->SourceEntityId = statuses[i].SourceEntityId;
         }
         PacketDispatcherPointers.HandleStatusEffectListDoublePacket(((GameObject*)obj)->EntityId, &packet, 0);
+    }
+
+    public bool ShowsStatus(ushort statusId)
+    {
+        var obj = Ptr;
+        if (obj == null) return false;
+        foreach (var status in obj->StatusManager.Status)
+            if (status.StatusId == statusId) return true;
+        return false;
     }
 
     // ── Effects ──────────────────────────────────────────────────────────────

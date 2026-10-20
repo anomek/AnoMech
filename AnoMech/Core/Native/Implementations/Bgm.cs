@@ -27,6 +27,9 @@ internal sealed unsafe class Bgm : IBgm
     private ushort current;
     private MusicPlayer? player;
     private float trackVolume = 1f;
+    // The track a Switch moved away from, fading out on our output as the game's own output would.
+    private MusicPlayer? fading;
+    private float fadingTrackVolume;
 
     public void Play(ushort bgmId, float secondsIn = 0f)
     {
@@ -34,6 +37,7 @@ internal sealed unsafe class Bgm : IBgm
         if (BGMSystem.Instance() == null) return;
         if (secondsIn <= 0f && bgmId == current && player == null) return; // same id = keep playing
         StopPlayer();
+        if (secondsIn > 0f) StopFading();
         var started = secondsIn > 0f && StartPlayer(bgmId, secondsIn);
         BGMSystem.SetBGM(started ? SilentBgmId : bgmId, ContentSceneId);
         current = bgmId;
@@ -45,9 +49,19 @@ internal sealed unsafe class Bgm : IBgm
         Play(current, secondsIn);
     }
 
+    public void Switch(ushort bgmId)
+    {
+        if (current == 0 || bgmId == current) return;
+        FadeOutPlayer();
+        Play(bgmId);
+    }
+
+    public void Silence() => Switch(SilentBgmId);
+
     public void Reset()
     {
         StopPlayer();
+        StopFading();
         if (current == 0) return;
         var system = BGMSystem.Instance();
         if (system != null) system->ResetBGM(ContentSceneId);
@@ -57,6 +71,9 @@ internal sealed unsafe class Bgm : IBgm
     public void Tick(float deltaSeconds)
     {
         if (player != null) player.Volume = trackVolume * MusicVolume();
+        if (fading == null) return;
+        if (fading.FadedOut) StopFading();
+        else fading.Volume = fadingTrackVolume * MusicVolume();
     }
 
     public void LogPosition(string label)
@@ -91,6 +108,28 @@ internal sealed unsafe class Bgm : IBgm
         player.Dispose();
         player = null;
     }
+
+    private void FadeOutPlayer()
+    {
+        if (player == null) return;
+        StopFading();
+        fading = player;
+        fadingTrackVolume = trackVolume;
+        player = null;
+        fading.FadeOut(DirectorFadeOutSeconds());
+    }
+
+    private void StopFading()
+    {
+        if (fading == null) return;
+        fading.Dispose();
+        fading = null;
+    }
+
+    // UNVERIFIED: the director's track change carries no fade and no BGMFade row names the content
+    // scene, so the game's default fade type is assumed.
+    private static float DirectorFadeOutSeconds()
+        => Plugin.DataManager.GetExcelSheet<BGMFadeType>()?.GetRowOrDefault(0)?.FadeOutTime ?? 0f;
 
     // GetEffectiveVolume throws if its signature didn't resolve.
     private static bool volumeFallbackLogged;

@@ -23,13 +23,22 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
     public bool IsMoving { get; private set; }
     public bool IsActing { get; private set; }
 
+    // How many auto-attacks it has swung, for a mechanic that a swing breaks.
+    public int AutoAttackSwings { get; private set; }
+
+    internal void CountAutoAttackSwing() => AutoAttackSwings++;
+
     internal override IBattleCharaProxy Proxy => Natives.BattleCharas.LocalPlayer;
 
     public byte ClassJob => Proxy.ClassJob;
 
-    public void UseAction(uint actionId)
+    // The debug bot's press: what JobActions gives a real one, applied straight away.
+    public bool UseAction(uint actionId, SimCharacter? target = null)
     {
-        if (DebugBotControl.Enabled && !Dead && !ActionsLocked) JobActions.ApplyEffects(this, actionId, (ulong)GameObjectId, Random.Shared);
+        if (!DebugBotControl.Enabled || Dead || ActionsLocked || target is not null && !target.IsAlive()) return false;
+        JobActions.ApplyEffects(this, actionId, (ulong)(target ?? this).GameObjectId, Random.Shared);
+        if (target is SimEnemy enemy) EnemyHitHandler.Report(enemy, this);
+        return true;
     }
 
     public override void Tick(float deltaSeconds)

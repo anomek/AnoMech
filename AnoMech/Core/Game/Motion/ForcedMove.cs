@@ -28,6 +28,9 @@ internal abstract record ForcedMove
 
     public sealed record Teleport(Placement To) : ForcedMove;
 
+    // A walk in a straight line at a fixed speed, facing the way it goes (TEA's Ordained statuses).
+    public sealed record March(Vector3 To, float Speed) : ForcedMove;
+
     // Confusion's chase; a null target hands control back. Re-issued as the target changes, so a
     // motion keeps it as a standing order rather than a one-shot move.
     public sealed record Follow(SimCharacter? Target, float Speed) : ForcedMove;
@@ -51,6 +54,9 @@ internal sealed class Trajectory(Vector3 start, Vector3 end, float delay, float 
 
     public static Trajectory Carry(Vector3 start, Vector3 end)
         => new(start, end, CarryStartDelay, CarrySettledSeconds - CarryStartDelay, EaseOutCubic);
+
+    public static Trajectory Walk(Vector3 start, Vector3 end, float duration)
+        => new(start, end, 0f, duration, t => t);
 
     private float elapsed;
 

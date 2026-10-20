@@ -179,6 +179,12 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void PlayBgm(ushort bgmId, float secondsIn = 0f)
         => children.SetSingleton(new SimBgm()).Play(bgmId, secondsIn);
 
+    // The fight's own change of track (IBgm.Switch); nothing while music is suppressed. Each client
+    // plays its own music, so these belong in RunInstanceEvents.
+    public void SwitchBgm(ushort bgmId) => children.Singleton<SimBgm>()?.Switch(bgmId);
+
+    public void SilenceBgm() => children.Singleton<SimBgm>()?.Silence();
+
     // True when `local` (scenario-local) is outside the active arena fence; false
     // when the current scenario enforces no boundary.
     public bool IsOutsideArena(Vector3 local)

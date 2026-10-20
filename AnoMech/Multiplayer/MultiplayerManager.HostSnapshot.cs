@@ -30,6 +30,8 @@ public sealed partial class MultiplayerManager
             case ForcedMove.Follow follow:
                 var (targetEnemy, targetRole) = ResolveEnd(world, follow.Target);
                 return new FollowMessage(role, targetRole, targetEnemy, follow.Speed);
+            case ForcedMove.March march:
+                return new MarchMessage(role, march.To.X, march.To.Y, march.To.Z, march.Speed);
             default:
                 throw new ArgumentOutOfRangeException(nameof(move), move, null);
         }

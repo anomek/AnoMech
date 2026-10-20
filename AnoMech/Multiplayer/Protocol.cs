@@ -34,6 +34,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(PushMessage), "push")]
 [JsonDerivedType(typeof(CarryMessage), "carry")]
 [JsonDerivedType(typeof(FollowMessage), "follow")]
+[JsonDerivedType(typeof(MarchMessage), "march")]
 [JsonDerivedType(typeof(EndMessage), "end")]
 [JsonDerivedType(typeof(PingMessage), "ping")]
 [JsonDerivedType(typeof(PongMessage), "pong")]
@@ -63,6 +64,9 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
+[JsonDerivedType(typeof(PeerDispelledMessage), "peerDispelled")]
+[JsonDerivedType(typeof(PeerProvokedEnemyMessage), "peerProvokedEnemy")]
+[JsonDerivedType(typeof(PeerAttackedEnemyMessage), "peerAttackedEnemy")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 [JsonDerivedType(typeof(ActedMessage), "acted")]
 [JsonDerivedType(typeof(StreamStateMessage), "streamState")]
@@ -194,11 +198,12 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 
 // The other forced movements a scenario applies to a party member, each from the matching
 // ForcedMove on a SimNetworkPuppet. Push takes DurationSeconds when > 0, else Distance / Speed;
-// Follow with a null TargetRole releases the follow.
+// Follow with a null TargetRole releases the follow; March walks to (X, Y, Z) at Speed.
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
 public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
 public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z) : MpMessage, IHostOnlyMessage;
 public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, uint TargetEnemy, float Speed) : MpMessage, IHostOnlyMessage;
+public sealed record MarchMessage(PartyRole Role, float X, float Y, float Z, float Speed) : MpMessage, IHostOnlyMessage;
 
 // ReturnedToInn distinguishes Reset() (stays in-zone) from Leave() (unloads); both clear
 // ActiveScenario identically. Reason is set only when the group couldn't otherwise explain
@@ -351,6 +356,15 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<uint> Enemi
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration, ushort Param = 0) : MpMessage, IPeerMessage;
+
+// Peer -> host: this player's cleanse (Esuna) landed on Role; the host's copy picks what comes off.
+public sealed record PeerDispelledMessage(Guid PeerId, PartyRole Role) : MpMessage, IPeerMessage;
+
+// Peer -> host: this player provoked these enemies, by host entity id.
+public sealed record PeerProvokedEnemyMessage(Guid PeerId, List<uint> Enemies) : MpMessage, IPeerMessage;
+
+// Peer -> host: this player's first attack on this enemy, by host entity id, landed.
+public sealed record PeerAttackedEnemyMessage(Guid PeerId, uint Enemy) : MpMessage, IPeerMessage;
 
 // Peer -> host: a step of this player's own action (IUserActions.Acted), which the host shows on
 // the peer's seat for the rest of the party. Target names an actor as a GamePacket does.

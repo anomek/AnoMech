@@ -19,6 +19,9 @@ public interface IGameData
 
     bool WeatherExists(byte weatherId);
 
+    // Esuna can remove it.
+    bool CanDispel(ushort statusId);
+
     bool FileExists(string path);
 }
 

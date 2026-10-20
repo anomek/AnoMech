@@ -1,6 +1,7 @@
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native.Interfaces;
+using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
@@ -56,6 +57,9 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
 
     public byte ModelState => Actor?.ModelState ?? 0;
+
+    // A fake draws nothing, so it has no look to copy.
+    public NpcAppearance? Appearance => Actor is null ? null : new NpcAppearance();
 
     // ── Casting ──────────────────────────────────────────────────────────────
 
@@ -201,6 +205,12 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
                     new Vector3(Position16(arg1 >> 16), Position16(arg1 & 0xFFFF), Position16(arg2 >> 16)),
                     (arg2 & 0xFFFF) / (float)ushort.MaxValue * MathF.Tau - MathF.PI);
                 break;
+            case 0x602: // forced march step, p1..p3 = point, p4 = heading, p5 = speed (float bits)
+                Actor?.StartMarch(new Vector3(Float(arg1), Float(arg2), Float(arg3)), Float(arg4), Float(arg5));
+                break;
+            case 0x603: // forced march end, p1..p3 = point, p4 = heading
+                Actor?.EndMarch(new Vector3(Float(arg1), Float(arg2), Float(arg3)), Float(arg4));
+                break;
         }
     }
 
@@ -217,6 +227,8 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
     private static uint Id(GameObjectId? id) => id is { ObjectId: var objectId and not 0xE0000000 } ? objectId : 0;
 
     private static float Position16(uint value) => value / 32.767f - 1000f;
+
+    private static float Float(uint bits) => BitConverter.UInt32BitsToSingle(bits);
 
     // ── Combat state ─────────────────────────────────────────────────────────
 
@@ -243,6 +255,8 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
         a.Health = health;
         a.Mana = mana;
     }
+
+    public bool ShowsStatus(ushort statusId) => Actor is { } a && a.Statuses.Keys.Any(k => k.StatusId == statusId);
 
     // ── Effects ──────────────────────────────────────────────────────────────
 

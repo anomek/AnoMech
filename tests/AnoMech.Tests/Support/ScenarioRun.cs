@@ -232,6 +232,9 @@ internal sealed class ScenarioProbe(Game game, TraceLog log, Func<IEnumerable<Ao
     // The player keeps walking from now on, as far as stillness mechanics can tell.
     public void HoldMovementInput() => ((FakeLocalPlayerInput)Natives.PlayerInput).MovementInputActive = true;
 
+    // The player presses an instant action this frame.
+    public void PressAction() => ((FakeLocalPlayerInput)Natives.PlayerInput).PressAction();
+
     public void Log(string message) => log.Add("PROBE", message);
 
     public void Snapshot(string label)

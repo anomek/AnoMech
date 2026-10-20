@@ -26,11 +26,13 @@ public sealed class SimPartyNpc : SimNpc, ISimPartyMember
     }
 
     // A bot's button press: the animation, then the same JobActions effects a player's press applies.
-    public void UseAction(uint actionId)
+    public bool UseAction(uint actionId, SimCharacter? target = null)
     {
-        if (!this.IsAlive() || ActionsLocked) return;
-        PlayAction(actionId);
-        JobActions.ApplyEffects(this, actionId, (ulong)GameObjectId, Random.Shared);
+        if (!this.IsAlive() || ActionsLocked || target is not null && !target.IsAlive()) return false;
+        PlayAction(actionId, target: target);
+        JobActions.ApplyEffects(this, actionId, (ulong)(target ?? this).GameObjectId, Random.Shared);
+        if (target is SimEnemy enemy) enemy.NoteAttack(this);
+        return true;
     }
 
     public override void Despawn()

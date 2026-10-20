@@ -18,7 +18,7 @@ namespace AnoMech.Core.Game.Ai;
 public sealed class AiManager
 {
     // Measured in-game.
-    private const float RunSpeed = 6.5f;
+    public const float RunSpeed = 6.5f;
     public const float SprintSpeed = 8.3f;
     private const float DefaultJitter = 0.3f;
     // Move's deadline math leaves zero margin, and a move needing speed within a hair of RunSpeed
@@ -81,6 +81,23 @@ public sealed class AiManager
                     member.UseAction(Natives.Data.CanUse(member.ClassJob, JobActions.ArmsLength) ? JobActions.ArmsLength : JobActions.Surecast);
         }, file, line);
     }
+
+    // `target` is read when the press happens and a null one skips it; no `target` presses on
+    // themselves.
+    public void UseAction(float time, PartyRole role, uint actionId, Func<SimCharacter?>? target = null,
+        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+        => UseAction(time, role, _ => actionId, target, file, line);
+
+    // The action picked from the member's job, e.g. Arm's Length or Surecast.
+    public void UseAction(float time, PartyRole role, Func<byte, uint> actionForJob, Func<SimCharacter?>? target = null,
+        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+        => world.Events.Add(time, () =>
+        {
+            if (world.Party.Get(role) is not ISimPartyMember member) return;
+            var at = target?.Invoke();
+            if (target is not null && at is null) return;
+            member.UseAction(actionForJob(member.ClassJob), at);
+        }, file, line);
 
     public void Automarker(float time, Func<Dictionary<PartyRole, Sign>> mapping, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {

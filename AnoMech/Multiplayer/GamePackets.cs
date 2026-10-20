@@ -49,6 +49,7 @@ internal static class PacketActor
 [JsonDerivedType(typeof(DirectorUpdatePacket), "director")]
 [JsonDerivedType(typeof(DirectorDataPacket), "directorData")]
 [JsonDerivedType(typeof(CommencePacket), "commence")]
+[JsonDerivedType(typeof(BattleTalkPacket), "battleTalk")]
 [JsonDerivedType(typeof(HatersPacket), "haters")]
 [JsonDerivedType(typeof(WeatherPacket), "weather")]
 [JsonDerivedType(typeof(AfflictionsPacket), "afflictions")]
@@ -112,6 +113,8 @@ public sealed record DirectorUpdatePacket(uint Category, uint Arg1, uint Arg2, u
 public sealed record DirectorDataPacket(byte Sequence, byte Unknown, byte[] Data) : GamePacket;
 
 public sealed record CommencePacket : GamePacket;
+
+public sealed record BattleTalkPacket(uint SpeakerNameId, uint TextId, uint DurationMs) : GamePacket;
 
 public sealed record HatersPacket(List<HaterPacket> Haters) : GamePacket;
 

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using AnoMech.Core.EnemyActions;
+using System.Linq;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
@@ -64,18 +64,60 @@ internal sealed class StatusEffect(ushort statusId, float duration, int stacks =
 }
 
 // A peer runs no scenario logic: the host decides who lives, from the statuses on its own copy
-// of each character. Only the statuses the host acts on (mitigation, knockback immunity) and Sprint,
-// which every other client shows, are sent.
+// of each character. Only the statuses the host acts on (mitigation, knockback immunity) and
+// Sprint, which every other client shows, are sent, with what a scenario reacts to: a provoke,
+// an enemy's first hit, a cleanse.
 internal static class HostReport
 {
-    public static bool IsReported(ushort statusId) => Mitigation.ByStatusId.ContainsKey(statusId)
-        || Array.IndexOf(EnemyActionContext.KnockbackImmunityStatuses, statusId) >= 0
-        || statusId == JobActions.SprintStatus;
+    public static bool IsReported(ushort statusId)
+        => Mitigation.ByStatusId.ContainsKey(statusId) || KnockbackImmunity.IsImmunity(statusId) || statusId == JobActions.SprintStatus;
 
     public static void RoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, int stacks)
     {
         if (IsReported(statusId))
             Plugin.Multiplayer?.ReportAppliedRoleStatus(roles, statusId, duration, (ushort)stacks);
+    }
+
+    // True when a host now owns the cleanse.
+    public static bool Dispelled(PartyRole role) => Plugin.Multiplayer?.ReportDispelled(role) ?? false;
+
+    public static void Provoked(IReadOnlyList<SimEnemy> enemies) => Plugin.Multiplayer?.ReportProvokedEnemies(enemies);
+
+    public static void Attacked(SimEnemy enemy) => Plugin.Multiplayer?.ReportAttackedEnemy(enemy);
+}
+
+// Leaf: remove the first dispellable status (Status sheet CanDispel) from each friendly recipient.
+// The status is picked at the press and comes off 1.11s later, as the game's does. On a peer the
+// host's copy, which holds the statuses, does both.
+internal sealed class DispelEffect : IActionEffect
+{
+    private const float Delay = 1.11f;
+
+    public void Apply(ActionContext ctx)
+    {
+        foreach (var member in ActionTargets.Friendly(ctx))
+            if (member is not ISimPartyMember slot || !HostReport.Dispelled(slot.Role))
+                Dispel(member);
+    }
+
+    public static void Dispel(SimCharacter member)
+    {
+        if (member.ActiveStatuses.FirstOrDefault(s => Natives.Data.CanDispel(s.StatusId)) is not { } status) return;
+        void Remove() => member.RemoveStatus(status.StatusId, status.SourceObject);
+        if (Plugin.Game is { } game) game.Events.Add(Delay, Remove);
+        else Remove();
+    }
+}
+
+// Leaf: tell the targeted enemy who provoked it; what that does is the scenario's to decide
+// (SimEnemy.Provoked).
+internal sealed class ProvokeEffect : IActionEffect
+{
+    public void Apply(ActionContext ctx)
+    {
+        var enemies = ActionTargets.Hostile(ctx);
+        foreach (var enemy in enemies) enemy.Provoke(ctx.Caster);
+        HostReport.Provoked(enemies);
     }
 }
 
@@ -92,6 +134,32 @@ internal sealed class TargetStatusEffect(ushort statusId, float duration, int st
             if (member is ISimPartyMember slot) roles.Add(slot.Role);
         }
         HostReport.RoleStatus(roles, statusId, duration, stacks);
+    }
+}
+
+// Leaf: a tank LB3's status, picked at the press and landing once its animation is under way: on the
+// caster 1.27s after the action, then on each other recipient 0.145s after the one before.
+internal sealed class LimitBreakStatusEffect(ushort statusId, float duration) : IActionEffect
+{
+    private const float OnCaster = 1.27f;
+    private const float EachNext = 0.145f;
+
+    public void Apply(ActionContext ctx)
+    {
+        var members = ActionTargets.Friendly(ctx).OrderBy(m => !ReferenceEquals(m, ctx.Caster)).ToList();
+        for (var k = 0; k < members.Count; k++)
+        {
+            var member = members[k];
+            void Land()
+            {
+                if (!member.IsAlive()) return;
+                member.RemoveStatus(statusId);
+                member.AddStatusParam(statusId, 0, duration);
+                if (member is ISimPartyMember slot) HostReport.RoleStatus([slot.Role], statusId, duration, 0);
+            }
+            if (Plugin.Game is { } game) game.Events.Add(OnCaster + EachNext * k, Land);
+            else Land();
+        }
     }
 }
 

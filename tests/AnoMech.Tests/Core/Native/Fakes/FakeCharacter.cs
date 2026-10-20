@@ -97,6 +97,35 @@ internal sealed class FakeCharacter(uint entityId, string name)
         pushElapsed = 0f;
     }
 
+    // UNVERIFIED: how the client walks a forced march; here straight at each step's point at its
+    // speed, snapping to the end point.
+    private Vector3? marchPoint;
+    private float marchSpeed;
+
+    public void StartMarch(Vector3 point, float heading, float speed)
+    {
+        glideRemaining = 0f;
+        marchPoint = point;
+        marchSpeed = speed;
+        Rotation = heading;
+    }
+
+    public void EndMarch(Vector3 point, float heading)
+    {
+        marchPoint = null;
+        Position = point;
+        Rotation = heading;
+    }
+
+    private void WalkMarch(float deltaSeconds)
+    {
+        if (marchPoint is not { } point) return;
+        var away = point - Position;
+        var gap = away.Length();
+        var step = marchSpeed * deltaSeconds;
+        Position = gap <= step ? point : Position + away / gap * step;
+    }
+
     // The client walks a forced follow at run speed and stops at the target's hitbox edge.
     private const float RunSpeed = 6f;
     private FakeCharacter? forcedFollowTarget;
@@ -119,6 +148,7 @@ internal sealed class FakeCharacter(uint entityId, string name)
     public void Tick(float deltaSeconds)
     {
         WalkForcedFollow(deltaSeconds);
+        WalkMarch(deltaSeconds);
         if (glideRemaining > 0f)
         {
             var dt = MathF.Min(deltaSeconds, glideRemaining);

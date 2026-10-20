@@ -71,6 +71,36 @@ public sealed partial class MultiplayerManager
         _ = Send(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration, param));
     }
 
+    public void ReportProvokedEnemies(IReadOnlyList<SimEnemy> enemies)
+    {
+        if (IsHost || relay is not { IsConnected: true } || replay is null || enemies.Count == 0) return;
+        var hostIds = enemies.Select(replay.HostActorOf).Where(id => id != PacketActor.None).ToList();
+        if (hostIds.Count == 0) return;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting a provoke on the host's enemies [{string.Join(",", hostIds.Select(id => $"0x{id:X}"))}].");
+        _ = Send(new PeerProvokedEnemyMessage(MyPeerId, hostIds));
+    }
+
+    // One report per enemy per run: only the first attacker matters.
+    private readonly HashSet<uint> reportedAttacks = [];
+
+    public void ReportAttackedEnemy(SimEnemy enemy)
+    {
+        if (IsHost || relay is not { IsConnected: true } || replay is null) return;
+        var hostId = replay.HostActorOf(enemy);
+        if (hostId == PacketActor.None || !reportedAttacks.Add(hostId)) return;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting a first attack on the host's enemy 0x{hostId:X}.");
+        _ = Send(new PeerAttackedEnemyMessage(MyPeerId, hostId));
+    }
+
+    // True when the host now owns the cleanse: its copy holds the statuses.
+    public bool ReportDispelled(PartyRole role)
+    {
+        if (IsHost || relay is not { IsConnected: true } || replay is null) return false;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting a cleanse on role {role} to host.");
+        _ = Send(new PeerDispelledMessage(MyPeerId, role));
+        return true;
+    }
+
     // ---- Host: applying a peer's reported pose to their puppet -------------
 
     private void OnSelfPoseReceived(SelfPoseMessage msg)
@@ -129,6 +159,7 @@ public sealed partial class MultiplayerManager
             replay.Copied += (local, host) => ActorReplayed?.Invoke(local, host);
         }
         earlyPackets.Clear();
+        reportedAttacks.Clear();
         peerEnteredInstance = false;
         peerRunStarted = false;
         peerEntryQueued = true;
@@ -283,6 +314,13 @@ public sealed partial class MultiplayerManager
             member.Push(heading, distance, NetGuard.Clamp(msg.DurationSeconds, 0.01f, 60f));
         else if (msg.Speed > 0f)
             member.Push(heading, distance, distance / NetGuard.Clamp(msg.Speed, 0.01f, 500f));
+    }
+
+    private void OnMarchReceived(MarchMessage msg)
+    {
+        if (!PeerInRun) return;
+        if (!NetGuard.TryPosition(msg.X, msg.Y, msg.Z, out var destination)) return;
+        OwnMember(msg.Role, "March")?.MarchTo(destination, NetGuard.Clamp(msg.Speed, 0.01f, 50f));
     }
 
     private void OnFollowReceived(FollowMessage msg)
