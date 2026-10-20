@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
+using AnoMech.Scenarios.Tea.P3AlexanderPrime;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
 using AnoMech.Scenarios.Umad.P2Forsaken;
@@ -61,6 +62,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
 [JsonDerivedType(typeof(TeaI1LimitCutAiReplayStateMessage), "teaI1LimitCutAiReplayState")]
+[JsonDerivedType(typeof(TeaP3AlexanderPrimeAiReplayStateMessage), "teaP3AlexanderPrimeAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
@@ -304,6 +306,13 @@ public sealed record UltimateSuppressionAiReplayStateMessage(
 
 // The numbers and the first Hawk Blaster axis; a dead number's retarget is the host's alone.
 public sealed record TeaI1LimitCutAiReplayStateMessage(PartyRole[] Numbers, int FirstBlasterAxis) : MpMessage, IScenarioReplayStateMessage;
+
+// Every roll; the chakrams' and Incinerating Heat's targets are picked live and the peer reads them
+// off its own screen. Aggravated Assault is the two DPS left over.
+public sealed record TeaP3AlexanderPrimeAiReplayStateMessage(
+    P3Practice Practice, PartyRole[] OrbHolders, PartyRole RestrainingOrderTank, PartyRole RestrainingOrderDps, PartyRole SharedSentence,
+    bool AlexanderPrimeNorth, int SacramentSpot, bool BruteJusticeNorthWest, bool PuddlesMirrored, PartyRole[] Numbers,
+    PartyRole[] Enumerations) : MpMessage, IScenarioReplayStateMessage;
 
 // InFirst is TopP6WaveCannon2Ai's entire read set.
 public sealed record TopP6WaveCannon2AiReplayStateMessage(bool InFirst) : MpMessage, IScenarioReplayStateMessage;
