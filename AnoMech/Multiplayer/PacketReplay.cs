@@ -383,13 +383,21 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             puppet.ApplyNetworkPose(local, rotation, Vector3.Zero, jumping: false);
     }
 
+    // The mirror keeps the cast's record (its action, bar, aim) as the host's own copy does; its
+    // silent proxy shows nothing more.
     private void Cast(CastPacket p)
     {
         if (!Enum.IsDefined(p.ActionType) || !NetGuard.TryPosition(p.X, p.Y, p.Z, out var position)) return;
         if (!SimAssets.AllowAction(p.ActionId, "cast")) return;
-        Character(p.Actor)?.ReceiveActorCast(new ActorCastData(p.ActionId, p.ActionType, NetGuard.Clamp(p.CastTime, 0f, 600f),
-            NetGuard.Clamp(p.OmenDelay, 0f, 60f), p.Interruptible, NetGuard.Rotation(p.Rotation), position,
-            ObjectIdOf(p.Target), ObjectIdOf(p.Ballista)));
+        var castTime = NetGuard.Clamp(p.CastTime, 0f, 600f);
+        var omenDelay = NetGuard.Clamp(p.OmenDelay, 0f, 60f);
+        var rotation = NetGuard.Rotation(p.Rotation);
+        var target = ObjectIdOf(p.Target);
+        var ballista = ObjectIdOf(p.Ballista);
+        Character(p.Actor)?.ReceiveActorCast(new ActorCastData(p.ActionId, p.ActionType, castTime, omenDelay, p.Interruptible, rotation, position,
+            target, ballista));
+        spawned.GetValueOrDefault(p.Actor)?.Enemy?.Casting.NativeCast(p.ActionId, p.ActionType, omenDelay, castTime, p.Interruptible, rotation,
+            world.Coordinates.ToLocal(position), target, ballista);
     }
 
     // A target missing here keeps its place, as no target: the results name targets by index.
