@@ -60,6 +60,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UcobP5ExaflaresAiReplayStateMessage), "ucobP5ExaflaresAiReplayState")]
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
+[JsonDerivedType(typeof(TeaI1LimitCutAiReplayStateMessage), "teaI1LimitCutAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
@@ -300,6 +301,9 @@ public sealed record UmadP5CelestriadAiReplayStateMessage(
 public sealed record UltimateSuppressionAiReplayStateMessage(
     PartyRole LightPillar, PartyRole[] MistralSongs, PartyRole[] Eruptions,
     PartyRole Gaol, PartyRole FlamingCrush, int[] SuppressionSpotOrder) : MpMessage, IScenarioReplayStateMessage;
+
+// The numbers and the first Hawk Blaster axis; a dead number's retarget is the host's alone.
+public sealed record TeaI1LimitCutAiReplayStateMessage(PartyRole[] Numbers, int FirstBlasterAxis) : MpMessage, IScenarioReplayStateMessage;
 
 // InFirst is TopP6WaveCannon2Ai's entire read set.
 public sealed record TopP6WaveCannon2AiReplayStateMessage(bool InFirst) : MpMessage, IScenarioReplayStateMessage;
