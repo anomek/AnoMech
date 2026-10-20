@@ -137,28 +137,34 @@ internal sealed class TargetStatusEffect(ushort statusId, float duration, int st
     }
 }
 
-// Leaf: a tank LB3's status, picked at the press and landing once its animation is under way: on the
-// caster 1.27s after the action, then on each other recipient 0.145s after the one before.
+// When a staggered status lands: on the caster OnCaster seconds after the action, then on each other
+// recipient EachNext seconds after the one before.
+public readonly record struct StatusLanding(float OnCaster, float EachNext);
+
+// Leaf: a tank LB3's status, on the friendly recipients at the press unless the zone staggers it
+// (IZone.TankLimitBreakLanding).
 internal sealed class LimitBreakStatusEffect(ushort statusId, float duration) : IActionEffect
 {
-    private const float OnCaster = 1.27f;
-    private const float EachNext = 0.145f;
+    private readonly TargetStatusEffect atThePress = new(statusId, duration);
 
     public void Apply(ActionContext ctx)
     {
+        if (Plugin.Game is not { Zone.TankLimitBreakLanding: { } landing } game)
+        {
+            atThePress.Apply(ctx);
+            return;
+        }
         var members = ActionTargets.Friendly(ctx).OrderBy(m => !ReferenceEquals(m, ctx.Caster)).ToList();
         for (var k = 0; k < members.Count; k++)
         {
             var member = members[k];
-            void Land()
+            game.Events.Add(landing.OnCaster + landing.EachNext * k, () =>
             {
                 if (!member.IsAlive()) return;
                 member.RemoveStatus(statusId);
                 member.AddStatusParam(statusId, 0, duration);
                 if (member is ISimPartyMember slot) HostReport.RoleStatus([slot.Role], statusId, duration, 0);
-            }
-            if (Plugin.Game is { } game) game.Events.Add(OnCaster + EachNext * k, Land);
-            else Land();
+            });
         }
     }
 }

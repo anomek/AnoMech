@@ -843,8 +843,10 @@ public class TeaP3AlexanderPrimeScenarioTests
         {
             Assert.That(run.Passed, run.ToString);
             Assert.That(limitBreaks, Has.Count.EqualTo(1));
+            Assert.That(lands.Select(r => r["actor"]).Distinct().Count(), Is.EqualTo(PerRole.All.Length));
             Assert.That(lands, Has.Count.EqualTo(PerRole.All.Length));
             if (limitBreaks.Count != 1 || lands.Count == 0) return;
+            Assert.That(limitBreaks.Single()["actor"], Is.EqualTo(mainTank));
             var pressed = Number(limitBreaks.Single()["t"]);
             Assert.That(pressed - Success, Is.InRange(7.1f, 7.5f));
             Assert.That(lands[0]["actor"], Is.EqualTo(mainTank));

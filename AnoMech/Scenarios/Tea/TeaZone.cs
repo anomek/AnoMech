@@ -3,6 +3,7 @@ using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
+using AnoMech.Core.UserActions;
 using static AnoMech.Scenarios.Tea.TeaConstants;
 
 namespace AnoMech.Scenarios.Tea;
@@ -49,6 +50,11 @@ public sealed class TeaZone : IZone
     public Vector3 Origin => new(100f, 0f, 100f);
     public byte Level => TeaConstants.Level;
     public ushort ItemLevel => TeaConstants.ItemLevel;
+
+    // unsure if this delay is accurate for every level sync or duty, reason it's for tea is because FFlogs
+    // showed the median of people pressing the tank lb which when pressed here would result in a wipe due
+    // to there not being the correct delay
+    public StatusLanding? TankLimitBreakLanding => new StatusLanding(1.27f, 0.145f);
 
     public IReadOnlyList<WaymarkLayout> WaymarkPresets { get; } =
         [new WaymarkLayout("PF Trines", TeaConstants.PfTrinesWaymarks)];
