@@ -367,30 +367,249 @@ public class TeaP3AlexanderPrimeScenarioTests
         });
     }
 
-    // MT drops the east wall crystal 5.9y from OT's, outside each other's circle, then waits the shatters out.
+    // Rows carry world positions, the scenario's own from the arena's centre.
+    private static Vector2 At(Dictionary<string, string> row) => new(Number(row["x"]) - Origin.X, Number(row["z"]) - Origin.Z);
+
+    private static readonly Vector3 Origin = AnoMech.Scenarios.Tea.TeaZone.P3.Zone.Origin;
+
+    private static List<string> CrystalsNear(Vector2 at) => Rows("spawn", BNpcBaseId.JudgmentCrystal)
+        .Where(r => Vector2.Distance(At(r), at) < 0.5f).Select(r => r["actor"]).ToList();
+
+    // MT drops the east wall crystal 5.9y from OT's, the two zones overlapping, then waits the shatters
+    // out by Alexander Prime: both go off on their own 0.86s after they spawn, telegraphed for 5.5s,
+    // and the heart takes only the inner pair. 29y away, MT takes 3.3k from each.
     [Test]
-    public void CrystalsDroppedCloseTogetherStillShatter()
+    public void CrystalsDroppedTooCloseTogetherGoOffOnTheirOwn()
     {
         var run = Run(MainTank, 58f, null, false, new Takeover(48f, new(0.5f, -17.6f)), new Takeover(49.3f, new(-3.4f, 11.5f)));
+        var crystals = Rows("spawn", BNpcBaseId.JudgmentCrystal).Select(r => r["actor"]).ToList();
+        var wall = CrystalsNear(new(0.5f, -17.6f)).Concat(CrystalsNear(new(-5.4f, -17.6f))).ToList();
+        var casts = Rows("cast", ActionId.TetrashatterFail);
+        var blasts = Rows(ActionId.TetrashatterFail);
         Assert.Multiple(() =>
         {
             Assert.That(run.Passed, run.ToString);
-            Assert.That(Rows().Where(r => r["id"] == ActionId.TetrashatterFail.ToString()), Is.Empty);
+            Assert.That(wall, Has.Count.EqualTo(2));
+            Assert.That(casts.Select(r => r["actor"]), Is.EquivalentTo(wall));
+            Assert.That(blasts.Select(r => r["actor"]), Is.EquivalentTo(wall));
+            Assert.That(Rows(ActionId.Tetrashatter).Select(r => r["actor"]), Is.EquivalentTo(crystals.Except(wall)));
+            foreach (var cast in casts)
+            {
+                Assert.That(Number(cast["t"]), Is.EqualTo(50.72f).Within(0.02f));
+                Assert.That(cast["detail"], Does.StartWith("cast=5.20s"));
+            }
+            foreach (var blast in blasts)
+            {
+                var at = Number(blast["t"]);
+                Assert.That(at, Is.EqualTo(50.72f + 5.5f).Within(0.03f));
+                var impact = Rows().FirstOrDefault(r => r["kind"] == "impact" && r["actor"] == blast["actor"] && r["id"] == blast["id"] && Number(r["t"]) >= at);
+                Assert.That(impact, Is.Not.Null);
+                if (impact is not null) Assert.That(Number(impact["t"]) - at, Is.EqualTo(0.91f).Within(0.03f));
+            }
+        });
+    }
+
+    // H2 drops the inner east crystal 5.8y from H1's and waits on the centre line: 13-14y from the
+    // pair, either blast alone is past a healer's HP; 21y away, each comes to 3.3k.
+    [TestCase(6f, true)]
+    [TestCase(14f, false)]
+    public void OverlappingCrystalsKillWhoeverWaitsNearThem(float z, bool dies)
+    {
+        var run = Run(ShieldHealer, 58f, null, false, new Takeover(48f, new(0.6f, -7f)), new Takeover(49.3f, new(0f, z)));
+        Assert.Multiple(() =>
+        {
+            Assert.That(Rows("cast", ActionId.TetrashatterFail), Has.Count.EqualTo(2));
+            Assert.That(run.Deaths.Select(d => (d.Role, d.ActionId)), Is.EqualTo(dies ? new[] { (ShieldHealer, (uint?)ActionId.TetrashatterFail) } : []), run.ToString);
+        });
+    }
+
+    // H1 and H2 drop the inner pair `apart`: the two 5y zones go off once they touch.
+    [TestCase(9.99f, true)]
+    [TestCase(10.05f, false)]
+    public void CrystalsGoOffOnceTheirZonesTouch(float apart, bool goOff)
+    {
+        var run = Run(ShieldHealer, 52f, null, false, new Takeover(48.5f, new(-5f, -7f), Bot: RegenHealer), new Takeover(48.5f, new(apart - 5f, -7f)));
+        var inner = Rows("spawn", BNpcBaseId.JudgmentCrystal).Select(At).Where(at => at.Y > -12f).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(inner, Has.Count.EqualTo(2));
+            if (inner.Count == 2) Assert.That(Vector2.Distance(inner[0], inner[1]), Is.EqualTo(apart).Within(0.02f));
+            Assert.That(Rows("cast", ActionId.TetrashatterFail), Has.Count.EqualTo(goOff ? 2 : 0), run.ToString);
+        });
+    }
+
+    // The bots' four drops sit over 10.3y apart, clear of each other's zones, on either edge.
+    [TestCase(false)]
+    [TestCase(true)]
+    public void TheBotsDropTheirCrystalsClearOfEachOther(bool alexanderPrimeNorth)
+    {
+        var run = Run(PhysRangedDps, 58f, null, alexanderPrimeNorth);
+        var drops = Rows("spawn", BNpcBaseId.JudgmentCrystal).Select(At).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Passed, run.ToString);
+            Assert.That(drops, Has.Count.EqualTo(4));
+            Assert.That(drops.SelectMany((a, i) => drops.Skip(i + 1).Select(b => Vector2.Distance(a, b))).Min(), Is.GreaterThan(10.3f));
+            Assert.That(Rows("cast", ActionId.TetrashatterFail), Is.Empty);
             Assert.That(Rows(ActionId.Tetrashatter), Has.Count.EqualTo(4));
         });
     }
 
-    // H1 walks into the wall before the drop: the three crystals down each cast the fail.
+    private const string Overlapped = "Judgment Crystals dropped too close together";
+
+    // H1 drops the inner west crystal 5.8y from H2's. With only the wall pair to take, the heart never
+    // turns gold and goes into Alexander Prime on its last step at 57.96, and he stays unseen up to
+    // Sacrament. His Plaints then kill Aggravated Assault and the stack, Surety lands 6 on its pair and
+    // spares them, and Sacrament kills the two whose crystals overlapped; R, on a wing clear of it, lives.
     [Test]
-    public void AMissingCrystalCastsTheFail()
+    public void OverlappingCrystalsLoseTheRunAtSacrament()
     {
-        var run = Run(RegenHealer, 51f, null, false, new Takeover(47f, new(0f, 20.5f)));
-        var crystals = Rows("spawn", BNpcBaseId.JudgmentCrystal).Select(r => r["actor"]).ToList();
+        string? alexanderPrime = null;
+        var run = Run(PhysRangedDps, 86f, p => alexanderPrime ??= State(p).Objects.AlexanderPrime?.EntityId.ToString("X8"), false,
+            new Takeover(48f, new(-0.6f, -7f), Bot: RegenHealer));
+        var poweredUp = Rows("status_gain", StatusId.DamageUp);
+        var warpsIn = Rows().Where(r => r["actor"] == alexanderPrime && r["kind"] == "ac" && r["id"] == "0x197"
+                                        && r["p"] == $"0x{AnoMech.Core.Game.ActionTimelineId.WarpEnd:X}" && Number(r["t"]) is > 66.91f and < 81f);
+        string Cause(PartyRole role) => run.Deaths.FirstOrDefault(d => d.Role == role)?.Cause ?? "";
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Deaths.Select(d => (d.Role, d.ActionId)), Is.EquivalentTo(new (PartyRole, uint?)[]
+            {
+                (MeleeDpsA, ActionId.PlaintOfSeverity), (CasterDps, ActionId.PlaintOfSeverity),
+                (MeleeDpsB, ActionId.PlaintOfSolidarity), (MainTank, ActionId.PlaintOfSolidarity), (OffTank, ActionId.PlaintOfSolidarity),
+                (RegenHealer, ActionId.SacramentInception), (ShieldHealer, ActionId.SacramentInception),
+            }), run.ToString);
+            foreach (var role in new[] { MeleeDpsA, CasterDps, MeleeDpsB, MainTank, OffTank })
+                Assert.That(Cause(role), Does.Contain($"the True Heart reached Alexander Prime ({Overlapped})"), $"{role}");
+            foreach (var role in new[] { RegenHealer, ShieldHealer })
+                Assert.That(Cause(role), Does.Contain("dropped their Judgment Crystal too close to another"), $"{role}");
+            Assert.That(Rows("cast", ActionId.TetrashatterFail), Has.Count.EqualTo(2));
+            Assert.That(Rows(ActionId.Tetrashatter), Has.Count.EqualTo(2));
+            Assert.That(Rows("status_gain", StatusId.EnigmaCodexHeart), Is.Empty, "the heart turned gold");
+            Assert.That(Rows(ActionId.TrueHeartSuccess), Is.Empty);
+            Assert.That(Rows("status_gain", StatusId.EnigmaCodex), Is.Empty);
+            Assert.That(poweredUp, Has.Count.EqualTo(1));
+            if (poweredUp.Count == 1) Assert.That(Number(poweredUp[0]["t"]), Is.EqualTo(57.96f).Within(0.03f));
+            Assert.That(Rows("status_gain", StatusId.VulnerabilityDownAlexanderPrime).Select(r => r["actor"]), Is.EqualTo(poweredUp.Select(r => r["actor"])));
+            Assert.That(Rows(ActionId.PlaintOfSurety).Select(r => r["detail"]), Has.Exactly(1).StartWith("hits=2"));
+            Assert.That(Rows(ActionId.PlaintOfSurety).Select(r => r["amounts"]), Is.EqualTo(new[] { "6 6" }));
+            Assert.That(alexanderPrime, Is.Not.Null);
+            Assert.That(warpsIn, Is.Empty, "Alexander Prime warped in where Sacrament would come from");
+        });
+    }
+
+    // Without the gold heart the bots can but guess Sacrament's spot, and take the one just west of
+    // where Alexander Prime stood for Inception. Rolled there, R, beside the healers, stands clear;
+    // rolled 90 degrees off, Sacrament's line runs through that wing and R dies in it with them.
+    [TestCase(4, false)]
+    [TestCase(6, true)]
+    public void WithoutTheGoldHeartTheBotsGuessSacramentsSpot(int spot, bool rangedDies)
+    {
+        var run = ScenarioRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            PlayerRole = PhysRangedDps,
+            StopAt = 86f,
+            Overrides = o =>
+            {
+                var overrides = (TeaP3AlexanderPrimeStateOverrides)o;
+                Pin(overrides);
+                overrides.SacramentSpot = spot;
+            },
+            Takeovers = [new Takeover(48f, new(-0.6f, -7f), Bot: RegenHealer)],
+        });
+        PartyRole[] sacrament = rangedDies ? [RegenHealer, ShieldHealer, PhysRangedDps] : [RegenHealer, ShieldHealer];
+        Assert.That(run.Deaths.Where(d => d.ActionId == ActionId.SacramentInception).Select(d => d.Role), Is.EquivalentTo(sacrament), run.ToString);
+    }
+
+    // H1 walks into the wall before the drop: none of the three crystals down goes off for it.
+    [Test]
+    public void AMissingCrystalSetsNoneOff()
+    {
+        var run = Run(RegenHealer, 53f, null, false, new Takeover(47f, new(0f, 20.5f)));
         Assert.Multiple(() =>
         {
             Assert.That(run.Deaths.Select(d => (d.Role, d.ActionId)), Is.EqualTo(new[] { (RegenHealer, (uint?)TheEnvironment) }), run.ToString);
-            Assert.That(crystals, Has.Count.EqualTo(3));
-            Assert.That(Rows("cast", ActionId.TetrashatterFail).Select(r => r["actor"]), Is.EquivalentTo(crystals));
+            Assert.That(run.Elapsed, Is.GreaterThan(CrystalsSpawn + 1f), run.ToString);
+            Assert.That(Rows("spawn", BNpcBaseId.JudgmentCrystal), Has.Count.EqualTo(3));
+            Assert.That(Rows("cast", ActionId.TetrashatterFail), Is.Empty);
+        });
+    }
+
+    private const float CrystalsSpawn = 49.86f;
+
+    // MT drops the east wall crystal 8.5y from Alexander Prime, where it waits: it goes off as the heart
+    // sets out, before the heart gets to it.
+    [Test]
+    public void ACrystalDroppedByAlexanderPrimeGoesOffAsTheHeartSetsOut()
+    {
+        var run = Run(MainTank, 56f, null, false, new Takeover(48.9f, new(-4f, 14f)));
+        var casts = Rows("cast", ActionId.TetrashatterFail);
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Passed, run.ToString);
+            Assert.That(casts.Select(r => r["actor"]), Is.EqualTo(CrystalsNear(new(-4f, 14f))));
+            if (casts.Count == 1) Assert.That(Number(casts[0]["t"]), Is.EqualTo(55.0f).Within(0.02f));
+            Assert.That(Rows(ActionId.Tetrashatter), Has.Count.EqualTo(3));
+        });
+    }
+
+    // H2 drops the inner east crystal out at 8.5y, past the heart's reach. 11.5y from Alexander Prime's
+    // Sacrament spot it goes off as he moves there, after the heart would have flown; with the spot
+    // rolled one on, 18.6y away, it stays.
+    [TestCase(1, true)]
+    [TestCase(2, false)]
+    public void ACrystalTheHeartMissedGoesOffOnlyBySacramentsSpot(int spot, bool goesOff)
+    {
+        var run = ScenarioRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            PlayerRole = PhysRangedDps,
+            StopAt = 73f,
+            Overrides = o =>
+            {
+                var overrides = (TeaP3AlexanderPrimeStateOverrides)o;
+                Pin(overrides);
+                overrides.SacramentSpot = spot;
+            },
+            Takeovers = [new Takeover(48f, new(8.5f, -6.5f), Bot: ShieldHealer)],
+        });
+        var missed = CrystalsNear(new(8.5f, -6.5f));
+        var casts = Rows("cast", ActionId.TetrashatterFail);
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Passed, run.ToString);
+            Assert.That(missed, Has.Count.EqualTo(1));
+            Assert.That(casts.Select(r => r["actor"]), Is.EqualTo(goesOff ? missed : []));
+            if (casts.Count == 1) Assert.That(Number(casts[0]["t"]), Is.EqualTo(72.65f).Within(0.02f));
+            Assert.That(Rows(ActionId.Tetrashatter).Select(r => r["actor"]), Has.None.EqualTo(missed.FirstOrDefault()));
+            Assert.That(Rows(ActionId.Tetrashatter), Has.Count.EqualTo(3));
+        });
+    }
+
+    // H1, a player on a peer, drops the inner west crystal 5.8y from H2's: the pair's blasts, the
+    // powered-up Plaints and a Sacrament nothing showed reach the peer's game as the host's has them.
+    [Test]
+    public void APeerSeesCrystalsDroppedTooCloseTogetherAsTheHostDoes()
+    {
+        var run = MultiplayerRun.Play(typeof(TeaP3AlexanderPrimeScenario), 0, 1, new PlayerSeat(MeleeDpsA), [new PlayerSeat(RegenHealer, BotControlled: false)],
+            immortal: true,
+            inputs: [(40.0, 1, c => c.Fake.BattleCharas.Player.Position = Origin + new Vector3(-0.6f, 0f, -7f))],
+            configure: c =>
+            {
+                if (c.IsHost) Pin((TeaP3AlexanderPrimeStateOverrides)c.Game.Catalog.Scenarios.OfType<TeaP3AlexanderPrimeScenario>().Single().SettingsOverrides);
+            });
+        var host = run.Host.Fake.Timeline.Rows;
+        var gaps = ClientParity.Compare(run, run.Peers[0]);
+        foreach (var gap in gaps.Take(40)) TestContext.Out.WriteLine($"  {gap}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Failure, Is.Null);
+            Assert.That(run.InputsLeft, Is.Zero);
+            Assert.That(run.Relay.Rejected, Is.Empty, "messages the relay or a peer refused");
+            Assert.That(host.Count(r => r["kind"] == "cast" && r["id"] == ActionId.TetrashatterFail.ToString()), Is.EqualTo(2));
+            Assert.That(host.Count(r => r["kind"] == "ability" && r["id"] == ActionId.TrueHeartSuccess.ToString()), Is.Zero);
+            Assert.That(host.Count(r => r["kind"] == "ability" && r["id"] == ActionId.SacramentInception.ToString()), Is.EqualTo(1));
+            Assert.That(run.Peers.Prepend(run.Host).SelectMany(c => c.Log.Warnings).Where(w => w.Contains("[SimAssets]")), Is.Empty);
+            Assert.That(gaps, Is.Empty, $"{gaps.Count} differences between what the host's and the peer's games were told");
         });
     }
 
@@ -443,7 +662,7 @@ public class TeaP3AlexanderPrimeScenarioTests
             {
                 if (rows[seen]["kind"] != "ability" || rows[seen]["id"] != ActionId.Tetrashatter.ToString()) continue;
                 shatters++;
-                var at = new Vector2(Number(rows[seen]["x"]), Number(rows[seen]["z"]));
+                var at = At(rows[seen]);
                 foreach (var role in PerRole.All) taken[role] += ShatterDamage(Vector2.Distance(Flat(p.Member(role)!.Position), at));
             }
             if (p.Crossed(55.8f))

@@ -26,6 +26,7 @@ public sealed class TeaP3AlexanderPrimeAi : IScenarioAi<TeaP3AlexanderPrimeState
     private const float OrbContact = 1f;
     private const float OrbGoesOff = 0.1f;
     private const float HeartLandsAt = 21.5f;
+    private const float HeartFlightRead = 75.9f;
     private const float ChakramClear = 4.5f;
     private const float StayInside = 18.5f;
     private const float AlexanderPrimeBlock = 6f;
@@ -61,7 +62,7 @@ public sealed class TeaP3AlexanderPrimeAi : IScenarioAi<TeaP3AlexanderPrimeState
     private static readonly Vector2 OffTankAtBruteJustice = new(-2.8f, 6.3f);
 
     private static readonly PartyRole[] CrystalPriority = [MainTank, OffTank, MeleeDpsA, MeleeDpsB, RegenHealer, ShieldHealer, PhysRangedDps, CasterDps];
-    private static readonly Vector2[] CrystalBox = [new(5.4f, -17.6f), new(-5.4f, -17.6f), new(-5.1f, -7.0f), new(5.1f, -7.0f)];
+    private static readonly Vector2[] CrystalBox = [new(5.4f, -17.6f), new(-5.4f, -17.6f), new(-5.2f, -7.0f), new(5.2f, -7.0f)];
     private static readonly Vector2[] CrystalShatterWaits = [new(1.6f, 16.5f), new(-1.6f, 16.5f), new(-3.6f, 15.0f), new(3.6f, 15.0f)];
     private static readonly PartyRole[] PartyOrder = [RegenHealer, ShieldHealer, MeleeDpsA, MeleeDpsB, PhysRangedDps, CasterDps];
     private static readonly Vector2[] PartyFlareOffsets = [new(0f, 0f), new(1.1f, 0f), new(-1.1f, 0f), new(0.55f, -0.95f), new(-0.55f, -0.95f), new(0.55f, 0.95f)];
@@ -88,7 +89,7 @@ public sealed class TeaP3AlexanderPrimeAi : IScenarioAi<TeaP3AlexanderPrimeState
         orbDots.Clear();
         orbsReached.Clear();
         heartLaunch = Vector2.Zero;
-        sacramentSpotSeen = state.SacramentSpot;
+        sacramentSpotSeen = SpotToward(InceptionSide(AlexanderPrimeSouth));
 
         if (state.Practice == P3Practice.Wormhole)
             world.Events.Add(TeaP3AlexanderPrimePractice.Of(P3Practice.Wormhole).Start, () => PlaceBotsOn(SecondSetSpot));
@@ -315,20 +316,29 @@ public sealed class TeaP3AlexanderPrimeAi : IScenarioAi<TeaP3AlexanderPrimeState
         if (state.Objects.TrueHeart is { IsActive: true } heart) heartLaunch = Flat(heart.Position);
     }
 
+    private static int SpotToward(Vector2 at)
+    {
+        var bearing = (float.RadiansToDegrees(MathF.Atan2(at.X, -at.Y)) + 360f) % 360f;
+        return ((int)MathF.Round((bearing - 22.5f) / 45f) % TeaP3AlexanderPrimeState.SacramentSpots + TeaP3AlexanderPrimeState.SacramentSpots)
+               % TeaP3AlexanderPrimeState.SacramentSpots;
+    }
+
     private void ReadTheHeartsFlightAndSplit()
     {
-        if (state.Objects.TrueHeart is { IsActive: true } heart)
+        if (state.Objects.TrueHeart is { IsActive: true } heart && heart.ShowsStatus(StatusId.EnigmaCodexHeart))
         {
             var flight = Flat(heart.Position) - heartLaunch;
+            if (flight.LengthSquared() <= 0.01f && world.Events.Elapsed < HeartFlightRead)
+            {
+                world.Events.Add(0.1f, ReadTheHeartsFlightAndSplit);
+                return;
+            }
             if (flight.LengthSquared() > 0.01f)
             {
                 var along = Vector2.Normalize(flight);
                 var reach = Vector2.Dot(heartLaunch, along);
                 var ahead = -reach + MathF.Sqrt(reach * reach - heartLaunch.LengthSquared() + HeartLandsAt * HeartLandsAt);
-                var landing = heartLaunch + along * ahead;
-                var bearing = (float.RadiansToDegrees(MathF.Atan2(landing.X, -landing.Y)) + 360f) % 360f;
-                sacramentSpotSeen = ((int)MathF.Round((bearing - 22.5f) / 45f) % TeaP3AlexanderPrimeState.SacramentSpots + TeaP3AlexanderPrimeState.SacramentSpots)
-                                    % TeaP3AlexanderPrimeState.SacramentSpots;
+                sacramentSpotSeen = SpotToward(heartLaunch + along * ahead);
             }
         }
         var sacrament = 22.5f + 45f * sacramentSpotSeen;

@@ -466,13 +466,13 @@ public static class TeaActions
         Timing = new() { DamageDelay = 0.66f },
     };
 
-    // On a tethered pair alone: 1 damage each, or both die when `broken` says how the pair broke its
-    // tether's rule.
-    public static EnemyAction PlaintOfSurety(SimCharacter first, SimCharacter second, string? broken) => new(ActionId.PlaintOfSurety)
+    // On a tethered pair alone: `shown` damage each, or both die when `broken` says how the pair broke
+    // its tether's rule.
+    public static EnemyAction PlaintOfSurety(SimCharacter first, SimCharacter second, string? broken, uint shown = 1) => new(ActionId.PlaintOfSurety)
     {
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { AdjustTargets = (_, hits) => hits.Where(h => h == first || h == second).ToList() },
-        Effects = [Damage(broken is null ? Harmless.Showing(1) : Lethal)],
+        Effects = [Damage(broken is null ? Harmless.Showing(shown) : Lethal)],
         Timing = new() { DamageDelay = 0.66f },
         DeathExplanation = broken,
     };
@@ -572,21 +572,34 @@ public static class TeaActions
     public static EnemyAction Tetrashatter(Dictionary<SimCharacter, float> taken) => new(ActionId.Tetrashatter)
     {
         Cast = new() { AnimationLock = 2.1f },
-        Effects = [new TetrashatterEffect(taken)],
+        Effects = [new TetrashatterEffect(taken, 52900f, 2370f)],
         Timing = new() { DamageDelay = 0.80f },
         DeathExplanation = "the Judgment Crystals' shatters added up past their HP",
     };
 
+    // A crystal set off on its own blows up telegraphed, out of the True Heart's reach: everyone takes
+    // about 86.7k less 3.96k a yalm, never under 3.3k, added to what `taken` holds. `cause` names what
+    // set it off; `spent` runs at its snapshot. UNVERIFIED inside 10y, where real hits at 6-8y ran
+    // anywhere from 41k to 61k.
+    public static EnemyAction TetrashatterFail(Dictionary<SimCharacter, float> taken, string cause, Action spent) => new(ActionId.TetrashatterFail)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [new TetrashatterEffect(taken, 86700f, 3960f, spent)],
+        Timing = new() { DamageDelay = 1.21f },
+        DeathExplanation = cause,
+    };
+
     // Each hit adds to what its target took from the shatters before it.
-    private sealed class TetrashatterEffect(Dictionary<SimCharacter, float> taken) : IEnemyActionEffect
+    private sealed class TetrashatterEffect(Dictionary<SimCharacter, float> taken, float atCentre, float perYalm, Action? spent = null) : IEnemyActionEffect
     {
         public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
         {
+            spent?.Invoke();
             foreach (var target in hits)
             {
                 var dx = target.Position.X - ctx.Origin.Position.X;
                 var dz = target.Position.Z - ctx.Origin.Position.Z;
-                var sum = taken[target] = taken.GetValueOrDefault(target) + MathF.Max(3300f, 52900f - 2370f * MathF.Sqrt(dx * dx + dz * dz));
+                var sum = taken[target] = taken.GetValueOrDefault(target) + MathF.Max(3300f, atCentre - perYalm * MathF.Sqrt(dx * dx + dz * dz));
                 var hp = HitPoints(target);
                 var severity = sum < hp ? Normal : DamageCheck.IsTank(target) ? TankBuster.MinMit(1f - hp / sum) : Lethal;
                 Damage(severity).Apply(ctx, [target]);
@@ -603,15 +616,6 @@ public static class TeaActions
         };
     }
 
-    // UNVERIFIED: real fails killed one or two of the party, not all.
-    public static readonly EnemyAction TetrashatterFail = new(ActionId.TetrashatterFail)
-    {
-        Cast = new() { AnimationLock = 2.1f },
-        Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.6f },
-        DeathExplanation = "a Judgment Crystal was missing",
-    };
-
     public static readonly EnemyAction TrueHeartSuccess = new(ActionId.TrueHeartSuccess)
     {
         Cast = new() { AnimationLock = 1.1f },
@@ -623,6 +627,34 @@ public static class TeaActions
         Cast = new() { AnimationLock = 2.1f },
         Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 0.6f },
+    };
+
+    // Without the gold heart's flight nothing shows where it comes from, so the party can but guess
+    // where to stand clear. Whoever `mistakes` names, whose crystal kept the heart from turning gold,
+    // dies to it wherever they stand, which the real one doesn't do. `why` says how the heart failed.
+    public static EnemyAction SacramentUnforeseen(string? why, IReadOnlyDictionary<SimCharacter, string> mistakes) => SacramentInception with
+    {
+        Area = new() { AdjustTargets = (_, hits) => hits.Union(mistakes.Keys.Where(m => m.IsAlive())).ToList() },
+        Effects = [new MistakesKill(mistakes), Damage(Lethal)],
+        DeathExplanation = Because("the True Heart never turned gold to show where Sacrament would come from", why),
+    };
+
+    private sealed class MistakesKill(IReadOnlyDictionary<SimCharacter, string> mistakes) : IEnemyActionEffect
+    {
+        public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+        {
+            foreach (var target in hits)
+                if (mistakes.TryGetValue(target, out var mistake)) ctx.Kill(target, mistake);
+        }
+    }
+
+    private static string Because(string what, string? why) => why is null ? what : $"{what} ({why})";
+
+    // Alexander Prime powered up by the True Heart: 130-145k, past anyone's HP.
+    public static EnemyAction PlaintOfSeverityPoweredUp(string? why) => PlaintOfSeverity with
+    {
+        Effects = [Damage(Lethal)],
+        DeathExplanation = Because("the True Heart reached Alexander Prime", why),
     };
 
     public static readonly EnemyAction SacramentWormhole = new(ActionId.SacramentWormhole)
@@ -643,6 +675,13 @@ public static class TeaActions
             ApplyStatus(StatusId.PhysicalVulnerabilityUp, 11f),
         ],
         Timing = new() { DamageDelay = 0.66f },
+    };
+
+    // 93-168k each on Alexander Prime powered up by the True Heart, however many share it.
+    public static EnemyAction PlaintOfSolidarityPoweredUp(string? why) => PlaintOfSolidarity with
+    {
+        Effects = [Damage(Lethal)],
+        DeathExplanation = Because("the True Heart reached Alexander Prime", why),
     };
 
     // Fired on himself, having turned to `bait`: the bait takes it, and anyone else in it dies.

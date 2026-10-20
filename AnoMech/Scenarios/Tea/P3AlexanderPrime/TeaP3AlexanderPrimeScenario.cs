@@ -46,6 +46,13 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     private const float HeartStep = 0.31f;
     // The heart sets off every real crystal within 6y of its centre.
     private const float HeartReach = 6f;
+    // A crystal whose 5y zone touches another's, or Alexander Prime's hitbox, blows up on its own:
+    // checked 0.86s after they spawn, just after the heart sets out, and as he moves to his Sacrament
+    // spot. UNVERIFIED: his reach past 11.6y, and the check time on him (real ones spread about 0.5s).
+    private const float CrystalRadius = 5f;
+    private const float CrystalsTouchAt = 50.72f;
+    private const float AlexanderPrimeTouchesAt = 55.0f;
+    private const float SacramentSpotTouchesAt = 72.65f;
     private const float GoldAfterShatter = 0.58f;
     private const float VulnerabilityDownAfterShatter = 0.76f;
     // Real pulls: Bleeding by a dropped crystal from 5.7s after the drop until the heart shatters it.
@@ -121,12 +128,13 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     private readonly List<(Vector3 At, SimCharacter SetOffBy)> orbBursts = [];
     private readonly List<(Vector3 At, float Until)> orbZones = [];
     private bool electromagneticBurst;
-    private readonly List<Vector3> crystalDrops = [];
-    private readonly List<(SimEnemy Crystal, TeaDotPuddles.Puddle Voidzone)> crystals = [];
+    private readonly List<(Vector3 At, SimCharacter By)> crystalDrops = [];
+    private readonly List<(SimEnemy Crystal, TeaDotPuddles.Puddle Voidzone, SimCharacter Dropper)> crystals = [];
     private readonly TeaDotPuddles puddles = new();
     private readonly HashSet<SimEnemy> touchedCrystals = [];
+    private readonly HashSet<SimEnemy> failedCrystals = [];
+    private readonly Dictionary<SimEnemy, CrystalFault> crystalFaults = [];
     private readonly Dictionary<SimCharacter, float> shatterTaken = [];
-    private bool crystalsFailed;
     private bool heartWalking;
     private int heartSteps;
     private bool heartGold;
@@ -164,8 +172,10 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         crystals.Clear();
         puddles.Start(world, settingsWindow.Overrides.TickClock);
         touchedCrystals.Clear();
+        failedCrystals.Clear();
+        crystalFaults.Clear();
         shatterTaken.Clear();
-        crystalsFailed = heartWalking = heartGold = false;
+        heartWalking = heartGold = false;
         heartGoldAt = 0f;
         heartSteps = 0;
         restrainingOrderTether = null;
@@ -220,8 +230,9 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         At(49.01f, DropCrystals);
         At(49.66f, SpawnTrueHeart);
         At(49.86f, SpawnCrystals);
-        At(50.30f, FailMissingCrystals);
+        At(CrystalsTouchAt, FailCrystalsTouchingEachOther);
         At(HeartWalksAt, HeartWalks);
+        At(AlexanderPrimeTouchesAt, () => FailCrystalsTouching(alexanderPrime?.Position, ByAlexanderPrime, shatterTaken));
         At(OrbsBurst, BurstUnpoppedOrbs);
         const float firstFlameTurn = 60.37f - FirstFlameTurnLead;
         At(firstFlameTurn, () => TurnToClosestUnflamed(firstFlameTurn, flames: 3));
@@ -229,16 +240,23 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         At(66.91f, () => alexanderPrime?.Cast(TeaActions.Inception));
         At(67.86f, () => cruiseChaser?.PlayActionTimeline(ActionTimelineId.WarpStart));
         At(72.55f, HeartFlies);
+        // Healers have long healed the shatters by then, so its blasts add up only with each other.
+        At(SacramentSpotTouchesAt, () => FailCrystalsTouching(SacramentSpot(state.SacramentSpot), Missed, []));
         At(75.95f, TrueHeartSucceeds);
         At(77.95f, () =>
         {
             cruiseChaser?.SetPosition(new Placement(Vector3.Zero, 0f));
             cruiseChaser?.PlayActionTimeline(ActionTimelineId.WarpEnd);
         });
-        At(79.11f, () => alexanderPrime?.PlayActionTimeline(ActionTimelineId.WarpEnd));
+        // Only the gold heart's flight gives his spot away. UNVERIFIED: that without it he shows only
+        // as Sacrament goes off.
+        At(79.11f, () =>
+        {
+            if (heartGold) alexanderPrime?.PlayActionTimeline(ActionTimelineId.WarpEnd);
+        });
         At(79.82f, ClearInceptionDebuffs);
         At(79.93f, InceptionPlaints);
-        At(80.23f, () => alexanderPrime?.Cast(TeaActions.SacramentInception));
+        At(80.23f, () => alexanderPrime?.Cast(heartGold ? TeaActions.SacramentInception : TeaActions.SacramentUnforeseen(WhyTheHeartFailed(), CrystalMistakes())));
         At(82.37f, () => alexanderPrime?.PlayActionTimeline(ActionTimelineId.WarpStart));
         At(85.28f, () => bruteJustice?.Cast(TeaActions.SuperJump));
         At(86.11f, TurnToClosestUnslashed);
@@ -717,7 +735,7 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         crystalDrops.Clear();
         foreach (var (member, helper) in CrystalHolders().Zip(alexanderPrimeHelpers.Where(h => h.IsActive)))
         {
-            crystalDrops.Add(member.Position);
+            crystalDrops.Add((member.Position, member));
             helper.SetPosition(new Placement(member.Position, 0f));
             helper.Cast(TeaActions.JudgmentCrystalAoe, member);
         }
@@ -737,7 +755,7 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     {
         for (var k = 0; k < crystalDrops.Count; k++)
         {
-            var at = crystalDrops[k] with { Y = 0f };
+            var at = crystalDrops[k].At with { Y = 0f };
             if (world.SpawnEnemy(new EnemySpawnConfig(
                     BNpcBaseId: BNpcBaseId.JudgmentCrystal, NameId: BNpcNameId.JudgmentCrystal, Level: Level,
                     Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.Visible,
@@ -751,23 +769,63 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
                 TargetableStatus = 5,
                 Arg2 = 0x500003u + ((uint)k << 16),
             }), at, CrystalBleedRadius, StatusId.Bleeding, "Bleeding: stood by a Judgment Crystal", CrystalBleedsAfter);
-            crystals.Add((crystal, voidzone));
+            crystals.Add((crystal, voidzone, crystalDrops[k].By));
         }
     }
 
-    // Fewer than four crystals down breaks the mechanic: each one there casts the fail.
-    private void FailMissingCrystals()
+    // What kept a crystal from the heart: as the heart's failure reads, and as its own player's mistake.
+    private sealed record CrystalFault(string Heart, string Dropper);
+
+    private static readonly CrystalFault TooClose = new("Judgment Crystals dropped too close together", "dropped their Judgment Crystal too close to another");
+    private static readonly CrystalFault ByAlexanderPrime = new("a Judgment Crystal dropped by Alexander Prime", "dropped their Judgment Crystal by Alexander Prime");
+    private static readonly CrystalFault Missed = new("a Judgment Crystal the True Heart missed", "dropped their Judgment Crystal out of the True Heart's way");
+
+    private bool OnTheGround(SimEnemy crystal) => crystal.IsActive && !touchedCrystals.Contains(crystal) && !failedCrystals.Contains(crystal);
+
+    // Every crystal with another's zone touching its own, each of a group as one.
+    private void FailCrystalsTouchingEachOther()
     {
-        if (crystals.Count >= CrystalCount) return;
-        crystalsFailed = true;
-        DiagnosticLog.Info($"[TeaP3AlexanderPrime] Only {crystals.Count} Judgment Crystals down.");
-        foreach (var (crystal, _) in crystals) crystal.Cast(TeaActions.TetrashatterFail);
+        var touching = crystals.Where(c => OnTheGround(c.Crystal) && crystals.Any(o => o.Crystal != c.Crystal && OnTheGround(o.Crystal)
+            && Vector2.Distance(Flat(o.Crystal.Position), Flat(c.Crystal.Position)) <= 2f * CrystalRadius)).ToList();
+        foreach (var (crystal, voidzone, _) in touching) Fail(crystal, voidzone, TooClose, shatterTaken);
     }
+
+    private void FailCrystalsTouching(Vector3? alexanderPrimeAt, CrystalFault fault, Dictionary<SimCharacter, float> taken)
+    {
+        if (alexanderPrimeAt is not { } at || alexanderPrime is not { } boss) return;
+        foreach (var (crystal, voidzone, _) in crystals.Where(c => OnTheGround(c.Crystal)).ToList())
+            if (Vector2.Distance(Flat(crystal.Position), Flat(at)) <= boss.HitboxRadius + CrystalRadius)
+                Fail(crystal, voidzone, fault, taken);
+    }
+
+    // Out of the heart's reach from now, and spent as it goes off. UNVERIFIED: that it goes as a
+    // shattered one does.
+    private void Fail(SimEnemy crystal, TeaDotPuddles.Puddle voidzone, CrystalFault fault, Dictionary<SimCharacter, float> taken)
+    {
+        failedCrystals.Add(crystal);
+        crystalFaults.TryAdd(crystal, fault);
+        var at = crystal.Position;
+        DiagnosticLog.Info($"[TeaP3AlexanderPrime] Judgment Crystal at ({at.X:F1},{at.Z:F1}) set off: {fault.Heart}.");
+        crystal.Cast(TeaActions.TetrashatterFail(taken, $"the blast of {fault.Heart}",
+            () => world.Events.Add(CastSpec.ActionEffectOffset, () => Spend(crystal, voidzone))));
+    }
+
+    // Every crystal the heart never shattered, and any never dropped.
+    private string? WhyTheHeartFailed()
+    {
+        var why = crystals.Where(c => !touchedCrystals.Contains(c.Crystal)).Select(c => crystalFaults.GetValueOrDefault(c.Crystal, Missed).Heart).ToList();
+        if (crystals.Count < CrystalCount) why.Add("a Judgment Crystal never dropped");
+        return why.Count == 0 ? null : string.Join(", ", why.Distinct());
+    }
+
+    private Dictionary<SimCharacter, string> CrystalMistakes()
+        => crystals.Where(c => !touchedCrystals.Contains(c.Crystal) && c.Dropper.IsAlive())
+            .ToDictionary(c => c.Dropper, c => crystalFaults.GetValueOrDefault(c.Crystal, Missed).Dropper);
 
     // Straight down the centre line toward Alexander Prime.
     private void HeartWalks()
     {
-        if (trueHeart is not { IsActive: true } heart || crystalsFailed) return;
+        if (trueHeart is not { IsActive: true } heart) return;
         heartWalking = true;
         heartSteps = 0;
         var stop = SacramentRadius - (alexanderPrime?.HitboxRadius ?? 0f) - heart.HitboxRadius;
@@ -779,14 +837,14 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     private void NextHeartStep() => world.Events.Add(HeartWalksAt + ++heartSteps * HeartStep - world.Events.Elapsed, HeartSteps);
 
     // Each crystal in reach on a step shatters; the fourth stops it there and turns it gold. Reaching
-    // Alexander Prime first, it goes into him; the crystals it missed stay (real pulls bled by them at
-    // 87s). UNVERIFIED: what going into him does beyond powering him up.
+    // Alexander Prime first, on the last step short of him, it goes into him and powers him up; the
+    // crystals it missed stay (real pulls bled by them at 87s). UNVERIFIED: his Vulnerability Down.
     private void HeartSteps()
     {
         if (!heartWalking || trueHeart is not { IsActive: true } heart) return;
-        foreach (var (crystal, voidzone) in crystals)
+        foreach (var (crystal, voidzone, _) in crystals)
         {
-            if (touchedCrystals.Contains(crystal) || !crystal.IsActive) continue;
+            if (!OnTheGround(crystal)) continue;
             if (Vector2.Distance(Flat(crystal.Position), Flat(heart.Position)) > HeartReach) continue;
             touchedCrystals.Add(crystal);
             Shatter(crystal, voidzone);
@@ -801,26 +859,32 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
             world.Events.Add(GoldAfterShatter, TurnHeartGold);
             return;
         }
-        if (heart.MoveDestination is not null)
+        if (heart.MoveDestination is { } stop && Vector2.Distance(Flat(heart.Position), Flat(stop)) > HeartSpeed * HeartStep)
         {
             NextHeartStep();
             return;
         }
         heartWalking = false;
-        DiagnosticLog.Info($"[TeaP3AlexanderPrime] The True Heart reached Alexander Prime after {touchedCrystals.Count} crystals.");
+        DiagnosticLog.Info($"[TeaP3AlexanderPrime] The True Heart reached Alexander Prime after {touchedCrystals.Count} crystals: {WhyTheHeartFailed()}.");
         heart.FadeOut();
         alexanderPrime?.AddStatus(StatusId.DamageUp);
+        alexanderPrime?.AddStatus(StatusId.VulnerabilityDownAlexanderPrime);
     }
 
     private void Shatter(SimEnemy crystal, TeaDotPuddles.Puddle voidzone)
     {
         if (!crystal.IsActive) return;
         crystal.Cast(TeaActions.Tetrashatter(shatterTaken));
-        voidzone.Fade();
+        Spend(crystal, voidzone);
         world.Events.Add(VulnerabilityDownAfterShatter, () =>
         {
             if (trueHeart is { IsActive: true } heart) heart.AddStatus(StatusId.VulnerabilityDown);
         });
+    }
+
+    private void Spend(SimEnemy crystal, TeaDotPuddles.Puddle voidzone)
+    {
+        voidzone.Fade();
         world.Events.Add(2.0f, () => crystal.Defeat(corpseFadeDelay: 8f));
         world.Events.Add(3.1f, voidzone.Despawn);
     }
@@ -842,7 +906,8 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         heart.MoveTo(SacramentSpot(state.SacramentSpot), speed: HeartSpeed);
     }
 
-    // Alexander Prime takes the heart's place, facing the centre; the heart grants everyone Enigma Codex.
+    // Alexander Prime, still unseen, takes his Sacrament spot facing the centre; a gold heart grants
+    // everyone Enigma Codex.
     private void TrueHeartSucceeds()
     {
         var spot = SacramentSpot(state.SacramentSpot);
@@ -895,26 +960,27 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     }
 
     // Severity marks each Aggravated Assault, Solidarity stacks on Shared Sentence, and Surety tests
-    // the Restraining Order pair's distance. A True Heart that reached Alexander Prime makes the stack
-    // lethal.
+    // the Restraining Order pair's distance. A True Heart that reached Alexander Prime makes Severity
+    // and the stack lethal, and Surety lands for 6.
     private void InceptionPlaints()
     {
         var free = alexanderPrimeHelpers.Where(h => h.IsActive).ToList();
         var next = 0;
+        var poweredUp = alexanderPrime?.HasStatus(StatusId.DamageUp) == true;
+        var why = poweredUp ? WhyTheHeartFailed() : null;
         foreach (var role in state.AggravatedAssault)
             if (Living(role) is { } assaulted && next < free.Count)
-                free[next++].Cast(TeaActions.PlaintOfSeverity, assaulted);
+                free[next++].Cast(poweredUp ? TeaActions.PlaintOfSeverityPoweredUp(why) : TeaActions.PlaintOfSeverity, assaulted);
         if (Living(state.SharedSentence) is { } sentenced && next < free.Count)
         {
             var helper = free[next++];
             helper.SetPosition(new Placement(sentenced.Position, 0f));
-            helper.Cast(alexanderPrime?.HasStatus(StatusId.DamageUp) == true
-                ? TeaActions.PlaintOfSolidarity with { Effects = [EnemyActionEffects.Damage(Severity.Lethal)], DeathExplanation = "the True Heart reached Alexander Prime" }
-                : TeaActions.PlaintOfSolidarity, sentenced);
+            helper.Cast(poweredUp ? TeaActions.PlaintOfSolidarityPoweredUp(why) : TeaActions.PlaintOfSolidarity, sentenced);
         }
         if (Living(state.RestrainingOrderTank) is not { } tank || Living(state.RestrainingOrderDps) is not { } dps || next >= free.Count) return;
         var apart = Vector2.Distance(Flat(tank.Position), Flat(dps.Position));
-        free[next].Cast(TeaActions.PlaintOfSurety(tank, dps, apart >= RestrainingOrderReach ? null : $"Restraining Order partners only {apart:F1}y apart"));
+        free[next].Cast(TeaActions.PlaintOfSurety(tank, dps, apart >= RestrainingOrderReach ? null : $"Restraining Order partners only {apart:F1}y apart",
+            poweredUp ? 6u : 1u));
     }
 
     // From the centre at the closest player not yet slashed in this set. The client plays a slash

@@ -347,6 +347,7 @@ public static class TeaConstants
         public const ushort EnigmaCodexHeart = 2147;
         public const ushort DamageDown = 1016;
         public const ushort VulnerabilityDown = 406;
+        public const ushort VulnerabilityDownAlexanderPrime = 350;
         public const ushort VulnerabilityUp = 444;
         public const ushort DamageUpStacking = 443;
         public const ushort DownForTheCount = 783;
