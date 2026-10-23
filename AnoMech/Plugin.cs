@@ -121,6 +121,7 @@ public sealed class Plugin : IDalamudPlugin
 
             // Initialize Pointers
             EventObjectManagerPointers.Initialize();
+            EventObjectPointers.Initialize();
             GameMainPointers.Initialize();
             ModelContainerPointers.Initialize();
             PacketDispatcherPointers.Initialize();

@@ -5,7 +5,7 @@ using FFXIVClientStructs.FFXIV.Client.Network;
 
 namespace AnoMech.Core.Native.Implementations.Interop;
 
-internal static unsafe class EventObjectHelper
+internal static unsafe partial class EventObjectHelper
 {
     private const uint DefaultEntityIdBase = 0x4000FD00u;
 

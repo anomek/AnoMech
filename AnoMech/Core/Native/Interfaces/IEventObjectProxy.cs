@@ -16,4 +16,11 @@ public interface IEventObjectProxy
     void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0);
 
     void Despawn();
+
+    // Direct SharedGroup writes for UWU's props; retail reaches the same through ActorControl.
+    void SetState(ushort state);
+    ushort SharedTimelineState { get; }
+    void UpdateSharedTimelineState(ushort from, ushort to);
+    void ForceSharedGroupActive();
+    void DeactivateSharedGroup();
 }

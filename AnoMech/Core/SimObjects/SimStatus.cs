@@ -17,6 +17,7 @@ public sealed class SimStatus : ISimObject
     internal GameObjectId? ShownSource { get; set; }
     public bool IsActive { get; private set; }
     public ushort Stacks { get; private set; }
+    public float Remaining => duration > 0f ? MathF.Max(0f, duration - elapsed) : float.PositiveInfinity;
 
     // The StatusManager slot the client shows it in; -1 for a status the client never sees.
     internal int Slot { get; }

@@ -5,7 +5,7 @@ using System.Numerics;
 
 namespace AnoMech.Core.SimObjects;
 
-public sealed record EventObjectSpawnConfig
+public sealed partial record EventObjectSpawnConfig
 {
     // References Lumina's EObj sheet,
     // the row's SgbPath/PopType drives the model picked by the engine's internal SharedGroup attach.
@@ -41,7 +41,7 @@ public sealed record EventObjectSpawnConfig
 // client's own spawn/despawn-object packet handlers. EObjs render through their attached
 // SharedGroup, not GameObject.DrawObject; after the spawn, every change goes through the
 // ActorControl categories retail sends.
-public class SimEventObject : ISimObject, IPositioned
+public partial class SimEventObject : ISimObject, IPositioned
 {
     private IEventObjectProxy? obj;
     private float lifetimeElapsed;
@@ -71,7 +71,9 @@ public class SimEventObject : ISimObject, IPositioned
     {
         if (Natives.EventObjects.Spawn(config, coordinates.ToGlobal(config.Placement)) is not { } spawned) return null;
         DiagnosticLog.Info($"[SimEventObject.Create] Spawned EObj with EObjId 0x{config.EObjId:X} at Slot: {spawned.Slot} {spawned.Position}");
-        return new SimEventObject(spawned, coordinates, config);
+        var eObj = new SimEventObject(spawned, coordinates, config);
+        eObj.OnLegacySpawned();
+        return eObj;
     }
 
     // ActorControl 607 (self, 1, 0, 100): the prop fades out, as sent to spent boulders and
@@ -86,6 +88,7 @@ public class SimEventObject : ISimObject, IPositioned
 
     public virtual void Tick(float deltaSeconds)
     {
+        TickLegacy();
         if (obj == null || SpawnConfig.Lifetime <= 0) return;
 
         lifetimeElapsed += deltaSeconds;
@@ -95,6 +98,7 @@ public class SimEventObject : ISimObject, IPositioned
     public void Despawn()
     {
         if (obj == null) return;
+        BeforeLegacyDespawn();
         var released = obj;
         obj = null;
         released.Despawn();

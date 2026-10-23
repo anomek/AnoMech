@@ -1,4 +1,5 @@
 using System.Numerics;
+using AnoMech.Core.Native.Implementations.Interop;
 using AnoMech.Core.Native.Implementations.Pointers;
 using AnoMech.Core.Native.Interfaces;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -18,6 +19,14 @@ internal sealed unsafe class EventObjectProxy(int slot, GameObject* obj) : IEven
 
     public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)
         => PacketDispatcher.HandleActorControlPacket(obj->EntityId, category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, NoTarget, false);
+
+    private EventObject* EventObject => (EventObject*)obj;
+
+    public void SetState(ushort state) => EventObjectHelper.SetState(obj, state);
+    public ushort SharedTimelineState => EventObject->SharedTimelineState;
+    public void UpdateSharedTimelineState(ushort from, ushort to) => obj->UpdateSharedTimelineState(from, to);
+    public void ForceSharedGroupActive() => EventObjectHelper.ForceActive(EventObject->SharedGroupLayoutInstance);
+    public void DeactivateSharedGroup() => EventObjectHelper.Deactivate(EventObject->SharedGroupLayoutInstance);
 
     public void Despawn()
     {

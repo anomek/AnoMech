@@ -16,6 +16,14 @@ internal sealed class FakeEventObject(int slot, uint entityId, Vector3 position,
     public void ActorControl(uint category, uint arg1 = 0, uint arg2 = 0, uint arg3 = 0, uint arg4 = 0, uint arg5 = 0, uint arg6 = 0, uint arg7 = 0, uint arg8 = 0)
         => timeline.Add("ac", entityId, name, $"0x{category:X}", p: SimTimeline.Params(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8));
 
+    public ushort SharedTimelineState { get; private set; }
+
+    public void SetState(ushort state) => timeline.Add("eobj-state", entityId, name, state.ToString());
+
+    public void UpdateSharedTimelineState(ushort from, ushort to) => SharedTimelineState = to;
+    public void ForceSharedGroupActive() { }
+    public void DeactivateSharedGroup() { }
+
     public void Despawn()
     {
         if (Exists) timeline.Add("despawn", entityId, name);

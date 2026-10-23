@@ -76,9 +76,13 @@ All using default NA pf strats unless noted otherwise:
     - P5 Sigma
     - P5 Omega
     - P6 Exasquares / Wave Cannon 2
-- The Weapon's Refrain (Ultimate) _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
-    - Ultimate Predaction
-    - Ultimate Suppression
+- The Weapon's Refrain (Ultimate)
+    - P1 Garuda _by [Asunnya](https://github.com/Asunnya)_
+    - P2 Ifrit _by [Asunnya](https://github.com/Asunnya)_
+    - P3 Titan _by [Asunnya](https://github.com/Asunnya)_
+    - Ultimate Predaction _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
+    - Ultimate Annihilation _by [Asunnya](https://github.com/Asunnya)_
+    - Ultimate Suppression _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
 - The Unending Coil of Bahamut (Ultimate) _by [RoarkGit](https://github.com/RoarkGit)_
     - Exaflares
 
