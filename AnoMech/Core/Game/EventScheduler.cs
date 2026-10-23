@@ -52,6 +52,10 @@ public sealed class EventScheduler
         else entries.Insert(index, entry);
     }
 
+    // Drops a step whose reason went away, so it can't hold the queue open: an empty queue is how a
+    // run is seen to have ended.
+    public void Remove(Action action) => entries.RemoveAll(e => ReferenceEquals(e.Action, action));
+
     public void Tick(float deltaSeconds)
     {
         elapsed += deltaSeconds;

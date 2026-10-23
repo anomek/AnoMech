@@ -73,7 +73,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
 
     public StatusRow? Status(ushort statusId)
         => Statuses.Value.Row(statusId) is { } row
-            ? new StatusRow(statusId, Resolve(row.Text("Name")) ?? "", row.Bool("LockMovement"), row.Bool("LockActions"), row.Bool("LockControl"), row.Byte("MaxStacks"))
+            ? new StatusRow(statusId, Resolve(row.Text("Name")) ?? "", row.Bool("LockMovement"), row.Bool("LockActions"), row.Bool("LockControl"), row.Byte("MaxStacks"),
+                row.Byte("ParamEffect"))
             : null;
 
     public TerritoryTypeRow? TerritoryType(uint territoryId)
@@ -89,6 +90,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
     public string? BNpcName(uint nameId) => NonEmpty(Resolve(BNpcNames.Value.Row(nameId)?.Text("Singular")));
 
     public bool WeatherExists(byte weatherId) => Weathers.Value.Row(weatherId) is not null;
+
+    public bool CanDispel(ushort statusId) => Statuses.Value.Row(statusId)?.Bool("CanDispel") ?? false;
 
     public bool FileExists(string path) => true;
 

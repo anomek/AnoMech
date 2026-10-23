@@ -1,5 +1,6 @@
 using System.Numerics;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Umad.P3LimitCut;
 using static AnoMech.Core.Game.Party.PartyRole;
@@ -111,4 +112,38 @@ public class UmadP3LimitCutScenarioTests
         => LimitCut(MainTank)
             .DropBelowArenaAt(3f, to: new(0, 20.5f))
             .ShouldKill(TheEnvironment, MainTank);
+
+    private static readonly string[] TankLimitBreaks = ["199", "4240", "4241", "17105"];
+    private static readonly string[] TankLimitBreakStatuses = ["196", "863", "864", "1931"];
+    private static float Number(string value) => float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+
+    // Outside TEA a tank LB3's status lands on everyone at the press: the bot main tank's, at 14.94s.
+    [Test]
+    public void TheBotTanksLimitBreakLandsOnEveryoneAtThePress()
+    {
+        string? mainTank = null;
+        var run = ScenarioRun.Execute(typeof(UmadP3LimitCutScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            PlayerRole = CasterDps,
+            UserActionsEnabled = true,
+            StopAt = 18f,
+            Overrides = o => Pin((UmadP3LimitCutStateOverrides)o),
+            Probe = p => mainTank ??= p.Member(MainTank)!.EntityId.ToString("X8"),
+        });
+        var rows = ((FakeBattleCharas)Natives.BattleCharas).Timeline.Rows;
+        var limitBreaks = rows.Where(r => r["kind"] == "ability" && TankLimitBreaks.Contains(r["id"])).ToList();
+        var lands = rows.Where(r => r["kind"] == "status_gain" && TankLimitBreakStatuses.Contains(r["id"])).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Passed, run.ToString);
+            Assert.That(limitBreaks, Has.Count.EqualTo(1));
+            Assert.That(lands.Select(r => r["actor"]).Distinct().Count(), Is.EqualTo(PerRole.All.Length));
+            Assert.That(lands, Has.Count.EqualTo(PerRole.All.Length));
+            if (limitBreaks.Count != 1) return;
+            Assert.That(limitBreaks.Single()["actor"], Is.EqualTo(mainTank));
+            var pressed = Number(limitBreaks.Single()["t"]);
+            foreach (var land in lands)
+                Assert.That(Number(land["t"]), Is.EqualTo(pressed).Within(0.02f), $"landing on {land["actor"]}");
+        });
+    }
 }

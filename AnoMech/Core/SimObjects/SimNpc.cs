@@ -78,18 +78,22 @@ public class SimNpc : SimCharacter
 
     public void SetModelState(byte value) => ActorControl.SetModelState(value);
 
+    // As the client shows it; a peer's copy shows the host's.
+    public byte ModelState => Proxy?.ModelState ?? 0;
+
     // Which sub-meshes show, e.g. Omega-M's shield.
     public void SetModeAttributeFlags(byte value) => ActorControl.SetModeAttributeFlags(value);
 
-    // Plays an action's own animation and VFX on this character through the same synthetic
-    // ActionEffect a boss cast fires, with itself as the target -- a bot tank's LB3 in Umad P3
+    // Plays an action's own animation and VFX from this character through the same synthetic
+    // ActionEffect a boss cast fires, at `target`, or itself for null -- a bot tank's LB3 in Umad P3
     // Limit Cut. Effects (statuses, damage) stay the caller's job, exactly as for an enemy Cast.
     // Not for the local player: an effect the client sees itself cast ends its cast bar mid-cast
     // and leaves the Casting condition set.
-    public void PlayAction(uint actionId, float animationLock = 0.6f)
+    public void PlayAction(uint actionId, float animationLock = 0.6f, SimCharacter? target = null)
     {
+        var targetId = (target ?? this).GameObjectId;
         Casting.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0,
-            animationTargetId: GameObjectId, targets: [new ActionEffectTarget(GameObjectId)]);
+            animationTargetId: targetId, targets: [new ActionEffectTarget(targetId)]);
     }
 
     public override void Tick(float deltaSeconds)

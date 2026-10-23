@@ -20,9 +20,13 @@ public sealed record Severity(SeverityKind Kind, float MinMitigation = 0f)
     // Checked on the human player only: a bot always passes.
     public Severity MinMit(float required) => this with { MinMitigation = required };
 
+    // The flytext a survived hit shows in place of its kind's, where the game's own is fixed.
+    public uint? ShownAmount { get; init; }
+    public Severity Showing(uint amount) => this with { ShownAmount = amount };
+
     // Flytext only, never compared to HP.
     public uint FlyTextAmount(bool kills)
-        => kills ? 120_000u : Kind switch
+        => kills ? 120_000u : ShownAmount ?? Kind switch
         {
             SeverityKind.TankBuster => 80_000u,
             SeverityKind.Harmless => 0u,

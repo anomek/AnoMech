@@ -29,6 +29,7 @@ public sealed unsafe class UserActions : IUserActions
         new SprintHandler(),
         new CastTimeHandler(),
         new JobActionHandler(),
+        new EnemyHitHandler(),
         new LimitBreakHandler(),
         new SamuraiStateHandler(),
         new BlackMageStateHandler(),

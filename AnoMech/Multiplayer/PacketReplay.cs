@@ -5,6 +5,7 @@ using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Map;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -36,6 +37,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     // An actor that hasn't arrived by then never will; MapController gives the zone as long.
     private const int MaxWaitFrames = 300;
     private const int RememberedEffects = 4096;
+    private const uint MaxBattleTalkMilliseconds = 30_000;
 
     private sealed class Spawned
     {
@@ -56,9 +58,11 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     // An effect waiting for its caster holds back the results that name it.
     private readonly Dictionary<uint, uint> waitingEffects = new();
     private readonly Dictionary<uint, (Queue<GamePacket> Packets, int Frames)> waiting = new();
-    // Map effects and director updates, in the host's order, each retried until the zone takes it.
-    private readonly Queue<GamePacket> arena = new();
+    // Map effects, director updates and boss lines, in the host's order, each retried until the
+    // zone takes it.
+    private readonly Queue<(GamePacket Packet, int QueuedAt)> arena = new();
     private int arenaFrames;
+    private int frame;
 
     public IReadOnlyDictionary<int, SimEnemy> Enemies
         => spawned.Where(s => s.Value.Enemy != null).ToDictionary(s => (int)s.Key, s => s.Value.Enemy!);
@@ -100,7 +104,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         {
             case SpawnNpcPacket p: SpawnNpc(p); return;
             case SpawnObjPacket p: SpawnObject(p); return;
-            case MapEffectPacket or MapEffectSnapshotPacket or DirectorUpdatePacket:
+            case MapEffectPacket or MapEffectSnapshotPacket or DirectorUpdatePacket or BattleTalkPacket:
                 QueueArena(packet);
                 return;
             case DirectorDataPacket p:
@@ -124,6 +128,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
 
     public void Tick()
     {
+        frame++;
         foreach (var actor in waiting.Keys.ToList())
         {
             var (packets, frames) = waiting[actor];
@@ -379,13 +384,21 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             puppet.ApplyNetworkPose(local, rotation, Vector3.Zero, jumping: false);
     }
 
+    // The mirror keeps the cast's record (its action, bar, aim) as the host's own copy does; its
+    // silent proxy shows nothing more.
     private void Cast(CastPacket p)
     {
         if (!Enum.IsDefined(p.ActionType) || !NetGuard.TryPosition(p.X, p.Y, p.Z, out var position)) return;
         if (!SimAssets.AllowAction(p.ActionId, "cast")) return;
-        Character(p.Actor)?.ReceiveActorCast(new ActorCastData(p.ActionId, p.ActionType, NetGuard.Clamp(p.CastTime, 0f, 600f),
-            NetGuard.Clamp(p.OmenDelay, 0f, 60f), p.Interruptible, NetGuard.Rotation(p.Rotation), position,
-            ObjectIdOf(p.Target), ObjectIdOf(p.Ballista)));
+        var castTime = NetGuard.Clamp(p.CastTime, 0f, 600f);
+        var omenDelay = NetGuard.Clamp(p.OmenDelay, 0f, 60f);
+        var rotation = NetGuard.Rotation(p.Rotation);
+        var target = ObjectIdOf(p.Target);
+        var ballista = ObjectIdOf(p.Ballista);
+        Character(p.Actor)?.ReceiveActorCast(new ActorCastData(p.ActionId, p.ActionType, castTime, omenDelay, p.Interruptible, rotation, position,
+            target, ballista));
+        spawned.GetValueOrDefault(p.Actor)?.Enemy?.Casting.NativeCast(p.ActionId, p.ActionType, omenDelay, castTime, p.Interruptible, rotation,
+            world.Coordinates.ToLocal(position), target, ballista);
     }
 
     // A target missing here keeps its place, as no target: the results name targets by index.
@@ -488,21 +501,39 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
                 return;
             case MapEffectSnapshotPacket s when s.States.Length > NetGuard.MaxMapEffectSlots:
                 return;
+            case BattleTalkPacket t when !SimAssets.Allow(SimAssetKind.BattleTalk, t.TextId, "BattleTalk"):
+                return;
+            case BattleTalkPacket t when Natives.Data.BNpcName(t.SpeakerNameId) == null:
+                DiagnosticLog.Warn($"[Multiplayer] Peer: dropped BattleTalk text {t.TextId} -- no BNpcName {t.SpeakerNameId}.");
+                return;
+            case BattleTalkPacket t when t.DurationMs > MaxBattleTalkMilliseconds:
+                DiagnosticLog.Warn($"[Multiplayer] Peer: BattleTalk text {t.TextId} asked for {t.DurationMs} ms -- shown for {MaxBattleTalkMilliseconds}.");
+                packet = t with { DurationMs = MaxBattleTalkMilliseconds };
+                break;
         }
         if (arena.Count >= NetGuard.MaxPendingMapCalls) return;
-        arena.Enqueue(packet);
+        arena.Enqueue((packet, frame));
         DrainArena();
     }
 
     private void DrainArena()
     {
-        while (arena.TryPeek(out var packet))
+        while (arena.TryPeek(out var queued))
         {
+            var (packet, queuedAt) = queued;
+            if (packet is BattleTalkPacket late && frame - queuedAt > MapController.BattleTalkMaxFrames)
+            {
+                DiagnosticLog.Warn($"[Multiplayer] Peer: dropped BattleTalk text {late.TextId} -- {frame - queuedAt} frames late would mistime its cue.");
+                arena.Dequeue();
+                arenaFrames = 0;
+                continue;
+            }
             var taken = packet switch
             {
                 MapEffectPacket m => natives.RealMap.Apply(m.PacketFlags, m.Index),
                 MapEffectSnapshotPacket s => natives.RealMap.ApplySnapshot(s.States, s.ZoneIn),
                 DirectorUpdatePacket d => natives.RealDirector.ProcessDirectorUpdate(d.Category, d.Arg1, d.Arg2, d.Arg3, d.Arg4, d.Arg5, d.Arg6),
+                BattleTalkPacket t => natives.RealDirector.BattleTalk(t.SpeakerNameId, t.TextId, t.DurationMs),
                 _ => true,
             };
             if (!taken && ++arenaFrames < MaxWaitFrames) return;

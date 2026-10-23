@@ -15,8 +15,6 @@ namespace AnoMech.Core.UserActions;
 // replays each swing at the player's target. Animation only: no damage, no flytext.
 internal sealed unsafe class AutoAttackHandler : IUserActionHandler
 {
-    public const uint AttackActionId = 7;
-    public const uint ShotActionId = 8;
     public const float SwingLock = 0.1f;
     // UNVERIFIED: the auto reach past both hitboxes.
     private const float MeleeRange = 2.1f;
@@ -32,7 +30,7 @@ internal sealed unsafe class AutoAttackHandler : IUserActionHandler
     // Each swing, by its action and the enemy it went at.
     public event System.Action<uint, ulong>? Swung;
 
-    public static bool IsAutoAttack(uint actionId) => actionId is AttackActionId or ShotActionId;
+    public static bool IsAutoAttack(uint actionId) => actionId is JobActions.AttackActionId or JobActions.ShotActionId;
 
     public void OnScenarioStart()
     {
@@ -55,11 +53,13 @@ internal sealed unsafe class AutoAttackHandler : IUserActionHandler
         var job = PlayerJob.Current;
         if (!InReach(player, enemy, ReachOf(job))) return;
 
-        var actionId = ActionIdOf(job);
+        var actionId = JobActions.AutoAttackActionId((byte)job);
         swingCooldown = WeaponDelay();
         Swing(actionId, enemy);
+        game.Player.CountAutoAttackSwing();
         Swung?.Invoke(actionId, (ulong)enemy.GameObjectId);
         JobActions.ApplyAutoAttack(game.Player, actionId, enemy.GameObjectId, rng);
+        EnemyHitHandler.Report(enemy, game.Player);
     }
 
     // Shaped like the server's: no source sequence (it swings on its own timer), a 0.1s lock and
@@ -84,10 +84,6 @@ internal sealed unsafe class AutoAttackHandler : IUserActionHandler
         if (cm == null || cm->LookupBattleCharaByEntityId(enemy.GameObjectId.ObjectId) == null) return null;
         return enemy;
     }
-
-    // Dancer's chakram throw is Attack at range; Shot plays nothing on it.
-    private static uint ActionIdOf(JobId job)
-        => job is JobId.Archer or JobId.Bard or JobId.Machinist ? ShotActionId : AttackActionId;
 
     // Casters and healers swing in melee like everyone else.
     private static float ReachOf(JobId job)

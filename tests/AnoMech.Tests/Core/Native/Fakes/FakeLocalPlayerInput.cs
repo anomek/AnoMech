@@ -13,7 +13,16 @@ internal sealed class FakeLocalPlayerInput : ILocalPlayerInput
     public bool MovementInputActive { get; set; }
     public bool IsJumping => false;
     public bool IsAutoAttacking => false;
-    public bool PollActionUsed() => false;
+    // A test's press: the player's next frame sees it once.
+    private bool pressed;
+    public void PressAction() => pressed = true;
+
+    public bool PollActionUsed()
+    {
+        var used = pressed;
+        pressed = false;
+        return used;
+    }
     public bool PollCancelCast() => false;
     public IReadOnlyCollection<(uint ActionId, ActionType Type)> RecentActions => [];
 

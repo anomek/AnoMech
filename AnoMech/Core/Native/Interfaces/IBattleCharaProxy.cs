@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
@@ -46,6 +47,10 @@ public interface IBattleCharaProxy
     bool IsDrawObjectVisible { get; }
 
     byte ModelState { get; }
+
+    // The look a spawn packet would carry to copy this character: customize, gear and weapons as
+    // drawn now. Null while there is no character.
+    NpcAppearance? Appearance { get; }
 
     // ── Casting ──────────────────────────────────────────────────────────────
 
@@ -95,6 +100,9 @@ public interface IBattleCharaProxy
     // level and maxima go out as the character has them. shield (0-100, % of max HP) is the gold
     // overlay on the HP bar, target bar and nameplate.
     void ReceiveStatusList(IReadOnlyList<StatusSlot> statuses, uint health, uint mana, byte shield);
+
+    // Whether the client's StatusManager holds it: what the party list and nameplate show.
+    bool ShowsStatus(ushort statusId);
 
     // ── Effects ──────────────────────────────────────────────────────────────
 

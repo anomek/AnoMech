@@ -43,6 +43,10 @@ public sealed class SimCast : ISimObject
     // roots itself while busy so the action animation finishes in place instead of sliding.
     public bool IsBusy => IsCasting || remainingAnimationLock > 0f;
 
+    // How many ActionEffects it has sent: a mechanic watching for an action in a window counts
+    // the moment one goes out, not the lock it leaves.
+    public int ActionsSent { get; private set; }
+
     // Owned and ticked by its SimCharacter, never reaped by liveness.
     public bool IsActive => true;
 
@@ -79,6 +83,7 @@ public sealed class SimCast : ISimObject
             animationTargetId, targets, ballistaId));
 
         remainingAnimationLock = animationLock;
+        ActionsSent++;
         return sequence;
     }
 

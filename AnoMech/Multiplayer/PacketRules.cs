@@ -69,6 +69,8 @@ internal static class PacketRules
         [0x25F] = new(Everyone, ActorArg: 0),                   // fade out
         [0x5F9] = new(Everyone),                                // revive
         [0x5FB] = new(Everyone),                                // transform
+        [0x602] = new(Movement, OwnPlayer: true),               // forced march step
+        [0x603] = new(Movement, OwnPlayer: true),               // forced march end
     };
 
     public static readonly IReadOnlyDictionary<uint, ControlRule> TargetControls = new Dictionary<uint, ControlRule>
