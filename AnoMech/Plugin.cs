@@ -38,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
+    [PluginService] internal static ITitleScreenMenu TitleScreenMenu { get; private set; } = null!;
 
     private const string CommandName = "/anomech";
     private const string CommandAlias = "/ano";
@@ -57,6 +58,8 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
     private FailureBanner? FailureBanner { get; init; }
+    internal Offline.OfflineSession? Offline { get; private set; }
+    private Dalamud.Interface.IReadOnlyTitleScreenMenuEntry? offlineTitleEntry;
 #if DEBUG
     private DamageDebugWindow DamageDebugWindow { get; init; }
 #endif
@@ -98,9 +101,11 @@ public sealed class Plugin : IDalamudPlugin
             if (Config.OpenSimMenuOnInn && ZoneControl.IsInInn())
                 MainWindow.IsOpen = true;
 
+            StartOffline();
+
             CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
             {
-                HelpMessage = "Open AnoMech. Subcommands: config, mp, start, reset, leave"
+                HelpMessage = "Open AnoMech. Subcommands: config, mp, start, reset, leave, offline"
             });
             CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand)
             {
@@ -169,6 +174,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DisposeSubsystems()
     {
+        Offline?.CloseGameIfStarted();
         PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
         Framework.Update -= OnFrameworkUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
@@ -184,6 +190,8 @@ public sealed class Plugin : IDalamudPlugin
         TimelineDebug.Shutdown();
         Multiplayer?.Dispose();
         Game?.Dispose();
+        if (offlineTitleEntry != null) TitleScreenMenu.RemoveEntry(offlineTitleEntry);
+        Offline?.Dispose();
         Natives.Dispose();
         opcodeUpdater?.Dispose();
         LogManager?.Dispose();
@@ -232,6 +240,23 @@ public sealed class Plugin : IDalamudPlugin
             Multiplayer.Tick(fw->FrameDeltaTime);
         }
         catch (Exception e) { DiagnosticLog.Warn($"[Plugin] Multiplayer.Tick threw: {e}"); }
+        try { Offline?.Tick(); }
+        catch (Exception e) { DiagnosticLog.Warn($"[Plugin] Offline.Tick threw: {e}"); }
+    }
+
+    // Offline mode is optional: whatever goes wrong setting it up must not cost the plugin its load.
+    private void StartOffline()
+    {
+        try
+        {
+            Offline = new Offline.OfflineSession(() => MainWindow.IsOpen = true);
+            var icon = TextureProvider.GetFromManifestResource(typeof(Plugin).Assembly, "AnoMech.OfflineIcon.png");
+            offlineTitleEntry = TitleScreenMenu.AddEntry("AnoMech offline mode", icon, () => MainWindow.IsOpen = true);
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[Plugin] Offline mode is unavailable: {e.Message}");
+        }
     }
 
     private void OnTerritoryChanged(uint territory)
@@ -287,6 +312,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "leave":
                 Runs.Leave();
+                break;
+            case "offline":
+                MainWindow.IsOpen = true;
                 break;
             default:
                 MainWindow.Toggle();
