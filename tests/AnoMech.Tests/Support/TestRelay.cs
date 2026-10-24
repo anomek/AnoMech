@@ -1,16 +1,23 @@
+using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
 using AnoMech.Multiplayer;
 using AnoMech.Network;
+using AnoMech.Relay;
 
 namespace AnoMech.Tests;
 
 // What a client's link can suffer: it drops, with all it carries, and reconnecting fails for
 // Outage seconds; or its uploads (downloads) vanish for Dead seconds first, as a link does before
-// anyone notices it's gone.
+// anyone notices it's gone; or its uploads hold for Stall seconds and then go on in order, as
+// behind a lost packet.
 internal abstract record LinkFault(double Outage);
 internal sealed record LinkDrops(double Outage) : LinkFault(Outage);
 internal sealed record UploadsDie(double Dead, double Outage) : LinkFault(Outage);
 internal sealed record DownloadsDie(double Dead, double Outage) : LinkFault(Outage);
+internal sealed record UploadsStall(double Stall) : LinkFault(0);
 
 // A message a client handed its link, From being the n-th client to connect. Resent: a numbered
 // message that was on the wire before.
@@ -19,21 +26,16 @@ internal sealed record Carried(int From, double At, MpMessage Message, bool Rese
     public string Kind => Message.GetType().Name + (Resent ? " sent again" : "");
 }
 
-// A relay and each client's link to it, in virtual time. A client's upload is RelayClient's: one
-// queue in order, one message on the socket at a time, a send done once the socket buffer has
-// taken all of it. The relay routes as the real one does, the host to everyone and a peer to the
-// host only, stamping each message with its sender; it knows the host by identity, so a host that
-// reconnects is the host again, and keeps nothing for a client that isn't connected. Each
-// client's download delivers in order, through RelayClient's own decoding. A link dropping is
-// told to its client during that client's own frame, as the real client hears it on its own.
-internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
+// The real relay (RelayServer) and each client's link to it, in virtual time. Every connection is
+// a Wire: the relay serves its end exactly as a connection it accepted on its port, and the
+// client's end speaks the relay's protocol through RelayClient's own upgrade headers, greeting,
+// receive loop and encoding. A client's upload is RelayClient's: one queue in order, one message on
+// the socket at a time. A link dropping is told to its client during that client's own frame, as
+// the real client hears it on its own; the relay hears nothing of it.
+internal sealed class TestRelay : ISessionNetwork
 {
-    public const string Address = "test-relay";
-    private const string SessionCode = "TESTRM";
-    private const double Step = 0.0005;
-    // Framing per message: WebSocket header and mask going up; the relay's envelope and header
-    // coming down; TLS records both ways.
-    private const int UploadOverhead = 40, DownloadOverhead = 60;
+    public string Address => "test-relay";
+    private const double StepSeconds = 0.0005;
 
     // An unreachable rate or interval, for a link that never limits anything.
     private const double Never = 1e12;
@@ -45,29 +47,48 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
         DownloadStallEvery: Never, DownloadStallMin: 0, DownloadStallMax: 0,
         PeerHitchEvery: Never, PeerHitchMin: 0, PeerHitchMax: 0);
 
+    private readonly int seed;
+    private readonly Func<int, ConnectionProfile> linkFor;
+    private readonly double step;
+    private readonly VirtualClock clock = new();
+    private readonly RelayServer server;
     private readonly List<Connection> connections = [];
     private readonly List<Guid> identities = [];
     private readonly Dictionary<Guid, LinkState> links = new();
+    private readonly Dictionary<int, int> networks = new();
     private readonly List<string> rejected = [];
+    // Calls made off the test's thread, taken at the next step.
+    private readonly ConcurrentQueue<Action> posted = new();
     // By client: the n-th to connect, as linkFor numbers them.
     private readonly List<(double At, int Client, LinkFault Fault)> scheduled = [];
     private readonly List<(int Client, Func<Carried, bool> Match, LinkFault Fault)> afterSending = [];
     private readonly List<(int Client, Func<Carried, bool> Match, LinkFault Fault)> beforeReceiving = [];
     private readonly Dictionary<Guid, long> lastSeq = new();
-    private Guid hostIdentity;
+    private object? relayRead;
     private long tick;
+    private int connectionsMade;
 
     private sealed class LinkState
     {
         public double DownUntil = double.NegativeInfinity;
         public double UploadsDeadUntil = double.NegativeInfinity;
         public double DownloadsDeadUntil = double.NegativeInfinity;
+        public double UploadsStalledUntil = double.NegativeInfinity;
     }
 
-    public double Now { get; private set; }
-    // Every client's clock: a run never reads the machine's, or how fast it ran would change it.
-    public TimeProvider Time => field ??= new VirtualTime(this);
-    public IReadOnlyList<string> Rejected => rejected;
+    // step: how far the links move at a time, in seconds.
+    public TestRelay(int seed, Func<int, ConnectionProfile> linkFor, double step = StepSeconds)
+    {
+        this.seed = seed;
+        this.linkFor = linkFor;
+        this.step = step;
+        server = new RelayServer(new RelayOptions(), new Unlogged(), clock, keepAlive: TimeSpan.Zero);
+        server.StartUnbound();
+    }
+
+    public double Now => clock.Now;
+    public TimeProvider Time => clock;
+    public IReadOnlyList<string> Rejected => [.. rejected, .. ISessionNetwork.RefusedBy(server)];
     // The longest a host's message took from its send to a peer's queue.
     public double MaxHostDelay { get; private set; }
     // When each client's link went down and came back.
@@ -84,9 +105,22 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
     {
         var identity = RelayWire.PeerId(secret);
         if (!identities.Contains(identity)) identities.Add(identity);
-        var connection = new Connection(this, identity, (uint)connections.Count + 1, linkFor(identities.IndexOf(identity)), seed + 1000 * connections.Count);
+        var client = identities.IndexOf(identity);
+        var connection = new Connection(this, secret, identity, client, linkFor(client), seed + 1000 * connectionsMade++);
         connections.Add(connection);
         return connection;
+    }
+
+    // These clients reach the relay from one address, as a household behind one router does.
+    public void SameNetwork(params int[] clients)
+    {
+        foreach (var client in clients) networks[client] = clients[0];
+    }
+
+    private IPAddress AddressOf(int client)
+    {
+        var network = networks.GetValueOrDefault(client, client);
+        return new IPAddress([10, 0, (byte)(network / 250), (byte)(network % 250 + 1)]);
     }
 
     public void Schedule(int client, double at, LinkFault fault) => scheduled.Add((at, client, fault));
@@ -98,31 +132,31 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
     // The client's link drops right as the first message `match` takes reaches it, which is lost.
     public void DropBeforeReceiving(int client, Func<Carried, bool> match, LinkFault fault) => beforeReceiving.Add((client, match, fault));
 
-    // Within that client's frame (TestClient.Frame).
-    public void RaiseDisconnects(Guid identity)
-    {
-        foreach (var connection in connections.Where(c => c.Identity == identity).ToList())
-            connection.RaisePendingDisconnect();
-    }
+    // The client's uploads stall right after it sends the first message `match` takes, which
+    // waits with them.
+    public void StallAfterSending(int client, Func<Carried, bool> match, double seconds) => afterSending.Add((client, match, new UploadsStall(seconds)));
 
-    private sealed class VirtualTime(TestRelay relay) : TimeProvider
+    public void RaiseLinkEvents(Guid identity)
     {
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-        public override long GetTimestamp() => (long)(relay.Now * TimeSpan.TicksPerSecond);
+        for (var i = 0; i < connections.Count; i++)
+            if (connections[i].Identity == identity) connections[i].Tell();
     }
 
     public void AdvanceTo(double time)
     {
         while (Now < time)
         {
-            foreach (var fault in scheduled.Where(s => s.At <= Now).ToList())
-            {
-                scheduled.Remove(fault);
-                if (fault.Client < identities.Count) Apply(identities[fault.Client], fault.Fault);
-            }
-            foreach (var connection in connections.ToList()) connection.Upload(Now);
-            foreach (var connection in connections.ToList()) connection.Download(Now);
-            Now = ++tick * Step;
+            while (posted.TryDequeue(out var call)) call();
+            relayRead = null;
+            if (scheduled.Count > 0)
+                foreach (var fault in scheduled.Where(s => s.At <= Now).ToList())
+                {
+                    scheduled.Remove(fault);
+                    if (fault.Client < identities.Count) Apply(identities[fault.Client], fault.Fault);
+                }
+            for (var i = 0; i < connections.Count; i++) connections[i].Step();
+            connections.RemoveAll(c => c.Finished);
+            clock.AdvanceTo(++tick * step);
         }
     }
 
@@ -146,29 +180,31 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
                 link.DownloadsDeadUntil = Now + dies.Dead;
                 scheduled.Add((Now + dies.Dead, identities.IndexOf(identity), new LinkDrops(dies.Outage)));
                 return;
+            case UploadsStall stall:
+                link.UploadsStalledUntil = Now + stall.Stall;
+                return;
         }
-        var live = connections.FirstOrDefault(c => c.Identity == identity && c.Joined);
+        var live = connections.FirstOrDefault(c => c.Identity == identity && c.Live);
         if (live == null) return;
         link.DownUntil = Now + fault.Outage;
         live.Drop();
         Outages.Add((identities.IndexOf(identity), Now, double.NaN));
     }
 
-    private void Forward(Connection sender, Outgoing outgoing, double at)
+    private void Joined(Connection connection)
     {
-        if (!sender.Joined || at < LinkOf(sender.Identity).UploadsDeadUntil) return;
-        foreach (var recipient in connections)
-        {
-            if (ReferenceEquals(recipient, sender) || !recipient.Joined) continue;
-            if (!sender.IsHost && !recipient.IsHost) continue;
-            recipient.Arrive(sender, outgoing, at);
-        }
+        for (var i = Outages.Count - 1; i >= 0; i--)
+            if (Outages[i].Client == connection.Client && double.IsNaN(Outages[i].Up))
+            {
+                Outages[i] = Outages[i] with { Up = Now };
+                break;
+            }
     }
 
     private Carried Record(Connection sender, MpMessage message)
     {
         var last = lastSeq.GetValueOrDefault(sender.Identity);
-        var carried = new Carried(identities.IndexOf(sender.Identity), Now, message, message.Seq != 0 && message.Seq <= last);
+        var carried = new Carried(sender.Client, Now, message, message.Seq != 0 && message.Seq <= last);
         if (message.Seq > last) lastSeq[sender.Identity] = message.Seq;
         Sends.Add(carried);
         return carried;
@@ -176,8 +212,7 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
 
     private void Sent(Connection sender, Carried carried)
     {
-        var client = identities.IndexOf(sender.Identity);
-        var trigger = afterSending.FirstOrDefault(t => t.Client == client && t.Match(carried));
+        var trigger = afterSending.FirstOrDefault(t => t.Client == sender.Client && t.Match(carried));
         if (trigger.Match == null) return;
         afterSending.Remove(trigger);
         Apply(sender.Identity, trigger.Fault);
@@ -186,225 +221,303 @@ internal sealed class TestRelay(int seed, Func<int, ConnectionProfile> linkFor)
     // True when the delivery was the trigger, and is lost with the link.
     private bool Receiving(Connection recipient, Carried carried)
     {
-        var client = identities.IndexOf(recipient.Identity);
-        var trigger = beforeReceiving.FirstOrDefault(t => t.Client == client && t.Match(carried));
+        var trigger = beforeReceiving.FirstOrDefault(t => t.Client == recipient.Client && t.Match(carried));
         if (trigger.Match == null) return false;
         beforeReceiving.Remove(trigger);
         Apply(recipient.Identity, trigger.Fault);
         return true;
     }
 
-    private sealed class Outgoing(Carried carried, byte[] body, bool compressed, double sentAt)
+    private Wire NewWire(ConnectionProfile link, int wireSeed, Guid identity) => new(link, wireSeed, () => Now,
+        at => at < LinkOf(identity).UploadsDeadUntil, at => at < LinkOf(identity).DownloadsDeadUntil,
+        at => at < LinkOf(identity).UploadsStalledUntil, read => relayRead = read, () => relayRead);
+
+    // A long session logs a line per message it carries; what the tests need of the relay comes
+    // from its stats.
+    private sealed class Unlogged : IRelayLog
     {
-        public readonly Carried Carried = carried;
-        public MpMessage Message => Carried.Message;
-        public readonly double SentAt = sentAt;
+        public void Info(string message) { }
+        public void Warn(string message) { }
+        public void Detail(string message) { }
+    }
+
+    // A message on its way: Carried is null for a relayControl, which isn't an MpMessage.
+    private sealed class Outgoing(Carried? carried, byte[] body, WebSocketMessageType type, double sentAt)
+    {
+        public readonly Carried? Carried = carried;
         public readonly byte[] Body = body;
-        public readonly bool Compressed = compressed;
+        public readonly WebSocketMessageType Type = type;
+        public readonly double SentAt = sentAt;
         public readonly TaskCompletionSource Completion = new();
-        public int Unwritten = body.Length + UploadOverhead;
-        public int Buffered;
-        public bool Written => Unwritten == 0;
     }
 
     private sealed class Connection : IRelayConnection
     {
         private readonly TestRelay relay;
+        private readonly string secret;
         private readonly ConnectionProfile link;
-        private readonly Random race, swing, jitter;
-        private readonly LinkStalls uploadStalls, downloadStalls;
-        private readonly Queue<Outgoing> queued = new(), sendBuffer = new();
-        private readonly Queue<(double At, Outgoing Message)> toRelay = new();
-        private readonly Queue<(double At, Connection Sender, Outgoing Message)> arriving = new();
+        private readonly Random race, keys;
+        private readonly Wire wire;
+        private readonly Queue<Outgoing> queued = new();
+        private readonly Queue<Action> told = new();
+        private readonly CancellationTokenSource receiving = new();
         private Outgoing? writing;
-        private int buffered;
-        private double uploadCredit, uploadShare = 1, nextSwing, downloadFreeAt, lastArrival;
-        private bool disconnectPending;
+        private bool sending, dialing, open, gone, closed;
+        private WebSocket? socket;
+        private TaskCompletionSource<string?>? dialed;
+        private IReadOnlySet<string> capabilities = new HashSet<string>();
 
         public readonly Guid Identity;
-        public readonly uint Id;
-        public bool Joined;
+        public readonly int Client;
 
-        public Connection(TestRelay relay, Guid identity, uint id, ConnectionProfile link, int seed)
+        public Connection(TestRelay relay, string secret, Guid identity, int client, ConnectionProfile link, int seed)
         {
             this.relay = relay;
+            this.secret = secret;
             this.link = link;
             Identity = identity;
-            Id = id;
+            Client = client;
             race = new Random(seed);
-            swing = new Random(seed + 1);
-            jitter = new Random(seed + 2);
-            uploadStalls = new LinkStalls(new Random(seed + 3), link.UploadStallEvery, link.UploadStallMin, link.UploadStallMax);
-            downloadStalls = new LinkStalls(new Random(seed + 4), link.DownloadStallEvery, link.DownloadStallMin, link.DownloadStallMax);
+            keys = new Random(seed + 5);
+            wire = relay.NewWire(link, seed, identity);
         }
 
-        public bool IsHost => Identity == relay.hostIdentity;
-        public bool IsConnected => Joined;
+        public bool Live => dialing || open;
+        // Nothing left to carry or to tell.
+        public bool Finished => gone && told.Count == 0 && wire.Idle;
+        public bool IsConnected => open;
         public bool IsEncrypted => false;
         public bool FellBackToUnencrypted => false;
-        public bool SupportsCompression => true;
-        public bool SupportsSenderIdentity => true;
+        public bool SupportsCompression => capabilities.Contains("binaryCompression");
+        public bool SupportsSenderIdentity => capabilities.Contains("authenticatedIdentity");
 
         public event Action<MpMessage, bool, uint, Guid>? MessageReceived;
         public event Action<IReadOnlyList<Guid>>? PeersRemoved;
         public event Action<Exception?>? Disconnected;
 
-        // Fails while this identity's outage lasts; one connection per identity, as the relay
-        // replaces a connection that hasn't noticed it's dead yet.
         public Task ConnectAsync(string relayUrl, string sessionCode, string? accessToken = null)
-        {
-            if (sessionCode != SessionCode)
-            {
-                Disconnected?.Invoke(new RelaySessionRejectedException("session not found"));
-                return Task.CompletedTask;
-            }
-            var down = relay.LinkOf(Identity).DownUntil;
-            if (relay.Now < down) return Task.CompletedTask;
-            foreach (var stale in relay.connections.Where(c => c.Identity == Identity && c.Joined && !ReferenceEquals(c, this)).ToList())
-                stale.Drop();
-            Joined = true;
-            var client = relay.identities.IndexOf(Identity);
-            for (var i = relay.Outages.Count - 1; i >= 0; i--)
-                if (relay.Outages[i].Client == client && double.IsNaN(relay.Outages[i].Up))
-                {
-                    relay.Outages[i] = relay.Outages[i] with { Up = relay.Now };
-                    break;
-                }
-            return Task.CompletedTask;
-        }
+            => Dial(RelayClient.JoinPath(sessionCode), hosting: false, accessToken);
 
         public Task<string?> ConnectAndHostAsync(string relayUrl, string? accessToken = null)
+            => Dial(RelayClient.HostPath, hosting: true, accessToken);
+
+        // Fails at once while this identity's outage lasts.
+        private Task<string?> Dial(string path, bool hosting, string? accessToken)
         {
-            relay.hostIdentity = Identity;
-            Joined = true;
-            return Task.FromResult<string?>(SessionCode);
+            dialed = new TaskCompletionSource<string?>();
+            if (relay.Now < relay.LinkOf(Identity).DownUntil)
+            {
+                gone = true;
+                wire.Cut();
+                var unreachable = new WebSocketException(WebSocketError.Faulted, "Unable to connect to the remote server.");
+                Later(() => Disconnected?.Invoke(unreachable), () => dialed.TrySetResult(null));
+                return dialed.Task;
+            }
+            dialing = true;
+            _ = relay.server.ServeAsync(wire.RelayEnd, relay.AddressOf(Client));
+            _ = HandshakeAsync(path, hosting, accessToken);
+            return dialed.Task;
         }
 
-        // The send loop wakes on the first message queued, and races the rest of the frame's sends.
+        // As ClientWebSocket and RelayClient connect: the upgrade request, the 101, the greeting.
+        private async Task HandshakeAsync(string path, bool hosting, string? accessToken)
+        {
+            try
+            {
+                var keyBytes = new byte[16];
+                keys.NextBytes(keyBytes);
+                var key = Convert.ToBase64String(keyBytes);
+                var request = new StringBuilder($"GET /{path} HTTP/1.1\r\nHost: {relay.Address}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n"
+                                                + $"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n");
+                foreach (var (name, value) in RelayClient.UpgradeHeaders(secret, accessToken)) request.Append($"{name}: {value}\r\n");
+                request.Append("\r\n");
+                await wire.ClientEnd.WriteAsync(Encoding.ASCII.GetBytes(request.ToString()));
+                await ReadUpgradeAsync(key);
+                socket = WebSocket.CreateFromStream(wire.ClientEnd, new WebSocketCreationOptions { IsServer = false, KeepAliveInterval = TimeSpan.Zero });
+                using var greeting = new CancellationTokenSource(RelayClient.DefaultGreetingTimeout, relay.Time);
+                var (code, relayCapabilities) = await RelayClient.ReadGreetingAsync(socket, Identity, hosting, greeting.Token);
+                if (gone) return;
+                capabilities = relayCapabilities;
+                dialing = false;
+                open = true;
+                relay.Joined(this);
+                _ = ReceiveAsync(socket);
+                Later(() => dialed!.TrySetResult(code));
+            }
+            catch (Exception e)
+            {
+                if (gone) return;
+                dialing = false;
+                gone = true;
+                if (socket != null) socket.Abort();
+                else wire.ClientEnd.Dispose();
+                Later(() => Disconnected?.Invoke(e), () => dialed!.TrySetResult(null));
+            }
+        }
+
+        private async Task ReadUpgradeAsync(string key)
+        {
+            var head = new MemoryStream();
+            var buffer = new byte[1024];
+            while (!head.ToArray().AsSpan().EndsWith("\r\n\r\n"u8))
+            {
+                var read = await wire.ClientEnd.ReadAsync(buffer);
+                if (read == 0) throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "The relay closed the connection during the upgrade.");
+                head.Write(buffer, 0, read);
+            }
+            var lines = Encoding.ASCII.GetString(head.ToArray()).Split("\r\n");
+            var status = lines[0].Split(' ') is [_, var code, ..] && int.TryParse(code, out var parsed) ? parsed : 0;
+            if (status != 101)
+                throw new WebSocketException(WebSocketError.NotAWebSocket, $"The server returned status code '{status}' when status code '101' was expected.");
+            var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
+            if (!lines.Contains($"Sec-WebSocket-Accept: {accept}"))
+                throw new WebSocketException(WebSocketError.HeaderError, "The relay's upgrade answered another key.");
+        }
+
+        private async Task ReceiveAsync(WebSocket connected)
+        {
+            var failure = await RelayClient.ReceiveAsync(connected, receiving.Token, Received, removed => PeersRemoved?.Invoke(removed), Rejected, relay.Time);
+            if (gone) return;
+            open = false;
+            gone = true;
+            Later(() => Disconnected?.Invoke(failure));
+        }
+
+        private void Received(MpMessage message, bool isFromHost, uint senderId, Guid sender)
+        {
+            if (wire.ClientEnd.Tag is Outgoing { Carried: { } carried } original)
+            {
+                if (relay.Receiving(this, carried)) return;
+                relay.Delivered.Add((Client, carried));
+                if (isFromHost) relay.MaxHostDelay = Math.Max(relay.MaxHostDelay, relay.Now - original.SentAt);
+            }
+            MessageReceived?.Invoke(message, isFromHost, senderId, sender);
+        }
+
+        private void Rejected(Guid sender, bool isFromHost, string reason)
+            => relay.rejected.Add($"{(wire.ClientEnd.Tag as Outgoing)?.Carried?.Message.GetType().Name ?? "a message"} from {sender}: {reason}");
+
         public Task SendAsync(MpMessage message)
         {
-            if (!Joined) return Task.CompletedTask;
+            if (!open) return Task.CompletedTask;
             var carried = relay.Record(this, message);
-            var (body, type) = RelayClient.Encode(message, compress: true);
-            var outgoing = new Outgoing(carried, body, type == WebSocketMessageType.Binary, relay.Now);
-            if (writing == null && queued.Count == 0 && race.NextDouble() >= link.SendLoopLate) writing = outgoing;
-            else queued.Enqueue(outgoing);
+            var (body, type) = RelayClient.Encode(message, SupportsCompression);
+            var outgoing = new Outgoing(carried, body, type, relay.Now);
+            Queue(outgoing);
             relay.Sent(this, carried);
             return outgoing.Completion.Task;
         }
 
         public Task ModerateAsync(string operation, Guid peerId)
         {
-            if (!IsHost || operation is not ("kick" or "ban")) return Task.CompletedTask;
-            foreach (var target in relay.connections.Where(c => c.Identity == peerId && c.Joined))
-                target.Drop();
-            return Task.CompletedTask;
+            if (!open) return Task.CompletedTask;
+            var outgoing = new Outgoing(null, RelayClient.ControlBody(operation, peerId), WebSocketMessageType.Text, relay.Now);
+            Queue(outgoing);
+            return outgoing.Completion.Task;
         }
 
-        public void Dispose() => Joined = false;
-
-        // Everything on the link goes with it; a send still waiting for the socket fails, as
-        // RelayClient's do once it's disposed.
-        public void Drop()
+        // The send loop wakes on the first message queued, and races the rest of the frame's sends.
+        private void Queue(Outgoing outgoing)
         {
-            Joined = false;
-            disconnectPending = true;
-            writing?.Completion.TrySetException(new ObjectDisposedException(nameof(RelayClient)));
-            foreach (var waiting in queued) waiting.Completion.TrySetException(new ObjectDisposedException(nameof(RelayClient)));
-            writing = null;
-            queued.Clear();
-            sendBuffer.Clear();
-            toRelay.Clear();
-            arriving.Clear();
-            buffered = 0;
+            if (writing == null && queued.Count == 0 && race.NextDouble() >= link.SendLoopLate) writing = outgoing;
+            else queued.Enqueue(outgoing);
         }
 
-        public void RaisePendingDisconnect()
+        public void Step()
         {
-            if (!disconnectPending) return;
-            disconnectPending = false;
-            Disconnected?.Invoke(null);
+            Send();
+            wire.Step(relay.step);
         }
 
-        public void Upload(double now)
+        // One message on the socket at a time, each done once the socket buffer has all of it.
+        private void Send()
         {
-            WriteToSocket();
-            if (now >= nextSwing)
-            {
-                uploadShare = 1 - link.UploadSwing + swing.NextDouble() * 2 * link.UploadSwing;
-                nextSwing = now + link.UploadSwingEvery;
-            }
-            if (uploadStalls.Within(now) == null)
-            {
-                uploadCredit += Math.Min(link.UploadRate * uploadShare * Step, int.MaxValue);
-                while (sendBuffer.Count > 0 && uploadCredit >= 1)
-                {
-                    var head = sendBuffer.Peek();
-                    var bytes = (int)Math.Min(uploadCredit, head.Buffered);
-                    head.Buffered -= bytes;
-                    buffered -= bytes;
-                    uploadCredit -= bytes;
-                    if (head.Buffered > 0 || !head.Written) break;
-                    sendBuffer.Dequeue();
-                    toRelay.Enqueue((now + link.UploadLatency, head));
-                }
-                // An idle link can't save up bandwidth for later.
-                if (sendBuffer.Count == 0) uploadCredit = Math.Min(uploadCredit, link.UploadRate * uploadShare * Step);
-            }
-            while (toRelay.Count > 0 && toRelay.Peek().At <= now)
-                relay.Forward(this, toRelay.Dequeue().Message, now);
-        }
-
-        private void WriteToSocket()
-        {
-            while (true)
+            while (open && !sending)
             {
                 writing ??= queued.Count > 0 ? queued.Dequeue() : null;
-                if (writing == null) return;
-                var space = link.SendBufferBytes - buffered;
-                if (space <= 0) return;
-                if (writing.Buffered == 0 && !sendBuffer.Contains(writing)) sendBuffer.Enqueue(writing);
-                var bytes = Math.Min(space, writing.Unwritten);
-                writing.Unwritten -= bytes;
-                writing.Buffered += bytes;
-                buffered += bytes;
-                if (!writing.Written) return;
-                writing.Completion.TrySetResult();
-                writing = null;
+                if (writing is not { } next) return;
+                sending = true;
+                wire.ClientEnd.Sending = next;
+                var sent = socket!.SendAsync(next.Body, next.Type, endOfMessage: true, CancellationToken.None);
+                wire.ClientEnd.Sending = null;
+                if (!sent.IsCompleted)
+                {
+                    sent.ContinueWith(done =>
+                    {
+                        Sent(next, done);
+                        Send();
+                    }, TaskContinuationOptions.ExecuteSynchronously);
+                    return;
+                }
+                Sent(next, sent);
             }
         }
 
-        public void Arrive(Connection sender, Outgoing outgoing, double at)
+        private void Sent(Outgoing outgoing, Task done)
         {
-            downloadFreeAt = Math.Max(downloadFreeAt, at) + (outgoing.Body.Length + DownloadOverhead) / link.DownloadRate;
-            var arrival = Math.Max(lastArrival, downloadFreeAt + link.DownloadLatency + jitter.NextDouble() * link.DownloadJitter);
-            if (downloadStalls.Within(arrival) is { } stallEnd) arrival = stallEnd;
-            lastArrival = arrival;
-            arriving.Enqueue((arrival, sender, outgoing));
+            sending = false;
+            if (writing == outgoing) writing = null;
+            if (done.IsCompletedSuccessfully) outgoing.Completion.TrySetResult();
+            else outgoing.Completion.TrySetException(done.Exception?.InnerException ?? new ObjectDisposedException(nameof(RelayClient)));
         }
 
-        public void Download(double now)
+        private void FailSends()
         {
-            while (Joined && arriving.Count > 0 && arriving.Peek().At <= now)
+            if (!sending && writing != null) writing.Completion.TrySetException(new ObjectDisposedException(nameof(RelayClient)));
+            foreach (var waiting in queued) waiting.Completion.TrySetException(new ObjectDisposedException(nameof(RelayClient)));
+            queued.Clear();
+            if (!sending) writing = null;
+        }
+
+        // Everything on the link goes with it; a send still waiting for the socket fails, as
+        // RelayClient's do once it's disposed. Told as RelayClient's receive loop ends with it.
+        public void Drop()
+        {
+            if (gone) return;
+            var wasDialing = dialing;
+            gone = true;
+            dialing = false;
+            open = false;
+            receiving.Cancel();
+            socket?.Abort();
+            wire.Cut();
+            FailSends();
+            if (wasDialing)
             {
-                var (_, sender, outgoing) = arriving.Dequeue();
-                if (now < relay.LinkOf(Identity).DownloadsDeadUntil) continue;
-                MpMessage? message;
-                try
-                {
-                    message = RelayClient.Read(outgoing.Body, outgoing.Compressed, sender.IsHost, sender.Identity, new TrafficBudget());
-                }
-                catch (Exception e)
-                {
-                    relay.rejected.Add($"{outgoing.Message.GetType().Name} from connection {sender.Id}: {e.Message}");
-                    continue;
-                }
-                if (message == null) continue;
-                if (relay.Receiving(this, outgoing.Carried)) return;
-                relay.Delivered.Add((relay.identities.IndexOf(Identity), outgoing.Carried));
-                if (sender.IsHost) relay.MaxHostDelay = Math.Max(relay.MaxHostDelay, now - outgoing.SentAt);
-                MessageReceived?.Invoke(message, sender.IsHost, sender.Id, sender.Identity);
+                var lost = new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "The link went down while connecting.");
+                Later(() => Disconnected?.Invoke(lost), () => dialed!.TrySetResult(null));
             }
+            else Later(() => Disconnected?.Invoke(null));
+        }
+
+        // As RelayClient's: queued sends fail, the socket goes with what it already holds. Taken
+        // on the test's thread, since MultiplayerManager may dispose from a send's continuation.
+        public void Dispose() => relay.posted.Enqueue(Close);
+
+        private void Close()
+        {
+            if (closed) return;
+            closed = true;
+            var wasDialing = dialing && !gone;
+            gone = true;
+            dialing = false;
+            open = false;
+            FailSends();
+            receiving.Cancel();
+            if (socket != null) socket.Abort();
+            else wire.ClientEnd.Dispose();
+            if (wasDialing) Later(() => dialed!.TrySetResult(null));
+        }
+
+        // Raised within this client's next frame, in order.
+        private void Later(params Action[] calls)
+        {
+            foreach (var call in calls) told.Enqueue(call);
+        }
+
+        public void Tell()
+        {
+            while (told.TryDequeue(out var call)) call();
         }
     }
 }

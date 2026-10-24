@@ -94,6 +94,10 @@ public sealed record RelayOptions
     public List<IPNetwork> TrustedProxies { get; set; } = new();
     public string ClientIpHeader { get; set; } = "X-Forwarded-For";
 
+    // wss:// served by the relay itself, with this certificate. Null leaves TLS to a reverse
+    // proxy in front, if there is one.
+    public RelayCertificate? Tls { get; set; }
+
     // Set together on a relay run as one of a group (RelayGroup): its own number, and every
     // member, itself included. A relay outside a group issues and serves every code.
     public int? GroupNumber { get; set; }
@@ -111,15 +115,16 @@ public sealed record RelayOptions
                    "a short shared secret is still guessable over time even with the lockout in place. " +
                    "Generate one with e.g. `openssl rand -hex 16`.";
 
-        // TLS here always means a reverse proxy terminating it, so "is this encrypted" is only
-        // ever answerable from a header -- and a header is only evidence if the request came
+        // Without the relay's own TLS, a reverse proxy terminates it, so "is this encrypted" is
+        // only answerable from a header -- and a header is only evidence if the request came
         // from a proxy we were told to trust. Starting without that mapping would mean either
         // believing the header from anyone (spoofable) or rejecting every connection.
-        if ((RequireTls || AccessToken != null || AdminToken != null) && TrustedProxies.Count == 0)
-            return "A token or --require-tls is set, so TLS is enforced -- which needs --trusted-proxy " +
-                   "<cidr> naming the reverse proxy that terminates it (e.g. --trusted-proxy 127.0.0.1/32 " +
-                   "for a local Caddy/nginx). Without it, X-Forwarded-Proto could be spoofed by anyone " +
-                   "who can reach this port directly. See AnoMech.Relay.Host/README.md.";
+        if ((RequireTls || AccessToken != null || AdminToken != null) && TrustedProxies.Count == 0 && Tls == null)
+            return "A token or --require-tls is set, so TLS is enforced -- which needs either the relay's own TLS " +
+                   "(--tls-certbot <domain>, or --tls-cert and --tls-key) or --trusted-proxy <cidr> naming the reverse " +
+                   "proxy that terminates it (e.g. --trusted-proxy 127.0.0.1/32 for a local Caddy/nginx). Without one of " +
+                   "them, X-Forwarded-Proto could be spoofed by anyone who can reach this port directly. See " +
+                   "AnoMech.Relay.Host/README.md.";
 
         if (Group.Count > 0 && RelayGroup.Validate(Group) is { } invalidGroup)
             return $"--relays: {invalidGroup}";

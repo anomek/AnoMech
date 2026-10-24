@@ -24,6 +24,7 @@ internal static class GameNatives
         Natives.HaterList = new HaterList();
         Natives.PlayerConditions = new PlayerConditions();
         Natives.LimitBreak = new LimitBreakController();
+        Natives.PlayerActionState = new PlayerActionState();
         Natives.Waymarks = new Waymarks();
         Natives.Bgm = new Bgm();
     }

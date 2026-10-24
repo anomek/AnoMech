@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using AnoMech.Core.Native.Implementations.Pointers;
+using AnoMech.Core.Native.Interfaces;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace AnoMech.Core.Native.Implementations;
@@ -19,8 +20,8 @@ internal unsafe ref struct JobGaugeEdit
     public static JobGaugeEdit Begin()
     {
         if (open) throw new InvalidOperationException("A job gauge edit is already open.");
+        if (!Natives.PlayerActionState.HasJobGauge) return default;
         var live = JobGaugeManager.Instance();
-        if (live == null || live->CurrentGauge == null) return default;
         open = true;
         *Scratch = *live;
         return new JobGaugeEdit { Gauge = Scratch };
@@ -48,16 +49,16 @@ internal unsafe ref struct JobGaugeEdit
     // The gauge as it is now, to Restore later.
     public static ActorGaugePacket? Capture()
     {
-        var live = JobGaugeManager.Instance();
-        if (live == null || live->CurrentGauge == null) return null;
-        return PacketOf(live);
+        if (!Natives.PlayerActionState.HasJobGauge) return null;
+        return PacketOf(JobGaugeManager.Instance());
     }
 
     // Skipped once the player has changed job: the values would decode as another job's gauge.
     public static void Restore(ActorGaugePacket packet)
     {
+        if (!Natives.PlayerActionState.HasJobGauge) return;
         var live = JobGaugeManager.Instance();
-        if (live == null || live->CurrentGauge == null || live->ClassJobId != packet.ClassJobId) return;
+        if (live->ClassJobId != packet.ClassJobId) return;
         PacketDispatcherPointers.HandleActorGaugePacket(live, &packet);
     }
 

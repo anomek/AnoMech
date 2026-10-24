@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -76,10 +77,18 @@ public sealed class RelayServer : IAsyncDisposable
     // needing the admin endpoint.
     private static readonly TimeSpan SummaryLogInterval = TimeSpan.FromMinutes(1);
 
+    // How often the certificate files are read for a renewal and the system checked for an
+    // OpenSSL update, and how often a problem that stands is said again.
+    private static readonly TimeSpan TlsCheckInterval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan TlsReminderInterval = TimeSpan.FromDays(1);
+    private static readonly TimeSpan TlsUrgentReminderInterval = TimeSpan.FromHours(1);
+
     // ---- Live state ---------------------------------------------------------------------
 
     private readonly RelayOptions options;
     private readonly IRelayLog log;
+    private readonly TimeProvider time;
+    private readonly TimeSpan keepAlive;
 
     private readonly RelayRooms rooms;
     private int nextConnectionId;
@@ -99,9 +108,13 @@ public sealed class RelayServer : IAsyncDisposable
     private volatile bool acceptingConnections = true;
 
     private TcpListener? listener;
+    private bool started;
     private readonly CancellationTokenSource shutdown = new();
     private Task acceptLoop = Task.CompletedTask;
     private Task reapLoop = Task.CompletedTask;
+    private Task tlsLoop = Task.CompletedTask;
+    private readonly object tlsGate = new();
+    private DateTime expiryWarnedAt = DateTime.MinValue, openSslWarnedAt = DateTime.MinValue;
     // Every open TCP connection, so StopAsync can close ones still mid-handshake too.
     private readonly ConcurrentDictionary<TcpClient, byte> connections = new();
     private readonly ConcurrentDictionary<Task, byte> handlers = new();
@@ -110,7 +123,7 @@ public sealed class RelayServer : IAsyncDisposable
     // not lock-guarded -- each is an independent running total, no cross-field consistency
     // needed. recentRejections resets every ReapInterval (see ReapLoop) and drives the alert
     // threshold above.
-    private DateTime startedAtUtc = DateTime.UtcNow;
+    private DateTime startedAtUtc;
     private long totalConnectionsAccepted;
     private long totalMessagesBroadcast;
     private long totalBytesBroadcast;
@@ -119,29 +132,40 @@ public sealed class RelayServer : IAsyncDisposable
     private long rejectedOrigin, rejectedIpCap, rejectedJoinLockout, rejectedRelayFull,
         rejectedSessionFull, rejectedSessionNotFound, rejectedBadToken, rejectedHandshakeTimeout,
         rejectedMessageTooLarge, rejectedMessageTimeout, rejectedMessageRate, rejectedByteRate,
-        rejectedUnencrypted, rejectedTooManyFragments, rejectedBanned, rejectedPaused, rejectedBadProtocol;
+        rejectedUnencrypted, rejectedTooManyFragments, rejectedBanned, rejectedPaused, rejectedBadProtocol, rejectedTlsHandshake;
 
-    public RelayServer(RelayOptions options, IRelayLog log)
+    public RelayServer(RelayOptions options, IRelayLog log) : this(options, log, TimeProvider.System, WebSocket.DefaultKeepAliveInterval) { }
+
+    // keepAlive: Zero where whoever carries the connections delivers every byte itself, since a
+    // WebSocket keeps its keep-alive on a timer of its own.
+    internal RelayServer(RelayOptions options, IRelayLog log, TimeProvider time, TimeSpan keepAlive)
     {
         this.options = options with { TrustedProxies = [.. options.TrustedProxies], Group = [.. options.Group] };
         this.log = log;
-        rooms = new RelayRooms(this.options);
+        this.time = time;
+        this.keepAlive = keepAlive;
+        rooms = new RelayRooms(this.options, time);
+        startedAtUtc = UtcNow;
     }
 
     public IPEndPoint? LocalEndPoint => listener?.LocalEndpoint as IPEndPoint;
-    public bool IsRunning => listener != null && !shutdown.IsCancellationRequested;
+    public bool IsRunning => started && !shutdown.IsCancellationRequested;
+
+    private DateTime UtcNow => time.GetUtcNow().UtcDateTime;
 
     // ---- Lifecycle ------------------------------------------------------------------------
 
     // Throws SocketException when the port can't be bound.
     public void Start()
     {
-        if (listener != null) throw new InvalidOperationException("A relay instance can only be started once.");
+        if (started) throw new InvalidOperationException("A relay instance can only be started once.");
         listener = Bind(options.BindAddress, options.Port);
-        startedAtUtc = DateTime.UtcNow;
+        started = true;
+        startedAtUtc = UtcNow;
 
         var endpoint = LocalEndPoint!;
-        log.Info($"[AnoMech.Relay] Listening on {endpoint}. Host a session at /host, join one at /session/<code>.");
+        log.Info($"[AnoMech.Relay] Listening on {endpoint}{(options.Tls != null ? " for wss://" : "")}. Host a session at /host, join one at /session/<code>.");
+        if (options.Tls is { } tls) LogTls(tls);
         log.Info($"[AnoMech.Relay] Access token: {(options.AccessToken != null ? "required" : "not set -- anyone can connect")}. " +
                  $"Admin endpoint: {(options.AdminToken != null ? "enabled" : "disabled (no --admin-token)")}.");
         log.Info(options.TrustedProxies.Count == 0
@@ -153,11 +177,23 @@ public sealed class RelayServer : IAsyncDisposable
                  $"{options.MaxBytesPerSecond / (1024.0 * 1024):F1} MB/s, {options.MaxMessageBytes / 1024} KB/message. " +
                  $"Logging a [NEAR-LIMIT] line past {options.UsageWarnFraction:P0} of either rate.");
         if (options.RequireTls || options.AccessToken != null || options.AdminToken != null)
-            log.Info($"[AnoMech.Relay] {(options.RequireTls ? "--require-tls is set" : "A token is set")}, so every connection now " +
-                     "REQUIRES a TLS-terminating reverse proxy in front (X-Forwarded-Proto: https) -- see " +
-                     "AnoMech.Relay.Host/README.md. Unencrypted connections will be rejected with 426, including plain local testing.");
+            log.Info(options.Tls != null
+                ? $"[AnoMech.Relay] {(options.RequireTls ? "--require-tls is set" : "A token is set")}: every connection is encrypted already, by the relay's own TLS."
+                : $"[AnoMech.Relay] {(options.RequireTls ? "--require-tls is set" : "A token is set")}, so every connection now " +
+                  "REQUIRES a TLS-terminating reverse proxy in front (X-Forwarded-Proto: https) -- see " +
+                  "AnoMech.Relay.Host/README.md. Unencrypted connections will be rejected with 426, including plain local testing.");
 
         acceptLoop = AcceptLoopAsync(listener);
+        reapLoop = ReapLoop();
+        if (options.Tls is { } served) tlsLoop = TlsLoop(served);
+    }
+
+    // A relay handed its connections (ServeAsync) instead of listening for them.
+    internal void StartUnbound()
+    {
+        if (started) throw new InvalidOperationException("A relay instance can only be started once.");
+        started = true;
+        startedAtUtc = UtcNow;
         reapLoop = ReapLoop();
     }
 
@@ -180,16 +216,16 @@ public sealed class RelayServer : IAsyncDisposable
 
     public async Task StopAsync()
     {
-        if (listener == null || shutdown.IsCancellationRequested) return;
+        if (!started || shutdown.IsCancellationRequested) return;
         shutdown.Cancel();
-        listener.Stop();
+        listener?.Stop();
 
         foreach (var peer in rooms.Clear()) peer.Socket.Abort();
         foreach (var client in connections.Keys) client.Dispose();
 
         try
         {
-            await Task.WhenAll([acceptLoop, reapLoop, .. handlers.Keys]).WaitAsync(StopTimeout);
+            await Task.WhenAll([acceptLoop, reapLoop, tlsLoop, .. handlers.Keys]).WaitAsync(StopTimeout);
         }
         catch (Exception e)
         {
@@ -235,7 +271,8 @@ public sealed class RelayServer : IAsyncDisposable
         connections.TryAdd(client, 0);
         try
         {
-            await HandleConnectionAsync(client);
+            if (options.Tls is { } tls) await HandleTlsConnectionAsync(client, tls);
+            else await HandleConnectionAsync(client);
         }
         catch (Exception e)
         {
@@ -270,6 +307,107 @@ public sealed class RelayServer : IAsyncDisposable
         long seen;
         while (value > (seen = Interlocked.Read(ref target)))
             if (Interlocked.CompareExchange(ref target, value, seen) == seen) return;
+    }
+
+    // ---- The relay's own TLS -------------------------------------------------------------
+
+    private void LogTls(RelayCertificate tls)
+    {
+        var now = UtcNow;
+        log.Info($"[AnoMech.Relay] TLS: serving as {string.Join(", ", tls.Names)}, with a certificate from {tls.Issuer}, " +
+                 $"valid until {tls.NotAfterUtc:yyyy-MM-dd} UTC ({(tls.NotAfterUtc - now).TotalDays:F0} days left).");
+        log.Info($"[AnoMech.Relay] TLS: read from {tls.CertificateFile} and {tls.KeyFile}, and read again every minute, so a renewal is " +
+                 "served within a minute with no restart or deploy hook" +
+                 (OperatingSystem.IsWindows() ? "." : " (SIGHUP reads them at once: `systemctl reload` with the README's ExecReload)."));
+        log.Info(tls.CertbotRenewalFile is { } renewal
+            ? $"[AnoMech.Relay] TLS: certbot renews this certificate ({renewal})."
+            : "[AnoMech.Relay] TLS: these aren't certbot's files, so make sure something renews the certificate before it expires.");
+        if (tls.IsSelfSigned)
+            log.Warn("[AnoMech.Relay] TLS: the certificate is self-signed, which players' clients refuse: use it only for testing.");
+        if (RelayOpenSsl.Describe() is { } openSsl)
+            log.Info($"[AnoMech.Relay] TLS: {openSsl}" + (RelayOpenSsl.InContainer
+                ? ", from the container image: an update to it comes with a newer image."
+                : ". When an update to it lands, the relay says it needs a restart to apply."));
+        else if (OperatingSystem.IsWindows())
+            log.Info("[AnoMech.Relay] TLS: by Windows (SChannel), updated with Windows.");
+        CheckExpiry(tls, now);
+    }
+
+    private async Task TlsLoop(RelayCertificate tls)
+    {
+        while (!shutdown.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TlsCheckInterval, time, shutdown.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            try
+            {
+                Report(tls, tls.Refresh(), asked: false);
+                CheckExpiry(tls, UtcNow);
+                CheckOpenSsl(UtcNow);
+            }
+            catch (Exception e)
+            {
+                log.Warn($"[AnoMech.Relay] TLS check failed: {e.Message} -- trying again in a minute.");
+            }
+        }
+    }
+
+    // A hoster's ask (SIGHUP) to read the certificate files now instead of within the minute.
+    public void ReloadCertificate()
+    {
+        if (options.Tls is not { } tls)
+        {
+            log.Info("[AnoMech.Relay] Nothing to reload: this relay doesn't serve TLS itself.");
+            return;
+        }
+        Report(tls, tls.Refresh(), asked: true);
+    }
+
+    private void Report(RelayCertificate tls, CertificateRefresh outcome, bool asked)
+    {
+        lock (tlsGate)
+        {
+            if (outcome == CertificateRefresh.Renewed)
+            {
+                expiryWarnedAt = DateTime.MinValue;
+                log.Info($"[AnoMech.Relay] TLS: serving the renewed certificate for {tls.Names[0]}, valid until {tls.NotAfterUtc:yyyy-MM-dd} UTC.");
+            }
+            else if (tls.Problem is { } problem && (asked || outcome == CertificateRefresh.Failing && tls.FailedLooks % 60 == 2))
+                log.Warn("[AnoMech.Relay] TLS: the certificate files changed but don't load, so the relay still serves the certificate it had " +
+                         $"(valid until {tls.NotAfterUtc:yyyy-MM-dd} UTC) and tries them again every minute: {problem}");
+            else if (asked)
+                log.Info($"[AnoMech.Relay] TLS: the certificate files haven't changed: still serving the certificate for {tls.Names[0]}, " +
+                         $"valid until {tls.NotAfterUtc:yyyy-MM-dd} UTC.");
+        }
+    }
+
+    private void CheckExpiry(RelayCertificate tls, DateTime now)
+    {
+        lock (tlsGate)
+        {
+            if (tls.ExpiryWarning(now) is not { } warning) return;
+            if (now - expiryWarnedAt < (tls.IsUrgent(now) ? TlsUrgentReminderInterval : TlsReminderInterval)) return;
+            expiryWarnedAt = now;
+            log.Warn($"[AnoMech.Relay] TLS: {warning}");
+        }
+    }
+
+    private void CheckOpenSsl(DateTime now)
+    {
+        lock (tlsGate)
+        {
+            if (RelayOpenSsl.Replaced() is not { Count: > 0 } replaced || now - openSslWarnedAt < TlsReminderInterval) return;
+            openSslWarnedAt = now;
+            log.Warn($"[AnoMech.Relay] TLS: OpenSSL was updated on this machine after the relay started ({string.Join(", ", replaced.Select(Path.GetFileName))} replaced). " +
+                     "The relay keeps running on the copy it loaded until it restarts, so the update's fixes don't apply to it yet: " +
+                     (RelayOpenSsl.InContainer ? "restart the container." : "restart the relay (`sudo systemctl restart anomech-relay` as the README's service)."));
+        }
     }
 
     // ---- Client identity ----------------------------------------------------------------
@@ -320,12 +458,13 @@ public sealed class RelayServer : IAsyncDisposable
         return new IPAddress(bytes);
     }
 
-    // The relay has no TLS of its own -- wss:// is always a reverse proxy terminating TLS in
-    // front of us (see README), so X-Forwarded-Proto is the only signal we have for "was the
-    // real client connection actually encrypted", and it counts as a signal only when the
-    // request reached us from a proxy we were configured to trust.
+    // Over the relay's own TLS, it was. Behind a reverse proxy terminating TLS (see README),
+    // X-Forwarded-Proto is the only signal for "was the real client connection actually
+    // encrypted", and it counts as a signal only when the request reached us from a proxy we
+    // were configured to trust.
     private bool IsRequestEncrypted(RelayHttpRequest request)
     {
+        if (request.OverTls) return true;
         var transport = request.RemoteAddress;
         var forwardedProto = request.Header("X-Forwarded-Proto");
         // A loopback request that wasn't forwarded never left the machine, so there is nothing
@@ -339,17 +478,85 @@ public sealed class RelayServer : IAsyncDisposable
 
     // ---- Connection handling -------------------------------------------------------------
 
-    private async Task HandleConnectionAsync(TcpClient client)
+    private Task HandleConnectionAsync(TcpClient client)
+        => HandleConnectionAsync(client.GetStream(), NormalizeIp(((IPEndPoint)client.Client.RemoteEndPoint!).Address));
+
+    // wss:// served here. The TLS handshake gets the time a request has, and one that fails (a
+    // scanner, a client that refused the certificate) is turned away like any other bad request.
+    private async Task HandleTlsConnectionAsync(TcpClient client, RelayCertificate tls)
     {
-        var stream = client.GetStream();
         var transport = NormalizeIp(((IPEndPoint)client.Client.RemoteEndPoint!).Address);
-        using var handshake = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token);
-        handshake.CancelAfter(HandshakeTimeout);
+        await using var stream = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
+        using (var deadline = new CancellationTokenSource(HandshakeTimeout, time))
+        using (var handshake = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, deadline.Token))
+        {
+            try
+            {
+                var first = new byte[1];
+                if (await client.Client.ReceiveAsync(first, SocketFlags.Peek, handshake.Token) == 0) return;
+                if (first[0] != RelayHttp.TlsHandshakeRecord)
+                {
+                    await RefusePlainRequestAsync(client.GetStream(), transport, handshake.Token);
+                    return;
+                }
+                await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
+                {
+                    ServerCertificateContext = tls.Context,
+                    ApplicationProtocols = [SslApplicationProtocol.Http11],
+                }, handshake.Token);
+            }
+            catch (Exception e) when (!shutdown.IsCancellationRequested)
+            {
+                CountRejection(ref rejectedTlsHandshake, e is OperationCanceledException ? "TLS handshake stalled" : $"TLS handshake failed: {e.GetBaseException().Message}",
+                    transport, "tls");
+                return;
+            }
+        }
+        await HandleConnectionAsync(stream, transport);
+    }
+
+    // An http:// or ws:// request at the TLS port, answered in words for the hoster trying the
+    // port by hand. It's read first: closing on unread bytes resets the connection, and the
+    // answer with it.
+    private async Task RefusePlainRequestAsync(Stream network, IPAddress transport, CancellationToken token)
+    {
+        CountRejection(ref rejectedTlsHandshake, "plain request at the TLS port", transport, "tls");
+        try
+        {
+            await RelayHttp.ReadRequestAsync(network, transport, false, token);
+            await RelayHttp.WriteTextAsync(network, 400, "This relay serves TLS: use wss:// instead of ws://, and https:// instead of http://.", token);
+        }
+        catch (Exception e) when (e is OperationCanceledException or IOException) { }
+    }
+
+    // A connection that reached the relay some other way than its listener, served the same way
+    // from its first request byte. Nothing may escape, as from HandleClientAsync.
+    internal async Task ServeAsync(Stream stream, IPAddress remoteAddress)
+    {
+        try
+        {
+            await HandleConnectionAsync(stream, NormalizeIp(remoteAddress));
+        }
+        catch (Exception e)
+        {
+            if (!shutdown.IsCancellationRequested)
+                log.Detail($"[AnoMech.Relay] connection ended with an error: {e.GetType().Name}: {e.Message}");
+        }
+        finally
+        {
+            await stream.DisposeAsync();
+        }
+    }
+
+    private async Task HandleConnectionAsync(Stream stream, IPAddress transport)
+    {
+        using var deadline = new CancellationTokenSource(HandshakeTimeout, time);
+        using var handshake = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, deadline.Token);
 
         RelayHttpRequest? request;
         try
         {
-            request = await RelayHttp.ReadRequestAsync(stream, transport, handshake.Token);
+            request = await RelayHttp.ReadRequestAsync(stream, transport, stream is SslStream, handshake.Token);
         }
         catch (OperationCanceledException) when (!shutdown.IsCancellationRequested)
         {
@@ -470,7 +677,7 @@ public sealed class RelayServer : IAsyncDisposable
         WebSocket socket;
         try
         {
-            socket = await RelayHttp.AcceptWebSocketAsync(stream, request, handshake.Token);
+            socket = await RelayHttp.AcceptWebSocketAsync(stream, request, keepAlive, handshake.Token);
         }
         catch (Exception e)
         {
@@ -486,7 +693,7 @@ public sealed class RelayServer : IAsyncDisposable
         }
 
         Interlocked.Increment(ref totalConnectionsAccepted);
-        var peer = new PeerConn(socket, (uint)Interlocked.Increment(ref nextConnectionId), ip, authenticatedPeerId);
+        var peer = new PeerConn(socket, (uint)Interlocked.Increment(ref nextConnectionId), ip, authenticatedPeerId, UtcNow);
 
         // The slot is released here and nowhere else, so no path between "reserved" and
         // "socket finished" can leak it -- including the rejection closes below, which each
@@ -577,7 +784,7 @@ public sealed class RelayServer : IAsyncDisposable
                 // Armed only once the first fragment lands: this bounds how long a message may
                 // take to finish arriving, not how long a connection may sit idle between
                 // messages (which is what IdleTimeout is for, at the room level).
-                using var messageCts = new CancellationTokenSource();
+                using var messageCts = new CancellationTokenSource(Timeout.InfiniteTimeSpan, time);
                 WebSocketReceiveResult result;
                 var fragmentCount = 0;
                 try
@@ -623,7 +830,7 @@ public sealed class RelayServer : IAsyncDisposable
                 }
 
                 var messageBytes = messageBuffer.ToArray();
-                var now = DateTime.UtcNow;
+                var now = UtcNow;
                 var cutoff = now - TimeSpan.FromSeconds(1);
 
                 recentMessageTimes.Enqueue(now);
@@ -750,7 +957,7 @@ public sealed class RelayServer : IAsyncDisposable
     private bool IsLockedOut(Dictionary<IPAddress, DateTime> table, IPAddress key)
     {
         lock (AbuseLock)
-            return table.TryGetValue(key, out var until) && until > DateTime.UtcNow;
+            return table.TryGetValue(key, out var until) && until > UtcNow;
     }
 
     // Sliding window of recent failures; crossing the threshold inside it trips a lockout.
@@ -762,7 +969,7 @@ public sealed class RelayServer : IAsyncDisposable
         {
             if (!attemptsTable.TryGetValue(key, out var attempts))
                 attemptsTable[key] = attempts = new Queue<DateTime>();
-            var now = DateTime.UtcNow;
+            var now = UtcNow;
             attempts.Enqueue(now);
             while (attempts.Count > 0 && now - attempts.Peek() > FailedJoinWindow) attempts.Dequeue();
             if (attempts.Count >= options.MaxFailedJoinsPerWindow)
@@ -794,7 +1001,7 @@ public sealed class RelayServer : IAsyncDisposable
             relayVersion = RelayVersion, capabilities = RelayCapabilities,
             sessionCode = assignedSessionCode, peerId = peer.PeerId,
         });
-        using var timeout = new CancellationTokenSource(SendTimeout);
+        using var timeout = new CancellationTokenSource(SendTimeout, time);
         await SendOneAsync(peer, bytes, WebSocketMessageType.Text, timeout.Token);
     }
 
@@ -826,7 +1033,7 @@ public sealed class RelayServer : IAsyncDisposable
     private async Task SendNoticeAsync(PeerConn host, Guid[] removed)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(new { t = RelayWire.NoticeType, Removed = removed });
-        using var timeout = new CancellationTokenSource(SendTimeout);
+        using var timeout = new CancellationTokenSource(SendTimeout, time);
         await SendOneAsync(host, RelayWire.Envelope(false, 0, Guid.Empty, false, body), WebSocketMessageType.Binary, timeout.Token);
     }
 
@@ -914,11 +1121,11 @@ public sealed class RelayServer : IAsyncDisposable
         lock (AbuseLock)
         {
             ipCount = ConnectionsByIp.Count;
-            lockoutCount = JoinLockoutUntilByIp.Count(kv => kv.Value > DateTime.UtcNow);
+            lockoutCount = JoinLockoutUntilByIp.Count(kv => kv.Value > UtcNow);
             bannedCount = BannedIps.Count;
         }
         return new AdminStats(
-            (DateTime.UtcNow - startedAtUtc).TotalSeconds, RelayVersion, sessionCount, totalPeers, ipCount,
+            (UtcNow - startedAtUtc).TotalSeconds, RelayVersion, sessionCount, totalPeers, ipCount,
             lockoutCount, bannedCount, acceptingConnections,
             Interlocked.Read(ref totalConnectionsAccepted), Interlocked.Read(ref totalMessagesBroadcast), Interlocked.Read(ref totalBytesBroadcast),
             new RejectionCounts(
@@ -927,7 +1134,8 @@ public sealed class RelayServer : IAsyncDisposable
                 Interlocked.Read(ref rejectedBadToken), Interlocked.Read(ref rejectedHandshakeTimeout), Interlocked.Read(ref rejectedMessageTooLarge),
                 Interlocked.Read(ref rejectedMessageTimeout), Interlocked.Read(ref rejectedMessageRate), Interlocked.Read(ref rejectedByteRate),
                 Interlocked.Read(ref rejectedUnencrypted), Interlocked.Read(ref rejectedTooManyFragments),
-                Interlocked.Read(ref rejectedBanned), Interlocked.Read(ref rejectedPaused), Interlocked.Read(ref rejectedBadProtocol)),
+                Interlocked.Read(ref rejectedBanned), Interlocked.Read(ref rejectedPaused), Interlocked.Read(ref rejectedBadProtocol),
+                Interlocked.Read(ref rejectedTlsHandshake)),
             Interlocked.Read(ref recentRejections),
             Interlocked.Read(ref peakMessagesPerSecond), Interlocked.Read(ref peakBytesPerSecond),
             Interlocked.Read(ref nearLimitWarnings), BuildLimits(),
@@ -1035,7 +1243,7 @@ public sealed class RelayServer : IAsyncDisposable
         {
             try
             {
-                await Task.Delay(ReapInterval, shutdown.Token);
+                await Task.Delay(ReapInterval, time, shutdown.Token);
             }
             catch (OperationCanceledException)
             {
@@ -1060,7 +1268,7 @@ public sealed class RelayServer : IAsyncDisposable
 
     private async Task ReapOnceAsync()
     {
-        foreach (var (code, peers) in rooms.RemoveIdleSince(DateTime.UtcNow - IdleTimeout))
+        foreach (var (code, peers) in rooms.RemoveIdleSince(UtcNow - IdleTimeout))
         {
             log.Info($"[{code}] idle for over {IdleTimeout.TotalSeconds:F0}s -- disbanding ({peers.Count} connected).");
             await Task.WhenAll(peers.Select(peer =>
@@ -1069,7 +1277,7 @@ public sealed class RelayServer : IAsyncDisposable
 
         lock (AbuseLock)
         {
-            var now = DateTime.UtcNow;
+            var now = UtcNow;
             PruneLockouts(JoinLockoutUntilByIp, FailedJoinsByIp, now);
             PruneLockouts(AdminLockoutUntilByIp, FailedAdminByIp, now);
         }
@@ -1128,7 +1336,7 @@ public sealed class RelayServer : IAsyncDisposable
         // before awaiting), so a shared deadline is functionally identical to a per-target one
         // while costing O(1) timer/CTS allocations per broadcast instead of O(peers). At
         // hundreds of sessions this adds up fast otherwise (see README's Security notes).
-        using var cts = new CancellationTokenSource(SendTimeout);
+        using var cts = new CancellationTokenSource(SendTimeout, time);
         // Parallel, not sequential -- one slow peer must not delay delivery to everyone else.
         await Task.WhenAll(targets.Select(target => SendOneAsync(target, tagged, WebSocketMessageType.Binary, cts.Token)));
         return targets.Count;
@@ -1167,25 +1375,25 @@ public sealed class RelayServer : IAsyncDisposable
     // A close is a send too, so it waits its turn behind any broadcast to the same socket. A
     // close the relay starts (kick, ban) lingers so the client can read why before the abort;
     // answering the client's own close has nothing left to wait for.
-    private static async Task ClosePeerAsync(PeerConn peer, WebSocketCloseStatus status, string? description, bool linger = true)
+    private async Task ClosePeerAsync(PeerConn peer, WebSocketCloseStatus status, string? description, bool linger = true)
     {
-        using var timeout = new CancellationTokenSource(CloseTimeout);
+        using var timeout = new CancellationTokenSource(CloseTimeout, time);
         try
         {
             await peer.SendGate.WaitAsync(timeout.Token);
             try { await peer.Socket.CloseOutputAsync(status, description, timeout.Token); }
             finally { peer.SendGate.Release(); }
-            if (linger) await Task.Delay(CloseTimeout);
+            if (linger) await Task.Delay(CloseTimeout, time);
         }
         catch (Exception) { }
         finally { peer.Socket.Abort(); }
     }
 
-    private static async Task CloseQuietlyAsync(WebSocket socket, WebSocketCloseStatus status, string? description)
+    private async Task CloseQuietlyAsync(WebSocket socket, WebSocketCloseStatus status, string? description)
     {
         try
         {
-            using var cts = new CancellationTokenSource(CloseTimeout);
+            using var cts = new CancellationTokenSource(CloseTimeout, time);
             await socket.CloseAsync(status, description, cts.Token);
         }
         catch (Exception)

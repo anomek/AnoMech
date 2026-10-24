@@ -13,28 +13,35 @@ internal sealed class FakeGame
     public FakeZoneControl Zone { get; }
     public FakeMapEffects MapEffects { get; }
     public FakeUserActions UserActions { get; } = new();
-    public FakeLocalPlayerInput PlayerInput { get; } = new();
+    public FakeLocalPlayerInput PlayerInput { get; }
     public FakePlayerConditions PlayerConditions { get; }
 
-    private readonly FakeRsvFunctions rsv = new();
+    private readonly FakeRsvFunctions rsv;
     private readonly DataminingGameData data;
-    private readonly FakeActionTimelinePreload timelinePreload = new();
+    private readonly FakeActionTimelinePreload timelinePreload;
     private readonly FakeLayoutFunctions layout = new();
     private readonly FakeInstanceContentDirector director;
-    private readonly FakeRsfFunctions rsf = new();
+    private readonly FakeRsfFunctions rsf;
     private readonly FakePartyHud partyHud = new();
     private readonly FakeHaterList haterList;
-    private readonly FakeLimitBreakController limitBreak = new();
-    private readonly FakeWaymarks waymarks = new();
+    private readonly FakeLimitBreakController limitBreak;
+    private readonly FakePlayerActionState playerActionState = new();
+    private readonly FakeWaymarks waymarks;
     private readonly FakeBgm bgm;
 
     private FakeGame()
     {
+        rsv = new FakeRsvFunctions(Timeline);
+        rsf = new FakeRsfFunctions(Timeline);
+        timelinePreload = new FakeActionTimelinePreload(Timeline);
+        waymarks = new FakeWaymarks(Timeline);
         data = new DataminingGameData(rsv);
         BattleCharas = new FakeBattleCharas(Timeline);
         EventObjects = new FakeEventObjects(Timeline);
         MapEffects = new FakeMapEffects(Timeline);
         Zone = new FakeZoneControl(BattleCharas.Player, Timeline);
+        PlayerInput = new FakeLocalPlayerInput(BattleCharas.Player, UserActions);
+        limitBreak = new FakeLimitBreakController(BattleCharas.Player);
         PlayerConditions = new FakePlayerConditions(Timeline);
         director = new FakeInstanceContentDirector(Zone, Timeline);
         haterList = new FakeHaterList(Timeline);
@@ -69,18 +76,22 @@ internal sealed class FakeGame
         Natives.HaterList = haterList;
         Natives.PlayerConditions = PlayerConditions;
         Natives.LimitBreak = limitBreak;
+        Natives.PlayerActionState = playerActionState;
         Natives.Waymarks = waymarks;
         Natives.Bgm = bgm;
         DalamudServices.Install(nameof(Plugin.Framework), Framework);
     }
 
     // One client frame in the real order: Dalamud drains queued Framework.Run work, then raises
-    // Update (the plugin), then the game runs its own update (cast bars, carries, spawns).
+    // Update (the plugin, UserActions first), then the game runs its own update (cast bars,
+    // carries, spawns).
     public void Frame(float deltaSeconds, Action<float> update)
     {
         Framework.RunPending();
+        PlayerInput.Tick();
         update(deltaSeconds);
         WalkSteeredPlayer(deltaSeconds);
+        PlayerInput.Fly(deltaSeconds);
         BattleCharas.Tick(deltaSeconds);
     }
 

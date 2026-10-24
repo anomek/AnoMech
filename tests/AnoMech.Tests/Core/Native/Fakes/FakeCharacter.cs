@@ -39,6 +39,9 @@ internal sealed class FakeCharacter(uint entityId, string name)
     public float CurrentCastTime { get; set; }
     public float TotalCastTime { get; set; }
 
+    // The local player's limit break gauge, as its HUD shows it.
+    public AnoMech.Core.Native.Interfaces.LimitBreakBars LimitBreak { get; set; }
+
     private Vector3 carryStart;
     private Vector3? carryDestination;
     private float carryElapsed;

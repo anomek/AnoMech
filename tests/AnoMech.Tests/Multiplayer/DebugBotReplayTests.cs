@@ -11,7 +11,9 @@ namespace AnoMech.Tests;
 // world, built from what its client was shown. Each has to head for the spot the host's Ai
 // planned for that seat, and like any strat clear the fight. Every multiplayer scenario and strat,
 // so a roll a replay message leaves out or garbles, or an actor a peer was never shown, shows up
-// in whichever seat reads it.
+// in whichever seat reads it. Every client plays with the plugin's defaults, user actions and tank
+// mitigation on, so a hit that judges a player differently from a bot judges these seats too: a
+// bot is a bot on whichever client it runs.
 public partial class DebugBotReplayTests
 {
     private const PartyRole HostSeat = PartyRole.MeleeDpsA;
@@ -37,7 +39,8 @@ public partial class DebugBotReplayTests
     private static void Verify(Type scenarioType, int strat, int runs)
     {
         var peers = Enum.GetValues<PartyRole>().Where(r => r != HostSeat).Select(r => new PlayerSeat(r)).ToList();
-        var run = MultiplayerRun.Play(scenarioType, strat, 1, new PlayerSeat(HostSeat), peers, runs: runs);
+        var run = MultiplayerRun.Play(scenarioType, strat, 1, new PlayerSeat(HostSeat), peers, runs: runs,
+            configure: client => client.Fake.UserActions.Enabled = true);
         Assert.That(run.Failure, Is.Null);
 
         var wrong = new List<string>();

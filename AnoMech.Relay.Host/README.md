@@ -149,8 +149,129 @@ stay on for the session.
 
 ## Adding TLS (`wss://`)
 
-The relay only speaks plain `ws://`. Fine for testing, but some networks block
-unencrypted upgrades — put a reverse proxy in front to terminate TLS.
+Plain `ws://` is fine for testing, but some networks block unencrypted upgrades, and a
+relay with `--token` or `--require-tls` refuses unencrypted connections. There are two ways
+to serve `wss://`, and both need a domain name pointed at the relay's machine. A
+certificate can't be issued for a bare IP, but a free dynamic-DNS name (DuckDNS, No-IP)
+works.
+
+- **[The relay serves it itself](#the-relay-serves-tls-itself)** with a Let's Encrypt
+  certificate from certbot. It's one process with no proxy hop, so it costs the least CPU
+  per player, and the relay keeps watch on the certificate for you.
+- **[A reverse proxy in front](#a-reverse-proxy-in-front)** (Caddy, nginx) terminates
+  TLS and passes plain `ws://` on to the relay.
+
+A self-signed certificate won't work either way, because players' games refuse it.
+
+### The relay serves TLS itself
+
+These steps assume the VPS from [Option A](#option-a--cloud-vps-recommended), with
+`relay.yourdomain.com` pointed at it.
+
+1. **Get a certificate** with [certbot](https://certbot.eff.org/) (`sudo apt install
+   certbot` on Debian/Ubuntu). In standalone mode, certbot answers Let's Encrypt's check
+   on port 80 itself. Its timer renews the certificate the same way, unattended, so
+   leave port 80 open:
+
+   ```bash
+   sudo ufw allow 80/tcp
+   sudo ufw allow 443/tcp
+   sudo certbot certonly --standalone -d relay.yourdomain.com
+   ```
+
+   If a web server already uses port 80, use certbot's plugin for it instead (`--nginx`,
+   `--apache`, or `--webroot -w <its root>`). Any other ACME client (acme.sh, lego) also
+   works, through `--tls-cert`/`--tls-key` below.
+
+2. **Let the relay's user read the key.** certbot lets only root read it. Each renewed
+   key gets the group and mode of the one before it, so you only do this once:
+
+   ```bash
+   sudo chgrp -R youruser /etc/letsencrypt/live /etc/letsencrypt/archive
+   sudo chmod -R g+rX /etc/letsencrypt/live /etc/letsencrypt/archive
+   ```
+
+3. **Check it**, as the relay's user:
+
+   ```bash
+   ~/anomech-relay --tls-certbot relay.yourdomain.com --port 443 --check-tls
+   ```
+
+   The check shows the certificate, its dates, whether certbot renews it and which
+   OpenSSL serves it. It then makes a TLS handshake with it and ends with `Ready: ...` or
+   with what to fix. It doesn't start the relay.
+
+4. **Run it on port 443.** In the systemd unit from [Option
+   A](#option-a--cloud-vps-recommended), add the TLS flag, a reload command, and the
+   right to use a port below 1024:
+
+   ```ini
+   [Service]
+   ExecStart=/home/youruser/anomech-relay --port 443 --tls-certbot relay.yourdomain.com
+   ExecReload=/bin/kill -HUP $MAINPID
+   AmbientCapabilities=CAP_NET_BIND_SERVICE
+   Restart=on-failure
+   User=youruser
+   ```
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart anomech-relay
+   journalctl -u anomech-relay -e
+   ```
+
+   The log's `TLS:` lines say what the relay serves. Players type just
+   `relay.yourdomain.com`, because the plugin tries `wss://` on 443 first. Another port
+   also works (`--port 7890`, with `relay.yourdomain.com:7890` in the plugin), but 443
+   gets through networks that only let web traffic out.
+
+| Flag | What it does |
+|---|---|
+| `--tls-certbot <domain>` | Serves `wss://` with certbot's certificate for `<domain>`, from `/etc/letsencrypt/live/<domain>/` |
+| `--tls-cert <file>` `--tls-key <file>` | Serves `wss://` with these PEM files instead: the certificate with its chain (certbot's `fullchain.pem`, not `cert.pem`), and its private key |
+| `--check-tls` | With either of the above: checks the certificate and a handshake with it, then exits |
+
+**What the relay looks after by itself:**
+
+- **Renewals.** The relay reads the certificate files again every minute. When they
+  change, new connections get the new certificate, with no restart and no certbot deploy
+  hook, and players already connected stay connected. `sudo systemctl reload
+  anomech-relay` reads the files at once. If changed files don't load (a key that doesn't
+  go with the certificate, a file the relay can't read), it logs why and keeps serving
+  the certificate it had.
+- **Expiry.** certbot renews a certificate with a third of its lifetime left. If one gets
+  down to a quarter (about 22 days of a 90-day certificate) without being renewed, the
+  relay warns at startup and then once a day, or every hour in the last tenth. The warning
+  says how to find out why: `sudo certbot renew --dry-run`, and `systemctl list-timers |
+  grep certbot` to check that certbot's timer runs.
+- **OpenSSL updates.** The relay serves TLS with the system's OpenSSL, so OpenSSL's
+  security updates arrive with the system's (`apt upgrade`, unattended-upgrades). But a
+  running process keeps using the copy it loaded. When an update replaces that copy on
+  disk, the relay warns once a day that it needs a restart for the update to apply.
+  Restarting drops live sessions, so pick a quiet moment: `sudo systemctl restart
+  anomech-relay`.
+- **Wrong scheme.** A plain `http://` or `ws://` request at the TLS port gets a `400`
+  saying to use `https://` or `wss://`. These and failed TLS handshakes are counted as
+  `tls` in the [admin dashboard](#admin-dashboard)'s rejections.
+
+**In Docker**, mount certbot's whole directory (the files in `live/` link into
+`archive/`) and map 443 to the container's port. The image runs as group 1654, so give
+the key to that group instead of the user from step 2:
+
+```bash
+sudo chgrp -R 1654 /etc/letsencrypt/live /etc/letsencrypt/archive
+sudo chmod -R g+rX /etc/letsencrypt/live /etc/letsencrypt/archive
+docker run -d --name anomech-relay --restart unless-stopped -p 443:7890 \
+  -v /etc/letsencrypt:/etc/letsencrypt:ro \
+  ghcr.io/anomek/anomech-relay:latest --tls-certbot relay.yourdomain.com
+```
+
+The container picks up renewals the same way, and `docker kill --signal=HUP
+anomech-relay` makes it read them at once. It has its own OpenSSL, so OpenSSL's updates
+come with a newer image: run `docker pull ghcr.io/anomek/anomech-relay:latest`, then
+recreate the container.
+
+### A reverse proxy in front
 
 **[Caddy](https://caddyserver.com/)** is the easiest: automatic Let's Encrypt certs,
 almost no config. With a domain pointed at your VPS:
@@ -162,10 +283,9 @@ relay.yourdomain.com {
 ```
 
 Run `caddy run` (or as a systemd service) and point the plugin at
-`wss://relay.yourdomain.com` — no port needed, Caddy handles 443 → 7890.
-
-No domain? nginx + a self-signed cert works, but a domain + Caddy is much less setup
-for the same result.
+`wss://relay.yourdomain.com`. No port is needed, because Caddy handles 443 → 7890. With
+a token or `--require-tls`, the relay also needs `--trusted-proxy` (see [Running it as a
+public service](#running-it-as-a-public-service)).
 
 ---
 
@@ -188,6 +308,9 @@ websocat ws://your-vps-ip:7890/session/TEST
 ```
 
 Connects and hangs waiting for input → working.
+
+If the relay serves TLS itself, `curl https://relay.yourdomain.com/info` from anywhere
+should print its JSON. `curl` checks the certificate the same way players' games do.
 
 ---
 
@@ -218,16 +341,16 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
   pointed at actually has one set (see [Configuring the plugin](#configuring-the-plugin)).
 
   **Setting `--token` also enforces TLS.** A password sent in the clear isn't a
-  password. Once `--token` (or `--admin-token`) is set, the relay refuses (`426`)
-  any connection it can't confirm was TLS-terminated — it checks for
-  `X-Forwarded-Proto: https`, which Caddy and nginx both set automatically for a
-  proxied request (see [Adding TLS](#adding-tls-wss)). A direct, unproxied `ws://`
-  connection carries no such header and is rejected the same way, including your own
-  [quick local test](#quick-local-test) — put the reverse proxy in front (even a local
-  Caddy instance with a self-signed cert) before setting a token, or don't set one for
+  password. Once `--token` (or `--admin-token`) is set, the relay refuses (`426`) any
+  connection it can't confirm was encrypted. A connection over the relay's [own
+  TLS](#the-relay-serves-tls-itself) always is. One through a [reverse
+  proxy](#a-reverse-proxy-in-front) counts when the proxy says so with
+  `X-Forwarded-Proto: https`, which Caddy and nginx both set automatically. A direct
+  `ws://` connection is rejected the same way, including your own [quick local
+  test](#quick-local-test), so serve TLS before setting a token, or don't set one for
   pure local testing. The plugin independently refuses to send a saved password over
   anything but `wss://` too, so this is enforced on both ends, not just trusted to the
-  relay operator having configured the proxy correctly.
+  relay operator having configured TLS correctly.
 
   **Minimum length: 16 characters, enforced at startup.** The relay refuses to start
   (not just warn) if `--token`/`--admin-token` is shorter — a short shared secret is
@@ -245,12 +368,13 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
   state. Leave unset and the admin endpoint doesn't exist at all (404, not just 401).
   Also subject to the same TLS enforcement, minimum length, and env var
   (`ANOMECH_RELAY_ADMIN_TOKEN`) as `--token` above.
-- **`--require-tls`** — enforces the same TLS check as above (`X-Forwarded-Proto:
-  https` or `426`) even with no `--token`/`--admin-token` set at all. A relay with no
-  password still carries session codes and full match state; this is for an operator
-  who wants everything encrypted end-to-end regardless of whether a secret is
-  involved. Applies to `/info` too, which otherwise carries nothing sensitive and
-  wouldn't need it on its own — the point is no exceptions, not case-by-case.
+- **`--require-tls`** — enforces the same TLS check as above (the relay's own TLS, or
+  `X-Forwarded-Proto: https` from a trusted proxy; otherwise `426`) even with no
+  `--token`/`--admin-token` set at all. A relay with no password still carries session
+  codes and full match state; this is for an operator who wants everything encrypted
+  end-to-end regardless of whether a secret is involved. Applies to `/info` too, which
+  otherwise carries nothing sensitive and wouldn't need it on its own — the point is no
+  exceptions, not case-by-case.
 - **Tuning flags**, all optional (defaults are sane for moderate public traffic; raise
   or lower to match your actual load):
   | Flag | Default | What it caps |
@@ -268,9 +392,10 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
   | `--log-dir` | `logs/` next to the executable | Where compressed logs are written — see [Logging](#logging) |
   | `--log-max-bytes` | 5368709120 (5 GiB) | Total on-disk size of all log segments combined |
 
-- **`--trusted-proxy <cidr>`** — **required when a token or `--require-tls` is set**,
-  and repeatable. Names the reverse proxy in front of the relay (e.g.
-  `--trusted-proxy 127.0.0.1/32` for a local Caddy). Two things depend on it:
+- **`--trusted-proxy <cidr>`** — **required when a token or `--require-tls` is set and
+  a reverse proxy terminates TLS** (not when the relay serves TLS itself), and
+  repeatable. Names the reverse proxy in front of the relay (e.g. `--trusted-proxy
+  127.0.0.1/32` for a local Caddy). Two things depend on it:
 
   - **Client addresses.** Behind a proxy, every connection's transport address is the
     proxy's, so without this every per-IP control — the connection cap, the brute-force
@@ -283,16 +408,17 @@ anomech-relay --port 7890 --token <shared-secret> --admin-token <a-different-sec
 
   Never list an address that isn't actually your proxy — a host in this list is trusted
   to say who its traffic is coming from. The relay **refuses to start** if TLS is
-  enforced and this isn't set, rather than silently doing the wrong thing. Requests
-  arriving over loopback with no forwarding headers at all are exempt from the TLS check
-  (they never left the machine) — this is what lets the admin CLI reach a local relay.
+  enforced and it has neither its own TLS nor this, rather than silently doing the wrong
+  thing. Requests arriving over loopback with no forwarding headers at all are exempt
+  from the TLS check (they never left the machine) — this is what lets the admin CLI
+  reach a local relay.
 
-**Put a real reverse proxy in front regardless of TLS.** The relay's own HTTP handling is a
-minimal hand-rolled front door with far less adversarial-traffic hardening than nginx or
-Caddy, which have absorbed years of internet-facing attack traffic. For a public
-deployment this isn't optional the way it is for a friend group — see [Adding
-TLS](#adding-tls-wss), which gets you both the proxy and the cert in one step with
-Caddy.
+**Weigh a reverse proxy in front.** The relay's own HTTP handling is a minimal
+hand-rolled front door with far less adversarial-traffic hardening than nginx or Caddy,
+which have absorbed years of internet-facing attack traffic. Serving TLS from the relay
+itself saves the proxy's CPU and memory, so the same box carries more players. A proxy
+in front is the more cautious choice for a relay open to everyone. [Adding
+TLS](#adding-tls-wss) covers both.
 
 **Give the process real OS-level resource ceilings.** The systemd unit in [Option
 A](#option-a--cloud-vps-recommended) has none by default. Add to the `[Service]`
@@ -357,9 +483,11 @@ anomech-relay --admin --host https://relay.yourdomain.com --admin-token <the-sam
 ```
 
 `--host` defaults to `http://localhost:<port>` if omitted, for running it on the same
-box as the relay. Refreshes every 2 seconds; Ctrl+C to exit. Nothing here requires
-running the dashboard continuously — it's a `curl`-style snapshot tool you open when
-you want to look, not a required always-on process. The same data is available as
+box as the relay. A relay that serves TLS itself needs `--host
+https://relay.yourdomain.com` even there, because its certificate names the domain, not
+localhost. Refreshes every 2 seconds; Ctrl+C to exit. Nothing here requires running the
+dashboard continuously — it's a `curl`-style snapshot tool you open when you want to
+look, not a required always-on process. The same data is available as
 plain JSON at `GET /admin/stats` (with the `X-AnoMech-Admin-Token` header) if you want
 to pull it into something else.
 
@@ -473,6 +601,12 @@ Bans and limit changes live in memory only — they reset when the relay restart
 | `Test-NetConnection` fails from outside | VPS firewall/security group isn't open, or the router port-forward doesn't match the PC's current LAN IP (consider a static DHCP lease). |
 | Works locally, not for others | Testing with a LAN IP but gave others your public IP without port-forwarding, or vice versa. |
 | `Failed to bind` on startup | Another process owns the port — check `netstat -ano \| findstr 7890` (Windows) or `ss -ltnp` (Linux). |
+| `Failed to bind *:443: Permission denied` | Ports below 1024 need `AmbientCapabilities=CAP_NET_BIND_SERVICE` in the service (see [serving TLS itself](#the-relay-serves-tls-itself)). |
+| `Failed to bind *:443: Address already in use` | A reverse proxy from an earlier setup still holds the port: `sudo systemctl disable --now caddy` (or nginx). |
+| The relay won't start, with a `TLS:` line saying it isn't allowed to read a file | Step 2 of [serving TLS itself](#the-relay-serves-tls-itself): let the relay's user read certbot's files. The line gives the exact commands. |
+| The plugin falls back to `ws://`, or says the certificate isn't valid | Players can't verify the certificate the relay serves: it's self-signed, it's for another name, or it lacks its chain (`--tls-cert` needs `fullchain.pem`, not `cert.pem`). `--check-tls` shows the names it serves and flags the other two. |
+| The log warns the certificate `hasn't been renewed` | certbot's renewal is failing. `sudo certbot renew --dry-run` shows why, which is often port 80 being closed. |
+| The log says `OpenSSL was updated on this machine` | Restart the relay at a quiet moment so the update applies: `sudo systemctl restart anomech-relay`. |
 | "session full" | 8 peers already connected; host a new session. |
 | Connects, nothing happens after Join | Confirm the same relay URL and session code on both ends (case-normalized, but typos happen). |
 
@@ -515,12 +649,12 @@ host with `{ "t": "relayNotice", "Removed": [ ... ] }`.
 
 ## Tests
 
-From the repository root, with a .NET 8 runtime:
+From the repository root, with a .NET 10 runtime:
 
 ```
 dotnet test tests/AnoMech.Relay.Tests
 ```
 
-These cover the wire format and the relay's HTTP front door. The plugin-side suite
+These cover the wire format, the relay's HTTP front door, and its own TLS. The plugin-side suite
 (`dotnet test tests/AnoMech.Tests`, needs Dalamud installed) also runs the real relay
 against the plugin's client over loopback WebSockets: rooms, routing, moderation.

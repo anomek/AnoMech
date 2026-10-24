@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -216,16 +215,17 @@ public static class RelayWire
 // Distinct from a malformed message: going over a rate says nothing about the message itself.
 public sealed class TrafficLimitException(string message) : Exception(message);
 
-public sealed class TrafficBudget(int messages = int.MaxValue, long bytes = long.MaxValue)
+public sealed class TrafficBudget(int messages = int.MaxValue, long bytes = long.MaxValue, TimeProvider? time = null)
 {
-    private long window = Stopwatch.GetTimestamp();
+    private readonly TimeProvider clock = time ?? TimeProvider.System;
+    private long window = (time ?? TimeProvider.System).GetTimestamp();
     private int messageCount;
     private long byteCount;
 
     private void Advance()
     {
-        var now = Stopwatch.GetTimestamp();
-        if (now - window < Stopwatch.Frequency) return;
+        var now = clock.GetTimestamp();
+        if (now - window < clock.TimestampFrequency) return;
         window = now;
         messageCount = 0;
         byteCount = 0;

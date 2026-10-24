@@ -46,6 +46,20 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
     public static IEnumerable<uint> PlayerActionIds()
         => Actions.Value.Ids.Where(id => Actions.Value.Row(id) is { } row && row.Bool("IsPlayerAction") && !row.Bool("IsPvP"));
 
+    // What the game's client checks before it lets a press through, which the sim leaves to it.
+    public static ActionUse? Use(uint actionId)
+        => Actions.Value.Row(actionId) is { } row
+            ? new ActionUse(actionId, int.Parse(row.Text("ClassJob"), CultureInfo.InvariantCulture), row.UInt("ClassJobCategory"),
+                row.Bool("IsRoleAction"), row.Byte("ClassJobLevel"), row.UInt("Recast100ms") / 10f, row.Byte("CooldownGroup"),
+                Math.Max((byte)1, row.Byte("MaxCharges")), row.Byte("PrimaryCostType"), row.UInt("PrimaryCostValue"), row.Bool("IsPvP"))
+            : null;
+
+    public static IEnumerable<uint> ActionIds => Actions.Value.Ids;
+
+    // The base class a job grew from (Gladiator for Paladin); a job without one is its own.
+    public static uint ClassJobParent(uint classJobId)
+        => ClassJobs.Value.Row(classJobId) is { } row ? row.UInt("ClassJobParent") : classJobId;
+
     public KnockbackRow? Knockback(uint knockbackId)
         => Knockbacks.Value.Row(knockbackId) is { } row
             ? new KnockbackRow(knockbackId, row.Byte("Distance"), row.Byte("Speed"), row.Byte("Direction"))
@@ -196,6 +210,10 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
         public int Column(string column)
             => columns.TryGetValue(column, out var index) ? index : throw new KeyNotFoundException($"{name}.csv has no column '{column}'.");
     }
+
+    internal sealed record ActionUse(
+        uint Id, int ClassJob, uint ClassJobCategory, bool IsRoleAction, byte Level, float RecastSeconds, byte CooldownGroup,
+        byte MaxCharges, byte PrimaryCostType, uint PrimaryCostValue, bool IsPvP);
 
     private readonly struct SheetRow(Sheet sheet, string[] fields)
     {
