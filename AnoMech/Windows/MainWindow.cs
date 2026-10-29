@@ -181,6 +181,8 @@ public unsafe class MainWindow : Window, IDisposable
     // The whole window becomes the multiplayer setup screen until a session starts.
     private bool _showMultiplayerSetup;
     internal bool ShowingMultiplayerSetup => _showMultiplayerSetup && !InSession;
+    // At the title screen the whole window is offline mode's setup screen.
+    internal bool ShowingOfflineSetup => plugin.Offline is { ShowsSetup: true };
     private bool _wasInSession;
 
     internal void OpenMultiplayer()
@@ -283,7 +285,7 @@ public unsafe class MainWindow : Window, IDisposable
 
         var uiScale = ImGuiHelpers.GlobalScale;
         var minimumHeight = 80f;
-        if (ScenarioPanel.RequestedOpen && ScenarioPanel.NaturalHeight > 0f)
+        if (ScenarioPanel.RequestedOpen && ScenarioPanel.NaturalHeight > 0f && !ShowingOfflineSetup)
             minimumHeight = Math.Max(minimumHeight, (_windowChromeHeight + ScenarioPanel.NaturalHeight) / uiScale);
         SizeConstraints = new WindowSizeConstraints
         {
@@ -306,6 +308,12 @@ public unsafe class MainWindow : Window, IDisposable
         _windowChromeHeight = contentTop - windowPos.Y;
         ScenarioPanelHeight = windowPos.Y + ImGui.GetWindowSize().Y - contentTop;
         RightPanelAnchor = new Vector2(windowPos.X + ImGui.GetWindowSize().X, contentTop);
+        if (plugin.Offline is { ShowsSetup: true } offline)
+        {
+            offline.Panel.DrawSetup();
+            return;
+        }
+        plugin.Offline?.Panel.DrawStrip();
         if (ShowingMultiplayerSetup)
             multiplayerUi.DrawSetupScreen(() => _showMultiplayerSetup = false);
         else
