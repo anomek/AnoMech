@@ -368,12 +368,14 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
                 boss?.SetVisibleInEnemyList(true);
             }
             world.Map.AddEffect(0x00080004, 3);
+            DrainRobotHp(cruiseChaser, CruiseChaserDownAt);
         });
         At(198.01f, DivineJudgmentAndEternalDarkness);
         At(198.92f, () =>
         {
             bruteJustice?.SetTargetable(true);
             bruteJustice?.SetVisibleInEnemyList(true);
+            DrainRobotHp(bruteJustice, BruteJusticeDownAt);
         });
         for (var t = 202.01f; t < 260f; t += 3.03f)
         {
@@ -561,6 +563,27 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
     private void AtTank(EnemyAction action)
     {
         if (alexanderPrime is { Targetable: true } boss && LivingOrNext(alexanderPrimeTank) is { } tank) boss.Cast(action, tank);
+    }
+
+    // -- Robots' HP --------------------------------------------------------------------
+
+    private const float RobotOutOfHp = 0.001f;
+
+    // Only for the bars: from its targeting to its going down, a robot's HP runs out as the party's
+    // damage would take it. UNVERIFIED: the drain's shape, a straight line here.
+    private void DrainRobotHp(SimEnemy? robot, float downAt)
+    {
+        if (settingsWindow.Overrides.CruiseChaserSurvives || robot is null) return;
+        var from = world.Events.Elapsed;
+        Update();
+
+        void Update()
+        {
+            if (!robot.IsActive) return;
+            var now = world.Events.Elapsed;
+            robot.SetHpFraction(MathF.Max(Lerp(1f, 0f, from, downAt, now), RobotOutOfHp));
+            if (now + 1f < downAt) world.Events.Add(1f, Update);
+        }
     }
 
     // -- True Heart HP -----------------------------------------------------------------
@@ -1263,12 +1286,13 @@ public sealed class TeaP3AlexanderPrimeScenario : IMultiplayerReplayable
         alexanderPrime?.RemoveStatus(StatusId.Invincibility);
     }
 
-    // Its cast called off, untargetable and warped out.
+    // Its cast called off, its HP out, untargetable and warped out.
     private void RobotLeaves(SimEnemy? robot, int tether)
     {
         robotTethers[tether]?.Despawn();
         if (robot is not { IsActive: true }) return;
         if (robot.IsCasting) robot.CancelCast(CastCancelReason.Interrupted);
+        robot.SetHpFraction(RobotOutOfHp);
         robot.SetTargetable(false);
         robot.SetVisibleInEnemyList(false);
         robot.PlayActionTimeline(ActionTimelineId.WarpStart);

@@ -1530,10 +1530,10 @@ public class TeaP3AlexanderPrimeScenarioTests
         }
     }
 
-    // Alexander Prime and the robots never lose HP on the client: only the True Heart, the orbs and the
-    // crystals do, in the whole phase.
+    // Alexander Prime never loses HP on the client: only the True Heart, the orbs, the crystals and the
+    // robots do, in the whole phase.
     [Test]
-    public void OnlyTheHeartOrbsAndCrystalsLoseHp()
+    public void AlexanderPrimeNeverLosesHp()
     {
         var dropped = new HashSet<uint>();
         var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
@@ -1547,7 +1547,37 @@ public class TeaP3AlexanderPrimeScenarioTests
             },
         });
         Assert.That(shown.Run.Passed, shown.Run.ToString);
-        Assert.That(dropped, Is.SubsetOf(new[] { BNpcBaseId.TrueHeart, BNpcBaseId.Plasmasphere, BNpcBaseId.JudgmentCrystal }));
+        Assert.That(dropped, Is.SubsetOf(new[] { BNpcBaseId.TrueHeart, BNpcBaseId.Plasmasphere, BNpcBaseId.JudgmentCrystal, BNpcBaseId.BruteJustice, BNpcBaseId.CruiseChaser }));
+    }
+
+    // Each robot's HP on the client: full until the party can target it, then only ever falling, out by
+    // the time it goes down (Cruise Chaser 220.97s, Brute Justice 234.80s).
+    [Test]
+    public void TheRobotsHpRunsOutByTheTimeTheyGoDown()
+    {
+        var shownHp = new Dictionary<uint, List<(float At, float Hp)>>();
+        var run = ScenarioRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            Probe = p =>
+            {
+                var client = (FakeBattleCharas)Natives.BattleCharas;
+                foreach (var robot in p.World.Children.OfType<SimEnemy>().Where(e => e.BNpcBaseId is BNpcBaseId.BruteJustice or BNpcBaseId.CruiseChaser))
+                    if (client.Find(robot.EntityId) is { MaxHealth: > 0 } actor)
+                        (shownHp.TryGetValue(robot.BNpcBaseId, out var list) ? list : shownHp[robot.BNpcBaseId] = []).Add((p.Time, (float)actor.Health / actor.MaxHealth));
+            },
+        });
+        Assert.That(run.Passed, run.ToString);
+        Assert.Multiple(() =>
+        {
+            foreach (var (robot, targetable, down) in new[] { (BNpcBaseId.CruiseChaser, 197.92f, 220.97f), (BNpcBaseId.BruteJustice, 198.92f, 234.80f) })
+            {
+                var hp = shownHp[robot];
+                Assert.That(hp.Where(s => s.At < targetable).Select(s => s.Hp), Is.All.EqualTo(1f), $"{robot}: full before the party can target it");
+                Assert.That(hp.Where(s => s.At > targetable + 2f && s.At < down - 1f).Select(s => s.Hp), Is.All.InRange(0.01f, 0.99f), $"{robot}: falling while up");
+                Assert.That(hp.Zip(hp.Skip(1)).Where(s => s.Second.Hp > s.First.Hp + 1e-6f), Is.Empty, $"{robot}: never back up");
+                Assert.That(hp.Where(s => s.At >= down).Select(s => s.Hp), Is.All.LessThan(0.01f), $"{robot}: out as it goes down");
+            }
+        });
     }
 
     // On any roll: Alexander Prime's Sacrament goes off from the rolled spot 21.5y out, his model facing
