@@ -1,33 +1,29 @@
 using System;
+using System.Linq;
+using AnoMech.Core.Game.Party;
 using Dalamud.Bindings.ImGui;
 
 namespace AnoMech.Scenarios.Fru.P4CrystallizeTime;
 
 public sealed class FruP4CrystallizeTimeSettingsWindow
 {
-    private static readonly (string Label, CrystallizeDebuff[]? Debuffs)[] PlayerChoices =
-    [
-        ("Random", null),
-        ("Red + Ice", [CrystallizeDebuff.RedIce]),
-        ("Red + Aero", [CrystallizeDebuff.RedAero]),
-        ("Blue + Darkness", [CrystallizeDebuff.BlueDarkness]),
-        ("Blue + Ice / Water / Eruption", [CrystallizeDebuff.BlueIce, CrystallizeDebuff.BlueWater, CrystallizeDebuff.BlueEruption]),
-    ];
-
-    private int selected;
+    private static readonly string[] DebuffLabels =
+        ["Random", .. Enum.GetValues<CrystallizeDebuffChoice>().Select(FruP4CrystallizeTimeStateOverrides.Label)];
 
     public FruP4CrystallizeTimeStateOverrides Overrides { get; } = new();
 
+    // Which seat the per-player rows are showing. UI state only; never broadcast.
+    private PartyRole editingSeat = PartyRole.MainTank;
+
+    // Solo, the player's own debuffs sit in this panel; a host assigns seats from the Multiplayer
+    // window.
     public void Draw()
     {
-        if (ImGui.Button("Auto")) Reset();
+        var solo = !PerRole.SeatsActive;
+        if (ImGui.Button("Auto")) ResetAll();
         if (SettingsGrid.Begin("##frup4crystallize"))
         {
-            SettingsGrid.FightOnlyNote();
-            SettingsGrid.Row("Your debuffs:");
-            SettingsGrid.ItemWidth(300);
-            var labels = Array.ConvertAll(PlayerChoices, c => c.Label);
-            if (ImGui.Combo("##ctplayer", ref selected, labels, labels.Length)) Select(selected);
+            if (solo) DrawDebuffs();
 
             var slow = Overrides.SlowNorthwest;
             SettingsGrid.Row("Slowed hourglasses:");
@@ -45,20 +41,47 @@ public sealed class FruP4CrystallizeTimeSettingsWindow
                 ImGui.SameLine();
                 if (ImGui.RadioButton($"{choice}##ctcorner", corner == choice)) Overrides.Corner = choice;
             }
+
+            SettingsGrid.Row("Spirit Taker:");
+            if (ImGui.RadioButton("Auto##ctspirit", Overrides.SpiritTakerTarget == null)) Overrides.SpiritTakerTarget = null;
+            foreach (var role in PerRole.All)
+            {
+                ImGui.SameLine();
+                if (ImGui.RadioButton($"{SettingsGrid.RoleLabel(role)}##ctspirit", Overrides.SpiritTakerTarget == role))
+                    Overrides.SpiritTakerTarget = role;
+            }
             SettingsGrid.End();
         }
     }
 
-    private void Select(int index)
+    public void DrawPerPlayer()
     {
-        selected = index;
-        Overrides.PlayerDebuffs = PlayerChoices[index].Debuffs;
+        if (ImGui.Button("Auto")) Overrides.PlayerDebuffs.Clear();
+        if (SettingsGrid.Begin("##frup4crystallizeplayers"))
+        {
+            editingSeat = SettingsGrid.SeatRow("##ctseat", editingSeat);
+            DrawDebuffs();
+            SettingsGrid.ForcedRecapRow("Debuffs set:", Overrides.PlayerDebuffs);
+            SettingsGrid.End();
+        }
+        SettingsGrid.ConflictRows(Overrides.Validate());
     }
 
-    private void Reset()
+    private void DrawDebuffs()
     {
-        Select(0);
+        SettingsGrid.Row($"{(PerRole.SeatsActive ? "" : "Your ")}debuffs:");
+        var index = Overrides.PlayerDebuffs.Effective(editingSeat) is { } choice ? (int)choice + 1 : 0;
+        SettingsGrid.ItemWidth(300);
+        if (ImGui.Combo("##ctplayer", ref index, DebuffLabels, DebuffLabels.Length))
+            Overrides.PlayerDebuffs.Set(editingSeat, index == 0 ? null : (CrystallizeDebuffChoice)(index - 1));
+    }
+
+    // Solo's own pick only: a host's seat assignments are kept apart.
+    private void ResetAll()
+    {
+        Overrides.PlayerDebuffs.Mine = null;
         Overrides.SlowNorthwest = null;
         Overrides.Corner = null;
+        Overrides.SpiritTakerTarget = null;
     }
 }

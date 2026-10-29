@@ -41,13 +41,11 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
     private readonly HashSet<PartyRole> holdingClaw = [];
     private readonly HashSet<PartyRole> holdingFang = [];
     private readonly Dictionary<PartyRole, int> moveOrders = new();
-    private float elapsed;
 
     public void Run(FruP4CrystallizeTimeState stateParam, SimWorld worldParam)
     {
         state = stateParam;
         world = worldParam;
-        elapsed = 0f;
         puddleTargets.Clear();
         spreadSpots.Clear();
         knockedByAero.Clear();
@@ -87,7 +85,6 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
 
     public void Tick(FruP4CrystallizeTimeState stateParam, SimWorld worldParam, float delta)
     {
-        elapsed += delta;
         foreach (var bot in Bots())
         {
             var role = ((ISimPartyMember)bot).Role;
@@ -95,7 +92,7 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
             ReactToFangCleansed(bot, role);
         }
         ChasePuddles();
-        if (elapsed is >= 45.9f and < 48.5f) SpreadAwayFromPlayerForSpiritTaker();
+        if (Elapsed is >= 45.9f and < 48.5f) SpreadAwayFromPlayersForSpiritTaker();
     }
 
     private void AssignSidesByPriority()
@@ -116,6 +113,8 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
     private bool IsWestOfPair(PartyRole role) => Priority.First(r => state.Debuff(r) == state.Debuff(role)) == role;
 
     private PartyRole RoleOf(CrystallizeTimeAssignment assignment) => assignments.First(a => a.Value == assignment).Key;
+
+    private float Elapsed => world.Events.Elapsed;
 
     private IEnumerable<SimCharacter> Bots() => world.Party.ActiveMembers().Where(world.Party.IsBotDriven).ToList();
 
@@ -154,12 +153,12 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
         var walk = Vector2.Distance(new Vector2(bot.Position.X, bot.Position.Z), new Vector2(destination.X, destination.Z)) / RunSpeed;
         var leaveAt = MathF.Max(leaveNoSoonerThan, arriveBy is { } deadline ? deadline - ArrivalMargin - walk : 0f);
         var order = CancelPendingMove(role);
-        if (leaveAt <= elapsed)
+        if (leaveAt <= Elapsed)
         {
             bot.MoveTo(destination, RunSpeed);
             return;
         }
-        world.Events.Add(leaveAt - elapsed, () =>
+        world.Events.Add(leaveAt - Elapsed, () =>
         {
             if (moveOrders[role] == order && bot.IsAlive()) bot.MoveTo(destination, RunSpeed);
         });
@@ -194,7 +193,7 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
     {
         var holds = bot.HasStatus(StatusId.Wyrmfang);
         if (holds) { holdingFang.Add(role); return; }
-        if (!holdingFang.Remove(role) || elapsed >= StopCleansingAt) return;
+        if (!holdingFang.Remove(role) || Elapsed >= StopCleansingAt) return;
         puddleTargets.Remove(role);
         if (AfterCleanse.TryGetValue(assignments[role], out var next)) MoveNow(bot, role, next.Position);
     }
@@ -241,14 +240,14 @@ public sealed class FruP4CrystallizeTimeAi : IScenarioAi<FruP4CrystallizeTimeSta
         return spots.ToArray();
     }
 
-    private void SpreadAwayFromPlayerForSpiritTaker()
+    private void SpreadAwayFromPlayersForSpiritTaker()
     {
-        var player = world.Party.Player;
+        var players = world.Party.ActiveMembers().Where(m => !world.Party.IsBotDriven(m)).ToList();
         foreach (var bot in Bots().OrderBy(b => ((ISimPartyMember)b).Role))
         {
             var role = ((ISimPartyMember)bot).Role;
             bool Clear(Vector3 spot) =>
-                (!player.IsAlive() || world.Party.IsBotDriven(player!) || Vector3.Distance(spot, player!.Position) >= SpreadClearance)
+                players.All(p => Vector3.Distance(spot, p.Position) >= SpreadClearance)
                 && spreadSpots.All(s => s.Key == role || Vector3.Distance(spot, s.Value) >= SpreadClearance);
             if (spreadSpots.TryGetValue(role, out var current) && Clear(current)) continue;
             var spot = SpreadCandidates.Where(Clear).OrderBy(c => Vector3.DistanceSquared(bot.Position, c)).Cast<Vector3?>().FirstOrDefault();

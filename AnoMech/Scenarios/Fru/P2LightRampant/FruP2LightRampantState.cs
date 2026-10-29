@@ -58,6 +58,20 @@ public sealed class FruP2LightRampantState
         slots = [.. north, .. south, .. puddles];
     }
 
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads.
+    private FruP2LightRampantState(PartyRole[] slots, bool northOrbsFirst, bool pairs)
+    {
+        this.slots = slots;
+        InitiallySteeped = [];
+        NorthOrbsFirst = northOrbsFirst;
+        Pairs = pairs;
+    }
+
+    public static FruP2LightRampantState? FromNetworkReplay(IReadOnlyList<PartyRole> slots, bool northOrbsFirst, bool pairs)
+        => slots.Count == 8 && slots.All(Enum.IsDefined) && slots.Distinct().Count() == 8
+            ? new(slots.ToArray(), northOrbsFirst, pairs)
+            : null;
+
     public PartyRole Slot(int index) => slots[index];
     public int Index(PartyRole role) => Array.IndexOf(slots, role);
     public bool BaitsHammer(PartyRole role) => Index(role) >= 6;

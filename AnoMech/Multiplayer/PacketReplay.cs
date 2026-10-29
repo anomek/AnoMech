@@ -7,6 +7,7 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
+using AnoMech.Core.UserActions;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Multiplayer;
@@ -50,6 +51,11 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     // Each status's source as this client was first shown it, kept while the status lasts: the
     // host's list goes on naming an applier that has despawned, or whose id a later spawn took.
     private readonly Dictionary<(uint Actor, ushort StatusId, uint Source), uint> statusSources = new();
+    // What each actor's status list shows, on its SimCharacter here, as the host's sim holds it there.
+    private readonly Dictionary<(uint Actor, ushort StatusId, uint Source), SimStatus> shownStatuses = new();
+
+    // Set per run (IMultiplayerReplayable.MirrorsHostStatuses).
+    public bool MirrorStatuses { get; set; }
     private readonly Dictionary<uint, SimTether> tethers = new();
     private readonly Dictionary<uint, uint> effectSequences = new();
     private readonly Queue<uint> effectOrder = new();
@@ -163,6 +169,8 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         foreach (var actor in spawned.Keys.ToList()) Despawn(actor);
         foreach (var tether in tethers.Values) tether.Despawn();
         tethers.Clear();
+        foreach (var status in shownStatuses.Values) status.Despawn();
+        shownStatuses.Clear();
         waiting.Clear();
         waitingEffects.Clear();
         arena.Clear();
@@ -329,6 +337,11 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     {
         if (tethers.Remove(actor, out var tether)) tether.Despawn();
         ForgetStatusSources(actor, null);
+        foreach (var key in shownStatuses.Keys.Where(k => k.Actor == actor).ToList())
+        {
+            shownStatuses[key].Despawn();
+            shownStatuses.Remove(key);
+        }
         if (!spawned.Remove(actor, out var copy)) return;
         copy.Enemy?.Despawn();
         copy.Prop?.Despawn();
@@ -475,6 +488,34 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         var health = Scale(p.Health, p.MaxHealth, chara.MaxHealth);
         if (IsOurSeat(p.Actor)) natives.LocalPlayer.ApplyHostStatuses(slots, health, p.Mana, p.Shield);
         else chara.ReceiveStatusList(slots, health, p.Mana, p.Shield);
+        if (MirrorStatuses) ShowStatuses(p.Actor, slots);
+    }
+
+    // The list names whoever the client shows as the applier, not the sim's own key: a lone id is
+    // kept under no source, as the sim keys a status it applies once. A status our own press
+    // reported to the host is our own sim's already.
+    private void ShowStatuses(uint actor, StatusSlot[] slots)
+    {
+        if (MirrorOf(actor) is not { } mirror) return;
+        var own = IsOurSeat(actor);
+        var listed = slots.Where(s => s.StatusId != 0 && !(own && HostReport.IsReported(s.StatusId))).ToList();
+        var keys = new HashSet<(uint, ushort, uint)>();
+        foreach (var slot in listed)
+        {
+            var source = listed.Count(s => s.StatusId == slot.StatusId) > 1 ? slot.SourceEntityId : 0;
+            var key = (actor, slot.StatusId, source);
+            if (!keys.Add(key)) continue;
+            if (shownStatuses.TryGetValue(key, out var shown) && shown.IsActive)
+                shown.Reapply(slot.RemainingTime, slot.Param - shown.Stacks);
+            else
+                shownStatuses[key] = mirror.ShowStatus(slot.StatusId, slot.Param, slot.RemainingTime,
+                    source == 0 ? default : new GameObjectId { ObjectId = source, Type = 0 });
+        }
+        foreach (var key in shownStatuses.Keys.Where(k => k.Actor == actor && !keys.Contains(k)).ToList())
+        {
+            shownStatuses[key].Despawn();
+            shownStatuses.Remove(key);
+        }
     }
 
     // ── The arena ────────────────────────────────────────────────────────────

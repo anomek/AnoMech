@@ -30,6 +30,10 @@ public interface IMultiplayerReplayable : IScenario
     // client yet when StartReplay ran. peerEnemies: this client's copies of the host's enemies.
     void RefreshLiveHandles(object shadowState, IReadOnlyDictionary<int, SimEnemy> peerEnemies) { }
 
+    // Optional, peer-only: this client's own sim also holds the statuses the host's lists show,
+    // for a strat that reads them and the locks they bring. Off, it holds only its own.
+    bool MirrorsHostStatuses => false;
+
     // Optional, peer-only, every frame: per-frame Ai work the scenario's own Tick drives on the
     // host, since a peer never runs that Tick.
     void TickReplay(object shadowState, float deltaSeconds) { }

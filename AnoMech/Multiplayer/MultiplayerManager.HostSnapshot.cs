@@ -24,7 +24,7 @@ public sealed partial class MultiplayerManager
             case ForcedMove.Push push:
                 return new PushMessage(role, push.Heading, push.Distance, 0f, push.DurationSeconds);
             case ForcedMove.Carry carry:
-                return new CarryMessage(role, carry.To.X, carry.To.Y, carry.To.Z);
+                return new CarryMessage(role, carry.To.X, carry.To.Y, carry.To.Z, carry.Timeline);
             case ForcedMove.Teleport teleport:
                 return new TeleportMessage(role, teleport.To.Position.X, teleport.To.Position.Y, teleport.To.Position.Z, teleport.To.Rotation);
             case ForcedMove.Follow follow:

@@ -7,16 +7,18 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P5ParadiseRegained.FruP5ParadiseRegainedState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P5ParadiseRegained;
 
-public sealed class FruP5ParadiseRegainedScenario : IScenario
+public sealed class FruP5ParadiseRegainedScenario : IMultiplayerReplayable
 {
     public string Name => "Paradise Regained";
     public IPhase Phase => FruZone.P5;
+    public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP5ParadiseRegainedAi()];
 
@@ -26,6 +28,8 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
 
     private SimWorld world = null!;
     private FruP5ParadiseRegainedState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP5ParadiseRegainedState? LastState { get; private set; }
     private SimEnemy? pandora;
     private readonly MapEffectTower?[] towers = new MapEffectTower?[3];
     private SimTether? wingTether;
@@ -37,6 +41,7 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     {
         world = worldParam;
         state = new FruP5ParadiseRegainedState(world.Rng, settingsWindow.Overrides);
+        LastState = state;
         Array.Clear(lineAims);
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP5ParadiseRegainedState>)AiStrats[idx]).Run(state, world);
@@ -176,5 +181,17 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
         if (lineAims[round] is not { } aim) return;
         pandora?.CastFromHelper(Actions.CruelPathOfLightEcho, at: new Placement(Vector3.Zero, aim.Light));
         pandora?.CastFromHelper(Actions.CruelPathOfDarknessEcho, at: new Placement(Vector3.Zero, aim.Dark));
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s ? new FruP5ParadiseRegainedAiReplayStateMessage(s.Rotation, s.DarkFirst) : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP5ParadiseRegainedAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP5ParadiseRegainedState.FromNetworkReplay(msg.Rotation, msg.DarkFirst);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP5ParadiseRegainedState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

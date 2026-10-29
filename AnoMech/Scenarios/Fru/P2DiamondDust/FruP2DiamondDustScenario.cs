@@ -6,16 +6,18 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P2DiamondDust.FruP2DiamondDustState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P2DiamondDust;
 
-public sealed class FruP2DiamondDustScenario : IScenario
+public sealed class FruP2DiamondDustScenario : IMultiplayerReplayable
 {
     public string Name => "Diamond Dust";
     public IPhase Phase => FruZone.P2;
+    public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2DiamondDustAi()];
 
@@ -30,6 +32,8 @@ public sealed class FruP2DiamondDustScenario : IScenario
 
     private SimWorld world = null!;
     private FruP2DiamondDustState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP2DiamondDustState? LastState { get; private set; }
     private SimEnemy? usurper, mirror;
     private readonly FruHolyPuddles puddles = new();
 
@@ -37,6 +41,7 @@ public sealed class FruP2DiamondDustScenario : IScenario
     {
         world = worldParam;
         state = new FruP2DiamondDustState(world.Rng, settingsWindow.Overrides);
+        LastState = state;
         puddles.Clear();
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP2DiamondDustState>)AiStrats[idx]).Run(state, world);
@@ -236,5 +241,19 @@ public sealed class FruP2DiamondDustScenario : IScenario
     public void Tick(float delta, float elapsed)
     {
         puddles.BleedWhoeverStandsIn(world, elapsed, "stepped in a Sinbound Holy puddle");
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s
+            ? new FruP2DiamondDustAiReplayStateMessage(s.FirstIcicle, s.SupportsMarked, s.Axe, s.MirrorOctant, s.Stillness, s.GazeOctant)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP2DiamondDustAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP2DiamondDustState.FromNetworkReplay(msg.FirstIcicle, msg.SupportsMarked, msg.Axe, msg.MirrorOctant, msg.Stillness, msg.GazeOctant);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP2DiamondDustState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

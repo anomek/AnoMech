@@ -7,25 +7,34 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P3UltimateRelativity.FruP3UltimateRelativityState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P3UltimateRelativity;
 
-public sealed class FruP3UltimateRelativityScenario : IScenario
+public sealed class FruP3UltimateRelativityScenario : IMultiplayerReplayable
 {
     public string Name => "Ultimate Relativity";
     public IPhase Phase => FruZone.P3;
+    public bool SupportsMultiplayer => true;
+    // The Stun holds everyone.
+    public bool MirrorsHostStatuses => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP3UltimateRelativityAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
+    public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
+    public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly FruP3UltimateRelativitySettingsWindow settingsWindow = new();
 
     private SimWorld world = null!;
     private FruP3UltimateRelativityState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP3UltimateRelativityState? LastState { get; private set; }
     private SimEnemy? oracle;
     private readonly SimEnemy?[] hourglasses = new SimEnemy?[8];
     private readonly Vector3[] laserDirections = new Vector3[8];
@@ -35,7 +44,8 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
-        state = new FruP3UltimateRelativityState(world.Rng, settingsWindow.Overrides);
+        state = new FruP3UltimateRelativityState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
         speedTethers.Clear();
         returns.Clear();
         if (selectedAi is { } idx && idx < AiStrats.Count)
@@ -241,5 +251,19 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
     private void ShellCrusher()
     {
         if (world.Party.Get(state.ShellCrusherTarget) is { } target && target.IsAlive()) oracle?.Cast(Actions.ShellCrusher, target);
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s
+            ? new FruP3UltimateRelativityAiReplayStateMessage(Enum.GetValues<PartyRole>().Select(s.Debuff).ToArray(), s.DpsIce, s.North, s.ClockwiseMask)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP3UltimateRelativityAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP3UltimateRelativityState.FromNetworkReplay(msg.Debuffs, msg.DpsIce, msg.North, msg.ClockwiseMask);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP3UltimateRelativityState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

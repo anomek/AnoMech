@@ -87,14 +87,26 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
     public Task ConnectAsync(string relayUrl, string sessionCode, string? accessToken = null)
     {
         RelayStats.Reset();
-        return ConnectCoreAsync(relayUrl, $"session/{Uri.EscapeDataString(sessionCode)}", accessToken);
+        return ConnectCoreAsync(relayUrl, JoinPath(sessionCode), accessToken);
     }
 
     // Only the relay can guarantee a collision-free session code.
     public Task<string?> ConnectAndHostAsync(string relayUrl, string? accessToken = null)
     {
         RelayStats.Reset();
-        return ConnectCoreAsync(relayUrl, "host", accessToken);
+        return ConnectCoreAsync(relayUrl, HostPath, accessToken);
+    }
+
+    internal const string HostPath = "host";
+
+    internal static string JoinPath(string sessionCode) => $"session/{Uri.EscapeDataString(sessionCode)}";
+
+    // What the relay authenticates a connection by, sent with its upgrade request.
+    internal static IEnumerable<(string Name, string Value)> UpgradeHeaders(string peerSecret, string? accessToken)
+    {
+        if (!string.IsNullOrEmpty(accessToken)) yield return ("X-AnoMech-Relay-Token", accessToken);
+        yield return ("X-AnoMech-Peer-Secret", peerSecret);
+        yield return ("X-AnoMech-Protocol", RelayWire.Version.ToString());
     }
 
     // A bare host tries wss:// then falls back to ws://; the only way to learn whether a server
@@ -205,10 +217,8 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
                 socket = new ClientWebSocket();
             }
             // Options only apply before ConnectAsync, so they are set per instance.
-            if (!string.IsNullOrEmpty(accessToken))
-                socket.Options.SetRequestHeader("X-AnoMech-Relay-Token", accessToken);
-            socket.Options.SetRequestHeader("X-AnoMech-Peer-Secret", peerSecret);
-            socket.Options.SetRequestHeader("X-AnoMech-Protocol", RelayWire.Version.ToString());
+            foreach (var (name, value) in UpgradeHeaders(peerSecret, accessToken))
+                socket.Options.SetRequestHeader(name, value);
             var uri = candidates[i];
             IsEncrypted = uri.Scheme == "wss";
             var fallbackLeft = i < candidates.Count - 1;
@@ -242,7 +252,7 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
         {
             try
             {
-                var assignedCode = await ReadGreetingAsync(path == "host").ConfigureAwait(false);
+                var assignedCode = await ReadGreetingAsync(path == HostPath).ConfigureAwait(false);
                 _ = Task.Run(ReceiveLoopAsync);
                 _ = Task.Run(SendLoopAsync);
                 return assignedCode;
@@ -263,7 +273,8 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
 
     private sealed record RelayGreeting(int RelayVersion, string[]? Capabilities, string? SessionCode, Guid PeerId);
 
-    internal TimeSpan GreetingTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan DefaultGreetingTimeout = TimeSpan.FromSeconds(5);
+    internal TimeSpan GreetingTimeout { get; init; } = DefaultGreetingTimeout;
 
     // The greeting is not an MpMessage and is consumed once before ReceiveLoopAsync starts. It
     // names the identity the relay derived from our secret, so a relay that can't authenticate
@@ -273,13 +284,21 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
         timeout.CancelAfter(GreetingTimeout);
+        var (sessionCode, capabilities) = await ReadGreetingAsync(socket, RelayWire.PeerId(peerSecret), hosting, timeout.Token).ConfigureAwait(false);
+        RelayCapabilities = capabilities;
+        return sessionCode;
+    }
+
+    internal static async Task<(string? SessionCode, IReadOnlySet<string> Capabilities)> ReadGreetingAsync(WebSocket socket, Guid expectedPeerId,
+        bool hosting, CancellationToken token)
+    {
         using var message = new MemoryStream();
         var buffer = new byte[1024];
         WebSocketReceiveResult result;
         var fragments = 0;
         do
         {
-            result = await socket.ReceiveAsync(buffer, timeout.Token).ConfigureAwait(false);
+            result = await socket.ReceiveAsync(buffer, token).ConfigureAwait(false);
             // The relay accepts the WS upgrade before validating the session code, so a rejected
             // /session/<code> or /host arrives here as a close frame. Surfaced distinctly so the
             // reconnect loop can tell "give up" from "keep retrying".
@@ -294,10 +313,7 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
                 throw new RelaySessionRejectedException("The relay sent an invalid greeting.");
             message.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
-
-        var (sessionCode, capabilities) = ParseGreeting(message.ToArray(), RelayWire.PeerId(peerSecret), hosting);
-        RelayCapabilities = capabilities;
-        return sessionCode;
+        return ParseGreeting(message.ToArray(), expectedPeerId, hosting);
     }
 
     internal static (string? SessionCode, IReadOnlySet<string> Capabilities) ParseGreeting(byte[] json, Guid expectedPeerId, bool hosting)
@@ -344,11 +360,13 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
     public async Task ModerateAsync(string operation, Guid peerId)
     {
         if (!IsConnected) return;
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { t = RelayWire.ControlType, Operation = operation, PeerId = peerId });
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!sendQueue.Writer.TryWrite((bytes, WebSocketMessageType.Text, completion))) return;
+        if (!sendQueue.Writer.TryWrite((ControlBody(operation, peerId), WebSocketMessageType.Text, completion))) return;
         await completion.Task.ConfigureAwait(false);
     }
+
+    internal static byte[] ControlBody(string operation, Guid peerId)
+        => JsonSerializer.SerializeToUtf8Bytes(new { t = RelayWire.ControlType, Operation = operation, PeerId = peerId });
 
     private static byte[] Compress(byte[] data)
     {
@@ -403,12 +421,31 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
 
     private async Task ReceiveLoopAsync()
     {
+        Exception? failure = null;
+        try
+        {
+            failure = await ReceiveAsync(socket, cts.Token,
+                (message, isFromHost, senderConnectionId, sender) => MessageReceived?.Invoke(message, isFromHost, senderConnectionId, sender),
+                removed => PeersRemoved?.Invoke(removed),
+                (sender, isFromHost, reason) => MessageRejected?.Invoke(sender, isFromHost, reason)).ConfigureAwait(false);
+        }
+        finally
+        {
+            DiagnosticLog.Debug($"[RelayClient] Receive loop exiting -- final socket state {socket.State}.");
+            Disconnected?.Invoke(failure);
+        }
+    }
+
+    // Everything the relay sends on a connection after its greeting, until it ends: the failure
+    // that ended it, or null for a close or a cancel.
+    internal static async Task<Exception?> ReceiveAsync(WebSocket socket, CancellationToken token, Action<MpMessage, bool, uint, Guid> received,
+        Action<IReadOnlyList<Guid>> removed, Action<Guid, bool, string> rejected, TimeProvider? time = null)
+    {
         var buffer = new byte[64 * 1024];
         // Per sender: a host hears from every peer at once, and one shared budget would let a few
         // peers exhaust it together.
         var budgets = new Dictionary<Guid, TrafficBudget>();
         long overBudget = 0, dropped = 0;
-        Exception? failure = null;
         try
         {
             while (socket.State == WebSocketState.Open)
@@ -418,20 +455,20 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
                 var fragments = 0;
                 do
                 {
-                    result = await socket.ReceiveAsync(buffer, cts.Token).ConfigureAwait(false);
+                    result = await socket.ReceiveAsync(buffer, token).ConfigureAwait(false);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         DiagnosticLog.Info($"[RelayClient] Received close frame: status={result.CloseStatus}, description=\"{result.CloseStatusDescription}\".");
-                        return;
+                        return null;
                     }
                     ms.Write(buffer, 0, result.Count);
                     if (ms.Length > MaxIncomingMessageBytes || ++fragments > MaxIncomingFragments)
                     {
-                        failure = new InvalidDataException(
+                        var failure = new InvalidDataException(
                             $"Relay sent a message over {MaxIncomingMessageBytes / (1024 * 1024)} MB or {MaxIncomingFragments} fragments -- dropping the connection.");
                         DiagnosticLog.Warn($"[RelayClient] {failure.Message}");
                         try { socket.Abort(); } catch { /* best-effort */ }
-                        return;
+                        return failure;
                     }
                 } while (!result.EndOfMessage);
                 RelayStats.RecordReceived(ms.Length);
@@ -448,14 +485,14 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
                 var sender = new Guid(frame.AsSpan(5, 16));
                 if (senderConnectionId == 0 && sender == Guid.Empty)
                 {
-                    ReadNotice(frame);
+                    if (ReadNotice(frame) is { } others) removed(others);
                     continue;
                 }
                 if (!budgets.TryGetValue(sender, out var budget))
                 {
                     if (budgets.Count >= 64) budgets.Clear();
                     // The host already runs the whole simulation, so only peers are held to one.
-                    budget = isFromHost ? new TrafficBudget() : new TrafficBudget(RelayWire.PeerMessagesPerSecond, RelayWire.PeerBytesPerSecond);
+                    budget = isFromHost ? new TrafficBudget(time: time) : new TrafficBudget(RelayWire.PeerMessagesPerSecond, RelayWire.PeerBytesPerSecond, time);
                     budgets[sender] = budget;
                 }
 
@@ -475,40 +512,36 @@ public sealed class RelayClient(string peerSecret) : IRelayConnection
                 {
                     if (dropped++ % 100 == 0)
                         DiagnosticLog.Warn($"[RelayClient] Malformed message from {sender} dropped ({dropped} so far): {e.Message}");
-                    MessageRejected?.Invoke(sender, isFromHost, e.Message);
+                    rejected(sender, isFromHost, e.Message);
                     continue;
                 }
-                if (message != null) MessageReceived?.Invoke(message, isFromHost, senderConnectionId, sender);
+                if (message != null) received(message, isFromHost, senderConnectionId, sender);
             }
+            return null;
         }
         catch (OperationCanceledException)
         {
-            // cancelled by Dispose()
+            return null;
         }
         catch (Exception e)
         {
-            failure = e;
             var code = e is WebSocketException wse ? $" (WebSocketErrorCode={wse.WebSocketErrorCode})" : "";
             DiagnosticLog.Warn($"[RelayClient] Receive loop faulted: {e}{code}");
-        }
-        finally
-        {
-            DiagnosticLog.Debug($"[RelayClient] Receive loop exiting -- final socket state {socket.State}.");
-            Disconnected?.Invoke(failure);
+            return e;
         }
     }
 
-    private void ReadNotice(byte[] frame)
+    private static IReadOnlyList<Guid>? ReadNotice(byte[] frame)
     {
         try
         {
             var notice = JsonSerializer.Deserialize<RelayNotice>(frame.AsSpan(RelayWire.PrefixBytes), JsonOptions);
-            if (notice?.T == RelayWire.NoticeType && notice.Removed is { Length: > 0 and <= 64 } removed)
-                PeersRemoved?.Invoke(removed);
+            return notice?.T == RelayWire.NoticeType && notice.Removed is { Length: > 0 and <= 64 } removed ? removed : null;
         }
         catch (JsonException e)
         {
             DiagnosticLog.Warn($"[RelayClient] Ignored an unreadable relay notice: {e.Message}");
+            return null;
         }
     }
 

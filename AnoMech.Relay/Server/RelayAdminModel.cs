@@ -29,7 +29,7 @@ public sealed record RejectionCounts(
     long Origin, long IpCap, long JoinLockout, long RelayFull, long SessionFull,
     long SessionNotFound, long BadToken, long HandshakeTimeout, long MessageTooLarge, long MessageTimeout,
     long MessageRate, long ByteRate, long Unencrypted, long TooManyFragments, long Banned, long Paused,
-    long BadProtocol);
+    long BadProtocol, long TlsHandshake);
 
 public sealed record LimitSettings(
     int MaxPeersPerSession, int MaxTotalSessions, long MaxMessageBytes, int MaxConnectionsPerIp,

@@ -36,22 +36,22 @@ public class PeerParityTests
     public void APeerSeesWhatTheHostSeesOverABadConnection(Type scenarioType, ConnectionProfile link)
         => Verify(MultiplayerRun.Play(scenarioType, 0, 1, Host, [new PlayerSeat(PeerSeat)], link, link));
 
-    private static IEnumerable<TestCaseData> Restarts() =>
+    private static IEnumerable<TestCaseData> EachScenario() =>
         from scenario in Scenarios
         select new TestCaseData(scenario.GetType()).SetArgDisplayNames(scenario.FullName());
 
     // The stay's next run: its stage comes from the host as well, onto an arena already the
     // host's, with every actor of the run before gone.
-    [TestCaseSource(nameof(Restarts))]
+    [TestCaseSource(nameof(EachScenario))]
     public void APeerSeesWhatTheHostSeesAfterAReset(Type scenarioType)
         => Verify(MultiplayerRun.Play(scenarioType, 0, 1, Host, [new PlayerSeat(PeerSeat)], runs: 2));
 
     private static void Verify(MultiplayerRun run)
     {
         Assert.That(run.Failure, Is.Null);
-        Assert.That(run.Relay.Rejected, Is.Empty, "messages the relay or a peer refused");
+        Assert.That(run.Network.Rejected, Is.Empty, "messages the relay or a peer refused");
         var gaps = ClientParity.Compare(run, run.Peers[0]);
-        TestContext.Out.WriteLine($"Within {ClientParity.Slack(run):F2}s (worst delivery {run.Relay.MaxHostDelay:F2}s):");
+        TestContext.Out.WriteLine($"Within {ClientParity.Slack(run):F2}s (worst delivery {run.Network.MaxHostDelay:F2}s):");
         foreach (var gap in gaps.Take(40)) TestContext.Out.WriteLine($"  {gap}");
         foreach (var client in run.Peers.Prepend(run.Host))
         foreach (var warning in client.Log.Warnings.Where(w => w.Contains("[Multiplayer]") || w.Contains("[SimAssets]")).Distinct().Take(15))

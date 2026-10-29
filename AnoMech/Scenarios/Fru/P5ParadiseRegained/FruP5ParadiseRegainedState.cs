@@ -30,6 +30,16 @@ public sealed class FruP5ParadiseRegainedState
         DarkFirst = overrides.DarkFirst ?? rng.NextBool();
     }
 
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads.
+    private FruP5ParadiseRegainedState(int rotation, bool darkFirst)
+    {
+        Rotation = rotation;
+        DarkFirst = darkFirst;
+    }
+
+    public static FruP5ParadiseRegainedState? FromNetworkReplay(int rotation, bool darkFirst)
+        => rotation is >= 0 and < 3 ? new(rotation, darkFirst) : null;
+
     public bool IsDark(int wing) => wing == 0 ? DarkFirst : !DarkFirst;
 
     private int TowerIndex(int tower)

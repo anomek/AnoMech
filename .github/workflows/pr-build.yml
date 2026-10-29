@@ -12,7 +12,20 @@ concurrency:
 jobs:
 
   build:
+    # One test process runs its tests one at a time (they share the game's process-wide services),
+    # so the slow groups get a runner each.
+    name: ${{ matrix.name }}
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Tests
+            tests: other
+          - name: Multiplayer tests
+            tests: multiplayer
+          - name: Real connections
+            tests: real
 
     env:
       Solution_Name: AnoMech
@@ -35,5 +48,40 @@ jobs:
       run: dotnet build --configuration Release
 
     - name: Run tests
-      run: dotnet test --configuration Release --no-build --logger GitHubActions
+      if: matrix.tests != 'real'
+      env:
+        TESTS: ${{ matrix.tests }}
+      run: |
+        # The multiplayer tests are the files under tests/AnoMech.Tests/Multiplayer, each class
+        # named after its file.
+        $multiplayer = Get-ChildItem tests/AnoMech.Tests/Multiplayer/*.cs | ForEach-Object { "FullyQualifiedName~AnoMech.Tests.$($_.BaseName)." }
+        $filter = switch ($env:TESTS) {
+          'other' { (@($multiplayer | ForEach-Object { $_ -replace '~', '!~' }) + 'TestCategory!=RealConnection') -join '&' }
+          'multiplayer' { "($($multiplayer -join '|'))&TestCategory!=RealConnection" }
+        }
+        dotnet test --configuration Release --no-build --logger GitHubActions --filter $filter
 
+    - name: Run real-connection tests
+      if: matrix.tests == 'real'
+      run: |
+        # They play their fights in real time and barely use the CPU, so they run side by side, a
+        # process per shard (RealConnectionTests), each with its own relay and clients.
+        $shards = 6
+        $runs = foreach ($i in 0..($shards - 1)) {
+          Set-Content "shard-$i.runsettings" "<RunSettings><TestRunParameters><Parameter name=""RealConnectionShard"" value=""$i/$shards"" /></TestRunParameters></RunSettings>"
+          $run = Start-Process dotnet -PassThru -NoNewWindow -RedirectStandardOutput "shard-$i.log" -RedirectStandardError "shard-$i.err" -ArgumentList @(
+            'test', 'tests/AnoMech.Tests', '--configuration', 'Release', '--no-build', '--logger', 'GitHubActions',
+            '--settings', "shard-$i.runsettings", '--filter', 'TestCategory=RealConnection')
+          # ExitCode stays readable only if the handle was taken while the process ran.
+          $null = $run.Handle
+          $run
+        }
+        $runs | Wait-Process
+        $failed = 0
+        for ($i = 0; $i -lt $shards; $i++) {
+          Write-Output "::group::Shard $i of $shards"
+          Get-Content "shard-$i.log", "shard-$i.err"
+          Write-Output "::endgroup::"
+          if ($runs[$i].ExitCode -ne 0) { $failed++ }
+        }
+        exit $failed

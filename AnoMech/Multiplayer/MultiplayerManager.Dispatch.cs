@@ -377,6 +377,11 @@ public sealed partial class MultiplayerManager
                 peerStatuses.Clear();
                 foreach (var (id, entry) in status.Statuses)
                     peerStatuses[id] = entry;
+                if (peerStatuses.GetValueOrDefault(MyPeerId)?.LatencyMs is { } roundTrip)
+                {
+                    roundTripsMs.Enqueue(NetGuard.Clamp(roundTrip, 0f, 4000f));
+                    while (roundTripsMs.Count > LeadRoundTrips) roundTripsMs.Dequeue();
+                }
                 break;
             // The host leaving ends the session for everyone; a departing peer only shrinks
             // the roster.

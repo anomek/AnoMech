@@ -17,6 +17,8 @@ internal sealed class FakeEventObjects(SimTimeline timeline) : IEventObjects
 
     internal int Live => slots.Count(o => o is { Exists: true });
 
+    internal IEnumerable<uint> LiveEntityIds => slots.Where(o => o is { Exists: true }).Select(o => o!.EntityId);
+
     public IEventObjectProxy? Spawn(EventObjectSpawnConfig config, Placement placement)
     {
         var slot = FindFreeSlot();
@@ -26,7 +28,8 @@ internal sealed class FakeEventObjects(SimTimeline timeline) : IEventObjects
             rotation: placement.Rotation,
             detail: $"layout=0x{config.LayoutId:X} event=0x{(uint)config.EventId:X} owner=0x{config.OwnerId:X} gimmick=0x{config.GimmickId:X} "
                     + $"radius={SimTimeline.F(config.Radius)} event_state={config.EventState} targetable={config.TargetableStatus} "
-                    + $"visibility={(config.Hidden ? 1 : 0)} index={config.ObjectIndex} timeline_state={config.TimelineState} arg2=0x{config.Arg2:X}");
+                    + $"visibility={(config.Hidden ? 1 : 0)} index={config.ObjectIndex} timeline_state={config.TimelineState} arg2=0x{config.Arg2:X}",
+            data: new SpawnData(config, placement));
         var obj = new FakeEventObject(slot, entityId, placement.Position, placement.Rotation, timeline, $"EObj{config.EObjId}");
         slots[slot] = obj;
         return obj;

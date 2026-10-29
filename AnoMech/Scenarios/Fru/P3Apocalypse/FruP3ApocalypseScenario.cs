@@ -6,28 +6,32 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P3Apocalypse.FruP3ApocalypseState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P3Apocalypse;
 
-public sealed class FruP3ApocalypseScenario : IScenario
+public sealed class FruP3ApocalypseScenario : IMultiplayerReplayable
 {
     public string Name => "Apocalypse";
     public IPhase Phase => FruZone.P3;
+    public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP3ApocalypseAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
+    public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
+    public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly FruP3ApocalypseSettingsWindow settingsWindow = new();
-
-    // Darkest Dance lands this short of its target.
-    private const float DanceLandingShort = 6.3f;
 
     private SimWorld world = null!;
     private FruP3ApocalypseState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP3ApocalypseState? LastState { get; private set; }
     private SimEnemy? oracle;
 
     private readonly List<SimEventObject?> centerLights = [];
@@ -47,7 +51,8 @@ public sealed class FruP3ApocalypseScenario : IScenario
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
-        state = new FruP3ApocalypseState(world.Rng, settingsWindow.Overrides);
+        state = new FruP3ApocalypseState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP3ApocalypseState>)AiStrats[idx]).Run(state, world);
 
@@ -210,9 +215,18 @@ public sealed class FruP3ApocalypseScenario : IScenario
         var target = world.Party.ActiveMembers().MaxBy(m => Vector3.DistanceSquared(m.Position, boss.Position));
         if (target is null) return;
         boss.Cast(Actions.DarkestDance, target);
-        var offset = target.Position - boss.Position;
-        danceLanding = offset.Length() > DanceLandingShort
-            ? boss.Position + Vector3.Normalize(offset) * (offset.Length() - DanceLandingShort)
-            : boss.Position;
+        danceLanding = DanceLanding(boss.Position, target.Position);
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s ? new FruP3ApocalypseAiReplayStateMessage(s.WaterDurations.ToArray(), s.Rotation, s.Clockwise) : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP3ApocalypseAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP3ApocalypseState.FromNetworkReplay(msg.WaterDurations, msg.Rotation, msg.Clockwise);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP3ApocalypseState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 
@@ -30,6 +31,13 @@ public sealed class FruP4CrystallizeTimeState
     public const float DragonHitCooldown = 2f;
     public static readonly Vector3 FragmentPosition = new(0, 0, -16);
 
+    // The eight debuffs, in enum order.
+    public static readonly IReadOnlyList<CrystallizeDebuff> Dealt =
+    [
+        CrystallizeDebuff.RedAero, CrystallizeDebuff.RedAero, CrystallizeDebuff.RedIce, CrystallizeDebuff.RedIce,
+        CrystallizeDebuff.BlueEruption, CrystallizeDebuff.BlueIce, CrystallizeDebuff.BlueDarkness, CrystallizeDebuff.BlueWater,
+    ];
+
     private readonly Dictionary<PartyRole, CrystallizeDebuff> debuffs = new();
     private readonly Dictionary<PartyRole, Vector3> dragonPuddles = new();
 
@@ -40,14 +48,11 @@ public sealed class FruP4CrystallizeTimeState
 
     public FruP4CrystallizeTimeState(Rng rng, PartyRole playerRole, FruP4CrystallizeTimeStateOverrides overrides)
     {
-        var deck = rng.Shuffle(CrystallizeDebuff.RedAero, CrystallizeDebuff.RedAero, CrystallizeDebuff.RedIce, CrystallizeDebuff.RedIce,
-            CrystallizeDebuff.BlueEruption, CrystallizeDebuff.BlueIce, CrystallizeDebuff.BlueDarkness, CrystallizeDebuff.BlueWater).ToArray();
-        if (overrides.PlayerDebuffs is { } wanted)
-        {
-            var choices = Enumerable.Range(0, 8).Where(i => wanted.Contains(deck[i])).ToArray();
-            var chosen = choices[rng.Next(choices.Length)];
-            (deck[(int)playerRole], deck[chosen]) = (deck[chosen], deck[(int)playerRole]);
-        }
+        var deck = rng.Shuffle(Dealt).ToArray();
+        foreach (var (role, pick) in ForcedDeal.Swap(rng, deck, overrides.PlayerDebuffs.Resolve(playerRole),
+                     (wanted, card) => FruP4CrystallizeTimeStateOverrides.Matching(wanted).Contains(card)))
+            DiagnosticLog.Warn($"[FruP4CrystallizeTime] {role} asked for {FruP4CrystallizeTimeStateOverrides.Label(pick)}, "
+                + $"already held by other seats -- leaving {role} to the roll.");
         foreach (var role in Enum.GetValues<PartyRole>()) debuffs[role] = overrides.Debuffs?[role] ?? deck[(int)role];
         SlowNorthwest = rng.NextBool();
         Corner = (CrystallizeCorner)rng.Next(4);
@@ -56,6 +61,19 @@ public sealed class FruP4CrystallizeTimeState
         Quietus = overrides.Quietus ?? rng.Shuffle(Enum.GetValues<PartyRole>()).Take(3).ToList();
         SpiritTakerTarget = overrides.SpiritTakerTarget ?? rng.NextRole();
     }
+
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads. The
+    // puddles follow as the host's heads drop them.
+    private FruP4CrystallizeTimeState(IReadOnlyList<CrystallizeDebuff> debuffs, bool slowNorthwest, CrystallizeCorner corner)
+    {
+        foreach (var role in Enum.GetValues<PartyRole>()) this.debuffs[role] = debuffs[(int)role];
+        SlowNorthwest = slowNorthwest;
+        Corner = corner;
+        Quietus = [];
+    }
+
+    public static FruP4CrystallizeTimeState? FromNetworkReplay(IReadOnlyList<CrystallizeDebuff> debuffs, bool slowNorthwest, CrystallizeCorner corner)
+        => debuffs.Order().SequenceEqual(Dealt) && Enum.IsDefined(corner) ? new(debuffs, slowNorthwest, corner) : null;
 
     public CrystallizeDebuff Debuff(PartyRole role) => debuffs[role];
     public IEnumerable<PartyRole> Holders(CrystallizeDebuff debuff) => debuffs.Where(d => d.Value == debuff).Select(d => d.Key);

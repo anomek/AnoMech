@@ -254,6 +254,15 @@ public abstract class SimCharacter : ISimObject, IPositioned
     internal void AdoptSpawnStatus(ushort statusId, ushort param)
         => statusList.Add(new SimStatus(this, statusId, 0f, param, default, FreeStatusSlot(statusId), hidden: false));
 
+    // One a multiplayer peer's client shows from the host's own list: read here like any other, and
+    // sent nowhere, so it takes no slot.
+    internal SimStatus ShowStatus(ushort statusId, ushort stacks, float remaining, GameObjectId sourceObject)
+    {
+        var status = new SimStatus(this, statusId, remaining, stacks, sourceObject, slot: -1, hidden: false);
+        statusList.Add(status);
+        return status;
+    }
+
     private SimStatus SpawnStatus(ushort statusId, float duration, ushort param, GameObjectId sourceObject, bool broadcastAddEvent, bool hidden)
     {
         var status = new SimStatus(this, statusId, duration, param, sourceObject, FreeStatusSlot(statusId), hidden);

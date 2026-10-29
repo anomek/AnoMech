@@ -63,6 +63,8 @@ public sealed class UmadP3BlackHoleAi(UmadP3BlackHoleAi.TetherOrder tetherOrder)
         // Follow self-sustains, so no AiMove. Right after the 39.33 Nothingness: MT's pull spot can
         // be ~19y from Exdeath, too far to run before the 42.63 hit.
         world.Events.Add(39.4f, ResolveFirstThunder);
+        // The first hit lands at 42.85.
+        world.Events.Add(42.9f, () => NoteThunderSeats(state.ThunderSet1));
         ai.Move(43.19f, SwapFirstThunderTanks);
         // Standing invariant for the Set 1 danger window; the swap lands at 43.5f.
         {
@@ -87,6 +89,8 @@ public sealed class UmadP3BlackHoleAi(UmadP3BlackHoleAi.TetherOrder tetherOrder)
         ai.Move(73.1f, DodgeEdictAndLookUpon);
         ai.Move(80f, StackCentre);
         world.Events.Add(82f, ResolveSecondThunder);
+        // The first hit lands at 84.16.
+        world.Events.Add(84.2f, () => NoteThunderSeats(state.ThunderSet2));
         ai.Move(84.5f, SwapSecondThunderTanks);
         // Same as Set 1; the swap lands at 84.9f.
         {
@@ -205,20 +209,32 @@ public sealed class UmadP3BlackHoleAi(UmadP3BlackHoleAi.TetherOrder tetherOrder)
             firstMember.Follow(exdeath);
     }
 
+    // Where each tank stood as the first hit landed (Exdeath is frozen across both hits). Read
+    // then, not as the swap starts: a client sees another player's tank leave as soon as that
+    // player's own client sends it, the host the instant the swap begins.
+    private readonly Vector2?[] thunderSeats = new Vector2?[8];
+
+    private void NoteThunderSeats(ThunderIIIAssignment plan)
+    {
+        Array.Clear(thunderSeats);
+        var (first, second) = ThunderIIIPlanning.Roles(plan);
+        foreach (var role in new[] { first, second ?? first })
+            if (world.Party.Get(role) is { } member)
+                thunderSeats[(int)role] = new Vector2(member.Position.X, member.Position.Z);
+    }
+
     // Shared by both sets' swap: after the first hit the two tanks trade spots, so "first"
-    // slides into the middle and "second" takes over the seat. Reads live positions (Exdeath
-    // is frozen across both hits). No-op if this set's plan doesn't call for a swap.
+    // slides into the middle and "second" takes over the seat. No-op if this set's plan doesn't
+    // call for a swap.
     private IAiMove SwapThunderTanks(ThunderIIIAssignment plan)
     {
         var (first, second) = ThunderIIIPlanning.Roles(plan);
         if (second is not { } secondRole) return AiMove.Create().NaturalOrder();
-        var a = world.Party.Get(first);
-        var b = world.Party.Get(secondRole);
-        if (a is null || b is null) return AiMove.Create().NaturalOrder();
+        if (thunderSeats[(int)first] is not { } a || thunderSeats[(int)secondRole] is not { } b) return AiMove.Create().NaturalOrder();
 
         var coords = new Vector2?[8];
-        coords[(int)secondRole] = new Vector2(a.Position.X, a.Position.Z);
-        coords[(int)first]      = new Vector2(b.Position.X, b.Position.Z);
+        coords[(int)secondRole] = a;
+        coords[(int)first]      = b;
         return AiMove.Create(coords).NaturalOrder();
     }
 

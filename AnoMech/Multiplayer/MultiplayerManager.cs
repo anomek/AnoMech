@@ -455,6 +455,7 @@ public sealed partial class MultiplayerManager : IDisposable
         pingsSentMs.Clear();
         answeredPingMs.Clear();
         peerStatuses.Clear();
+        roundTripsMs.Clear();
         warnedStalePeers.Clear();
         pingTimer = 0f;
         pendingStartResponses = null;
@@ -1134,8 +1135,14 @@ public sealed partial class MultiplayerManager : IDisposable
     // A Start that came late, sent again after a link drop, left this run behind the host's;
     // each ping's clock catches it up. Never back, and never for less than jitter, which would
     // only creep it forward.
-    private const float ClockCatchUpSeconds = 0.1f;
+    internal const float ClockCatchUpSeconds = 0.1f;
     private (RunClockState Clock, long ReceivedAt)? pingClock;
+
+    // The round trips the host measured to us, from its last few statuses. The lead is built on
+    // the shortest: a clock that never moves back would keep a single slow ping's lead for the
+    // rest of the run, while a link that stays slower shows in every one.
+    internal const int LeadRoundTrips = 3;
+    private readonly Queue<float> roundTripsMs = new();
 
     private void CatchUpClockToHost()
     {
@@ -1152,7 +1159,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private (float Target, float OneWay, float PoseLead) HostClockTarget(RunClockState clock, long receivedAt)
     {
         var hostClock = NetGuard.Clamp(clock.EventClock, 0f, 3600f);
-        var oneWay = NetGuard.Clamp(peerStatuses.GetValueOrDefault(MyPeerId)?.LatencyMs ?? 0f, 0f, 4000f) / 2000f;
+        var oneWay = (roundTripsMs.Count > 0 ? roundTripsMs.Min() : 0f) / 2000f;
         var hostFrame = NetGuard.Clamp(clock.FrameSeconds, 0f, MaxFrameSampleSeconds);
         var poseLead = oneWay + (hostFrame > 0f ? hostFrame : 1f / 60f);
         var target = hostClock + oneWay + poseLead + (float)Time.GetElapsedTime(receivedAt, eventClockStampedAt).TotalSeconds;

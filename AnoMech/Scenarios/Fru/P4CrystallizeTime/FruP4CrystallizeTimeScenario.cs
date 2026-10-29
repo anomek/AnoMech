@@ -8,6 +8,7 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P4CrystallizeTime.FruP4CrystallizeTimeState;
@@ -15,16 +16,22 @@ using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P4CrystallizeTime;
 
-public sealed class FruP4CrystallizeTimeScenario : IScenario
+public sealed class FruP4CrystallizeTimeScenario : IMultiplayerReplayable
 {
     public string Name => "Crystallize Time";
     public IPhase Phase => FruZone.P4;
+    public bool SupportsMultiplayer => true;
+    // The strat reacts to the Wyrmclaw and Wyrmfang it sees going, and the Stun holds everyone.
+    public bool MirrorsHostStatuses => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => strats;
     private readonly IReadOnlyList<IScenarioAi> strats = [new FruP4CrystallizeTimeAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
+    public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
+    public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly FruP4CrystallizeTimeSettingsWindow settingsWindow = new();
 
     private const float PuddleLifetime = 17.8f;
@@ -47,6 +54,11 @@ public sealed class FruP4CrystallizeTimeScenario : IScenario
 
     private SimWorld world = null!;
     private FruP4CrystallizeTimeState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it. LastState aliasing `state` is
+    // what lets BuildMidRunUpdateMessage see the puddles as they drop.
+    public FruP4CrystallizeTimeState? LastState { get; private set; }
+    // Edge-triggers BuildMidRunUpdateMessage.
+    private List<DragonPuddleState> sentPuddles = [];
     private IScenarioAi<FruP4CrystallizeTimeState>? ai;
     private SimEnemy? usurper, oracle, fragment;
     private readonly SimEnemy?[] hourglasses = new SimEnemy?[6];
@@ -62,6 +74,8 @@ public sealed class FruP4CrystallizeTimeScenario : IScenario
     {
         world = worldParam;
         state = new FruP4CrystallizeTimeState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
+        sentPuddles = [];
         Array.Clear(dragons);
         Array.Clear(dragonCatches);
         Array.Clear(lastCatcher);
@@ -525,5 +539,48 @@ public sealed class FruP4CrystallizeTimeScenario : IScenario
         visual?.Despawn();
         puddles.Remove(catcher);
         state.RemoveDragonPuddle(catcher);
+    }
+
+    private sealed record Replay(FruP4CrystallizeTimeState State, IScenarioAi<FruP4CrystallizeTimeState> Ai, SimWorld World);
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s
+            ? new FruP4CrystallizeTimeAiReplayStateMessage(Enum.GetValues<PartyRole>().Select(s.Debuff).ToArray(), s.SlowNorthwest, s.Corner)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP4CrystallizeTimeAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP4CrystallizeTimeState.FromNetworkReplay(msg.Debuffs, msg.SlowNorthwest, msg.Corner);
+        if (shadowState == null) return null;
+        var replayAi = (IScenarioAi<FruP4CrystallizeTimeState>)AiStrats[aiIndex];
+        replayAi.Run(shadowState, replayWorld);
+        return new Replay(shadowState, replayAi, replayWorld);
+    }
+
+    public MpMessage? BuildMidRunUpdateMessage()
+    {
+        if (LastState is not { } s) return null;
+        var current = s.DragonPuddles.OrderBy(p => p.Key).Select(p => new DragonPuddleState(p.Key, p.Value.X, p.Value.Y, p.Value.Z)).ToList();
+        if (current.SequenceEqual(sentPuddles)) return null;
+        sentPuddles = current;
+        return new FruP4CrystallizeTimeDragonPuddlesUpdateMessage(current);
+    }
+
+    public void ApplyMidRunUpdate(object shadowState, MpMessage message)
+    {
+        if (shadowState is not Replay { State: var shadow } || message is not FruP4CrystallizeTimeDragonPuddlesUpdateMessage update) return;
+        var dropped = new Dictionary<PartyRole, Vector3>();
+        foreach (var puddle in NetGuard.Cap(update.Puddles, 8))
+            if (Enum.IsDefined(puddle.Catcher) && NetGuard.TryPosition(puddle.X, puddle.Y, puddle.Z, out var position))
+                dropped[puddle.Catcher] = position;
+        foreach (var catcher in shadow.DragonPuddles.Keys.Where(c => !dropped.ContainsKey(c)).ToList()) shadow.RemoveDragonPuddle(catcher);
+        foreach (var (catcher, position) in dropped) shadow.AddDragonPuddle(catcher, position);
+    }
+
+    // The strat reacts every frame to what it sees, which the scenario's own Tick drives on the host.
+    public void TickReplay(object shadowState, float deltaSeconds)
+    {
+        if (shadowState is Replay replay) replay.Ai.Tick(replay.State, replay.World, deltaSeconds);
     }
 }

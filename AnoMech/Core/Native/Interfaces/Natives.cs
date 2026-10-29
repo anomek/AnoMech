@@ -26,6 +26,7 @@ public static class Natives
     public static IHaterList HaterList { get; internal set; } = null!;
     public static IPlayerConditions PlayerConditions { get; internal set; } = null!;
     public static ILimitBreakController LimitBreak { get; internal set; } = null!;
+    public static IPlayerActionState PlayerActionState { get; internal set; } = null!;
     public static IWaymarks Waymarks { get; internal set; } = null!;
     public static IBgm Bgm { get; internal set; } = null!;
 
