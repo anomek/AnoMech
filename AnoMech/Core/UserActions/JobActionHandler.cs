@@ -18,9 +18,10 @@ internal sealed class JobActionHandler : IUserActionHandler
         var player = Plugin.Game?.Player;
         if (player == null) return;
 
+        var free = JobActions.IsFree(player, actionId);
         // Clear first so a line action can re-grant after its own weaponskill clear.
         JobActions.ClearStatuses(player, actionId);
-        JobActions.ApplyCost(actionId);   // generic spender pass (sheet PrimaryCost)
+        if (!free) JobActions.ApplyCost(actionId);   // generic spender pass (sheet PrimaryCost)
 
         JobActions.ApplyEffects(player, actionId, targetId, rng);
     }

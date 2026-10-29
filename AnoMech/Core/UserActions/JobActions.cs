@@ -222,6 +222,10 @@ internal static unsafe class JobActions
 
     // Extra scalar gauges: some are spender-only (ApplyCost targets, no in-sim generation yet, so
     // cost no-ops at 0); DncEsprit / PctPalette / PctPaint / BlmPolyglot below now also generate.
+    // Standard / Technical Finish → dmg + Last Dance Ready; dmg + Flourishing Finish + Dance of Dawn Ready.
+    private static readonly IActionEffect[] StandardFinish = [Status(1821, 60f), Status(3867, 30f)];
+    private static readonly IActionEffect[] TechnicalFinish = [Status(1822, 20f), Status(2698, 30f), Status(3869, 30f)];
+
     private static readonly ResourceGauge MnkChakra = new() { Read = jgm => jgm->Monk.Chakra, Write = (jgm, v) => jgm->Monk.Chakra = (byte)v, Max = 5 };
     private static readonly ResourceGauge DncEsprit = new() { Read = jgm => jgm->Dancer.Esprit, Write = (jgm, v) => jgm->Dancer.Esprit = (byte)v, Max = 100 };
     private static readonly ResourceGauge BrdSoulVoice = new() { Read = jgm => jgm->Bard.SoulVoice, Write = (jgm, v) => jgm->Bard.SoulVoice = (byte)v, Max = 100 };
@@ -345,10 +349,10 @@ internal static unsafe class JobActions
         [25774] = [Gauge(NinNinki, 10)],         // Phantom Kamaitachi
         [25777] = [Gauge(NinNinki, 5)],          // Forked Raiju
         [25778] = [Gauge(NinNinki, 5)],          // Fleeting Raiju
-        [36957] = [Gauge(NinNinki, 40), Status(3850, 30f)], // Dokumori (+ Higi)
+        [36957] = [Gauge(NinNinki, 40), Unlocks(36960, Status(3850, 30f))], // Dokumori (+ Higi)
         [2264]  = [Status(497, 15f)],                     // Kassatsu
-        [7403]  = [Status(1186, 6f), Status(3851, 30f)],  // Ten Chi Jin + Tenri Jindo Ready
-        [16493] = [Status(1954, 30f, 5), Status(2723, 45f)], // Bunshin (5 stk) + Phantom Kamaitachi Ready
+        [7403]  = [Status(1186, 6f), Unlocks(36961, Status(3851, 30f))],  // Ten Chi Jin + Tenri Jindo Ready
+        [16493] = [Status(1954, 30f, 5), Unlocks(25774, Status(2723, 45f))], // Bunshin (5 stk) + Phantom Kamaitachi Ready
         [2269]  = [Status(3848, 20f)],                    // Huton → Shadow Walker
         [2271]  = [Status(3848, 20f)],                    // Suiton → Shadow Walker
         [18879] = [Status(3848, 20f)],                    // Huton (Ten Chi Jin) → Shadow Walker
@@ -417,6 +421,9 @@ internal static unsafe class JobActions
 
         // RDM — all flat: mana is "Additional Effect", never combo-gated
         [37004] = [Gauge(RdmWhite, 2), Gauge(RdmBlack, 2)],   // Jolt III
+        [7524]  = [Gauge(RdmWhite, 2), Gauge(RdmBlack, 2)],   // Jolt II (below level 84)
+        [7503]  = [Gauge(RdmWhite, 2), Gauge(RdmBlack, 2)],   // Jolt (below level 62)
+        [7509]  = [Gauge(RdmWhite, 3), Gauge(RdmBlack, 3)],   // Scatter (below level 66)
         [37006] = [Gauge(RdmWhite, 3), Gauge(RdmBlack, 3)],   // Grand Impact
         [16526] = [Gauge(RdmWhite, 3), Gauge(RdmBlack, 3)],   // Impact
         [7511]  = [Gauge(RdmWhite, 5)],                       // Verstone
@@ -429,11 +436,11 @@ internal static unsafe class JobActions
         [7525]  = [Gauge(RdmBlack, 11), Gauge(RdmManaStacks, -3), Random(0.2f, Status(1234, 30f))],   // Verflare (+11 B, -3 stacks, 20% Verfire Ready)
         [16530] = [Gauge(RdmWhite, 4), Gauge(RdmBlack, 4)],   // Scorch
         [25858] = [Gauge(RdmWhite, 4), Gauge(RdmBlack, 4)],   // Resolution
-        [7505]  = [Random(0.5f, Status(1234, 30f))],   // Verthunder → Verfire Ready (50%)
-        [7507]  = [Random(0.5f, Status(1235, 30f))],   // Veraero → Verstone Ready (50%)
-        [7518]  = [Status(1238, 20f), Status(3877, 30f)],  // Acceleration + Grand Impact Ready
-        [7520]  = [Status(1239, 20f), Status(3876, 30f)],  // Embolden + Thorned Flourish
-        [7521]  = [Status(1971, 30f), Status(3875, 30f, 3), Status(3878, 30f)], // Manafication → range + Magicked Swordplay (3 stk) + Prefulgence Ready
+        [7505]  = [Gauge(RdmBlack, 6), Random(0.5f, Status(1234, 30f))],   // Verthunder, below level 62 (+ Verfire Ready, 50%)
+        [7507]  = [Gauge(RdmWhite, 6), Random(0.5f, Status(1235, 30f))],   // Veraero, below level 62 (+ Verstone Ready, 50%)
+        [7518]  = [Status(1238, 20f), Unlocks(37006, Status(3877, 30f))],  // Acceleration + Grand Impact Ready
+        [7520]  = [Status(1239, 20f), Unlocks(37005, Status(3876, 30f))],  // Embolden + Thorned Flourish
+        [7521]  = [Status(1971, 30f), Status(3875, 30f, 3), Unlocks(37007, Status(3878, 30f))], // Manafication → range + Magicked Swordplay (3 stk) + Prefulgence Ready
         // Enchanted melee each grant 1 Mana Stack (at 3, Verthunder/Veraero → Verflare/Verholy):
         [7527] = [Gauge(RdmManaStacks, 1)], [7528] = [Gauge(RdmManaStacks, 1)], [7529] = [Gauge(RdmManaStacks, 1)], // Enchanted Riposte/Zwerchhau/Redoublement
         [45960] = [Gauge(RdmManaStacks, 1)], [45961] = [Gauge(RdmManaStacks, 1)], [45962] = [Gauge(RdmManaStacks, 1)], // the same under Manafication
@@ -466,7 +473,7 @@ internal static unsafe class JobActions
         [34607] = [Status(3672, 60f)], [34615] = [Status(3672, 60f)],  // Reaving Fangs/Maw → Honed Steel
         [34608] = [Status(3668, 40f)], [34616] = [Status(3668, 40f)],  // Hunter's Sting/Bite → Hunter's Instinct
         [34609] = [Status(3669, 40f)], [34617] = [Status(3669, 40f)],  // Swiftskin's Sting/Bite → Swiftscaled
-        [34633] = [Status(3665, 60f)], [34644] = [Status(3666, 60f)],  // Uncoiled Fury/Twinfang → Poised
+        [34633] = [Status(3665, 60f)],                               // Uncoiled Fury → Poised for Twinfang
 
         // WHM — Blood Lily only; casting these needs a Lily (passive gauge, not fed here)
         [16531] = [Gauge(WhmBloodLily, 1)],   // Afflatus Solace
@@ -488,8 +495,8 @@ internal static unsafe class JobActions
         [16011] = [Status(1825, 20f), Status(2700, 20f)],               // Devilment + Flourishing Starfall
         [16013] = [Status(3017, 30f), Status(3018, 30f), Status(1820, 30f), Status(2699, 30f), Status(3868, 30f)], // Flourish (5 procs)
         [15997] = [Status(1818, 15f)], [15998] = [Status(1819, 15f)],   // Standard/Technical Step
-        [16003] = [Status(1821, 60f), Status(3867, 30f)],               // Standard Finish → dmg + Last Dance Ready
-        [16004] = [Status(1822, 20f), Status(2698, 30f), Status(3869, 30f)], // Technical Finish → dmg + Flourishing Finish + Dance of Dawn Ready
+        [16003] = StandardFinish, [16191] = StandardFinish, [16192] = StandardFinish,   // Standard Finish (and by steps danced)
+        [16004] = TechnicalFinish, [16193] = TechnicalFinish, [16194] = TechnicalFinish, [16195] = TechnicalFinish, [16196] = TechnicalFinish,
         [36984] = [Status(1821, 60f), Status(3867, 30f)],               // Finishing Move → Standard Finish + Last Dance Ready
 
         // PLD
@@ -516,14 +523,15 @@ internal static unsafe class JobActions
         [25746] = [Status(2674, 8f), Status(2675, 4f), Status(2676, 12f)],   // Holy Sheltron
 
         // MNK
-        [7395]  = [Status(1181, 20f), Status(3843, 20f)],   // Riddle of Fire + Fire's Rumination
-        [25766] = [Status(2687, 15f), Status(3842, 15f)],   // Riddle of Wind + Wind's Rumination
+        [7395]  = [Status(1181, 20f), Unlocks(36950, Status(3843, 20f))],   // Riddle of Fire + Fire's Rumination
+        [25766] = [Status(2687, 15f), Unlocks(36949, Status(3842, 15f))],   // Riddle of Wind + Wind's Rumination
         [7396]  = [Status(1185, 20f), Status(1182, 20f)],   // Brotherhood + Meditative Brotherhood
         [69]    = [Status(110, 20f, 3)],                    // Perfect Balance (3 stk)
         [4262]  = [Status(2513, 30f)],                      // Form Shift → Formless Fist
         [36950] = [Status(2513, 30f)],                      // Fire's Reply → Formless Fist
         [25764] = [Status(2513, 30f)],                      // Masterful Blitz → Formless Fist
         [25765] = [Status(2513, 30f)], [25768] = [Status(2513, 30f)], [25769] = [Status(2513, 30f)], [36948] = [Status(2513, 30f)], // resolved blitz finishers → Formless Fist
+        [3545]  = [Status(2513, 30f)], [25882] = [Status(2513, 30f)], [3543] = [Status(2513, 30f)], // their lower-level forms (Elixir Field, Flint Strike, Tornado Kick)
         [7394]  = [Status(3841, 30f)],   // Riddle of Earth → Earth's Rumination
         [36940] = [Gauge(MnkChakra, 1)], [36941] = [Gauge(MnkChakra, 1)], [36942] = [Gauge(MnkChakra, 1)], [36943] = [Gauge(MnkChakra, 1)], // Meditation opens 1 Chakra
         [56] = [Status(107, 30f)], [66] = [Status(107, 30f)], [36947] = [Status(107, 30f)], [70] = [Status(107, 30f)],       // Opo-opo Form
@@ -533,11 +541,13 @@ internal static unsafe class JobActions
         // BRD
         [16495] = [Random(0.35f, Status(3861, 30f))],     // Burst Shot → Hawk's Eye (35%)
         [3560]  = [Random(0.35f, Status(3861, 30f))],     // Iron Jaws → Hawk's Eye (35%)
-        [7406]  = [Random(0.35f, Status(3861, 30f))], [7407] = [Random(0.35f, Status(3861, 30f))], [25783] = [Random(0.35f, Status(3861, 30f))], // Caustic Bite/Stormbite/Ladonsbite → Hawk's Eye (35%)
+        [7406]  = [EnemyStatus(1200, 45f), Random(0.35f, Status(3861, 30f))],   // Caustic Bite (+ Hawk's Eye 35%)
+        [7407]  = [EnemyStatus(1201, 45f), Random(0.35f, Status(3861, 30f))],   // Stormbite (+ Hawk's Eye 35%)
+        [100]   = [EnemyStatus(124, 45f)], [113] = [EnemyStatus(129, 45f)],      // Venomous Bite / Windbite
+        [25783] = [Random(0.35f, Status(3861, 30f))],                            // Ladonsbite → Hawk's Eye (35%)
         [107]   = [Status(1407, 10f), Status(3862, 30f)], // Barrage → Barrage + Resonant Arrow Ready
         [16496] = [Status(2692, 10f)],                    // Apex Arrow → Blast Arrow Ready
         [25785] = [Status(2722, 20f), Status(3863, 30f)], // Radiant Finale → Radiant Finale + Radiant Encore Ready
-        [3558]  = [Status(3137, 45f)],                    // Empyreal Arrow → Repertoire
         [101]   = [Status(125, 20f)],                     // Raging Strikes
         [118]   = [Status(141, 20f)],                     // Battle Voice
         [114]   = [Status(2217, 45f)],                    // Mage's Ballad
@@ -632,6 +642,7 @@ internal static unsafe class JobActions
         [1870] = [ActionId(90)], [3845] = [ActionId(36953)], [3844] = [ActionId(7400)], [3846] = [ActionId(36956)],
         // MNK
         [2513] = [AnyWeaponskill()], [3843] = [ActionId(36950)], [3842] = [ActionId(36949)], [3841] = [ActionId(36944)],
+        [107] = [AnyWeaponskill()], [108] = [AnyWeaponskill()], [109] = [AnyWeaponskill()], // one form at a time: the weaponskill re-grants its own
         // NIN
         [3851] = [ActionId(36961)], [2690] = [ActionId(25777), ActionId(25778)], [2689] = [ActionId(7402), ActionId(36960)],
         [2723] = [ActionId(25774)], [3850] = [ActionId(36959), ActionId(36960)], [3848] = [ActionId(36958), ActionId(2258), ActionId(16489)],
@@ -652,7 +663,9 @@ internal static unsafe class JobActions
         [3864] = [ActionId(17209)], [3866] = [ActionId(36982)], [3865] = [ActionId(36981)], [1946] = [ActionId(16766)], // Wildfire consumed by Detonator
         // BRD
         [3861] = [ActionId(7409), ActionId(16494), ActionId(36974)], [1407] = [ActionId(7409), ActionId(16494), ActionId(36974)],
-        [3862] = [ActionId(36976)], [2692] = [ActionId(25784)], [3863] = [ActionId(36977)], [3137] = [ActionId(7404)],
+        [3862] = [ActionId(36976)], [2692] = [ActionId(25784)], [3863] = [ActionId(36977)],
+        // One song at a time: starting another ends the one playing.
+        [2216] = [ActionId(114), ActionId(116)], [2217] = [ActionId(3559), ActionId(116)], [2218] = [ActionId(3559), ActionId(114)],
         // BLM
         [165] = [ActionId(152)], [3870] = [ActionId(36986), ActionId(36987), ActionId(153), ActionId(7420), ActionId(144), ActionId(7447)],
         // SMN
@@ -666,7 +679,8 @@ internal static unsafe class JobActions
         [3017] = [ActionId(15991), ActionId(15995)], [3018] = [ActionId(15992), ActionId(15996)],
         [1820] = [ActionId(16009)], [2699] = [ActionId(25791)], [2700] = [ActionId(25792)], [2698] = [ActionId(25790)],
         [3867] = [ActionId(36983)], [3868] = [ActionId(36984)], [3869] = [ActionId(36985)],
-        [1818] = [ActionId(16003)], [1819] = [ActionId(16004)],
+        [1818] = [ActionId(16003), ActionId(16191), ActionId(16192)],
+        [1819] = [ActionId(16004), ActionId(16193), ActionId(16194), ActionId(16195), ActionId(16196)],
         // WHM / SCH / SGE
         [3879] = [ActionId(37009)],
         [3881] = [ActionId(37011)],   // Divine Grace: consumed by Divine Caress
@@ -677,8 +691,11 @@ internal static unsafe class JobActions
         // VPR
         [3772] = [ActionId(34607), ActionId(34615)], [3672] = [ActionId(34606), ActionId(34614)],
         [3645] = [ActionId(34610)], [3646] = [ActionId(34611)], [3647] = [ActionId(34612)], [3648] = [ActionId(34613)],
-        [3649] = [ActionId(34618)], [3650] = [ActionId(34619)], [3657] = [ActionId(34636)], [3658] = [ActionId(34637)],
-        [3659] = [ActionId(34638)], [3660] = [ActionId(34639)], [3665] = [ActionId(34644)], [3666] = [ActionId(34645)],
+        [3649] = [ActionId(34618)], [3650] = [ActionId(34619)],
+        // The other branch or a fresh Vicewinder / Vicepit ends a coil's or den's venom; the follow-ups
+        // that spend them (and the Poised buffs) are ViperStateHandler's, as they depend on press order.
+        [3657] = [ActionId(34622), ActionId(34620)], [3658] = [ActionId(34621), ActionId(34620)],
+        [3659] = [ActionId(34625), ActionId(34623)], [3660] = [ActionId(34624), ActionId(34623)],
         [3670] = [ActionId(34631)], [3671] = [ActionId(34626)],
         // PCT
         [3675] = [ActionId(34651), ActionId(34657), ActionId(34654), ActionId(34660)],
@@ -749,6 +766,18 @@ internal static unsafe class JobActions
     };
 
     // Generic spender pass: subtract an action's gauge cost, read straight from the sheet.
+    // Actions a status makes free, read before ClearStatuses ends it.
+    private static readonly Dictionary<uint, ushort> FreeUnder = new()
+    {
+        [34626] = 3671,   // Reawaken under Ready to Reawaken
+        // Enchanted melee under Magicked Swordplay, which spends a stack instead of the mana:
+        [7527] = 3875, [7528] = 3875, [7529] = 3875, [45960] = 3875, [45961] = 3875, [45962] = 3875,
+        [7530] = 3875, [37002] = 3875, [37003] = 3875,
+    };
+
+    public static bool IsFree(SimPlayer player, uint actionId)
+        => FreeUnder.TryGetValue(actionId, out var status) && player.HasStatus(status);
+
     public static void ApplyCost(uint actionId)
     {
         var sheet = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
@@ -768,6 +797,7 @@ internal static unsafe class JobActions
     private static IActionEffect EnemyStatus(ushort statusId, float duration, int stacks = 0) => new EnemyStatusEffect(statusId, duration, stacks);
     private static IActionEffect Combo(params IActionEffect[] inner) => new ComboEffect(inner);
     private static IActionEffect Random(float chance, params IActionEffect[] inner) => new RandomEffect(chance, inner);
+    private static IActionEffect Unlocks(uint actionId, params IActionEffect[] inner) => new UnlocksEffect(actionId, inner);
 
     private static IActionPredicate ActionId(uint id) => new ActionIdPredicate(id);
     private static IActionPredicate AnyWeaponskill() => new AnyWeaponskillPredicate();

@@ -17,4 +17,5 @@ public sealed record ActionRow(
     sbyte AttackType,
     // Aimed at a ground point: the server's ActionEffect then carries no animation target.
     bool TargetArea,
-    bool IsPlayerAction);
+    bool IsPlayerAction,
+    byte ClassJobLevel);
