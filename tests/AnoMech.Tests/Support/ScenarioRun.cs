@@ -44,6 +44,9 @@ internal sealed record ScenarioRunOptions
 
     // Edits the plugin configuration before the run.
     public Action<Configuration>? Configure { get; init; }
+
+    // How many frames an NPC's spawn packet takes to build its actor; none by default.
+    public (int Min, int Max) PacketSpawnFrames { get; init; }
 }
 
 // From the first player takeover on, the player stops following the AI, as a human who froze there
@@ -69,6 +72,7 @@ internal sealed record ScenarioRun(
         options ??= new ScenarioRunOptions();
         var fake = FakeGame.Install();
         fake.UserActions.Enabled = options.UserActionsEnabled;
+        fake.BattleCharas.PacketSpawnFrames = options.PacketSpawnFrames;
         Game? game = null;
         var log = TraceLog.Create(() => game?.World.Events.Elapsed ?? 0f);
         fake.Timeline.Clock = () => game?.World.Events.Elapsed ?? 0f;
@@ -231,6 +235,9 @@ internal sealed class ScenarioProbe(Game game, TraceLog log, Func<IEnumerable<Ao
 
     // The player keeps walking from now on, as far as stillness mechanics can tell.
     public void HoldMovementInput() => ((FakeLocalPlayerInput)Natives.PlayerInput).MovementInputActive = true;
+
+    // The player presses an instant action this frame.
+    public void PressAction() => ((FakeLocalPlayerInput)Natives.PlayerInput).PressAction();
 
     public void Log(string message) => log.Add("PROBE", message);
 

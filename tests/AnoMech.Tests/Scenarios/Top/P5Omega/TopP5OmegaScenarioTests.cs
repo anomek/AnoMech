@@ -1,5 +1,6 @@
 using System.Numerics;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Top.P5Omega;
@@ -210,6 +211,31 @@ public class TopP5OmegaScenarioTests
             .TeleportAt(59.5f, to: new(0, 14.5f))
             .ShouldKill(ActionId.HelloNearWorldJump, OffTank)
             .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank));
+
+    // A roll of its own, where nobody else is on either beam until the 48s gather: OT, holding one
+    // Blaster tether, steps onto the middle of SH's as they appear and is never given a second, as a
+    // holder never takes the other.
+    [Test]
+    public void ABlasterTetherHolderNeverTakesTheOther()
+    {
+        var shown = ShownRun.Execute(typeof(TopP5OmegaScenario), 0, 4242, new ScenarioRunOptions
+        {
+            PlayerRole = OffTank,
+            StopAt = 47.0f,
+            Overrides = o => ((TopP5OmegaStateOverrides)o).BlasterTethers = [OffTank, ShieldHealer],
+            Takeovers = [new Takeover(45.45f, null)],
+            Probe = p =>
+            {
+                if (!p.Crossed(45.5f)) return;
+                var beam = p.World.Children.OfType<SimTether>().Single(t => t.IsActive && t.TetherId == TetherId.PassableTether && t.A == p.Member(ShieldHealer));
+                p.Member(OffTank)!.SetPosition(Vector3.Lerp(beam.A!.Position, beam.B!.Position, 0.5f));
+            },
+        });
+        var offTanksTethers = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] is "0x23" or "0x2F" && ShownRun.Time(r) >= 45f
+                                                    && r["actor"] == shown.IdOf(OffTank))
+            .Select(r => (r["id"], ShownRun.Time(r) < 45.45f));
+        Assert.That(offTanksTethers, Is.EqualTo(new[] { ("0x23", true) }), "OT shows only the tether it was given");
+    }
 
     // MT and OT swap places in the second Hello World: MT takes the tether, and OT, at 3 stacks, the far jump.
     [Test]

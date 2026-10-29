@@ -56,6 +56,8 @@ public sealed class ActorControl
     private const uint GroundVfxCategory = 0xB7;
     private const uint PushCategory = 0xE1;
     private const uint LimitBreakGaugeCategory = 0x1F9;
+    private const uint ForcedMarchStepCategory = 0x602;
+    private const uint ForcedMarchEndCategory = 0x603;
 
     private const uint NoTarget = 0xE0000000;
 
@@ -241,6 +243,16 @@ public sealed class ActorControl
             (uint)MathF.Round(durationSeconds * 10000f));
 
     public void PlayActionTimeline(ushort timelineId) => Send(ActionTimelineCategory, timelineId);
+
+    // ActorControlSelf: walk on toward this point at `speed`, facing `heading`; floats as their bits.
+    public void ForcedMarchStep(Vector3 worldPoint, float heading, float speed)
+        => Send(ForcedMarchStepCategory, BitConverter.SingleToUInt32Bits(worldPoint.X), BitConverter.SingleToUInt32Bits(worldPoint.Y),
+            BitConverter.SingleToUInt32Bits(worldPoint.Z), BitConverter.SingleToUInt32Bits(heading), BitConverter.SingleToUInt32Bits(speed));
+
+    // ActorControlSelf: the march stops here.
+    public void ForcedMarchEnd(Vector3 worldPoint, float heading)
+        => Send(ForcedMarchEndCategory, BitConverter.SingleToUInt32Bits(worldPoint.X), BitConverter.SingleToUInt32Bits(worldPoint.Y),
+            BitConverter.SingleToUInt32Bits(worldPoint.Z), BitConverter.SingleToUInt32Bits(heading));
 
     // `timeline` is the ActionTimeline the carried character plays; null = force_warp.
     public void CarryTo(Vector3 worldDestination, float rotation, ushort? timeline = null)

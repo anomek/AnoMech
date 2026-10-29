@@ -1,3 +1,4 @@
+using System.Numerics;
 using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Umad.P3BlackHole;
@@ -115,6 +116,29 @@ public class UmadP3BlackHoleScenarioTests
         => BlackHole(MeleeDpsA)
             .FreezeAt(63f)
             .ShouldKill(ActionId.Nothingness, MeleeDpsA);
+
+    // MT, holding the (0,17) hole's tether at (-12.1,5.5), steps onto SH's beam from the (-17,0)
+    // hole: it takes that tether too, holding two at once.
+    [Test]
+    public void APlayerHoldingATetherTakesASecond()
+    {
+        var shown = ShownRun.Execute(typeof(UmadP3BlackHoleScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            PlayerRole = MainTank,
+            StopAt = 64.5f,
+            Overrides = o => Pin((UmadP3BlackHoleStateOverrides)o),
+            Takeovers = [new Takeover(63.5f, new Vector2(-8.95f, -8.47f))],
+        });
+        var mainTank = "0x" + shown.IdOf(MainTank);
+        var tethers = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x23" && r["p"].Split(',')[1] == "0x54").ToList();
+        var holding = tethers.Where(r => ShownRun.Time(r) < 64.4f).GroupBy(r => r["actor"]).Select(g => g.Last()).Count(r => r["p"].Split(',')[2] == mainTank);
+        var takenAfter = tethers.Any(r => ShownRun.Time(r) > 63.5f && r["p"].Split(',')[2] == mainTank);
+        Assert.Multiple(() =>
+        {
+            Assert.That(takenAfter, Is.True, "MT takes the second tether");
+            Assert.That(holding, Is.EqualTo(2), "MT holds both");
+        });
+    }
 
     // C steps to the far end of OT's beam, beside its own hole so its own beam misses OT, and
     // OT's shot spends C's crust in the same frame as OT's.

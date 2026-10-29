@@ -57,6 +57,11 @@ public static class EnemyActionEffects
     public static IEnemyActionEffect Push(float distance, float speed, float? pushDelay = null)
         => new KnockbackEffect((_, _) => (distance, speed), pushDelay);
 
+    // A Knockback row's push, for whoever `pushes` lets through (read at resolve).
+    public static IEnemyActionEffect Knockback(uint knockbackId, Func<EnemyActionContext, SimCharacter, bool> pushes, float? knockbackDelay = null)
+        => new KnockbackEffect((ctx, target) => pushes(ctx, target) && Natives.Data.Knockback(knockbackId) is { } kb ? (kb.Distance, kb.Speed) : null,
+            knockbackDelay, knockbackId);
+
     // A scripted push away from the caster, as far as `distance` says for each target (read at
     // resolve; null = not pushed). Survivors only.
     public static IEnemyActionEffect Push(Func<EnemyActionContext, SimCharacter, float?> distance, float speed, float? pushDelay = null)
@@ -77,6 +82,15 @@ public static class EnemyActionEffects
     // `effect` applied to everyone hit but the cast's target.
     public static IEnemyActionEffect OnOthers(params IEnemyActionEffect[] effect)
         => new FilteredEffect(effect, (ctx, hits) => hits.Where(t => !ReferenceEquals(t, ctx.Target)));
+
+    // `effect` applied to `who` alone, when the area caught them: the bait of an area its caster
+    // fires on itself after turning to them.
+    public static IEnemyActionEffect OnOnly(SimCharacter who, params IEnemyActionEffect[] effect)
+        => new FilteredEffect(effect, (_, hits) => hits.Where(t => ReferenceEquals(t, who)));
+
+    // `effect` applied to everyone hit but `who`.
+    public static IEnemyActionEffect OnAllBut(SimCharacter who, params IEnemyActionEffect[] effect)
+        => new FilteredEffect(effect, (_, hits) => hits.Where(t => !ReferenceEquals(t, who)));
 
     // `effect` applied to the one hit nearest the action's origin: a line stack's front bait.
     public static IEnemyActionEffect OnNearest(params IEnemyActionEffect[] effect)

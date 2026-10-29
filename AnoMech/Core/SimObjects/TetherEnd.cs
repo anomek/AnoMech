@@ -38,9 +38,9 @@ public interface ITetherEnd
     SimCharacter? Resolve(SimCharacter? self, SimCharacter? other, TetherContext ctx);
 }
 
-// What dynamic ends need to look up: the party (proximity queries) and the
-// channeling id (to skip members already holding a parallel tether of the same id).
-public readonly record struct TetherContext(CharacterFind<SimCharacter> Party, ushort TetherId, Rng Rng);
+// What dynamic ends need to look up: the party (proximity queries), the channeling id, and
+// whether a member is already on either end of a tether with that id.
+public readonly record struct TetherContext(CharacterFind<SimCharacter> Party, ushort TetherId, Rng Rng, Func<SimCharacter, ushort, bool> Tethered);
 
 // Internal — scenarios express a fixed end by passing the SimCharacter directly
 // (see the SimWorld.Tether overloads); this is just the ITetherEnd wrapper.
@@ -62,7 +62,9 @@ public abstract class DynamicEnd : ITetherEnd
 // A member must be meaningfully *ahead* of the holder on the beam to count
 // (MinInterceptForward); one standing on top of the holder isn't intercepting.
 // Skipping members who already host this id lets parallel passable tethers of the
-// same id coordinate without an external shared set.
+// same id coordinate without an external shared set. A member at the far end of one
+// can still take another, as UMAD's Black Hole lets a player do; with skipsHolders,
+// anyone at either end of a tether of this id is skipped, as TEA's Drainage does.
 //
 // The initial holder is the seed passed to End.Passable(member); with no seed
 // (End.Passable()) a random alive party member is chosen on the first resolve.
@@ -79,11 +81,13 @@ public sealed class PassableEnd : DynamicEnd
 
     private readonly SimCharacter? initial;
     private readonly float halfWidth;
+    private readonly bool skipsHolders;
 
-    internal PassableEnd(SimCharacter? initial, float halfWidth)
+    internal PassableEnd(SimCharacter? initial, float halfWidth, bool skipsHolders)
     {
         this.initial = initial;
         this.halfWidth = halfWidth;
+        this.skipsHolders = skipsHolders;
     }
 
     public override SimCharacter? Resolve(SimCharacter? self, SimCharacter? other, TetherContext ctx)
@@ -111,7 +115,7 @@ public sealed class PassableEnd : DynamicEnd
         foreach (var c in ctx.Party.InsideRect(placement, halfWidth, len))
         {
             if (ReferenceEquals(c, holder)) continue;
-            if (c.HasTetherInSlot0(ctx.TetherId)) continue;
+            if (c.HasTetherInSlot0(ctx.TetherId) || skipsHolders && ctx.Tethered(c, ctx.TetherId)) continue;
             var ddx = c.Position.X - holderPos.X;
             var ddz = c.Position.Z - holderPos.Z;
             if (ddx * fwdX + ddz * fwdZ < MinInterceptForward) continue;  // stacked on holder → not intercepting
@@ -149,7 +153,7 @@ public static class End
 {
     internal static FixedEnd Fixed(SimCharacter? character) => new(character);
     // initial = null → a random alive party member is chosen on the first resolve.
-    public static PassableEnd Passable(SimCharacter? initial = null, float halfWidth = 0.5f) => new(initial, halfWidth);
+    public static PassableEnd Passable(SimCharacter? initial = null, float halfWidth = 0.5f, bool skipsHolders = false) => new(initial, halfWidth, skipsHolders);
     public static FarthestPlayerEnd FarthestPlayer() => new();
     public static ClosestPlayerEnd ClosestPlayer() => new();
 }

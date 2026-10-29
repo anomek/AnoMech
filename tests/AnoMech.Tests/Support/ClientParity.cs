@@ -21,7 +21,7 @@ internal static partial class ClientParity
     // for its own player.
     private static readonly HashSet<uint> OwnSelf = [0x01, 0xED, 0x107];
     private static readonly HashSet<uint> PartySelf = [0xB7, 0x1F9];
-    private static readonly HashSet<uint> MotionControls = [0xDC, 0xDF, 0xE1, 0xF1];
+    private static readonly HashSet<uint> MotionControls = [0xDC, 0xDF, 0xE1, 0xF1, 0x602, 0x603];
     private const uint ZoneIn = 0xC8;
     private const uint Marking = 0x1F6;
     private const string OwnPlayer = "own player";

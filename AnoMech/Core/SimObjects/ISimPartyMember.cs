@@ -26,6 +26,13 @@ public interface ISimPartyMember : ISimObject, IPositioned
     // A no-op for humans, who press their own Sprint; only bots cast, including a debug bot in the
     // local player's seat.
     void UseSprint(float duration) { }
+
+    byte ClassJob { get; }
+
+    // Same split as UseSprint: presses `actionId` at `target` (null: themselves) with the effects
+    // JobActions gives a player's press; one aimed at an enemy lands on it (SimEnemy.Attacked).
+    // False when KO'd, locked out of actions, or the target is gone.
+    bool UseAction(uint actionId, SimCharacter? target = null) => false;
 }
 
 // Bridges the party-member death model onto SimCharacter-typed call sites. Party

@@ -1,5 +1,6 @@
 using AnoMech.Core.Native.Implementations.Pointers;
 using FFXIVClientStructs.FFXIV.Client.Game.Event;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Network;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -49,6 +50,29 @@ internal static unsafe class InstanceContentDirectorHelper
     // ActorControlSelf: p1 director id, p2 variable, p3..p8 its values.
     private const uint DirectorUpdateCategory = 0x6D;
     private const uint NoTarget = 0xE0000000;
+
+    // Same readiness contract as ProcessDirectorUpdate; a line the handler can't show is taken, so
+    // nothing retries it.
+    public static bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    {
+        if (Plugin.Game?.World.Map.IsInInstance != true)
+        {
+            Plugin.Log.Debug("[EventFrameworkHelper.BattleTalk] no sim in progress -- ignoring.");
+            return false;
+        }
+
+        var eventFramework = EventFramework.Instance();
+        var director = eventFramework == null ? null : eventFramework->GetInstanceContentDirector();
+        if (director == null) return false;
+
+        if (PacketDispatcherPointers.HandleBattleTalkPacket is not { } handle)
+        {
+            DiagnosticLog.Warn($"[EventFrameworkHelper.BattleTalk] signature not found -- text {textId} not shown.");
+            return true;
+        }
+        handle(eventFramework, director->GetEventId(), NoTarget, (byte)ObjectKind.BattleNpc, speakerNameId, textId, durationMs, 0, 0, null, 0);
+        return true;
+    }
 
     // 0 when no director is loaded.
     public static uint DirectorEventId()
