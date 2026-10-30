@@ -13,25 +13,22 @@ namespace AnoMech.Scenarios.Top.P5Sigma;
 // positions with state-aware ones (NewNorthA / SpinnerRotation / etc.) as
 // they harden the choreography. See TopP5DeltaAi for the canonical shape
 // once choreography matures (named methods, Apply-chained transforms).
-public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
+public class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
 {
-    public string Name => "Standard";
+    public virtual string Name => "Standard";
 
-    private TopP5SigmaState state = null!;
-    private RoleList markingsOrder = null!;
+    protected TopP5SigmaState state = null!;
+    protected RoleList markingsOrder = null!;
 
     public void Run(TopP5SigmaState s, SimWorld world)
     {
         state = s;
         var ai = new AiManager(world);
 
-        var handBait = state.HandBait;
-        var hWJumpsOrder = state.HelloWorldJumpOrder;
-        markingsOrder = new(world.Party, [handBait[0], hWJumpsOrder[0], handBait[1], hWJumpsOrder[1],
-                        hWJumpsOrder[2], hWJumpsOrder[3], state.HelloWorldTargets[0], state.HelloWorldTargets[1]]);
+        markingsOrder = BuildMarkingsOrder(world.Party);
 
         ai.Move(0.5f, InitialPositions);
-        ai.Move(14.1f, LineupNextToOmegaM);
+        ai.Move(14.1f, Lineup);
         ai.Move(20f, WaveCannonSpread, arrivalTime: 29f);
         ai.Move(32f, KnockbackPrePosition);
         ai.Move(36f, KnockbackPosition, jitter: 0.1f, arrivalTime: 39.5f);
@@ -43,6 +40,16 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
         ai.Move(62f, HelloWorldPositions, arrivalTime: 67f);
         ai.Move(73f, InitialPositions);
     }
+
+    protected virtual RoleList BuildMarkingsOrder(SimParty party)
+    {
+        var handBait = state.HandBait;
+        var hWJumpsOrder = state.HelloWorldJumpOrder;
+        return new(party, [handBait[0], hWJumpsOrder[0], handBait[1], hWJumpsOrder[1],
+                        hWJumpsOrder[2], hWJumpsOrder[3], state.HelloWorldTargets[0], state.HelloWorldTargets[1]]);
+    }
+
+    protected virtual IReadOnlyList<PartyRole> OmegaFOrder() => markingsOrder.List;
 
     private IAiMove InitialPositions()
     {
@@ -58,7 +65,7 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
         ).NaturalOrder();
     }
 
-    private IAiMove LineupNextToOmegaM()
+    protected virtual IAiMove Lineup()
     {
         return AiMove.Create(
             new(-2, -18), new(2, -18),
@@ -86,7 +93,7 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
         .ApplyPositions(FarGlitchWaveCannonAdjustment, state.NewNorthA.Apply);
     }
     
-    private IReadOnlyList<PartyRole> WaveCannonAssignments()
+    protected virtual IReadOnlyList<PartyRole> WaveCannonAssignments()
     {
         return [
             state.FullPair(0).left,
@@ -175,7 +182,7 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
                .ApplyPositions(state.AdjustedNorthA.Apply);
     }
 
-    private Dictionary<PartyRole, Sign> MarkerMapping()
+    protected virtual Dictionary<PartyRole, Sign> MarkerMapping()
     {
         return new Dictionary<PartyRole, Sign>()
         {
@@ -202,7 +209,7 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
             new(-6.5f, 17),
             new(-6.5f, 17)
         )
-        .Assignments(markingsOrder.List)
+        .Assignments(OmegaFOrder())
         .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);
     }
 
@@ -220,7 +227,7 @@ public sealed class TopP5SigmaAi : IScenarioAi<TopP5SigmaState>
                 new (-2f, 18f),
                 new (-2f, 18f)
             )
-            .Assignments(markingsOrder.List)
+            .Assignments(OmegaFOrder())
             .ApplyPositions(SpinnerRotation, state.NewNorthB.Apply);
     }
 

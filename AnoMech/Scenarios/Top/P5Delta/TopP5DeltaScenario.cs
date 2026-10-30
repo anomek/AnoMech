@@ -27,7 +27,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly TopP5DeltaSettingsWindow settingsWindow = new();
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5DeltaAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5DeltaAi(), new TopP5DeltaTuuflessAi()];
 
 
     private TopP5DeltaState state = null!;

@@ -12,16 +12,16 @@ namespace AnoMech.Scenarios.Top.P5Delta;
 // First AI strategy for TOP P5 Delta. Reads the shared TopP5DeltaState so its
 // movement decisions stay in sync with the scenario's randomized layout, and
 // schedules movement through World.Events so it can react to fight timestamps.
-public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
+public class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
 {
     // Tether-resolve positions in scenario-local coords (origin (0,0) = world (100,100)).
     // Even slots are caller-specified, odd slots are mirrored across the east-west axis
     // (same X, negated Z) so each pair lands on opposite sides. EyeSpawn==South flips
     // the entire layout 180° (negate both X and Z).
 
-    public string Name => "Standard";
+    public virtual string Name => "Standard";
 
-    private TopP5DeltaState state = null!;
+    protected TopP5DeltaState state = null!;
 
     public void Run(TopP5DeltaState s, SimWorld world)
     {
@@ -36,7 +36,7 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
         ai.Move(38.4f, MonitorPositions);
         ai.Move(40, MonitorAdjustment, 0);
         ai.Move(46f, SwivelDodge);
-        ai.Move(50f, RescueUnsafe);
+        ScheduleTetherBreak(ai);
         ai.Move(56f, ReturnToMiddle);
         ai.Move(56.5f, TankForward);
         ai.Move(61.0f, BreakLastTether);
@@ -48,7 +48,7 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
             s.ByPosition(0, 1);
     }
 
-    private void Swap45(IAiRoles s)
+    protected void Swap45(IAiRoles s)
     {
         if (state.FistColors[4] == state.FistColors[6])
             s.ByPosition(4, 5);
@@ -78,12 +78,12 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
         move.MultiplyY(3, mul);
     }
 
-    private void SwivelSafeSide(IAiPositions move)
+    protected void SwivelSafeSide(IAiPositions move)
     {
         move.MultiplyY(state.SwivelCannonSide.Mul * state.EyeSpawn.Mul);
     }
 
-    private void SwivelSwaps(IAiRoles s)
+    protected void SwivelSwaps(IAiRoles s)
     {
         s.ByRole(state.TetherOrder[0], state.FarWorldRole);
         s.ByRole(state.FarWorldTetherIndex == 1 ? state.TetherOrder[0] : state.TetherOrder[1] , state.NearWorldRole);
@@ -100,7 +100,7 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
         move.MultiplyY(5, cannonMul);
     }
 
-    private void AdjustEyePosition(IAiPositions move)
+    protected void AdjustEyePosition(IAiPositions move)
     {
         move.MultiplyX(state.EyeSpawn.Mul);
     }
@@ -225,7 +225,7 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
         );
     }
 
-    private IAiMove SwivelDodge()
+    protected virtual IAiMove SwivelDodge()
     {
         return AiMove.Create(
             new(0f, 19f), // far
@@ -242,7 +242,12 @@ public sealed class TopP5DeltaAi : IScenarioAi<TopP5DeltaState>
         .ApplyPositions(SwivelCannonAdjust, SwivelSafeSide, AdjustEyePosition);
     }
 
-    private IAiMove RescueUnsafe()
+    protected virtual void ScheduleTetherBreak(AiManager ai)
+    {
+        ai.Move(50f, RescueUnsafe);
+    }
+
+    protected virtual IAiMove RescueUnsafe()
     {
         return AiMove.Single(
             state.SwivelCannonSide.Mul * state.EyeSpawn.Mul > 0 ? 4 : 5,
