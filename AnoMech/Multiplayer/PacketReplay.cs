@@ -169,6 +169,9 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         foreach (var actor in spawned.Keys.ToList()) Despawn(actor);
         foreach (var tether in tethers.Values) tether.Despawn();
         tethers.Clear();
+        // A mirror's own clear goes nowhere, and our player outlives the stay: the next run's doppels
+        // take the same entity ids, so a tether left on it would show again, tied to whoever has the id.
+        if (natives.LocalPlayer.Inner is { Exists: true } self && self.GetTetherId(0) != 0) self.ActorControl(ClearTetherCategory);
         foreach (var status in shownStatuses.Values) status.Despawn();
         shownStatuses.Clear();
         waiting.Clear();

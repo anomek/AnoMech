@@ -68,6 +68,7 @@ internal static class SessionChecks
             .Where(name => name.StartsWith("actor ", StringComparison.Ordinal))
             .ToList();
         left.AddRange(peer.Game.World.Children.OfType<SimTether>().Select(t => "a tether"));
+        left.AddRange(peer.Fake.BattleCharas.Player.Tethers.Values.Where(id => id != 0).Select(id => $"tether {id} on its player"));
         if (peer.Fake.PlayerConditions.StatusAffliction) left.Add("a status lock on its player");
         if (peer.Fake.PlayerConditions.ControlAffliction) left.Add("a control lock on its player");
         left.AddRange(peer.Fake.BattleCharas.Player.Statuses.Keys.Select(id => $"status {id} on its player"));
