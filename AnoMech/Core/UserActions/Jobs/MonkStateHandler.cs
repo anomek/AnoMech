@@ -1,13 +1,15 @@
+using System;
 using AnoMech.Core.Native.Implementations;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Gauge;
 
 namespace AnoMech.Core.UserActions.Jobs;
 
-// Monk's Beast Chakra / Masterful Blitz gauge — three ordered BeastChakra slots (with their packed
-// per-type counts in BeastChakraStacks), the Nadi bitfield, and the blitz-window timer. A scalar
-// ResourceGauge can't hold this. The scalar Chakra gauge and every Form / Perfect Balance / Formless
-// Fist status stay in the JobActions data table (do not write them here).
+// Monk's Beast Chakra / Masterful Blitz gauge — three ordered BeastChakra slots, the Nadi bitfield and
+// the blitz-window timer — and the Fury stacks packed into BeastChakraStacks (Opo-opo bits 0-1,
+// Raptor 2-3, Coeurl 4-5). A scalar ResourceGauge can't hold this. The scalar Chakra gauge and every
+// Form / Perfect Balance / Formless Fist status stay in the JobActions data table (do not write them
+// here).
 //
 // Beast Chakra opens ONLY inside the Perfect Balance window — verified from the PB tooltip ("Grants
 // Opo-opo/Coeurl/Raptor Chakra depending on the form changed to"); the form GCDs themselves grant
@@ -18,6 +20,11 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
 {
     private int blitzBuildGcdsLeft;
 
+    private const uint Bootshine = 53, TrueStrike = 54, SnapPunch = 56, TwinSnakes = 61, Demolish = 66, DragonKick = 74;
+    private const uint LeapingOpo = 36945, RisingRaptor = 36946, PouncingCoeurl = 36947;
+    private const int OpoOpoFury = 0, RaptorFury = 2, CoeurlFury = 4;
+    private const int TwinSnakesFuryLevel = 30;
+
     public void OnAction(ActionType actionType, uint actionId)
     {
         if (actionType != ActionType.Action) return;
@@ -26,12 +33,13 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
         var jgm = edit.Gauge;
         if (jgm == null) return;
         var g = &jgm->Monk;
+        Fury(g, actionId);
 
         switch (actionId)
         {
             case 69:   // Perfect Balance opens the free-form build window (3 GCDs / 20s)
                 blitzBuildGcdsLeft = 3;
-                g->BlitzTimeRemaining = 20000;   // VERIFY in-game: PB window length in ms
+                g->BlitzTimeRemaining = 20000;
                 break;
 
             // Opo-opo form GCDs (Bootshine / Leaping Opo, Dragon Kick, Arm / Shadow of the Destroyer):
@@ -41,8 +49,10 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
             // Coeurl form GCDs (Snap Punch / Pouncing Coeurl, Demolish, Rockbreaker):
             case 56 or 36947 or 66 or 70: OpenChakra(g, BeastChakraType.Coeurl); break;
 
-            // Masterful Blitz base + its four resolved finishers: open a Nadi and clear the chakra.
-            case 25764 or 36948 or 25765 or 25768 or 25769: ReleaseBlitz(g); break;
+            // Masterful Blitz base + the finishers it resolves to, at every level (Elixir Field / Burst,
+            // Celestial Revolution, Flint Strike / Rising Phoenix, Tornado Kick / Phantom Rush): open a
+            // Nadi and clear the chakra.
+            case 25764 or 3545 or 36948 or 25765 or 25882 or 25768 or 3543 or 25769: ReleaseBlitz(g); break;
         }
     }
 
@@ -50,7 +60,6 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
 
     // The window also closes on its own timer; tick it so the gauge countdown stays honest and stops
     // generation if the player is slow. Built chakra is kept (Masterful Blitz has no separate gate).
-    // VERIFY in-game: whether unspent Beast Chakra survives the timer expiring.
     public void OnTick(float deltaSeconds)
     {
         if (PlayerJob.Current != JobId.Monk) return;
@@ -73,8 +82,6 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
         if (g->BeastChakra1 == BeastChakraType.None) g->BeastChakra1 = type;
         else if (g->BeastChakra2 == BeastChakraType.None) g->BeastChakra2 = type;
         else if (g->BeastChakra3 == BeastChakraType.None) g->BeastChakra3 = type;
-        else return;
-        Repack(g);
     }
 
     // Nadi opened is set by the three chakra types (Masterful Blitz tooltip): all-same -> Elixir Burst
@@ -84,7 +91,7 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
     {
         var nadi = g->Nadi;
         if (nadi.HasFlag(NadiFlags.Lunar) && nadi.HasFlag(NadiFlags.Solar))
-            g->Nadi = default;   // Phantom Rush consumes both Nadi   // VERIFY in-game
+            g->Nadi = default;   // Phantom Rush consumes both Nadi
         else
         {
             var distinct = DistinctChakra(g);
@@ -94,7 +101,6 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
         }
 
         g->BeastChakra1 = g->BeastChakra2 = g->BeastChakra3 = BeastChakraType.None;
-        g->BeastChakraStacks = 0;
         blitzBuildGcdsLeft = 0;
     }
 
@@ -108,16 +114,23 @@ internal sealed unsafe class MonkStateHandler : IUserActionHandler
         return n;
     }
 
-    // Keep the packed per-type counts (OpoOpo &3, Raptor (>>2)&3, Coeurl (>>4)&3) in sync with the slots.
-    private static void Repack(MonkGauge* g)
+    // Dragon Kick, Twin Snakes and Demolish fill their form's Fury; the form's other weaponskill spends a
+    // stack for its bonus.
+    private static void Fury(MonkGauge* g, uint actionId)
     {
-        var a = g->BeastChakra1; var b = g->BeastChakra2; var c = g->BeastChakra3;
-        int opo = Count(a, b, c, BeastChakraType.OpoOpo);
-        int rap = Count(a, b, c, BeastChakraType.Raptor);
-        int coe = Count(a, b, c, BeastChakraType.Coeurl);
-        g->BeastChakraStacks = (byte)((opo & 3) | ((rap & 3) << 2) | ((coe & 3) << 4));
+        switch (actionId)
+        {
+            case DragonKick: SetFury(g, OpoOpoFury, 1); break;
+            case TwinSnakes when Plugin.ObjectTable.LocalPlayer?.Level >= TwinSnakesFuryLevel: SetFury(g, RaptorFury, 1); break;
+            case Demolish: SetFury(g, CoeurlFury, 2); break;
+            case Bootshine or LeapingOpo: SetFury(g, OpoOpoFury, FuryOf(g, OpoOpoFury) - 1); break;
+            case TrueStrike or RisingRaptor: SetFury(g, RaptorFury, FuryOf(g, RaptorFury) - 1); break;
+            case SnapPunch or PouncingCoeurl: SetFury(g, CoeurlFury, FuryOf(g, CoeurlFury) - 1); break;
+        }
     }
 
-    private static int Count(BeastChakraType a, BeastChakraType b, BeastChakraType c, BeastChakraType t)
-        => (a == t ? 1 : 0) + (b == t ? 1 : 0) + (c == t ? 1 : 0);
+    private static int FuryOf(MonkGauge* g, int shift) => (g->BeastChakraStacks >> shift) & 3;
+
+    private static void SetFury(MonkGauge* g, int shift, int stacks)
+        => g->BeastChakraStacks = (byte)((g->BeastChakraStacks & ~(3 << shift)) | (Math.Max(stacks, 0) << shift));
 }

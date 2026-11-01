@@ -256,14 +256,21 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput
         // The hotbar presses the button's own id; what runs is what the button is adjusted to, which
         // the action itself can change (enchanted melee spending the mana its swap depends on).
         var ran = actionType == ActionType.Action ? self->GetAdjustedActionId(actionId) : actionId;
+        var sequence = self->LastUsedActionSequence;
         var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
         if (result)
         {
             actionUsedSincePoll = true;
-            ActionExecuted?.Invoke(actionType, ran, targetId);
+            // A press during the GCD succeeds by queueing; it runs later, through here again. Reporting
+            // it now would apply its effects before it runs and can leave it unusable when it does.
+            if (!Queued(self, actionId, ran, sequence)) ActionExecuted?.Invoke(actionType, ran, targetId);
         }
         return result;
     }
+
+    private static bool Queued(ActionManager* self, uint actionId, uint ran, uint sequence)
+        => self->ActionQueued && (self->QueuedActionId == actionId || self->QueuedActionId == ran)
+           && self->LastUsedActionSequence == sequence;
 
     private bool UseActionLocationDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, Vector3* location, uint extraParam, byte a7)
     {

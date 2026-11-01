@@ -24,9 +24,9 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Hakke Mujinsatsu | 16488 | ✅ | combo Ninki +5 |
 | Armor Crush | 3563 | ✅ | combo Ninki +15; Kazematoi +2 |
 | Dream Within a Dream | 3566 | ➖ | |
-| Hellfrog Medium | 7401 | ✅ | Ninki −50 (native cost); → Deathfrog Medium under Higi (handler swap) |
+| Hellfrog Medium | 7401 | ✅ | Ninki −50 (native cost); → Deathfrog Medium under Higi with 50 Ninki (handler swap) |
 | Dokumori | 36957 | ✅ | Ninki +40; grants Higi |
-| Bhavacakra | 7402 | ✅ | Ninki −50 (native cost); → Zesho Meppo under Higi (handler swap) |
+| Bhavacakra | 7402 | ✅ | Ninki −50 (native cost); → Zesho Meppo under Higi with 50 Ninki (handler swap) |
 | Ten Chi Jin | 7403 | ✅ | TCJ + Tenri Jindo Ready set; Ten/Chi/Jin step through its three jutsu; a spent mudra isn't greyed out |
 | Meisui | 16489 | ✅ | Ninki +50; grants Meisui; dispels Shadow Walker |
 | Bunshin | 16493 | ✅ | Ninki −50; Bunshin + PK Ready; per-hit +5 trickle not modelled |

@@ -28,7 +28,8 @@ internal sealed unsafe class DancerStateHandler : IUserActionHandler
             case 15999 or 16000 or 16001 or 16002:  // Emboite / Entrechat / Jete / Pirouette
                 if (jgm->Dancer.StepIndex < 4) jgm->Dancer.StepIndex++;
                 break;
-            case 16003 or 16004: ClearDance(jgm); break;   // Standard / Technical Finish
+            // Standard / Technical Finish, and the forms they resolve to by steps danced:
+            case 16003 or 16004 or >= 16191 and <= 16196: ClearDance(jgm); break;
         }
     }
 
