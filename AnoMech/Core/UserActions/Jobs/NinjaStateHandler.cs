@@ -63,8 +63,9 @@ internal sealed unsafe class NinjaStateHandler : IUserActionHandler
     public uint? AdjustActionId(uint actionId)
     {
         if (PlayerJob.Current != JobId.Ninja) return null;
+        // Retail swaps them only once Higi is up and the Ninki for them is there.
         if (actionId is HellfrogMedium or Bhavacakra)
-            return HasStatus(HigiStatus) ? actionId == HellfrogMedium ? DeathfrogMedium : ZeshoMeppo : null;
+            return HasStatus(HigiStatus) && Ninki() >= HigiFormNinki ? actionId == HellfrogMedium ? DeathfrogMedium : ZeshoMeppo : null;
         if (InTenChiJin())
             return actionId is Ten or Chi or Jin && Mudra(actionId) is { } mudra && !tenChiJinSpent.Contains(mudra)
                 ? TenChiJinJutsu[tenChiJinSpent.Count][mudra - 1]
@@ -94,7 +95,7 @@ internal sealed unsafe class NinjaStateHandler : IUserActionHandler
         var open = actionId switch
         {
             TenMudra or ChiMudra or JinMudra => !InTenChiJin() && MudrasOpen(),
-            DeathfrogMedium or ZeshoMeppo => HasStatus(HigiStatus) && JobGaugeManager.Instance()->Ninja.Ninki >= HigiFormNinki,
+            DeathfrogMedium or ZeshoMeppo => HasStatus(HigiStatus) && Ninki() >= HigiFormNinki,
             _ => false,
         };
         if (!open) return null;
@@ -187,6 +188,12 @@ internal sealed unsafe class NinjaStateHandler : IUserActionHandler
         => actionId is >= FumaShuriken and <= RabbitMedium or GokaMekkyaku or HyoshoRanryu;
 
     private static bool HasStatus(ushort status) => Plugin.Game?.Player is { } player && player.HasStatus(status);
+
+    private static int Ninki()
+    {
+        var jgm = JobGaugeManager.Instance();
+        return jgm == null ? 0 : jgm->Ninja.Ninki;
+    }
 
     private void ClearMudras()
     {
