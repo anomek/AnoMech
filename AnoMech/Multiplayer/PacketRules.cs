@@ -58,7 +58,7 @@ internal static class PacketRules
         [0xB7] = new(EachOwnPlayer),                            // ground VFX
         [0xC8] = new(ZoneIn, OwnPlayer: true),                  // zone-in
         [0xDC] = new(Movement, OwnPlayer: true),                // gimmick jump
-        [0xDF] = new(Movement, OwnPlayer: true),                // slide
+        [0xDF] = new(Movement),                                 // slide
         [0xE1] = new(Movement, OwnPlayer: true),                // push
         [0xED] = new(SeatOwner, OwnPlayer: true),               // fell out of the arena
         [0xF1] = new(Movement, OwnPlayer: true),                // warp

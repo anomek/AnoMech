@@ -161,7 +161,8 @@ public abstract class SimCharacter : ISimObject, IPositioned
 
     // Replay (FRU P2 Frost Armor): ActorControl 0xDF on every sliding player, p1/p2 the quantized
     // destination and the slide's heading, p4 ActionTimeline icefloor_short.
-    // Sim: 0xDF for player and bot alike; no ActorMove while it plays.
+    // Sim: 0xDF for a bot, with no ActorMove while it plays; the local player's client ignores it
+    // and slides them itself, off their movement input.
     public void IceSlideTo(Vector3 destination, float durationSeconds) => Force(new ForcedMove.IceSlide(destination, durationSeconds));
 
     // A mechanic's snap, which a remote player's own client has to make; SetPosition is the

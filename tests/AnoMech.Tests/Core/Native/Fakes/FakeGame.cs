@@ -98,8 +98,25 @@ internal sealed class FakeGame
     private void WalkSteeredPlayer(float deltaSeconds)
     {
         if (PlayerInput.SteerDirection is not { } dir) return;
+        var player = BattleCharas.Player;
+        if (player.Statuses.Values.Any(s => s.StatusId == ThinIce))
+        {
+            SlideOnThinIce(player, dir);
+            return;
+        }
         var step = dir * PlayerInput.SteerSpeed * deltaSeconds;
-        BattleCharas.Player.Position += new System.Numerics.Vector3(step.X, 0f, step.Y);
-        BattleCharas.Player.Rotation = MathF.Atan2(dir.X, dir.Y);
+        player.Position += new System.Numerics.Vector3(step.X, 0f, step.Y);
+        player.Rotation = MathF.Atan2(dir.X, dir.Y);
+    }
+
+    private const ushort ThinIce = 911;
+
+    // The client's own slide: along the movement input, the status's param in tenths of a yalm, deaf
+    // to input until it stops. A key still held then starts the next one.
+    private static void SlideOnThinIce(FakeCharacter player, System.Numerics.Vector2 dir)
+    {
+        if (player.Sliding) return;
+        var distance = player.Statuses.Values.First(s => s.StatusId == ThinIce).Param / 10f;
+        player.StartSlide(player.Position + new System.Numerics.Vector3(dir.X, 0f, dir.Y) * distance, MathF.Atan2(dir.X, dir.Y));
     }
 }
