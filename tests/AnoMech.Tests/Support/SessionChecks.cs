@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text.Json;
 using AnoMech.Core.Game;
 using AnoMech.Core.SimObjects;
@@ -60,18 +61,36 @@ internal static class SessionChecks
         lock (peer.Log.Lines) return peer.Log.Lines.Where(l => l.Contains("[Multiplayer] Peer: run clock", StringComparison.Ordinal)).ToList();
     }
 
-    // What the host's packets left on a peer's client.
-    public static List<string> Leftovers(TestClient peer)
+    // All the client shows of its own player, read off the fake field by field, so a field the fake
+    // gains is covered without anyone listing it. Left out: where they stand, which is the zone's,
+    // the numbers of a cast that has ended, and a slide, which ends on its own.
+    public static Dictionary<string, string> OwnPlayer(TestClient client)
     {
-        var left = peer.Fake.BattleCharas.LiveEntityIds.Concat(peer.Fake.EventObjects.LiveEntityIds)
+        string[] notKept = [nameof(FakeCharacter.Position), nameof(FakeCharacter.Rotation), nameof(FakeCharacter.CastActionId),
+            nameof(FakeCharacter.CurrentCastTime), nameof(FakeCharacter.TotalCastTime), nameof(FakeCharacter.Sliding)];
+        var player = client.Fake.BattleCharas.Player;
+        return typeof(FakeCharacter).GetProperties().Where(p => !notKept.Contains(p.Name)).ToDictionary(p => p.Name, p => p.GetValue(player) switch
+        {
+            IDictionary entries => string.Join(" ", entries.Keys.Cast<object>().OrderBy(k => k.ToString())),
+            var value => value?.ToString() ?? "",
+        });
+    }
+
+    // What the host's packets left on a peer's client, against its player as the session found it.
+    public static List<string> Leftovers(TestClient peer, IReadOnlyDictionary<string, string> asFound)
+    {
+        var charas = peer.Fake.BattleCharas;
+        var left = charas.LiveEntityIds.Concat(peer.Fake.EventObjects.LiveEntityIds)
             .Select(id => peer.NameAt(id, double.MaxValue))
             .Where(name => name.StartsWith("actor ", StringComparison.Ordinal))
             .ToList();
         left.AddRange(peer.Game.World.Children.OfType<SimTether>().Select(t => "a tether"));
-        left.AddRange(peer.Fake.BattleCharas.Player.Tethers.Values.Where(id => id != 0).Select(id => $"tether {id} on its player"));
         if (peer.Fake.PlayerConditions.StatusAffliction) left.Add("a status lock on its player");
         if (peer.Fake.PlayerConditions.ControlAffliction) left.Add("a control lock on its player");
-        left.AddRange(peer.Fake.BattleCharas.Player.Statuses.Keys.Select(id => $"status {id} on its player"));
+        foreach (var (field, now) in OwnPlayer(peer))
+            if (now != asFound[field]) left.Add($"its player's {field}: {now}, was {asFound[field]}");
+        foreach (var kept in charas.LiveEntityIds.Select(charas.Find).OfType<FakeCharacter>().Where(c => c.Tethers.Count + c.Statuses.Count > 0))
+            left.Add($"{peer.NameAt(kept.EntityId, double.MaxValue)}'s tether or statuses");
         return left;
     }
 

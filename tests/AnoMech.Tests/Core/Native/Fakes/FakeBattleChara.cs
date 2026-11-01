@@ -175,7 +175,7 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
                 if (Actor is { } tethered) tethered.Tethers[0] = (ushort)arg2;
                 break;
             case 0x2F: // tether clear, slot 0
-                if (Actor is { } cleared) cleared.Tethers[0] = 0;
+                Actor?.Tethers.Remove(0);
                 break;
             case 0x36: // targetable
                 if (Actor is { } t)

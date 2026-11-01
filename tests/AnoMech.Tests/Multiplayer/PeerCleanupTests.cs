@@ -1,15 +1,16 @@
 using AnoMech.Core.Game.Party;
-using AnoMech.Scenarios.Fru.P2LightRampant;
-using AnoMech.Scenarios.Umad.P3BlackHole;
+using AnoMech.Scenarios;
 
 namespace AnoMech.Tests;
 
-// However a peer's run ends, nothing the host's packets put on its client stays: no copy of an
-// actor or event object the host spawned, no tether shown for one, and its own player without the
-// host's statuses, control locks or tether. Fights ended mid-way each way a run can end for a peer.
+// However a peer's run ends, its client is left as the run found it: no copy of an actor or event
+// object the host spawned, no tether shown for one, and its own player and the characters it keeps
+// as they were; the host's too, once it has left. Every multiplayer fight, ended each way a run can
+// end for a peer, at the moment it has the most on a peer's player: a leftover only shows where the
+// fight put something there.
 public class PeerCleanupTests
 {
-    private const double EndAt = 20;
+    private const PartyRole HostSeat = PartyRole.MeleeDpsA;
     // Down for longer than any run lasts.
     private const double Forever = 1e6;
     // Long enough for the host to end the run over a peer that stopped answering.
@@ -21,84 +22,113 @@ public class PeerCleanupTests
         HostLeavesTheFight,
         HostLeavesTheSession,
         HostVanishes,
+        PeerAsksToReset,
         PeerAsksToLeaveTheFight,
         PeerLeavesTheSession,
         PeerIsKicked,
         PeerLosesItsLinkThenLeaves,
     }
 
-    [TestCase(Ending.HostResets)]
-    [TestCase(Ending.HostLeavesTheFight)]
-    [TestCase(Ending.HostLeavesTheSession)]
-    [TestCase(Ending.HostVanishes)]
-    [TestCase(Ending.PeerAsksToLeaveTheFight)]
-    [TestCase(Ending.PeerLeavesTheSession)]
-    [TestCase(Ending.PeerIsKicked)]
-    [TestCase(Ending.PeerLosesItsLinkThenLeaves)]
-    public void APeerKeepsNothingOfTheHostsOnceItsRunEnds(Ending ending)
-    {
-        TestRelay? relay = null;
-        List<string> before = [];
-        var inputs = Inputs(ending, () => relay!).Prepend((EndAt - 0.5, 1, peer => before = SessionChecks.Leftovers(peer))).ToList();
-        var run = MultiplayerRun.Play(typeof(UmadP3BlackHoleScenario), 0, 1, new PlayerSeat(PartyRole.MeleeDpsA), [new PlayerSeat(PartyRole.CasterDps)],
-            immortal: true, interrupt: r => relay = r, inputs: inputs);
-        Assert.That(run.Failure, Is.Null);
-        Assert.That(run.InputsLeft, Is.Zero, "the run ended before the ending");
-        Assert.That(before, Is.Not.Empty, "the peer had nothing of the host's to keep");
-        Assert.That(SessionChecks.Leftovers(run.Peers[0]), Is.Empty);
-    }
+    private static IEnumerable<TestCaseData> Cases() =>
+        from scenario in ScenarioCatalog.Create().Scenarios.Where(s => s.SupportsMultiplayer)
+        from ending in Enum.GetValues<Ending>()
+        select new TestCaseData(scenario.GetType(), ending).SetArgDisplayNames(scenario.FullName(), ending.ToString());
 
-    // The peer's player outlives the stay, and the next run's doppels come back with the same
-    // entity ids: a chain left on it reappears, tied to whoever now holds the id.
-    [Test]
-    public void APeersPlayerKeepsNoChainOnceItsRunEnds([Values] Ending ending)
+    [TestCaseSource(nameof(Cases))]
+    public void AnEndedRunLeavesAPeersClientAsItFoundIt(Type scenarioType, Ending ending)
     {
-        const PartyRole chained = PartyRole.ShieldHealer;
+        var (seat, at) = Busiest(scenarioType);
         TestRelay? relay = null;
-        ushort held = 0;
-        var inputs = Inputs(ending, () => relay!)
-            .Prepend((EndAt - 0.5, 1, peer => held = peer.Fake.BattleCharas.Player.Tethers.GetValueOrDefault((byte)0))).ToList();
-        var run = MultiplayerRun.Play(typeof(FruP2LightRampantScenario), 0, 1, new PlayerSeat(PartyRole.RegenHealer), [new PlayerSeat(chained)],
-            immortal: true, interrupt: r => relay = r, inputs: inputs,
-            configure: client =>
+        var asFound = new Dictionary<string, Dictionary<string, string>>();
+        List<string> before = [];
+        var inputs = Inputs(ending, at, () => relay!).Prepend((at - 0.5, 1, peer => before = SessionChecks.Leftovers(peer, asFound[peer.Name]))).ToList();
+        var run = MultiplayerRun.Play(scenarioType, 0, 1, new PlayerSeat(HostSeat), [new PlayerSeat(seat)], immortal: true,
+            interrupt: r => relay = r, inputs: inputs,
+            beforeFrame: client =>
             {
-                if (client.IsHost)
-                    ((FruP2LightRampantStateOverrides)client.Game.Catalog.Scenarios.OfType<FruP2LightRampantScenario>().Single().SettingsOverrides).Duty[chained] = LightRampantDuty.Tether;
+                if (!asFound.ContainsKey(client.Name)) asFound[client.Name] = SessionChecks.OwnPlayer(client);
             });
         Assert.That(run.Failure, Is.Null);
         Assert.That(run.InputsLeft, Is.Zero, "the run ended before the ending");
-        Assert.That(held, Is.Not.Zero, "the peer's player held no chain");
-        Assert.That(run.Peers[0].Fake.BattleCharas.Player.Tethers.Values.Where(id => id != 0), Is.Empty);
+        Assert.That(before, Is.Not.Empty, "the peer had nothing of the host's to keep");
+        Assert.That(SessionChecks.Leftovers(run.Peers[0], asFound[run.Peers[0].Name]), Is.Empty, () => $"{seat}, ended at {at:F1}s");
+        if (!run.Host.Game.World.Map.IsInInstance)
+            Assert.That(SessionChecks.Leftovers(run.Host, asFound[run.Host.Name]), Is.Empty, () => $"the host, ended at {at:F1}s");
     }
 
-    private static IEnumerable<(double At, int Client, Action<TestClient> Input)> Inputs(Ending ending, Func<TestRelay> relay)
+    private static readonly Dictionary<Type, (PartyRole Seat, double At)> Scanned = new();
+
+    // The seat and moment a fight puts the most on a peer's player, a tether above all: every seat
+    // a peer's, played through once, and the middle of the longest stretch that holds the most. One
+    // that never touches a player comes out as the middle of the fight, with its actors to clear.
+    private static (PartyRole Seat, double At) Busiest(Type scenarioType)
+    {
+        if (Scanned.TryGetValue(scenarioType, out var known)) return known;
+        var held = new Dictionary<PartyRole, List<(double At, int Weight)>>();
+        var run = MultiplayerRun.Play(scenarioType, 0, 1, new PlayerSeat(HostSeat),
+            Enum.GetValues<PartyRole>().Where(r => r != HostSeat).Select(r => new PlayerSeat(r)).ToList(), immortal: true,
+            beforeFrame: client =>
+            {
+                if (client.IsHost || client.Game.ActiveScenario is null) return;
+                var player = client.Fake.BattleCharas.Player;
+                if (!held.TryGetValue(client.Seat, out var track)) held[client.Seat] = track = [];
+                track.Add((client.Game.Events.Elapsed, 100 * player.Tethers.Count + player.Statuses.Count));
+            });
+        Assert.That(run.Failure, Is.Null);
+        var most = held.Select(h => Longest(h.Key, h.Value)).MaxBy(s => (s.Weight, s.Seconds));
+        return Scanned[scenarioType] = (most.Seat, most.At);
+    }
+
+    private static (int Weight, double Seconds, PartyRole Seat, double At) Longest(PartyRole seat, List<(double At, int Weight)> track)
+    {
+        var most = track.Max(t => t.Weight);
+        var (longest, middle, from) = (0.0, 0.0, -1);
+        for (var i = 0; i <= track.Count; i++)
+        {
+            if (i < track.Count && track[i].Weight == most)
+            {
+                if (from < 0) from = i;
+                continue;
+            }
+            if (from < 0) continue;
+            var (start, end) = (track[from].At, track[i - 1].At);
+            if (end - start > longest) (longest, middle) = (end - start, (start + end) / 2);
+            from = -1;
+        }
+        return (most, longest, seat, middle);
+    }
+
+    private static IEnumerable<(double At, int Client, Action<TestClient> Input)> Inputs(Ending ending, double at, Func<TestRelay> relay)
     {
         switch (ending)
         {
             case Ending.HostResets:
-                yield return (EndAt, 0, host => host.Game.Reset());
+                yield return (at, 0, host => host.Game.Reset());
                 break;
             case Ending.HostLeavesTheFight:
-                yield return (EndAt, 0, host => host.Game.Leave());
+                yield return (at, 0, host => host.Game.Leave());
                 break;
             case Ending.HostLeavesTheSession:
-                yield return (EndAt, 0, LeaveSession);
+                yield return (at, 0, LeaveSession);
                 break;
             case Ending.HostVanishes:
-                yield return (EndAt, 0, _ => relay().Schedule(0, relay().Now, new LinkDrops(Forever)));
+                yield return (at, 0, _ => relay().Schedule(0, relay().Now, new LinkDrops(Forever)));
+                break;
+            case Ending.PeerAsksToReset:
+                yield return (at, 1, peer => peer.Multiplayer.RequestReset());
                 break;
             case Ending.PeerAsksToLeaveTheFight:
-                yield return (EndAt, 1, peer => peer.Multiplayer.RequestLeaveInstance());
+                yield return (at, 1, peer => peer.Multiplayer.RequestLeaveInstance());
                 break;
             case Ending.PeerLeavesTheSession:
-                yield return (EndAt, 1, LeaveSession);
+                yield return (at, 1, LeaveSession);
                 break;
             case Ending.PeerIsKicked:
-                yield return (EndAt, 0, host => host.Multiplayer.KickPeer(host.Multiplayer.Session.Names.Keys.First(id => id != host.PeerId)));
+                yield return (at, 0, host => host.Multiplayer.KickPeer(host.Multiplayer.Session.Names.Keys.First(id => id != host.PeerId)));
                 break;
             case Ending.PeerLosesItsLinkThenLeaves:
-                yield return (EndAt, 1, _ => relay().Schedule(1, relay().Now, new LinkDrops(Forever)));
-                yield return (EndAt + GiveUpAfter, 1, LeaveSession);
+                yield return (at, 1, _ => relay().Schedule(1, relay().Now, new LinkDrops(Forever)));
+                yield return (at + GiveUpAfter, 1, LeaveSession);
                 break;
         }
     }

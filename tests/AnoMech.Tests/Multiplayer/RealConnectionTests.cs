@@ -108,11 +108,12 @@ public class RealConnectionTests
         var leaving = leaver == Leaver.TheHost ? 0 : 1;
         var (leftAt, leftId) = (double.NaN, Guid.Empty);
         List<string> before = [];
+        var asFound = new Dictionary<string, Dictionary<string, string>>();
         var learned = new Dictionary<string, double>();
         var run = MultiplayerRun.Play(MidFight, 0, 1, Host, FewPeers, immortal: true, liveConnection: true, network: n => network = n,
             inputs:
             [
-                (BreakAt - 0.5, 1, peer => before = SessionChecks.Leftovers(peer)),
+                (BreakAt - 0.5, 1, peer => before = SessionChecks.Leftovers(peer, asFound[peer.Name])),
                 (BreakAt, leaving, client =>
                 {
                     (leftAt, leftId) = (network.Now, client.PeerId);
@@ -122,6 +123,7 @@ public class RealConnectionTests
             ],
             beforeFrame: client =>
             {
+                if (!asFound.ContainsKey(client.Name)) asFound[client.Name] = SessionChecks.OwnPlayer(client);
                 if (double.IsNaN(leftAt) || client.PeerId == leftId || learned.ContainsKey(client.Name)) return;
                 var told = leaver == Leaver.TheHost ? client.Multiplayer.SessionCode == null
                     : client.IsHost ? !client.Multiplayer.Session.Names.ContainsKey(leftId) : client.Game.ActiveScenario == null;
@@ -138,7 +140,7 @@ public class RealConnectionTests
             else TestContext.Out.WriteLine($"{client.Name} learned {left.Name} left {after:F2}s after");
         }
         foreach (var peer in run.Peers)
-            problems.AddRange(SessionChecks.Leftovers(peer).Select(thing => $"{peer.Name} kept {thing}"));
+            problems.AddRange(SessionChecks.Leftovers(peer, asFound[peer.Name]).Select(thing => $"{peer.Name} kept {thing}"));
         Verify(run, problems);
     }
 
