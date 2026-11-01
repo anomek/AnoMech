@@ -79,6 +79,14 @@ internal sealed class FakeCharacter(uint entityId, string name)
     // UNVERIFIED: how long the client slides; the packet carries no duration.
     public void StartSlide(Vector3 destination, float rotation) => StartGlide(destination, rotation);
 
+    // The local player's own slide across Thin Ice.
+    public void StartSlide(Vector3 destination, float rotation, float seconds)
+    {
+        Rotation = rotation;
+        glideStep = (destination - Position) / seconds;
+        glideRemaining = seconds;
+    }
+
     public bool Sliding => glideRemaining > 0f;
 
     public void Teleport(Vector3 position, float rotation)

@@ -16,7 +16,7 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
 
     private static readonly int[] Clocks = [0, 2, 6, 4, 5, 3, 7, 1];
     private const float SlideDistance = 32f;
-    private const float SlideSeconds = 1f;
+    private const float SlideSeconds = 1.6f;
     private const float PuddleRadius = 6f;
     private const float NeedleCircleRadius = 5f;
     private const float NeedleLineHalfWidth = 2.5f;
@@ -47,8 +47,8 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
         ai.Move(HolyAt(HolyWaves), () => ByRole(IceSpot), arrivalTime: 39.9f);
         world.Events.Add(39.9f, FaceAwayFromGaze);
         world.Events.Add(IceStart + 0.2f, () => SlideBots(behind: false, recovery: true));
-        world.Events.Add(45.05f, () => SlideBots(behind: state.Stillness));
-        world.Events.Add(47.4f, () => SlideBots(behind: !state.Stillness));
+        world.Events.Add(44.2f, () => SlideBots(behind: state.Stillness));
+        world.Events.Add(46.6f, () => SlideBots(behind: !state.Stillness));
         world.Events.Add(IceEnd, puddles.Clear);
         ai.Move(IceEnd + 0.3f, () => ByRole(_ => new Vector3(0, 0, 4)));
     }

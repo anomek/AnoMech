@@ -110,6 +110,7 @@ internal sealed class FakeGame
     }
 
     private const ushort ThinIce = 911;
+    private const float ThinIceSlideSpeed = 20f;
 
     // The client's own slide: along the movement input, the status's param in tenths of a yalm, deaf
     // to input until it stops. A key still held then starts the next one.
@@ -117,6 +118,6 @@ internal sealed class FakeGame
     {
         if (player.Sliding) return;
         var distance = player.Statuses.Values.First(s => s.StatusId == ThinIce).Param / 10f;
-        player.StartSlide(player.Position + new System.Numerics.Vector3(dir.X, 0f, dir.Y) * distance, MathF.Atan2(dir.X, dir.Y));
+        player.StartSlide(player.Position + new System.Numerics.Vector3(dir.X, 0f, dir.Y) * distance, MathF.Atan2(dir.X, dir.Y), distance / ThinIceSlideSpeed);
     }
 }

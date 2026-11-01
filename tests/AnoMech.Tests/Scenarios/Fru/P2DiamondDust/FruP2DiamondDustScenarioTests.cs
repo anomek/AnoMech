@@ -60,6 +60,24 @@ public class FruP2DiamondDustScenarioTests
         Assert.That(apart, Is.LessThan(3f));
     }
 
+    // A cleave takes whoever is on the wrong side as it resolves, so a slide has to be over by then.
+    [Test]
+    public void TheDebugDrivenPlayerClearsBothCleaves([Range(0, 7)] int mirror, [Values] bool stillness)
+    {
+        var run = ScenarioRun.Execute(typeof(FruP2DiamondDustScenario), 0, 1, new ScenarioRunOptions
+        {
+            PlayerRole = RegenHealer,
+            Overrides = o =>
+            {
+                var overrides = (FruP2DiamondDustStateOverrides)o;
+                Pin(overrides);
+                overrides.MirrorOctant = mirror;
+                overrides.Stillness = stillness;
+            },
+        });
+        Assert.That(run.Passed, run.ToString);
+    }
+
     [Test]
     public void StayingInForAxeKickDies()
         => DiamondDust(MainTank)
