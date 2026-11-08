@@ -1,3 +1,4 @@
+using System.Numerics;
 using AnoMech.Core.Game.Party;
 using AnoMech.Scenarios;
 using AnoMech.Scenarios.Fru.P3UltimateRelativity;
@@ -25,24 +26,29 @@ public class FruP3UltimateRelativityScenarioTests
         => Negative<FruP3UltimateRelativityScenario>(player)
             .Overrides<FruP3UltimateRelativityStateOverrides>(o =>
             {
-                o.Debuffs = new Dictionary<PartyRole, RelativityDebuff>
-                {
-                    [MeleeDpsA] = RelativityDebuff.ShortDps,
-                    [MeleeDpsB] = RelativityDebuff.ShortDps,
-                    [PhysRangedDps] = RelativityDebuff.MediumDps,
-                    [CasterDps] = RelativityDebuff.LongDps,
-                    [MainTank] = RelativityDebuff.ShortSupport,
-                    [OffTank] = RelativityDebuff.MediumSupport,
-                    [RegenHealer] = RelativityDebuff.LongSupport,
-                    [ShieldHealer] = RelativityDebuff.LongSupport,
-                };
-                o.DpsIce = true;
-                o.North = 0;
-                o.ClockwiseMask = 0;
-                o.Darkness = [RegenHealer, MainTank, OffTank];
-                o.ShellCrusherTarget = MainTank;
+                Pin(o);
                 tweak?.Invoke(o);
             });
+
+    private static void Pin(FruP3UltimateRelativityStateOverrides o)
+    {
+        o.Debuffs = new Dictionary<PartyRole, RelativityDebuff>
+        {
+            [MeleeDpsA] = RelativityDebuff.ShortDps,
+            [MeleeDpsB] = RelativityDebuff.ShortDps,
+            [PhysRangedDps] = RelativityDebuff.MediumDps,
+            [CasterDps] = RelativityDebuff.LongDps,
+            [MainTank] = RelativityDebuff.ShortSupport,
+            [OffTank] = RelativityDebuff.MediumSupport,
+            [RegenHealer] = RelativityDebuff.LongSupport,
+            [ShieldHealer] = RelativityDebuff.LongSupport,
+        };
+        o.DpsIce = true;
+        o.North = 0;
+        o.ClockwiseMask = 0;
+        o.Darkness = [RegenHealer, MainTank, OffTank];
+        o.ShellCrusherTarget = MainTank;
+    }
 
     [Test]
     public void DarkFiresStackedDie()
@@ -70,6 +76,30 @@ public class FruP3UltimateRelativityScenarioTests
         => Relativity(RegenHealer)
             .MoveBotAt(42.5f, MeleeDpsA, to: new(0, 9))
             .ShouldKillNoOneElse();
+
+    // Done with their fire, the 20 s players wait in the middle while the 10 s players bait.
+    [Test]
+    public void TwentySecondPlayersWaitMidThroughTheSecondBaits()
+    {
+        var away = new List<string>();
+        var run = ScenarioRun.Execute(typeof(FruP3UltimateRelativityScenario), 0, 7, new ScenarioRunOptions
+        {
+            PlayerRole = MainTank,
+            Overrides = o => Pin((FruP3UltimateRelativityStateOverrides)o),
+            Probe = p =>
+            {
+                if (!p.Crossed(36.5f) && !p.Crossed(37.8f)) return;
+                foreach (var role in new[] { PhysRangedDps, OffTank })
+                {
+                    var member = p.Member(role)!;
+                    var radius = new Vector2(member.Position.X, member.Position.Z).Length();
+                    if (radius > 2f) away.Add($"{role} {radius:F1}y out at {p.Time:F1}");
+                }
+            },
+        });
+        Assert.That(run.Passed, run.ToString);
+        Assert.That(away, Is.Empty);
+    }
 
     [Test]
     public void UnholyDarknessShortABodyKillsStackers()

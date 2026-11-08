@@ -27,20 +27,20 @@ public sealed class FruP3UltimateRelativityAi : IScenarioAi<FruP3UltimateRelativ
         ai.Move(1f, () => ByRole(CenterSpot));
         ai.Move(19.2f, () => ByRole(role => FireSpot(role, 0)), arrivalTime: FireAt(0));
         ai.Move(23.9f, () => ByRole(role => BaitSpot(role, 0)), arrivalTime: ReturnAt(earlyReturn: true));
-        LeaveLaserNowOthersArriveBy(ai, 28.6f, 0, role => FireSpot(role, 1, intermediate: true), arrivalTime: 30.6f);
+        LeaveNowOthersArriveBy(ai, 28.6f, role => BaitedLaser(role, 0), role => FireSpot(role, 1, intermediate: true), arrivalTime: 30.6f);
         ai.Move(30.6f, () => ByRole(role => FireSpot(role, 1)), jitter: 0f, arrivalTime: FireAt(1));
-        ai.Move(34f, () => ByRole(role => BaitSpot(role, 1)), arrivalTime: ReturnAt(earlyReturn: false));
-        LeaveLaserNowOthersArriveBy(ai, 38.7f, 1, role => FireSpot(role, 2), arrivalTime: FireAt(2));
+        LeaveNowOthersArriveBy(ai, 34f, role => FireWave(state.Debuff(role)) == 1, role => BaitSpot(role, 1), arrivalTime: ReturnAt(earlyReturn: false));
+        LeaveNowOthersArriveBy(ai, 38.7f, role => BaitedLaser(role, 1), role => FireSpot(role, 2), arrivalTime: FireAt(2));
         ai.Move(45f, () => ByRole(role => BaitSpot(role, 2)), arrivalTime: LaserHitAt(2, 0));
-        LeaveLaserNowOthersArriveBy(ai, 49.1f, 2, CenterSpot, arrivalTime: 51f);
+        LeaveNowOthersArriveBy(ai, 49.1f, role => BaitedLaser(role, 2), CenterSpot, arrivalTime: 51f);
         world.Events.Add(51f, () => FaceOutwardForShadoweye(world));
         ai.Move(StunEndAt + 0.1f, () => ByRole(role => Direction(role) * 0.5f), arrivalTime: 59.2f);
     }
 
-    private void LeaveLaserNowOthersArriveBy(AiManager ai, float time, int laserWave, Func<PartyRole, Vector3?> at, float arrivalTime)
+    private static void LeaveNowOthersArriveBy(AiManager ai, float time, Func<PartyRole, bool> leaveNow, Func<PartyRole, Vector3?> at, float arrivalTime)
     {
-        ai.Move(time, () => ByRole(role => BaitedLaser(role, laserWave) ? at(role) : null));
-        ai.Move(time, () => ByRole(role => BaitedLaser(role, laserWave) ? null : at(role)), arrivalTime: arrivalTime);
+        ai.Move(time, () => ByRole(role => leaveNow(role) ? at(role) : null));
+        ai.Move(time, () => ByRole(role => leaveNow(role) ? null : at(role)), arrivalTime: arrivalTime);
     }
 
     private bool BaitedLaser(PartyRole role, int wave) => Wave(Clock(role)) == wave;
@@ -89,7 +89,6 @@ public sealed class FruP3UltimateRelativityAi : IScenarioAi<FruP3UltimateRelativ
     {
         if (BaitedLaser(role, wave)) return Bait(role);
         if (wave == 0) return At(role, state.DarkEruption(role) ? EruptionRewind(role) : 3f * S);
-        if (wave == 1 && state.Debuff(role) is RelativityDebuff.MediumDps or RelativityDebuff.MediumSupport) return At(role, 10.25f * S);
         return At(role, 3f * S);
     }
 
