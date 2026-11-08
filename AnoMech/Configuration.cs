@@ -89,6 +89,16 @@ public class Configuration : IPluginConfiguration
     public uint[] ZoneDownOpcodes { get; set; } = [];
     public string ZoneFirewallGameVersion { get; set; } = "";
 
+    // The party-status packets' opcodes for PartyOpcodesGameVersion, as ServerPartyWatch last saw
+    // the client's own handlers receive them.
+    public string PartyOpcodesGameVersion { get; set; } = "";
+    public ushort PlayerStateFlagsOpcode { get; set; }
+    public ushort OnlineStatusOpcode { get; set; }
+    public ushort PartyNoticeOpcode { get; set; }
+    public ushort[] PartyRosterOpcodes { get; set; } = [];
+    public ushort[] PartyActorControlOpcodes { get; set; } = [];
+    public ushort PartyEventOpcode { get; set; }
+
     // Safe mode (incoming packet firewall):
     //   true  — only ZoneDownOpcodes pass; cuts you off from server traffic
     //           (no party join/leave updates, no ready checks, no duty pops).

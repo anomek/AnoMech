@@ -648,6 +648,7 @@ public sealed unsafe partial class ZoneControl
         var counters = RestoreClientCounters(armedCounters);
         if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
         DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, {counters}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
+        if (partyWatch?.ApplyServerParty(InjectIncomingPacket) is { } applied) DiagnosticLog.Info($"[ZoneGuard] Applied {applied}.");
         if (partyResyncDue)
         {
             partyResyncDue = false;

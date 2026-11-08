@@ -51,6 +51,7 @@ public sealed unsafe partial class ZoneControl : IZoneControl
     private readonly Hook<OnReceivePacket> receivePacketHook;
     // Captured from the first packet that passes the hook; InjectIncomingPacket needs it.
     private PacketDispatcher* dispatcher;
+    private ServerPartyWatch? partyWatch;
 
     // The highest GlobalSequence seen on real action-effect packets this session: a replayed
     // effect packet has to carry a counter above everything the client already processed, or it
@@ -205,6 +206,7 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         sessionSave.Rotation = localPlayer.Rotation;
         levelSync.Capture();
         armedCounters = TakeClientCounters();
+        partyWatch?.Begin();
 
         EnableFirewall();
         if (!FirewallArmed(out var why))
@@ -782,9 +784,23 @@ public sealed unsafe partial class ZoneControl : IZoneControl
             const bool safeMode = true;
 #endif
             if (!safeMode || Plugin.Config.ZoneDownOpcodes.Contains(incomingOpcode))
-                receivePacketHook.Original(a1, a2, a3);
+            {
+                ServerPartyWatch.DispatchingPacket = a3;
+                ServerPartyWatch.DispatchingActor = a2;
+                try
+                {
+                    receivePacketHook.Original(a1, a2, a3);
+                }
+                finally
+                {
+                    ServerPartyWatch.DispatchingPacket = 0;
+                }
+            }
             else
+            {
                 System.Threading.Interlocked.Increment(ref heldInbound);
+                partyWatch?.Tracker.Observe(a3, a2, DateTime.Now);
+            }
         }
         catch (Exception e)
         {
@@ -816,6 +832,24 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         }
         return true;
     }
+
+    // Once the packet handler pointers are resolved, which is after construction.
+    internal void WatchParty()
+    {
+        if (partyWatch != null) return;
+        try
+        {
+            partyWatch = new ServerPartyWatch();
+        }
+        catch (Exception e)
+        {
+            AnoMech.Core.DiagnosticLog.Warn($"[ZoneControl] The party status watch is off: {e.Message}");
+        }
+    }
+
+    internal IReadOnlyList<PartyStatusEvent> PartyStatusEvents => partyWatch?.Tracker.Events ?? [];
+    internal bool PartyRecruitmentEnded => partyWatch?.Tracker.RecruitmentEnded ?? false;
+    internal ReadyCheckAlert? PartyReadyCheck => partyWatch?.Tracker.ReadyCheckAt(DateTime.Now);
 
     bool IZoneControl.IsInInn() => IsInInn();
     string? IZoneControl.StartBlockedReason(out string? settling) => StartBlockedReason(out settling);
@@ -851,6 +885,7 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         DisableFirewall(); // To be sure the Hooks are disabled before calling Dispose
 
         if (Current == this) Current = null;
+        partyWatch?.Dispose();
         sendPacketHook.Dispose();
         receivePacketHook.Dispose();
     }
