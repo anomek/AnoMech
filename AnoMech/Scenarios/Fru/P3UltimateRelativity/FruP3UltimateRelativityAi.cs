@@ -88,10 +88,12 @@ public sealed class FruP3UltimateRelativityAi : IScenarioAi<FruP3UltimateRelativ
     private Vector3? BaitSpot(PartyRole role, int wave)
     {
         if (BaitedLaser(role, wave)) return Bait(role);
-        if (wave == 0) return At(role, state.DarkEruption(role) ? 20.5f * S : 3f * S);
+        if (wave == 0) return At(role, state.DarkEruption(role) ? EruptionRewind(role) : 3f * S);
         if (wave == 1 && state.Debuff(role) is RelativityDebuff.MediumDps or RelativityDebuff.MediumSupport) return At(role, 10.25f * S);
         return At(role, 3f * S);
     }
+
+    private float EruptionRewind(PartyRole role) => (state.Debuff(role) == RelativityDebuff.ShortDps ? 22f : 20.5f) * S;
 
     private Vector3? CenterSpot(PartyRole role) => At(role, 3f * S);
 
