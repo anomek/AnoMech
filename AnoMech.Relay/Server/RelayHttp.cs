@@ -18,6 +18,8 @@ internal sealed class RelayHttpRequest
     public required string Path { get; init; }
     public required Dictionary<string, string> Headers { get; init; }
     public required IPAddress RemoteAddress { get; init; }
+    // Over the relay's own TLS.
+    public bool OverTls { get; init; }
     // Bytes that arrived in the same reads as the header block.
     public required byte[] Buffered { get; init; }
 
@@ -53,10 +55,10 @@ internal static class RelayHttp
     // The first byte of a TLS ClientHello: a client that dialed wss:// at this plain port. It
     // never ends a header block, so it's turned away at once instead of held until the
     // handshake timeout, letting the client fall back to ws:// right away.
-    private const byte TlsHandshakeRecord = 0x16;
+    internal const byte TlsHandshakeRecord = 0x16;
 
     // Null for anything malformed or oversized, which the caller answers with a 400.
-    public static async Task<RelayHttpRequest?> ReadRequestAsync(Stream stream, IPAddress remoteAddress, CancellationToken token)
+    public static async Task<RelayHttpRequest?> ReadRequestAsync(Stream stream, IPAddress remoteAddress, bool overTls, CancellationToken token)
     {
         var buffer = new byte[MaxHeaderBytes];
         var length = 0;
@@ -92,7 +94,7 @@ internal static class RelayHttp
         if (target.IndexOf('?') is var query and >= 0) target = target[..query];
         return new RelayHttpRequest
         {
-            Method = requestLine[0], Path = target.Trim('/'), Headers = headers, RemoteAddress = remoteAddress,
+            Method = requestLine[0], Path = target.Trim('/'), Headers = headers, RemoteAddress = remoteAddress, OverTls = overTls,
             Buffered = buffer[(end + HeaderTerminator.Length)..length],
         };
     }
@@ -123,11 +125,17 @@ internal static class RelayHttp
         return WriteAsync(stream, $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n", body, token);
     }
 
-    public static async Task<WebSocket> AcceptWebSocketAsync(Stream stream, RelayHttpRequest request, CancellationToken token)
+    public static Task WriteTextAsync(Stream stream, int status, string text, CancellationToken token)
+    {
+        var body = Encoding.UTF8.GetBytes(text + "\n");
+        return WriteAsync(stream, $"HTTP/1.1 {status} {Reason(status)}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n", body, token);
+    }
+
+    public static async Task<WebSocket> AcceptWebSocketAsync(Stream stream, RelayHttpRequest request, TimeSpan keepAlive, CancellationToken token)
     {
         var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(request.Header("Sec-WebSocket-Key") + WebSocketGuid)));
         await WriteAsync(stream, $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n", [], token);
-        return WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = WebSocket.DefaultKeepAliveInterval });
+        return WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = keepAlive });
     }
 
     private static async Task WriteAsync(Stream stream, string head, byte[] body, CancellationToken token)

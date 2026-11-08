@@ -12,7 +12,8 @@ namespace AnoMech.Tests;
 // One player's game client: its own fake game, Game and MultiplayerManager. Natives and Plugin's
 // services are process-wide, so a client points them at its own for each call into it. Its
 // timeline is stamped with the relay's clock, which every client shares: a client's own run clock
-// only starts with its run, after it has already shown the host's first packets.
+// only starts with its run, after it has already shown the host's first packets. What a frame
+// does carries the time the frame started, as the game shows a frame's packets together.
 internal sealed class TestClient
 {
     private static readonly IObjectTable NoObjects = DispatchProxy.Create<IObjectTable, DalamudServices.NullService>();
@@ -20,8 +21,9 @@ internal sealed class TestClient
     private readonly Configuration config = new();
     private readonly NativesState natives = new();
     private readonly Dictionary<uint, List<(double At, string Name)>> names = new();
-    private readonly TestRelay relay;
+    private readonly ISessionNetwork relay;
     private bool botControl;
+    private double? frameAt;
 
     public string Name { get; }
     public PartyRole Seat { get; }
@@ -37,7 +39,7 @@ internal sealed class TestClient
     public MultiplayerManager Multiplayer { get; }
     public TraceLog Log { get; }
 
-    public TestClient(string name, PartyRole seat, int seed, TestRelay relay, bool isHost, int slotOffset, (int Min, int Max) spawnFrames)
+    public TestClient(string name, PartyRole seat, int seed, ISessionNetwork relay, bool isHost, int slotOffset, (int Min, int Max) spawnFrames)
     {
         Name = name;
         Seat = seat;
@@ -55,10 +57,10 @@ internal sealed class TestClient
         InstallServices();
         Game = game = new Game();
         Multiplayer = new MultiplayerManager { RelayFactory = relay.Connect, DisplayName = name, Time = relay.Time, NextSeed = () => seed };
-        Multiplayer.ActorReplayed += (local, host) => Remember(local, $"actor 0x{host:X}", relay.Now);
-        Multiplayer.StreamSent += message => StreamSent.Add((relay.Now, message, JsonSerializer.Serialize(message)));
-        Multiplayer.StreamTaken += (from, message) => StreamTaken.Add((relay.Now, from, message));
-        Fake.Timeline.Clock = () => (float)relay.Now;
+        Multiplayer.ActorReplayed += (local, host) => Remember(local, $"actor 0x{host:X}", Now);
+        Multiplayer.StreamSent += message => StreamSent.Add((Now, message, JsonSerializer.Serialize(message)));
+        Multiplayer.StreamTaken += (from, message) => StreamTaken.Add((Now, from, message));
+        Fake.Timeline.Clock = () => (float)Now;
         InstallServices();
         Deactivate();
     }
@@ -70,17 +72,27 @@ internal sealed class TestClient
         finally { Deactivate(); }
     }
 
+    private double Now => frameAt ?? relay.Now;
+
     // A frame in Plugin.OnFrameworkUpdate's order.
     public void Frame(float deltaSeconds) => Do(() =>
     {
-        relay.RaiseDisconnects(PeerId);
-        Fake.Frame(deltaSeconds, delta =>
+        frameAt = relay.Now;
+        try
         {
-            Natives.Tick(delta);
-            Game.Tick(delta);
-            Multiplayer.Tick(delta);
-        });
-        RecordNames();
+            relay.RaiseLinkEvents(PeerId);
+            Fake.Frame(deltaSeconds, delta =>
+            {
+                Natives.Tick(delta);
+                Game.Tick(delta);
+                Multiplayer.Tick(delta);
+            });
+            RecordNames();
+        }
+        finally
+        {
+            frameAt = null;
+        }
     });
 
     // An entity id as both clients name it at `at`: its seat's role, or the host's entity id for an
@@ -100,7 +112,7 @@ internal sealed class TestClient
 
     private void RecordNames()
     {
-        var at = relay.Now;
+        var at = Now;
         foreach (var role in Enum.GetValues<PartyRole>())
             if (Game.World.Party.Get(role) is { EntityId: not 0 } member) Remember(member.EntityId, role.ToString(), at);
     }

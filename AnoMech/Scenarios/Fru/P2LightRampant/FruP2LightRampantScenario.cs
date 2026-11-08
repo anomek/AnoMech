@@ -8,20 +8,25 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P2LightRampant.FruP2LightRampantState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P2LightRampant;
 
-public sealed class FruP2LightRampantScenario : IScenario
+public sealed class FruP2LightRampantScenario : IMultiplayerReplayable
 {
     public string Name => "Light Rampant";
     public IPhase Phase => FruZone.P2;
+    public bool SupportsMultiplayer => true;
+    // The strat reads each player's Lightsteeped stacks.
+    public bool MirrorsHostStatuses => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2LightRampantAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
     public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
@@ -50,6 +55,8 @@ public sealed class FruP2LightRampantScenario : IScenario
 
     private SimWorld world = null!;
     private FruP2LightRampantState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP2LightRampantState? LastState { get; private set; }
     private SimEnemy? usurper;
     private readonly List<SimEnemy?>[] orbs = [[], []];
     private readonly List<SimTether> links = [];
@@ -61,6 +68,7 @@ public sealed class FruP2LightRampantScenario : IScenario
     {
         world = worldParam;
         state = new FruP2LightRampantState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
         foreach (var wave in orbs) wave.Clear();
         links.Clear();
         puddles.Clear();
@@ -292,5 +300,19 @@ public sealed class FruP2LightRampantScenario : IScenario
         foreach (var tower in towers) tower.Tick(world.Party);
         centerTower?.Tick(world.Party);
         puddles.BleedWhoeverStandsIn(world, elapsed, "stepped in a Luminous Hammer puddle");
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s
+            ? new FruP2LightRampantAiReplayStateMessage(Enumerable.Range(0, 8).Select(s.Slot).ToArray(), s.NorthOrbsFirst, s.Pairs)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP2LightRampantAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP2LightRampantState.FromNetworkReplay(msg.Slots, msg.NorthOrbsFirst, msg.Pairs);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP2LightRampantState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

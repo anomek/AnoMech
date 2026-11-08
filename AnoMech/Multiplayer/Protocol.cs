@@ -4,6 +4,8 @@ using System.Text.Json.Serialization;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
+using AnoMech.Scenarios.Fru.P3UltimateRelativity;
+using AnoMech.Scenarios.Fru.P4CrystallizeTime;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
 using AnoMech.Scenarios.Umad.P2Forsaken;
@@ -59,8 +61,17 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UcobP5ExaflaresAiReplayStateMessage), "ucobP5ExaflaresAiReplayState")]
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
+[JsonDerivedType(typeof(FruP2DiamondDustAiReplayStateMessage), "fruP2DiamondDustAiReplayState")]
+[JsonDerivedType(typeof(FruP2LightRampantAiReplayStateMessage), "fruP2LightRampantAiReplayState")]
+[JsonDerivedType(typeof(FruP3ApocalypseAiReplayStateMessage), "fruP3ApocalypseAiReplayState")]
+[JsonDerivedType(typeof(FruP3UltimateRelativityAiReplayStateMessage), "fruP3UltimateRelativityAiReplayState")]
+[JsonDerivedType(typeof(FruP4CrystallizeTimeAiReplayStateMessage), "fruP4CrystallizeTimeAiReplayState")]
+[JsonDerivedType(typeof(FruP4DarklitDragonsongAiReplayStateMessage), "fruP4DarklitDragonsongAiReplayState")]
+[JsonDerivedType(typeof(FruP5FulgentBladeAiReplayStateMessage), "fruP5FulgentBladeAiReplayState")]
+[JsonDerivedType(typeof(FruP5ParadiseRegainedAiReplayStateMessage), "fruP5ParadiseRegainedAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
+[JsonDerivedType(typeof(FruP4CrystallizeTimeDragonPuddlesUpdateMessage), "fruP4CrystallizeTimeDragonPuddlesUpdate")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
@@ -194,10 +205,12 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 
 // The other forced movements a scenario applies to a party member, each from the matching
 // ForcedMove on a SimNetworkPuppet. Push takes DurationSeconds when > 0, else Distance / Speed;
-// Follow with a null TargetRole releases the follow.
+// Follow with a null TargetRole releases the follow; a Carry's Timeline is the one its character
+// plays, null for the plain warp.
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
 public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
-public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z) : MpMessage, IHostOnlyMessage;
+public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ushort? Timeline = null) : MpMessage, IHostOnlyMessage;
 public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, uint TargetEnemy, float Speed) : MpMessage, IHostOnlyMessage;
 
 // ReturnedToInn distinguishes Reset() (stays in-zone) from Leave() (unloads); both clear
@@ -343,6 +356,41 @@ public sealed record UltimatePredationAiReplayStateMessage(
     float SafeCardinalX, float SafeCardinalY, float SafeCardinalZ, float SafeCardinalRotation,
     float SafeFirstSetX, float SafeFirstSetY, float SafeFirstSetZ, float SafeFirstSetRotation,
     float SafeSecondSetX, float SafeSecondSetY, float SafeSecondSetZ, float SafeSecondSetRotation) : MpMessage, IScenarioReplayStateMessage;
+
+// The whole FruP2DiamondDustState roll.
+public sealed record FruP2DiamondDustAiReplayStateMessage(
+    int FirstIcicle, bool SupportsMarked, bool Axe, int MirrorOctant, bool Stillness, int GazeOctant) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP2LightRampantAi reads: the conga's eight slots, which orbs go first and Banish's
+// kind. Lightsteeped stacks it reads off the party as this client shows them.
+public sealed record FruP2LightRampantAiReplayStateMessage(PartyRole[] Slots, bool NorthOrbsFirst, bool Pairs) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP3ApocalypseAi reads; WaterDurations is indexed by PartyRole.
+public sealed record FruP3ApocalypseAiReplayStateMessage(int[] WaterDurations, int Rotation, bool Clockwise) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP3UltimateRelativityAi reads; Debuffs is indexed by PartyRole.
+public sealed record FruP3UltimateRelativityAiReplayStateMessage(
+    RelativityDebuff[] Debuffs, bool DpsIce, int North, int ClockwiseMask) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP4CrystallizeTimeAi reads; Debuffs is indexed by PartyRole. The heads' puddles
+// follow as they drop (FruP4CrystallizeTimeDragonPuddlesUpdateMessage).
+public sealed record FruP4CrystallizeTimeAiReplayStateMessage(
+    CrystallizeDebuff[] Debuffs, bool SlowNorthwest, CrystallizeCorner Corner) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record DragonPuddleState(PartyRole Catcher, float X, float Y, float Z);
+
+// Every puddle still down, by the player whose catch dropped it.
+public sealed record FruP4CrystallizeTimeDragonPuddlesUpdateMessage(List<DragonPuddleState> Puddles) : MpMessage, IScenarioMidRunUpdateMessage;
+
+// The subset FruP4DarklitDragonsongAi reads, with the Somber Dance bait the host's strat picked.
+public sealed record FruP4DarklitDragonsongAiReplayStateMessage(
+    PartyRole[] LineupOrder, int TetherWaterIndex, int FreeWaterIndex, bool EastWing, PartyRole SomberTank) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP5FulgentBladeAi reads: where the pocket is.
+public sealed record FruP5FulgentBladeAiReplayStateMessage(int PositionIndex, int RotationIndex, bool Mirrored) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset FruP5ParadiseRegainedAi reads.
+public sealed record FruP5ParadiseRegainedAiReplayStateMessage(int Rotation, bool DarkFirst) : MpMessage, IScenarioReplayStateMessage;
 
 // Peer -> host: an enemy debuff (Reprisal) applied locally; the peer's enemy doppels
 // are cosmetic, so this is how the host's enemy gets the debuff. Enemies by host entity id.

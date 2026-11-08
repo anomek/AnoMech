@@ -23,18 +23,60 @@ namespace AnoMech.Tests;
 //   48.67 its back cleave; the party south at (2,13.5).
 public class FruP2DiamondDustScenarioTests
 {
+    private static void Pin(FruP2DiamondDustStateOverrides o)
+    {
+        o.Axe = true;
+        o.Stillness = true;
+        o.FirstIcicle = 0;
+        o.SupportsMarked = true;
+        o.MirrorOctant = 0;
+        o.GazeOctant = 2;
+    }
+
     private static NegativeRun<FruP2DiamondDustScenario> DiamondDust(PartyRole player, Action<FruP2DiamondDustStateOverrides>? tweak = null)
         => Negative<FruP2DiamondDustScenario>(player)
             .Overrides<FruP2DiamondDustStateOverrides>(o =>
             {
-                o.Axe = true;
-                o.Stillness = true;
-                o.FirstIcicle = 0;
-                o.SupportsMarked = true;
-                o.MirrorOctant = 0;
-                o.GazeOctant = 2;
+                Pin(o);
                 tweak?.Invoke(o);
             });
+
+    // MT goes with RH on every slide.
+    [TestCase(46f)]
+    [TestCase(48.4f)]
+    public void TheDebugDrivenPlayerSlidesWithTheBots(float at)
+    {
+        float? apart = null;
+        var run = ScenarioRun.Execute(typeof(FruP2DiamondDustScenario), 0, 1, new ScenarioRunOptions
+        {
+            PlayerRole = MainTank,
+            Overrides = o => Pin((FruP2DiamondDustStateOverrides)o),
+            Probe = probe =>
+            {
+                if (probe.Crossed(at)) apart = Vector3.Distance(probe.Member(MainTank)!.Position, probe.Member(RegenHealer)!.Position);
+            },
+        });
+        Assert.That(run.Passed, run.ToString);
+        Assert.That(apart, Is.LessThan(3f));
+    }
+
+    // A cleave takes whoever is on the wrong side as it resolves, so a slide has to be over by then.
+    [Test]
+    public void TheDebugDrivenPlayerClearsBothCleaves([Range(0, 7)] int mirror, [Values] bool stillness)
+    {
+        var run = ScenarioRun.Execute(typeof(FruP2DiamondDustScenario), 0, 1, new ScenarioRunOptions
+        {
+            PlayerRole = RegenHealer,
+            Overrides = o =>
+            {
+                var overrides = (FruP2DiamondDustStateOverrides)o;
+                Pin(overrides);
+                overrides.MirrorOctant = mirror;
+                overrides.Stillness = stillness;
+            },
+        });
+        Assert.That(run.Passed, run.ToString);
+    }
 
     [Test]
     public void StayingInForAxeKickDies()

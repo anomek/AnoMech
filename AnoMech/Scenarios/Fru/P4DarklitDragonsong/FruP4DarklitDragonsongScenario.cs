@@ -9,28 +9,31 @@ using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Fru.FruConstants;
 using static AnoMech.Scenarios.Fru.P4DarklitDragonsong.FruP4DarklitDragonsongState;
 using Actions = AnoMech.Scenarios.Fru.FruActions;
 
 namespace AnoMech.Scenarios.Fru.P4DarklitDragonsong;
 
-public sealed class FruP4DarklitDragonsongScenario : IScenario
+public sealed class FruP4DarklitDragonsongScenario : IMultiplayerReplayable
 {
     public string Name => "Darklit Dragonsong";
     public IPhase Phase => FruZone.P4;
+    public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [new FruP4DarklitDragonsongAi(playerBaitsSomberDance: false), new FruP4DarklitDragonsongAi(playerBaitsSomberDance: true)];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
+    public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
+    public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly FruP4DarklitDragonsongSettingsWindow settingsWindow = new();
 
     private static readonly Vector3 FragmentPosition = new(0, 0, -16);
     // Curse chains stretched shorter than this snap. UNVERIFIED: retail's limit lies between 9.4 and 9.8.
     private const float CurseMinLength = 9.5f;
-    // The Oracle's jumps land this short of their target, and don't move her when it's closer.
-    private const float JumpLandingShort = 7.5f;
     // It takes every one of these and breaks on any other hit.
     private static readonly uint[] FragmentSurvives = [ActionId.DarklitDragonsong, ActionId.HallowedWingsLeft, ActionId.HallowedWingsRight];
 
@@ -40,6 +43,8 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
 
     private SimWorld world = null!;
     private FruP4DarklitDragonsongState state = null!;
+    // Polled by the multiplayer host; null until Run has rolled it.
+    public FruP4DarklitDragonsongState? LastState { get; private set; }
     private SimEnemy? usurper, oracle, wyrm, fragment, gaia, ryne;
     private readonly List<Vector3> akhRhaiPuddles = [];
     private readonly List<SimTether> links = [];
@@ -49,7 +54,8 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
-        state = new FruP4DarklitDragonsongState(world.Rng, settingsWindow.Overrides);
+        state = new FruP4DarklitDragonsongState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
         links.Clear();
         fragmentBroken = false;
         towers.Clear();
@@ -306,8 +312,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     private void JumpTowards(Vector3 position, float delay)
     {
         if (oracle is not { } boss) return;
-        var offset = position - boss.Position;
-        var landing = offset.Length() <= JumpLandingShort ? boss.Position : position - Vector3.Normalize(offset) * JumpLandingShort;
+        var landing = JumpLanding(boss.Position, position);
         world.Events.Add(delay, () => boss.SetPosition(landing));
     }
 
@@ -351,5 +356,19 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     public void Tick(float delta, float elapsed)
     {
         foreach (var tower in towers) tower.Tick(world.Party);
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { SomberTank: { } somberTank } s
+            ? new FruP4DarklitDragonsongAiReplayStateMessage(s.LineupOrder.ToArray(), s.TetherWaterIndex, s.FreeWaterIndex, s.EastWing, somberTank)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not FruP4DarklitDragonsongAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = FruP4DarklitDragonsongState.FromNetworkReplay(msg.LineupOrder, msg.TetherWaterIndex, msg.FreeWaterIndex, msg.EastWing, msg.SomberTank);
+        if (shadowState == null) return null;
+        ((IScenarioAi<FruP4DarklitDragonsongState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using AnoMech.Core.Game.Party;
 using Dalamud.Bindings.ImGui;
 
 namespace AnoMech.Scenarios.Fru.P3Apocalypse;
@@ -8,12 +10,18 @@ public sealed class FruP3ApocalypseSettingsWindow
 
     public FruP3ApocalypseStateOverrides Overrides { get; } = new();
 
+    // Which seat the per-player rows are showing. UI state only; never broadcast.
+    private PartyRole editingSeat = PartyRole.MainTank;
+
+    // Solo, the player's own Dark Water sits in this panel; a host assigns seats from the
+    // Multiplayer window.
     public void Draw()
     {
+        var solo = !PerRole.SeatsActive;
         if (ImGui.Button("Auto")) ResetAll();
         if (SettingsGrid.Begin("##frup3apocalypse"))
         {
-            SettingsGrid.FightOnlyNote();
+            if (solo) DrawWater();
             DrawStart();
             DrawRotation();
             DrawSpiritTaker();
@@ -21,11 +29,38 @@ public sealed class FruP3ApocalypseSettingsWindow
         }
     }
 
+    public void DrawPerPlayer()
+    {
+        if (ImGui.Button("Auto")) Overrides.DarkWater.Clear();
+        if (SettingsGrid.Begin("##frup3apocalypseplayers"))
+        {
+            editingSeat = SettingsGrid.SeatRow("##apocseat", editingSeat);
+            DrawWater();
+            SettingsGrid.ForcedRecapRow("Dark Water set:", Overrides.DarkWater);
+            SettingsGrid.End();
+        }
+        SettingsGrid.ConflictRows(Overrides.Validate());
+    }
+
+    // Solo's own pick only: a host's seat assignments are kept apart.
     private void ResetAll()
     {
         Overrides.Rotation = null;
         Overrides.Clockwise = null;
         Overrides.SpiritTakerTarget = null;
+        Overrides.DarkWater.Mine = null;
+    }
+
+    private void DrawWater()
+    {
+        var v = Overrides.DarkWater.Effective(editingSeat);
+        SettingsGrid.PlayerRow("Dark Water:");
+        if (ImGui.RadioButton("Auto##apocwater", v == null)) Overrides.DarkWater.Set(editingSeat, null);
+        foreach (var water in Enum.GetValues<ApocalypseWater>())
+        {
+            ImGui.SameLine();
+            if (ImGui.RadioButton($"{water}##apocwater", v == water)) Overrides.DarkWater.Set(editingSeat, water);
+        }
     }
 
     private void DrawStart()

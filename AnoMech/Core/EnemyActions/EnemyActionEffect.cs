@@ -129,7 +129,7 @@ internal sealed class DamageEffect(VulnSpec vulns, Severity severity, Distributi
             var target = hits[i];
             var (hit, reason) = split.Assign(ctx, hits, i, target);
             var hitSeverity = hit?.Severity ?? severity;
-            var cause = DamageCheck.LethalCause(target, hit?.Vulns ?? vulns, hitSeverity, kind, ctx.Party);
+            var cause = DamageCheck.LethalCause(target, hit?.Vulns ?? vulns, hitSeverity, kind, ctx);
             ctx.ShowDamage(target, hitSeverity.FlyTextAmount(kills: cause != null), kind);
             if (cause != null) ctx.Kill(target, Explain(reason, cause));
         }

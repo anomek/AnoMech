@@ -21,6 +21,8 @@ public class FakeFramework : DispatchProxy
         throw new NotSupportedException($"FakeFramework does not model IFramework.{method?.Name}");
     }
 
+    internal bool Idle => pending.Count == 0;
+
     internal void RunPending()
     {
         for (var count = pending.Count; count > 0; count--)

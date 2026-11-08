@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 
@@ -14,6 +15,8 @@ public sealed class FruP3ApocalypseState
 {
     public const float RingRadius = 14f;
     public const float WaterAppliedAt = 12.8f;
+    // Darkest Dance lands this short of its target.
+    private const float DanceLandingShort = 6.3f;
     public static float WaterAt(int duration) => duration switch { 1 => 22.8f, 2 => 41.8f, _ => 50.8f };
     public static float WaterMarkerAt(int duration) => duration switch { 1 => 17.8f, 2 => 35.8f, _ => 45.8f };
     public static float WaveAt(int wave) => 33.3f + 2f * wave;
@@ -28,13 +31,36 @@ public sealed class FruP3ApocalypseState
     public IReadOnlyList<int> WaterDurations { get; }
     public PartyRole SpiritTakerTarget { get; }
 
-    public FruP3ApocalypseState(Rng rng, FruP3ApocalypseStateOverrides overrides)
+    public FruP3ApocalypseState(Rng rng, PartyRole playerRole, FruP3ApocalypseStateOverrides overrides)
     {
         Rotation = overrides.Rotation ?? rng.Next(4);
         Clockwise = overrides.Clockwise ?? rng.NextBool();
-        WaterDurations = overrides.WaterDurations ?? rng.Shuffle(0, 0, 1, 1, 2, 2, 3, 3).ToList();
+        if (overrides.WaterDurations is { } pinned) WaterDurations = pinned;
+        else
+        {
+            var waters = rng.Shuffle(WaterDeal).ToArray();
+            foreach (var (role, water) in ForcedDeal.Swap(rng, waters, overrides.DarkWater.Resolve(playerRole), (wanted, duration) => duration == (int)wanted))
+                DiagnosticLog.Warn($"[FruP3Apocalypse] {role} asked for {FruP3ApocalypseStateOverrides.Label(water)}, already held by "
+                    + $"{FruP3ApocalypseStateOverrides.SeatsPerWater} seats -- leaving {role} to the roll.");
+            WaterDurations = waters;
+        }
         SpiritTakerTarget = overrides.SpiritTakerTarget ?? rng.NextRole();
     }
+
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads.
+    private FruP3ApocalypseState(IReadOnlyList<int> waterDurations, int rotation, bool clockwise)
+    {
+        WaterDurations = waterDurations;
+        Rotation = rotation;
+        Clockwise = clockwise;
+    }
+
+    private static readonly int[] WaterDeal = [0, 0, 1, 1, 2, 2, 3, 3];
+
+    public static FruP3ApocalypseState? FromNetworkReplay(IReadOnlyList<int> waterDurations, int rotation, bool clockwise)
+        => waterDurations.Order().SequenceEqual(WaterDeal) && rotation is >= 0 and < 4
+            ? new(waterDurations.ToList(), rotation, clockwise)
+            : null;
 
     public int WaterDuration(PartyRole role) => WaterDurations[(int)role];
 
@@ -64,6 +90,12 @@ public sealed class FruP3ApocalypseState
     {
         var angle = spoke * MathF.PI / 4;
         return new Vector3(MathF.Sin(angle), 0, -MathF.Cos(angle)) * RingRadius;
+    }
+
+    public static Vector3 DanceLanding(Vector3 oracle, Vector3 target)
+    {
+        var offset = target - oracle;
+        return offset.Length() > DanceLandingShort ? oracle + Vector3.Normalize(offset) * (offset.Length() - DanceLandingShort) : oracle;
     }
 
     // The light beats run ahead of the explosions; the last wave's spokes never light up.

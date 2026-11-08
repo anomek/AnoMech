@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 
@@ -38,20 +39,26 @@ public sealed class FruP3UltimateRelativityState
     public int ClockwiseMask { get; }
     public PartyRole ShellCrusherTarget { get; }
 
-    public FruP3UltimateRelativityState(Rng rng, FruP3UltimateRelativityStateOverrides overrides)
+    public FruP3UltimateRelativityState(Rng rng, PartyRole playerRole, FruP3UltimateRelativityStateOverrides overrides)
     {
         var dps = rng.Shuffle(PartyRole.MeleeDpsA, PartyRole.MeleeDpsB, PartyRole.PhysRangedDps, PartyRole.CasterDps);
         var supports = rng.Shuffle(PartyRole.MainTank, PartyRole.OffTank, PartyRole.RegenHealer, PartyRole.ShieldHealer);
-        debuffs[dps[0]] = RelativityDebuff.LongDps;
-        debuffs[dps[1]] = RelativityDebuff.MediumDps;
-        debuffs[dps[2]] = RelativityDebuff.ShortDps;
-        debuffs[dps[3]] = RelativityDebuff.ShortDps;
-        debuffs[supports[0]] = RelativityDebuff.ShortSupport;
-        debuffs[supports[1]] = RelativityDebuff.MediumSupport;
-        debuffs[supports[2]] = RelativityDebuff.LongSupport;
-        debuffs[supports[3]] = RelativityDebuff.LongSupport;
-        if (overrides.Debuffs is { } forced)
-            foreach (var (role, debuff) in forced) debuffs[role] = debuff;
+        var deck = new RelativityDebuff[8];
+        deck[(int)dps[0]] = RelativityDebuff.LongDps;
+        deck[(int)dps[1]] = RelativityDebuff.MediumDps;
+        deck[(int)dps[2]] = RelativityDebuff.ShortDps;
+        deck[(int)dps[3]] = RelativityDebuff.ShortDps;
+        deck[(int)supports[0]] = RelativityDebuff.ShortSupport;
+        deck[(int)supports[1]] = RelativityDebuff.MediumSupport;
+        deck[(int)supports[2]] = RelativityDebuff.LongSupport;
+        deck[(int)supports[3]] = RelativityDebuff.LongSupport;
+        // A pick names its seat's own group's debuff, so a seat only ever trades within its group.
+        var forced = overrides.Fire.Resolve(playerRole).Select(f => (f.Role, Debuff(f.Role, f.Value))).ToList();
+        foreach (var (role, debuff) in ForcedDeal.Swap(rng, deck, forced, (wanted, card) => card == wanted))
+            DiagnosticLog.Warn($"[FruP3UltimateRelativity] {role} asked for {debuff}, already held by other seats -- leaving {role} to the roll.");
+        foreach (var role in dps.Concat(supports)) debuffs[role] = deck[(int)role];
+        if (overrides.Debuffs is { } pinned)
+            foreach (var (role, debuff) in pinned) debuffs[role] = debuff;
         DpsIce = overrides.DpsIce ?? rng.NextBool();
         North = overrides.North ?? rng.Next(8);
         ClockwiseMask = overrides.ClockwiseMask ?? rng.Next(256);
@@ -64,7 +71,37 @@ public sealed class FruP3UltimateRelativityState
         ShellCrusherTarget = overrides.ShellCrusherTarget ?? rng.NextRole();
     }
 
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads.
+    private FruP3UltimateRelativityState(IReadOnlyList<RelativityDebuff> debuffs, bool dpsIce, int north, int clockwiseMask)
+    {
+        foreach (var role in Enum.GetValues<PartyRole>()) this.debuffs[role] = debuffs[(int)role];
+        DpsIce = dpsIce;
+        North = north;
+        ClockwiseMask = clockwiseMask;
+    }
+
+    private static readonly RelativityDebuff[] SupportDeal =
+        [RelativityDebuff.ShortSupport, RelativityDebuff.MediumSupport, RelativityDebuff.LongSupport, RelativityDebuff.LongSupport];
+    private static readonly RelativityDebuff[] DpsDeal =
+        [RelativityDebuff.ShortDps, RelativityDebuff.ShortDps, RelativityDebuff.MediumDps, RelativityDebuff.LongDps];
+
+    public static FruP3UltimateRelativityState? FromNetworkReplay(IReadOnlyList<RelativityDebuff> debuffs, bool dpsIce, int north, int clockwiseMask)
+        => debuffs.Count == 8 && debuffs.Take(4).Order().SequenceEqual(SupportDeal) && debuffs.Skip(4).Order().SequenceEqual(DpsDeal)
+           && north is >= 0 and < 8 && clockwiseMask is >= 0 and < 256
+            ? new(debuffs, dpsIce, north, clockwiseMask)
+            : null;
+
     public RelativityDebuff Debuff(PartyRole role) => debuffs[role];
+
+    private static RelativityDebuff Debuff(PartyRole role, RelativityFire fire) => (fire, role.IsDps()) switch
+    {
+        (RelativityFire.Short, true) => RelativityDebuff.ShortDps,
+        (RelativityFire.Short, false) => RelativityDebuff.ShortSupport,
+        (RelativityFire.Medium, true) => RelativityDebuff.MediumDps,
+        (RelativityFire.Medium, false) => RelativityDebuff.MediumSupport,
+        (_, true) => RelativityDebuff.LongDps,
+        _ => RelativityDebuff.LongSupport,
+    };
 
     public PartyRole IceHolder => debuffs.First(d => d.Value == (DpsIce ? RelativityDebuff.LongDps : RelativityDebuff.ShortSupport)).Key;
 

@@ -13,6 +13,10 @@ public class RelayOptionsTests
     }
 
     [Test]
+    public void EnforcedTlsNamesBothWaysToServeIt()
+        => Assert.That(new RelayOptions { RequireTls = true }.Validate(), Does.Contain("--tls-certbot").And.Contain("--trusted-proxy"));
+
+    [Test]
     public void GroupSettingsGoTogether()
     {
         List<RelayGroupMember> group = [new(0, "wss://us.example.com", "US East"), new(1, "wss://de.example.com", "EU Central")];

@@ -45,6 +45,17 @@ public sealed class FruP5FulgentBladeState
         AkhMornRightPick = overrides.AkhMornRightPick ?? rng.Next(4);
     }
 
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): only what the Ai reads.
+    private FruP5FulgentBladeState(int positionIndex, int rotationIndex, bool mirrored)
+    {
+        PositionIndex = positionIndex;
+        RotationIndex = rotationIndex;
+        Mirrored = mirrored;
+    }
+
+    public static FruP5FulgentBladeState? FromNetworkReplay(int positionIndex, int rotationIndex, bool mirrored)
+        => positionIndex is >= 0 and < 4 && rotationIndex is >= 0 and < 4 ? new(positionIndex, rotationIndex, mirrored) : null;
+
     public float Rotation => RotationIndex * MathF.PI / 2f;
 
     public Vector3 Pocket => PositionIndex switch

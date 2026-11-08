@@ -37,7 +37,8 @@ public sealed class FruP3ApocalypseAi : IScenarioAi<FruP3ApocalypseState>
         ai.Move(41.7f, () => ByRole(role => role == PartyRole.OffTank ? TankBait(near: true) : null));
         ai.Move(42f, () => ByRole(role => role == PartyRole.OffTank ? TankBait(near: false) : null));
         ai.Move(42f, () => ByRole(role => role == PartyRole.OffTank ? null : Vector3.Zero), arrivalTime: 44f);
-        ai.Move(45.15f, () => ByRole(KnockbackStack), jitter: 0f);
+        ai.Move(44.3f, () => ByRole(role => KnockbackStack(role, DanceLandingShortOfTheFarBait())), jitter: 0f);
+        ai.Move(45.6f, () => ByRole(role => KnockbackStack(role, OraclePosition())), jitter: 0f);
         ai.Move(48.4f, () => ByRole(ReturnStack), jitter: 0f);
     }
 
@@ -110,9 +111,10 @@ public sealed class FruP3ApocalypseAi : IScenarioAi<FruP3ApocalypseState>
     private Vector3 OraclePosition()
         => world.Children.OfType<SimEnemy>().FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.OracleP3)?.Position ?? Vector3.Zero;
 
-    private Vector3? KnockbackStack(PartyRole role)
+    private Vector3 DanceLandingShortOfTheFarBait() => DanceLanding(Vector3.Zero, TankBait(near: false));
+
+    private Vector3? KnockbackStack(PartyRole role, Vector3 boss)
     {
-        var boss = OraclePosition();
         var inward = boss.LengthSquared() > 0.01f ? Vector3.Normalize(-boss) : Vector3.UnitZ;
         var angle = (SupportGroup(role) ? 30 : -30) * MathF.PI / 180;
         var direction = new Vector3(inward.X * MathF.Cos(angle) - inward.Z * MathF.Sin(angle), 0,

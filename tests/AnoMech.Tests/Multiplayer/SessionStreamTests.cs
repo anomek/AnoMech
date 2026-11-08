@@ -1,18 +1,19 @@
 using AnoMech.Core.Game.Party;
 using AnoMech.Multiplayer;
+using AnoMech.Network;
 
 namespace AnoMech.Tests;
 
 // SessionStream's promise, whatever happens to the links: every numbered message the host or a
 // peer sends is taken by the other end exactly once and in order, and the logs that make that
-// possible empty once everyone has caught up. The host and its peers talk through a simulated
-// relay that routes as the real one does and keeps nothing for a client that isn't there, and
-// each end drives its stream as MultiplayerManager does (Hello on every connect, the ping cycle,
-// gap requests, resends). Each seed draws its own traffic and its own interruptions: a link
-// dropping and reconnecting on the real backoff, an upload or a download dying before the link
-// does, an inbound queue overflowing, a peer leaving and joining again -- on either end, at any
-// moment, several at once. No case names a message or a moment, so anything sent through the
-// stream later is covered as it is.
+// possible empty once everyone has caught up. The host and its peers talk through the real relay
+// (TestRelay), and each end drives its stream as MultiplayerManager does (Hello on every connect,
+// the ping cycle, gap requests, resends). Each seed draws its own traffic and its own
+// interruptions: a link dropping and reconnecting on the real backoff, an upload or a download
+// dying before the link does, an inbound queue overflowing, a peer leaving and joining again -- on
+// either end, at any moment, several at once. An end is only faulted once it has been back a
+// while, so someone is always heard within the relay's idle timeout, as in any live session. No
+// case names a message or a moment, so anything sent through the stream later is covered as it is.
 public class SessionStreamTests
 {
     private static IEnumerable<TestCaseData> Seeds() =>
@@ -35,13 +36,18 @@ public class SessionStreamTests
         private static readonly long[] BackoffMs = [2000, 4000, 8000, 15000];
         private const long StepMs = 5;
         private const long SettleMs = 60_000;
+        // A fault keeps an end away for at most its outage and one backoff; this long back first,
+        // the host's pings keep the room heard.
+        private const long SteadyMs = 3000;
 
         private readonly Random rng;
+        private readonly TestRelay relay;
         private readonly List<End> ends = [];
-        private readonly List<(long At, End To, End From, int Generation, MpMessage Message)> arriving = [];
-        private readonly List<(long At, End From, int Generation, MpMessage Message)> uploading = [];
+        // By the order the ends first connect, as TestRelay numbers its clients.
+        private readonly List<End> linked = [];
         private readonly List<string> problems = [];
         private readonly long activeMs;
+        private string? code;
         private long now;
         private long nextPing;
 
@@ -49,27 +55,27 @@ public class SessionStreamTests
 
         private End Host => ends[0];
 
-        private sealed class End(Guid id, bool isHost)
+        private sealed class End(string secret, bool isHost, ConnectionProfile link)
         {
-            public readonly Guid Id = id;
+            public readonly string Secret = secret;
+            public readonly Guid Id = RelayWire.PeerId(secret);
             public readonly bool IsHost = isHost;
+            public readonly ConnectionProfile Link = link;
             public SessionStream Stream = null!;
+            public IRelayConnection? Connection;
             public bool Member = true;
-            public bool Connected;
-            public int Generation;
-            public long DownUntil;
+            public bool Connected, Dialing, Reconnecting;
+            public long ConnectedAt;
             public long? ReconnectAt;
             public int ReconnectAttempt;
-            public long UplinkDeadUntil = -1, DownlinkDeadUntil = -1;
-            public long? DropAt;
             public long? LeaveAt, JoinAt;
             public long InboundDropUntil = -1;
             public bool HelloAcknowledged;
             public long NextHello;
             public long Baseline = -1;
             public double Rate;
-            public long UpLatency, DownLatency, LastUpload, LastDownload;
             public long NextFault = long.MaxValue;
+            public readonly Queue<(MpMessage Message, Guid From)> Inbox = new();
             // This stream's numbered messages, and what it took from each other end's current one.
             public readonly List<MpMessage> Sent = [];
             public readonly Dictionary<Guid, List<MpMessage>> Taken = new();
@@ -79,22 +85,25 @@ public class SessionStreamTests
         public StreamNet(int seed)
         {
             rng = new Random(seed);
+            relay = new TestRelay(seed, client => linked[client].Link, StepMs / 1000.0);
             activeMs = rng.Next(40_000, 120_000);
             var peers = rng.Next(1, 8);
             for (var i = 0; i <= peers; i++)
             {
-                var end = new End(Guid.NewGuid(), i == 0)
+                var secret = new byte[32];
+                rng.NextBytes(secret);
+                var link = TestRelay.Perfect with
                 {
-                    UpLatency = rng.Next(1, 150),
-                    DownLatency = rng.Next(1, 150),
+                    Name = "", UploadLatency = rng.Next(1, 150) / 1000.0, DownloadLatency = rng.Next(1, 150) / 1000.0, DownloadJitter = 0.02,
                 };
+                var end = new End(Convert.ToHexString(secret), i == 0, link);
                 end.Stream = NewStream(end);
                 end.Rate = NextRate(end);
                 end.NextFault = NextFaultAt(end);
                 ends.Add(end);
             }
             // The host first; each peer joins a moment later.
-            Host.Connected = true;
+            Connect(Host);
             foreach (var peer in ends.Skip(1)) peer.JoinAt = rng.Next(0, 3000);
         }
 
@@ -117,19 +126,24 @@ public class SessionStreamTests
                     var (sent, received) = Host.Stream.PingFields();
                     Transmit(Host, new PingMessage(now, sent, received));
                 }
-                Deliver();
                 if (!active && CaughtUp()) break;
-                now += StepMs;
+                relay.AdvanceTo(relay.Now + StepMs / 1000.0);
+                now = (long)Math.Round(relay.Now * 1000);
             }
         }
 
         private void TickEnd(End end, bool active)
         {
-            if (end.JoinAt is { } joinAt && now >= joinAt) Join(end);
+            relay.RaiseLinkEvents(end.Id);
+            if (end.JoinAt is { } joinAt && now >= joinAt && code != null) Join(end);
             if (!end.Member) return;
+            // MultiplayerManager's drain, which an overflowing inbound queue had already dropped.
+            while (end.Inbox.TryDequeue(out var received))
+                if (now >= end.InboundDropUntil && ends.FirstOrDefault(e => e.Id == received.From) is { } from)
+                    Handle(end, from, received.Message);
             if (end.LeaveAt is { } leaveAt && now >= leaveAt) Leave(end);
-            if (end.DropAt is { } dropAt && now >= dropAt) Drop(end, rng.Next(0, 2000));
-            if (!end.Connected && end.ReconnectAt is { } reconnectAt && now >= reconnectAt) TryReconnect(end);
+            if (!end.Member) return;
+            if (end.Connection == null && end.ReconnectAt is { } reconnectAt && now >= reconnectAt) Connect(end);
             if (!end.IsHost && end.Connected && !end.HelloAcknowledged && now >= end.NextHello) SendHello(end);
             if (!active) return;
             if (now >= end.NextFault) Fault(end);
@@ -147,23 +161,25 @@ public class SessionStreamTests
         private void Fault(End end)
         {
             end.NextFault = NextFaultAt(end);
+            if (!end.Connected || now - end.ConnectedAt < SteadyMs) return;
+            var client = linked.IndexOf(end);
             var kind = rng.NextDouble();
             if (kind < 0.4)
             {
                 Note($"{Name(end)} drops");
-                Drop(end, rng.Next(0, 6000));
+                relay.Schedule(client, relay.Now, new LinkDrops(rng.Next(0, 6000) / 1000.0));
             }
             else if (kind < 0.6)
             {
-                end.UplinkDeadUntil = now + rng.Next(100, 5000);
-                end.DropAt = end.UplinkDeadUntil;
-                Note($"{Name(end)}'s uploads die until {end.UplinkDeadUntil}");
+                var dead = rng.Next(100, 5000);
+                relay.Schedule(client, relay.Now, new UploadsDie(dead / 1000.0, rng.Next(0, 2000) / 1000.0));
+                Note($"{Name(end)}'s uploads die for {dead}");
             }
             else if (kind < 0.8)
             {
-                end.DownlinkDeadUntil = now + rng.Next(100, 5000);
-                end.DropAt = end.DownlinkDeadUntil;
-                Note($"{Name(end)}'s downloads die until {end.DownlinkDeadUntil}");
+                var dead = rng.Next(100, 5000);
+                relay.Schedule(client, relay.Now, new DownloadsDie(dead / 1000.0, rng.Next(0, 2000) / 1000.0));
+                Note($"{Name(end)}'s downloads die for {dead}");
             }
             else if (kind < 0.95 || end.IsHost)
             {
@@ -177,37 +193,47 @@ public class SessionStreamTests
             }
         }
 
-        // The link goes with everything on it; reconnecting fails until the outage is over.
-        private void Drop(End end, long outage)
-        {
-            end.DropAt = null;
-            if (!end.Connected) return;
-            end.Connected = false;
-            end.Generation++;
-            end.DownUntil = now + outage;
-            end.ReconnectAttempt = 0;
-            end.ReconnectAt = now + BackoffMs[0];
-        }
-
-        private void TryReconnect(End end)
-        {
-            if (now < end.DownUntil)
-            {
-                end.ReconnectAttempt++;
-                end.ReconnectAt = now + BackoffMs[Math.Min(end.ReconnectAttempt, BackoffMs.Length - 1)];
-                return;
-            }
-            Connect(end);
-            Note($"{Name(end)} reconnects");
-            if (!end.IsHost) SendHello(end);
-        }
-
+        // A first connect, a reconnect, or a join: Hello once connected, as on every connect.
         private void Connect(End end)
         {
-            end.Connected = true;
-            end.Generation++;
+            if (!linked.Contains(end)) linked.Add(end);
+            var connection = relay.Connect(end.Secret);
+            end.Connection = connection;
+            end.Dialing = true;
             end.ReconnectAt = null;
-            end.UplinkDeadUntil = end.DownlinkDeadUntil = -1;
+            connection.MessageReceived += (message, _, _, sender) =>
+            {
+                if (end.Connection == connection) end.Inbox.Enqueue((message, sender));
+            };
+            connection.Disconnected += _ =>
+            {
+                if (end.Connection == connection) Lost(end);
+            };
+            var dialed = end.IsHost && code == null ? connection.ConnectAndHostAsync(relay.Address) : connection.ConnectAsync(relay.Address, code!);
+            dialed.ContinueWith(_ =>
+            {
+                if (end.Connection != connection || !connection.IsConnected) return;
+                if (dialed is Task<string?> { Result: { } assigned }) code = assigned;
+                end.Dialing = false;
+                end.Connected = true;
+                end.ConnectedAt = now;
+                end.ReconnectAttempt = 0;
+                Note($"{Name(end)} connects");
+                if (!end.IsHost) SendHello(end);
+            }, TaskContinuationOptions.ExecuteSynchronously);
+        }
+
+        // As MultiplayerManager's: a dropped link or a failed join starts the backoff over, a
+        // failed reconnect moves along it.
+        private void Lost(End end)
+        {
+            if (end.Dialing && end.Reconnecting) end.ReconnectAttempt++;
+            else end.ReconnectAttempt = 0;
+            end.Reconnecting = true;
+            end.Connection?.Dispose();
+            end.Connection = null;
+            end.Connected = end.Dialing = false;
+            end.ReconnectAt = now + BackoffMs[Math.Min(end.ReconnectAttempt, BackoffMs.Length - 1)];
         }
 
         // As LeaveSession: its leave goes out on the stream, then the link closes. Back later, as
@@ -215,7 +241,15 @@ public class SessionStreamTests
         private void Leave(End end)
         {
             end.LeaveAt = null;
-            Send(end, new SessionEndedMessage(end.Id));
+            var numbered = end.Stream.Number(new SessionEndedMessage(end.Id));
+            end.Sent.Add(numbered);
+            if (end.Connection is { } connection)
+            {
+                var leaving = end.Connected ? connection.SendAsync(numbered) : Task.CompletedTask;
+                leaving.ContinueWith(_ => connection.Dispose(), TaskContinuationOptions.ExecuteSynchronously);
+            }
+            end.Connection = null;
+            end.Connected = end.Dialing = false;
             end.Member = false;
             end.JoinAt = now + rng.Next(1000, 5000);
         }
@@ -224,19 +258,19 @@ public class SessionStreamTests
         {
             end.JoinAt = null;
             end.Member = true;
-            end.Connected = false;
-            end.Generation++;
             end.Stream = NewStream(end);
             end.Sent.Clear();
             end.Taken.Clear();
+            end.Inbox.Clear();
             end.Baseline = -1;
             end.HelloAcknowledged = false;
-            Connect(end);
+            end.ReconnectAttempt = 0;
+            end.Reconnecting = false;
             Note($"{Name(end)} joins");
-            SendHello(end);
+            Connect(end);
         }
 
-        // ── The relay ────────────────────────────────────────────────────────
+        // ── Sending ──────────────────────────────────────────────────────────
 
         private void Send(End end, MpMessage message)
         {
@@ -247,9 +281,7 @@ public class SessionStreamTests
 
         private void Transmit(End end, MpMessage message)
         {
-            if (!end.Connected || now < end.UplinkDeadUntil) return;
-            end.LastUpload = Math.Max(end.LastUpload, now + end.UpLatency + rng.Next(0, 20));
-            uploading.Add((end.LastUpload, end, end.Generation, message));
+            if (end.Connected) _ = end.Connection!.SendAsync(message);
         }
 
         private void Transmit(End end, IEnumerable<MpMessage> messages)
@@ -264,32 +296,7 @@ public class SessionStreamTests
             Transmit(end, new HelloMessage(end.Id, "", "", "", 0, epoch, sent, received));
         }
 
-        // The relay routes what reached it: the host's to every connected peer, a peer's to the host.
-        private void Deliver()
-        {
-            foreach (var up in uploading.Where(u => u.At <= now).ToList())
-            {
-                uploading.Remove(up);
-                if (up.From.Generation != up.Generation) continue;
-                foreach (var to in ends)
-                {
-                    if (to == up.From || !to.Member || !to.Connected) continue;
-                    if (!up.From.IsHost && !to.IsHost) continue;
-                    to.LastDownload = Math.Max(to.LastDownload, now + to.DownLatency + rng.Next(0, 20));
-                    arriving.Add((to.LastDownload, to, up.From, to.Generation, up.Message));
-                }
-            }
-            foreach (var down in arriving.Where(a => a.At <= now).OrderBy(a => a.At).ToList())
-            {
-                arriving.Remove(down);
-                var to = down.To;
-                if (to.Generation != down.Generation || now < to.DownlinkDeadUntil) continue;
-                if (now < to.InboundDropUntil) continue;
-                Handle(to, down.From, down.Message);
-            }
-        }
-
-        // MultiplayerManager's drain and Dispatch, for what concerns the stream.
+        // MultiplayerManager's Dispatch, for what concerns the stream.
         private void Handle(End to, End from, MpMessage message)
         {
             if (message.Seq != 0)

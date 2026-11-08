@@ -9,5 +9,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="AnoMech.Relay.Tests" />
+    <InternalsVisibleTo Include="AnoMech.Tests" />
   </ItemGroup>
 </Project>

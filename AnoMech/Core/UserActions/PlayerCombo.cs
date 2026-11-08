@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using FFXIVClientStructs.FFXIV.Client.Game;
+using AnoMech.Core.Native.Interfaces;
 
 namespace AnoMech.Core.UserActions;
 
@@ -16,7 +16,7 @@ internal enum ComboRole { None, Starter, Continuation }
 // (Hakaze->Gyofu, Split Shot->Heated Split Shot) is pressed as the upgraded id, but the
 // sheet records combos against the base id — adjusting both sides makes them match
 // regardless of which form the game stored, so upgraded chains combo like any other.
-internal static unsafe class PlayerCombo
+internal static class PlayerCombo
 {
     // Actions that are the prerequisite of some action's combo — i.e. combo starters
     // and middles. Built once from the sheet (base ids; upgrades resolved at compare time).
@@ -59,26 +59,25 @@ internal static unsafe class PlayerCombo
     // or None (not a combo action, or a continuation used out of order → doesn't advance).
     public static ComboRole RoleOf(uint actionId)
     {
-        var am = ActionManager.Instance();
-        if (am == null) return ComboRole.None;
-
+        var player = Natives.PlayerActionState;
         actionId = ComboId(actionId);
         var prereq = PrerequisiteOf(actionId);
         if (prereq != 0)
-            return am->Combo.Timer > 0f && Same(am, am->Combo.Action, prereq)
+            return player.ComboTimer > 0f && Same(player, player.ComboAction, prereq)
                 ? ComboRole.Continuation : ComboRole.None;
 
         if (Starters.Contains(actionId)) return ComboRole.Starter;
-        var adjusted = am->GetAdjustedActionId(actionId);
+        var adjusted = player.AdjustedActionId(actionId);
         foreach (var starter in Starters)
-            if (am->GetAdjustedActionId(starter) == adjusted) return ComboRole.Starter;
+            if (player.AdjustedActionId(starter) == adjusted) return ComboRole.Starter;
         return ComboRole.None;
     }
 
     // True while using `actionId` correctly continues the active combo (gets its bonus).
-    public static bool IsActiveContinuation(uint actionId) => RoleOf(actionId) == ComboRole.Continuation;
+    public static bool IsActiveContinuation(uint actionId)
+        => Natives.PlayerActionState.ComboTimer > 0f && RoleOf(actionId) == ComboRole.Continuation;
 
     // Whether two action ids denote the same action once level upgrades are applied.
-    private static bool Same(ActionManager* am, uint a, uint b)
-        => ComboId(a) == ComboId(b) || am->GetAdjustedActionId(a) == am->GetAdjustedActionId(b);
+    private static bool Same(IPlayerActionState player, uint a, uint b)
+        => ComboId(a) == ComboId(b) || player.AdjustedActionId(a) == player.AdjustedActionId(b);
 }

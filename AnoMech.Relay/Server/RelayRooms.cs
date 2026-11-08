@@ -9,7 +9,7 @@ using AnoMech.Network;
 
 namespace AnoMech.Relay;
 
-internal sealed class PeerConn(WebSocket socket, uint id, IPAddress ip, Guid peerId)
+internal sealed class PeerConn(WebSocket socket, uint id, IPAddress ip, Guid peerId, DateTime? joinedUtc = null)
 {
     public readonly WebSocket Socket = socket;
     public readonly Guid PeerId = peerId;
@@ -20,7 +20,7 @@ internal sealed class PeerConn(WebSocket socket, uint id, IPAddress ip, Guid pee
     public bool Ready;
     public readonly uint Id = id;
     public readonly IPAddress Ip = ip;
-    public readonly DateTime JoinedUtc = DateTime.UtcNow;
+    public readonly DateTime JoinedUtc = joinedUtc ?? DateTime.UtcNow;
     public long MessagesIn;
     public long BytesIn;
     public int PeakMessagesPerSecond;
@@ -51,11 +51,14 @@ internal sealed record ModerationResult(IReadOnlyList<PeerConn> Removed, Guid[] 
 
 // The relay's session table and every membership rule over it. No I/O: each operation returns
 // the connections the caller has to close or notify.
-internal sealed class RelayRooms(RelayOptions options)
+internal sealed class RelayRooms(RelayOptions options, TimeProvider? time = null)
 {
     private const int MaxRoomBans = 1024;
 
-    private sealed class Room
+    private readonly TimeProvider clock = time ?? TimeProvider.System;
+    private DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
+
+    private sealed class Room(DateTime createdUtc)
     {
         public readonly List<PeerConn> Peers = new();
         // Guards this room's own Peers/LastActivityUtc only -- NOT the sessions table.
@@ -70,8 +73,8 @@ internal sealed class RelayRooms(RelayOptions options)
         public Guid HostPeerId;
         // Null address: banned while not connected. Filled in the next time that identity tries.
         public readonly Dictionary<Guid, IPAddress?> Bans = new();
-        public DateTime LastActivityUtc = DateTime.UtcNow;
-        public readonly DateTime CreatedUtc = DateTime.UtcNow;
+        public DateTime LastActivityUtc = createdUtc;
+        public readonly DateTime CreatedUtc = createdUtc;
     }
 
     private readonly ConcurrentDictionary<string, Room> sessions = new();
@@ -91,7 +94,7 @@ internal sealed class RelayRooms(RelayOptions options)
             sessionCode = "";
             return false;
         }
-        var room = new Room { HostPeerId = host.PeerId };
+        var room = new Room(UtcNow) { HostPeerId = host.PeerId };
         room.Peers.Add(host);
         string code;
         do { code = RelayWire.NewCode(options.GroupNumber); } while (!sessions.TryAdd(code, room));
@@ -137,7 +140,7 @@ internal sealed class RelayRooms(RelayOptions options)
                     return new JoinResult(JoinOutcome.Full);
                 if (replaced != null) Remove(room, replaced);
                 room.Peers.Add(peer);
-                room.LastActivityUtc = DateTime.UtcNow;
+                room.LastActivityUtc = UtcNow;
                 return new JoinResult(JoinOutcome.Joined, Replaced: replaced);
             }
         }
@@ -208,7 +211,7 @@ internal sealed class RelayRooms(RelayOptions options)
         lock (room.Lock)
         {
             if (!IsLive(sessionCode, room) || !sender.Ready || !room.Peers.Contains(sender)) return null;
-            room.LastActivityUtc = DateTime.UtcNow;
+            room.LastActivityUtc = UtcNow;
             var fromHost = sender.PeerId == room.HostPeerId;
             return (fromHost, room.Peers.Where(peer => !ReferenceEquals(peer, sender) && peer.Ready && peer.Socket.State == WebSocketState.Open
                 && (fromHost || peer.PeerId == room.HostPeerId)).ToList());
@@ -279,7 +282,7 @@ internal sealed class RelayRooms(RelayOptions options)
 
     public List<SessionInfo> Snapshot()
     {
-        var now = DateTime.UtcNow;
+        var now = UtcNow;
         var list = new List<SessionInfo>();
         foreach (var (code, room) in sessions)
         {

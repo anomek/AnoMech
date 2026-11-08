@@ -24,6 +24,10 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
     private const float ForcedFollowArrivalSlack = 0.05f;
     private const float ForcedFollowResumeMargin = 0.5f;
 
+    // Long enough for the client to take it, and over before the slide is: input still held as a
+    // slide ends starts the next one.
+    private const float IceSlideTapSeconds = 0.2f;
+
     private readonly Coordinates coordinates;
     private readonly ActorControl actorControl;
     private readonly ObstacleField obstacles;
@@ -35,6 +39,9 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
 
     // The client is sliding the character; a debug driver's walk waits it out.
     private float holdRemaining;
+
+    // A debug driver's tap of the stick, which outlasts the walk's own let-go.
+    private float iceSlideTap;
 
     private SimCharacter? forcedFollowTarget;
     private float forcedFollowResend;
@@ -150,6 +157,7 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
 
     public override void Clear()
     {
+        iceSlideTap = 0f;
         navigator.Clear();
         ForceFollow(null);
         holdRemaining = 0f;
@@ -180,12 +188,8 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
                 Hold(CarryHoldSeconds);
                 break;
             case ForcedMove.IceSlide slide:
-            {
-                var direction = slide.To - Position;
-                actorControl.Slide(coordinates.ToGlobal(slide.To), MathF.Atan2(direction.X, direction.Z));
-                Hold(slide.DurationSeconds);
+                if (DebugBotControl.Enabled) TapIceSlide(slide);
                 break;
-            }
             case ForcedMove.Teleport teleport:
                 SetPlacement(teleport.To);
                 break;
@@ -206,11 +210,23 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
         Hold(duration);
     }
 
+    // The client ignores 0xDF on its own player: on Thin Ice it slides them along their movement
+    // input by itself, as far as the status says.
+    private void TapIceSlide(ForcedMove.IceSlide slide)
+    {
+        var direction = slide.To - Position;
+        TurnTo(MathF.Atan2(direction.X, direction.Z));
+        Natives.PlayerInput.Steer(new Vector2(direction.X, direction.Z), 0f);
+        iceSlideTap = IceSlideTapSeconds;
+        Hold(slide.DurationSeconds);
+    }
+
     private void Hold(float seconds) => holdRemaining = MathF.Max(holdRemaining, seconds);
 
     public override void Tick(float deltaSeconds, MotionGates gates)
     {
         holdRemaining = MathF.Max(0f, holdRemaining - deltaSeconds);
+        if (iceSlideTap > 0f && (iceSlideTap -= deltaSeconds) <= 0f) Natives.PlayerInput.Steer(null, 0f);
         if (!gates.Alive)
         {
             if (navigator.HasOrders) navigator.Clear();
@@ -235,5 +251,8 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
         Natives.PlayerInput.Steer(new Vector2(d.X, d.Z), speed);
     }
 
-    void INavigated.Halt() => Natives.PlayerInput.Steer(null, 0f);
+    void INavigated.Halt()
+    {
+        if (iceSlideTap <= 0f) Natives.PlayerInput.Steer(null, 0f);
+    }
 }

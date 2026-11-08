@@ -2,8 +2,8 @@ using AnoMech.Core.Native.Interfaces;
 
 namespace AnoMech.Tests;
 
-// Solo in the inn the real gauge is empty.
-internal sealed class FakeLimitBreakController : ILimitBreakController
+// The gauge the local player's HUD shows: empty solo in the inn, then whatever its ActorControls set.
+internal sealed class FakeLimitBreakController(FakeCharacter player) : ILimitBreakController
 {
-    public LimitBreakBars? Read() => default(LimitBreakBars);
+    public LimitBreakBars? Read() => player.LimitBreak;
 }

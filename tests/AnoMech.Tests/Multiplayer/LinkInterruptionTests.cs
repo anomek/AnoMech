@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
-using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Multiplayer;
 using AnoMech.Scenarios;
@@ -19,7 +17,6 @@ namespace AnoMech.Tests;
 // at random moments of every fight. A new message, or a new scenario sending one, is covered as
 // it is.
 [TestFixture]
-[Ignore("Too slow")]
 public class LinkInterruptionTests
 {
     private static readonly PlayerSeat Host = new(PartyRole.MeleeDpsA);
@@ -35,9 +32,6 @@ public class LinkInterruptionTests
     // ReconnectBackoff: a link is back 2 s after it went if its outage is over by then, else 4 s
     // after that.
     private const double FirstReconnect = 2.1, SecondReconnect = 6.1;
-
-    // A peer's run clock against the host's: on it, or ahead by its poses' delay.
-    private const double ClockBehind = 0.05, ClockAhead = 0.25;
 
     private static List<Type> Scenarios() =>
         ScenarioCatalog.Create().Scenarios.Where(s => s.SupportsMultiplayer).Select(s => s.GetType()).ToList();
@@ -68,7 +62,7 @@ public class LinkInterruptionTests
                 if (arriving) relay.DropBeforeReceiving(occasion.Client, Hit, Drop);
                 else relay.DropAfterSending(occasion.Client, Hit, Drop);
             });
-            var problems = Problems(run);
+            var problems = SessionChecks.Problems(run);
             if (run.Relay.TriggersPending > 0) problems.Insert(0, "the link never carried it");
             TestContext.Out.WriteLine($"{(problems.Count == 0 ? "ok" : "FAILED")}: {occasion}");
             failures.AddRange(problems.Take(8).Select(p => $"{occasion}: {p}"));
@@ -95,7 +89,7 @@ public class LinkInterruptionTests
             $"{Side} {(Arriving ? "reaching" : "leaving")} {Who(Client)} at {At:F2}s in {Scenario.Name}{(After is { } first ? $", after {first}" : "")}";
     }
 
-    private static string Who(int client) => client == 0 ? "the host" : $"peer {client}";
+    private static string Who(int client) => SessionChecks.Who(client);
 
     private sealed record Occasions(IReadOnlyList<Occasion> Sent, IReadOnlyList<Occasion> Arrived);
 
@@ -156,7 +150,7 @@ public class LinkInterruptionTests
         });
         foreach (var (client, down, up) in run.Relay.Outages) TestContext.Out.WriteLine($"{Who(client)} down {down:F2}s to {up:F2}s");
         TestContext.Out.WriteLine($"Worst resend {run.MaxStreamDelay():F2}s, parity within {ClientParity.Slack(run):F2}s");
-        var problems = Problems(run);
+        var problems = SessionChecks.Problems(run);
         foreach (var problem in problems.Take(40)) TestContext.Out.WriteLine(problem);
         Assert.That(problems, Is.Empty);
     }
@@ -218,61 +212,5 @@ public class LinkInterruptionTests
         return new Summary(run.Fights[0].StartedAt, run.Fights[0].EndedAt,
             run.Relay.Sends.Select(c => new Moment(Side(c), c.From, c.At)).ToList(),
             run.Relay.Delivered.Select(d => new Moment(Side(d.Carried), d.To, d.Carried.At)).ToList());
-    }
-
-    private static List<string> Problems(MultiplayerRun run)
-    {
-        if (run.Failure != null) return [run.Failure];
-        var problems = run.Relay.Rejected.Select(r => $"refused {r}").ToList();
-        if (run.HostOutcome is not (SessionStatus.Succeeded or SessionStatus.CompletedWithMistake))
-            problems.Add($"the host's fight ended {(run.HostOutcome is { } outcome ? outcome.ToString() : "before its end")}");
-        foreach (var lost in run.Relay.Sends.Where(c => c.Message is StreamLostMessage))
-            problems.Add($"{Who(lost.From)} no longer had what the other end missed: {lost.Message}");
-        foreach (var client in run.Peers.Prepend(run.Host))
-        {
-            if (client.Multiplayer.RunEndReason is { } reason) problems.Add($"{client.Name}'s run ended: {reason}");
-            problems.AddRange(client.Log.Warnings.Where(w => w.Contains("[SimAssets]")).Distinct().Select(w => $"{client.Name}: {w}"));
-        }
-        for (var i = 0; i < run.Peers.Count; i++)
-        {
-            var peer = run.Peers[i];
-            if (run.Host.Multiplayer.Session.ClaimedBy.GetValueOrDefault(peer.Seat) != peer.PeerId) problems.Add($"{peer.Name} lost its seat");
-            problems.AddRange(StreamProblems(run.Host, peer, run.Baseline(peer)));
-            problems.AddRange(StreamProblems(peer, run.Host, 0));
-            problems.AddRange(ClientParity.Compare(run, peer).Take(10).Select(gap => $"{peer.Name}: {gap}"));
-            if (peer.Fake.BattleCharas.Live != run.Host.Fake.BattleCharas.Live)
-                problems.Add($"{peer.Name} has {peer.Fake.BattleCharas.Live} characters left, the host {run.Host.Fake.BattleCharas.Live}");
-            if (peer.Fake.EventObjects.Live != run.Host.Fake.EventObjects.Live)
-                problems.Add($"{peer.Name} has {peer.Fake.EventObjects.Live} event objects left, the host {run.Host.Fake.EventObjects.Live}");
-            var lead = run.PeerClocksAtEnd[i] - run.HostClockAtEnd;
-            if (lead < -ClockBehind || lead > ClockAhead) problems.Add($"{peer.Name}'s run clock is {lead * 1000:+0;-0} ms off the host's");
-        }
-        return problems;
-    }
-
-    // All of `from`'s stream past where `to` took it up, each message once, in order, as it was
-    // sent.
-    private static IEnumerable<string> StreamProblems(TestClient from, TestClient to, long baseline)
-    {
-        var sent = from.StreamSent.Where(s => s.Message.Seq > baseline).ToList();
-        var taken = MultiplayerRun.Taken(to, from);
-        for (var i = 0; i < Math.Max(sent.Count, taken.Count); i++)
-        {
-            if (i >= taken.Count)
-            {
-                yield return $"{to.Name} never took {sent.Count - i} of {from.Name}'s messages, from #{sent[i].Message.Seq} ({sent[i].Message.GetType().Name})";
-                yield break;
-            }
-            if (i >= sent.Count || taken[i].Seq != sent[i].Message.Seq)
-            {
-                yield return $"{to.Name} took {from.Name}'s #{taken[i].Seq} where {(i < sent.Count ? $"#{sent[i].Message.Seq}" : "nothing")} was next";
-                yield break;
-            }
-            if (JsonSerializer.Serialize(taken[i]) != sent[i].Json)
-            {
-                yield return $"{from.Name}'s #{sent[i].Message.Seq} ({sent[i].Message.GetType().Name}) reached {to.Name} changed";
-                yield break;
-            }
-        }
     }
 }

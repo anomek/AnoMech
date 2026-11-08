@@ -22,7 +22,11 @@ public class TraceLog : DispatchProxy
         return log;
     }
 
-    public void Add(string level, string message) => lines.Add($"t={clock(),7:F2} {level,-5} {message}");
+    // A real RelayClient logs from its own threads.
+    public void Add(string level, string message)
+    {
+        lock (lines) lines.Add($"t={clock(),7:F2} {level,-5} {message}");
+    }
 
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
@@ -33,7 +37,7 @@ public class TraceLog : DispatchProxy
                 LastFired = message[FiredPrefix.Length..].Split(' ')[0];
             Add(level, message);
             if (level is "WARN" or "ERROR" or "FATAL")
-                Warnings.Add(message);
+                lock (lines) Warnings.Add(message);
         }
         return method is { ReturnType.IsValueType: true } && method.ReturnType != typeof(void) ? Activator.CreateInstance(method.ReturnType) : null;
     }

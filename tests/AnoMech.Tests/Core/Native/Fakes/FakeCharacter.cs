@@ -39,6 +39,9 @@ internal sealed class FakeCharacter(uint entityId, string name)
     public float CurrentCastTime { get; set; }
     public float TotalCastTime { get; set; }
 
+    // The local player's limit break gauge, as its HUD shows it.
+    public AnoMech.Core.Native.Interfaces.LimitBreakBars LimitBreak { get; set; }
+
     private Vector3 carryStart;
     private Vector3? carryDestination;
     private float carryElapsed;
@@ -76,6 +79,16 @@ internal sealed class FakeCharacter(uint entityId, string name)
     // UNVERIFIED: how long the client slides; the packet carries no duration.
     public void StartSlide(Vector3 destination, float rotation) => StartGlide(destination, rotation);
 
+    // The local player's own slide across Thin Ice.
+    public void StartSlide(Vector3 destination, float rotation, float seconds)
+    {
+        Rotation = rotation;
+        glideStep = (destination - Position) / seconds;
+        glideRemaining = seconds;
+    }
+
+    public bool Sliding => glideRemaining > 0f;
+
     public void Teleport(Vector3 position, float rotation)
     {
         Position = position;
@@ -99,13 +112,13 @@ internal sealed class FakeCharacter(uint entityId, string name)
 
     // The client walks a forced follow at run speed and stops at the target's hitbox edge.
     private const float RunSpeed = 6f;
-    private FakeCharacter? forcedFollowTarget;
+    public FakeCharacter? ForcedFollowTarget { get; private set; }
 
-    public void StartForcedFollow(FakeCharacter? target) => forcedFollowTarget = target;
+    public void StartForcedFollow(FakeCharacter? target) => ForcedFollowTarget = target;
 
     private void WalkForcedFollow(float deltaSeconds)
     {
-        if (forcedFollowTarget is not { } target) return;
+        if (ForcedFollowTarget is not { } target) return;
         var away = new Vector2(target.Position.X - Position.X, target.Position.Z - Position.Z);
         var gap = away.Length() - HitboxRadius - target.HitboxRadius;
         if (gap <= 0f) return;

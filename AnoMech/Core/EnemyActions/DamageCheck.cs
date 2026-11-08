@@ -7,17 +7,26 @@ using AnoMech.Core.UserActions;
 
 namespace AnoMech.Core.EnemyActions;
 
+// A hit whose survival rests on the target's mitigation. Judged: the target's own statuses decide
+// it; a bot's are never looked at.
+internal readonly record struct MitigationNeed(uint ActionId, SimCharacter Target, DamageKind Kind, float Required, bool Judged);
+
 internal static class DamageCheck
 {
+    // Every hit judged on mitigation, a bot's included, for the headless test harness.
+    public static event Action<MitigationNeed>? NeedsMitigation;
+
     // Null when the hit is survivable, otherwise why it kills ("" when it simply does).
-    public static string? LethalCause(SimCharacter target, VulnSpec spec, Severity severity, DamageKind kind, SimParty party)
+    public static string? LethalCause(SimCharacter target, VulnSpec spec, Severity severity, DamageKind kind, EnemyActionContext ctx)
     {
         if (spec.Protections.Any(id => target.FindStatus(id) != null)) return null;
         if (severity.Kind == SeverityKind.Lethal) return MissingProtection(spec) ?? "";
         var vuln = CarriedVulnerability(target, spec);
         if (vuln is { RequiredMitigation: null }) return "had vuln up debuff";
         if (severity.Kind == SeverityKind.TankBuster && !IsTank(target)) return "tank buster";
-        if (Survives(target, party, MathF.Max(severity.MinMitigation, vuln?.RequiredMitigation ?? 0f), kind)) return null;
+        var required = MathF.Max(severity.MinMitigation, vuln?.RequiredMitigation ?? 0f);
+        if (required > 0f) NeedsMitigation?.Invoke(new MitigationNeed(ctx.Action.ActionId, target, kind, required, ChecksMitigation(target, ctx.Party)));
+        if (Survives(target, ctx.Party, required, kind)) return null;
         return vuln != null ? "not enough mitigation for a hit with vuln up" : "not enough mitigation";
     }
 

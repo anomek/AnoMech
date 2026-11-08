@@ -21,13 +21,14 @@ public sealed class FruP4DarklitDragonsongAi(bool playerBaitsSomberDance) : ISce
     private PartyRole[] swapped = [];
     private PartyRole somberTank;
     private bool baitEast;
+    private Vector3 farDanceLanding;
 
     public void Run(FruP4DarklitDragonsongState stateParam, SimWorld worldParam)
     {
         state = stateParam;
         world = worldParam;
         swapped = SwapFreeWaterToItsGroup();
-        somberTank = ChooseSomberTank();
+        somberTank = state.SomberTank ??= ChooseSomberTank();
         var ai = new AiManager(world);
         ai.Move(2f, () => ByRole(Middle), arrivalTime: 6.6f);
         ai.Move(6.65f, () => ByRole(OpeningSpread), arrivalTime: 8.8f);
@@ -39,6 +40,7 @@ public sealed class FruP4DarklitDragonsongAi(bool playerBaitsSomberDance) : ISce
         world.Events.Add(40.5f, BaitSomberDanceAwayFromOracle);
         ai.Move(40.6f, () => ByRole(role => role == somberTank ? FromSim(0, baitEast ? 43 : -43) : null), arrivalTime: 43.8f);
         ai.Move(42.4f, () => ByRole(role => role == somberTank ? null : DanceParty(role)), arrivalTime: 43.8f);
+        world.Events.Add(43.8f, ExpectTheOracleToJumpShortOfTheFarthest);
         ai.Move(45f, () => ByRole(role => role == somberTank ? JustPastOracleFromCenter() : null), jitter: 0f, arrivalTime: 47f);
         ai.Move(50.15f, () => ByRole(AkhMorn), arrivalTime: 57.7f);
     }
@@ -61,9 +63,17 @@ public sealed class FruP4DarklitDragonsongAi(bool playerBaitsSomberDance) : ISce
     private Vector3 OraclePosition()
         => world.Children.OfType<SimEnemy>().FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.OracleP4)?.Position ?? Vector3.Zero;
 
-    private Vector3 JustPastOracleFromCenter()
+    private void ExpectTheOracleToJumpShortOfTheFarthest()
     {
         var oracle = OraclePosition();
+        farDanceLanding = world.Party.ActiveMembers().MaxBy(m => Vector3.DistanceSquared(m.Position, oracle)) is { } farthest
+            ? JumpLanding(oracle, farthest.Position)
+            : oracle;
+    }
+
+    private Vector3 JustPastOracleFromCenter()
+    {
+        var oracle = farDanceLanding;
         return oracle.LengthSquared() > 0.01f ? oracle + Vector3.Normalize(oracle) * 2f : oracle;
     }
 

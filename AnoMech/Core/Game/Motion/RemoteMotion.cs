@@ -177,10 +177,9 @@ internal sealed class RemoteMotion(Func<IBattleCharaProxy?> proxy, Coordinates c
                 if (dx * dx + dz * dz < 1e-6f) return;
                 outbox.Add(new ForcedMove.Push(MathF.Atan2(dx, dz), away.Distance, away.DurationSeconds));
                 return;
-            case ForcedMove.IceSlide slide:
-                var offset = slide.To - Position;
-                if (offset.LengthSquared() < 1e-6f) return;
-                outbox.Add(new ForcedMove.Push(MathF.Atan2(offset.X, offset.Z), offset.Length(), slide.DurationSeconds));
+            // A slide on the ice goes where its player steers: the owner's own client makes it, a
+            // debug bot's own Ai there included.
+            case ForcedMove.IceSlide:
                 return;
             // This copy snaps too, so mechanics read the new spot until the owner's next pose.
             case ForcedMove.Teleport teleport:

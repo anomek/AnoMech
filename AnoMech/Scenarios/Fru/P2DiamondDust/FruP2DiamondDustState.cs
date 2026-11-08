@@ -37,6 +37,22 @@ public sealed class FruP2DiamondDustState
         GazeOctant = overrides.GazeOctant ?? rng.Next(8);
     }
 
+    // A peer's shadow of the host's roll (see IMultiplayerReplayable): nothing rolled.
+    private FruP2DiamondDustState(int firstIcicle, bool supportsMarked, bool axe, int mirrorOctant, bool stillness, int gazeOctant)
+    {
+        FirstIcicle = firstIcicle;
+        SupportsMarked = supportsMarked;
+        Axe = axe;
+        MirrorOctant = mirrorOctant;
+        Stillness = stillness;
+        GazeOctant = gazeOctant;
+    }
+
+    public static FruP2DiamondDustState? FromNetworkReplay(int firstIcicle, bool supportsMarked, bool axe, int mirrorOctant, bool stillness, int gazeOctant)
+        => firstIcicle is >= 0 and < 4 && mirrorOctant is >= 0 and < 8 && gazeOctant is >= 0 and < 8
+            ? new(firstIcicle, supportsMarked, axe, mirrorOctant, stillness, gazeOctant)
+            : null;
+
     // Octants clockwise from north.
     public static Vector3 Point(float octant, float radius)
         => new(MathF.Sin(octant * MathF.PI / 4) * radius, 0, -MathF.Cos(octant * MathF.PI / 4) * radius);

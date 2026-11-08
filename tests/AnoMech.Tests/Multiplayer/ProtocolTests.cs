@@ -9,9 +9,11 @@ namespace AnoMech.Tests;
 
 public class ProtocolTests
 {
-    // The peer types a relay passes from peers to the host; the rest are the host's alone.
-    private static readonly string[] PeerTypes = ["hello", "claim", "release", "pose", "pong", "startCheckResponse", "startAbort", "entered",
-        "sessionEnded", "resetRequest", "leaveRequest", "peerAppliedEnemyStatus", "peerAppliedRoleStatus", "streamGap", "streamLost", "acted"];
+    private static readonly Type[] Forms = typeof(MpMessage).GetCustomAttributes<JsonDerivedTypeAttribute>().Select(a => a.DerivedType).ToArray();
+
+    // The types a relay passes from peers to the host; the rest are the host's alone.
+    private static readonly string[] PeerTypes = typeof(MpMessage).GetCustomAttributes<JsonDerivedTypeAttribute>()
+        .Where(a => typeof(IPeerMessage).IsAssignableFrom(a.DerivedType)).Select(a => (string)a.TypeDiscriminator!).ToArray();
 
     // Host messages are only typed by RelayWire; the rest falls to deserialization.
     [Test]
@@ -33,13 +35,20 @@ public class ProtocolTests
         Assert.That(RelayWire.Validate(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(message), true, id), Is.EqualTo("rolesSnapshot"));
     }
 
+    // So a new message can't skip deciding who may send it.
+    [Test]
+    public void EveryMessageIsEitherTheHostsAloneOrAPeers()
+    {
+        var unclassified = Forms.Where(f => typeof(IHostOnlyMessage).IsAssignableFrom(f) == typeof(IPeerMessage).IsAssignableFrom(f));
+        Assert.That(unclassified.Select(f => f.Name), Is.Empty);
+    }
+
     [Test]
     public void EveryMessageFormRoundTripsAndOnlyPeerTypesPassFromPeers()
     {
         var id = RelayWire.PeerId(RelayWire.NewSecret());
-        var forms = typeof(MpMessage).GetCustomAttributes<JsonDerivedTypeAttribute>().Select(a => a.DerivedType).ToArray();
-        var peerForms = 0;
-        foreach (var form in forms)
+        Assert.That(RelayWire.PeerMessageTypes, Is.EquivalentTo(PeerTypes), "the relay's peer types are the IPeerMessage ones");
+        foreach (var form in Forms)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(Sample<MpMessage>(form, id));
             var type = RelayWire.Validate(bytes, true, id);
@@ -52,10 +61,8 @@ public class ProtocolTests
             // Every Guid field is the sender's id, so a peer type names its real sender.
             Assert.That(Receive(bytes, false, id), Is.TypeOf(form), $"{type} accepted from its sender");
             Rejects(() => RelayWire.Validate(bytes, false, Guid.NewGuid()), $"{type} refused from anyone else");
-            peerForms++;
         }
-        Assert.That(forms, Has.Length.GreaterThan(40));
-        Assert.That(peerForms, Is.EqualTo(PeerTypes.Length), "every peer type checked");
+        Assert.That(Forms, Has.Length.GreaterThan(40));
     }
 
     // A frame that sends every status list at once, each slot full: the run's start.
