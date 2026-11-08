@@ -86,6 +86,7 @@ internal sealed class MultiplayerRun
         Action<TestClient>? configure = null, Action<TestClient>? beforeFrame = null, bool liveConnection = false,
         Action<ISessionNetwork>? network = null)
     {
+        using var outside = new PluginServicesState();
         var run = new MultiplayerRun(seed, host, peers, hostLink ?? TestRelay.Perfect, peerLink ?? TestRelay.Perfect, liveConnection);
         if (interrupt != null) interrupt(run.Relay);
         network?.Invoke(run.Network);
