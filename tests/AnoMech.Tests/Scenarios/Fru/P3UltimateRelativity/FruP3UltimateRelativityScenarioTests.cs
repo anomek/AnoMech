@@ -58,6 +58,19 @@ public class FruP3UltimateRelativityScenarioTests
             .TeleportAt(32.6f, to: new(0, -7))
             .ShouldKill(ActionId.DarkBlizzard, MeleeDpsA);
 
+    // An ice holder has no fire to drop, so it stays in the stack and a stack one stacker short still holds.
+    [Test]
+    public void FirstStackHoldsWithTheIceSupportInIt()
+        => Relativity(RegenHealer, o => o.DpsIce = false)
+            .MoveBotAt(22.5f, PhysRangedDps, to: new(12, -6))
+            .ShouldKillNoOneElse();
+
+    [Test]
+    public void ThirdStackHoldsWithTheIceDpsInIt()
+        => Relativity(RegenHealer)
+            .MoveBotAt(42.5f, MeleeDpsA, to: new(0, 9))
+            .ShouldKillNoOneElse();
+
     [Test]
     public void UnholyDarknessShortABodyKillsStackers()
         => Relativity(PhysRangedDps)

@@ -83,11 +83,7 @@ public sealed class FruP3UltimateRelativityAi : IScenarioAi<FruP3UltimateRelativ
     }
 
     private Vector3? FireSpot(PartyRole role, int wave, bool intermediate = false)
-    {
-        var fireWave = FruP3UltimateRelativityState.FireWave(state.Debuff(role));
-        if (wave == 0 && state.Debuff(role) == RelativityDebuff.ShortSupport && !state.DpsIce) return At(role, 20.5f * S);
-        return At(role, fireWave == wave ? (intermediate ? 20.5f : 32.5f) * S : 3f * S);
-    }
+        => At(role, state.HasFire(role, wave) ? (intermediate ? 20.5f : 32.5f) * S : 3f * S);
 
     private Vector3? BaitSpot(PartyRole role, int wave)
     {
