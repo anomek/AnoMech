@@ -315,7 +315,8 @@ public sealed unsafe partial class ZoneControl
     }
 #endif
     // Dalamud's territory follows real zone-ins only (the sim's own loads leave it on the inn),
-    // so anything else is one. GameMain's reads 0 after the sim's load, so it is only logged.
+    // so anything else is one. GameMain's reads 0 while the client loads any zone, so no trip
+    // reads it; only the lift waits on it.
     private uint innClientTerritory;
     private uint loadedTerritory;
     private uint lastNativeTerritory;
@@ -337,6 +338,22 @@ public sealed unsafe partial class ZoneControl
     {
         var gm = GameMain.Instance();
         return gm == null ? 0 : gm->CurrentTerritoryTypeId;
+    }
+
+    // GameMain.TerritoryLoadState while a zone loads (2 once loaded, 3 while unloading).
+    private const uint TerritoryLoading = 1;
+
+    private bool ClientLoadingInn()
+    {
+        var gm = GameMain.Instance();
+        return gm != null && gm->CurrentTerritoryTypeId == 0 && gm->NextTerritoryTypeId == innClientTerritory
+               && gm->TerritoryLoadState == TerritoryLoading;
+    }
+
+    private static string NativeLoad()
+    {
+        var gm = GameMain.Instance();
+        return gm == null ? "no GameMain" : $"next {gm->NextTerritoryTypeId}, load state {gm->TerritoryLoadState}";
     }
 
     private string? TerritoryDrift()
@@ -393,7 +410,7 @@ public sealed unsafe partial class ZoneControl
             .Where(f => (int)f != 0 && Plugin.Condition[f]).Select(f => f.ToString()).Distinct());
         return $"[ZoneGuard] {where} -- stay #{stayId}, {Stopwatch.GetElapsedTime(guardArmedAt).TotalSeconds:F2}s in, armed={guardArmed}, sessionActive={IsActive}, trip={tripReason ?? "none"}; "
              + $"player {here}, inn {Describe(armedPosition, armedRotation)}, apart {apart}; "
-             + $"territory Dalamud={Plugin.ClientState.TerritoryType} GameMain={NativeTerritory()} (inn {innClientTerritory}, loaded {loadedTerritory}, last finished load {completedLoad}); "
+             + $"territory Dalamud={Plugin.ClientState.TerritoryType} GameMain={NativeTerritory()} ({NativeLoad()}; inn {innClientTerritory}, loaded {loadedTerritory}, last finished load {completedLoad}); "
              + $"loggedIn={Plugin.ClientState.IsLoggedIn}; hooks send={sendPacketHook.IsEnabled}/disposed={sendPacketHook.IsDisposed} recv={receivePacketHook.IsEnabled}/disposed={receivePacketHook.IsDisposed}; "
              + $"held {heldInbound} inbound, outbound [{outbound}]; conditions [{conditions}]";
     }
@@ -574,8 +591,9 @@ public sealed unsafe partial class ZoneControl
     // zone-in moves that reading.
     private const string HookDisabled = "a firewall hook was found disabled";
 
-    private string? LiftBlockedReason()
+    private string? LiftBlockedReason(out bool innLoading)
     {
+        innLoading = false;
         if (tripReason is { } tripped) return tripped;
         if (!sendPacketHook.IsEnabled || !receivePacketHook.IsEnabled) return HookDisabled;
         if (!Plugin.ClientState.IsLoggedIn) return "not logged in";
@@ -586,11 +604,16 @@ public sealed unsafe partial class ZoneControl
             return $"the client reports territory {Plugin.ClientState.TerritoryType}, not the inn ({innClientTerritory}) the firewall was armed in";
         if (completedLoad != innClientTerritory || loadedInstanceContent != null)
             return $"the inn reload did not complete (last finished load {completedLoad}, sim duty {(loadedInstanceContent is { } content ? content.ToString() : "none")})";
-        // The engine finishes the reload over the next second and then sends its post-load packet;
+        // The client finishes the reload on its own time and then sends its post-load packets;
         // its territory reads 0 until then. An unload cannot wait for it (no frames are left) and
         // dies here instead.
         if (NativeTerritory() != innClientTerritory)
-            return $"the client is still loading the inn (the game's territory reads {NativeTerritory()})";
+        {
+            innLoading = ClientLoadingInn();
+            return innLoading
+                ? $"the client is still loading the inn (the game's territory reads {NativeTerritory()})"
+                : $"the game's territory reads {NativeTerritory()}, not the inn ({innClientTerritory}), and no inn load is under way ({NativeLoad()})";
+        }
         return TerritoryDrift() ?? PositionDrift();
     }
 
@@ -598,10 +621,10 @@ public sealed unsafe partial class ZoneControl
     private bool pendingLiftMayRetry;
     private string? liftHoldLoggedReason;
     private long pendingLiftSince;
-    private const double LiftRetrySeconds = 3;
+    private long innReloadedAt;
 
     // Any blocker holds the lift with the firewall up and is re-checked every frame; the stay
-    // dies if it hasn't cleared within LiftRetrySeconds. These two die at once instead: waiting
+    // dies once LiftWait says it has waited long enough. These two die at once instead: waiting
     // cannot improve a tripped stay, and a hook already off means the filter is down now.
     private bool MustDieNow(string reason) => reason == tripReason || reason == HookDisabled;
 
@@ -627,14 +650,16 @@ public sealed unsafe partial class ZoneControl
     private void TryLift()
     {
         if (pendingLift is not { } when) return;
-        if (LiftBlockedReason() is { } reason)
+        if (LiftBlockedReason(out var innLoading) is { } reason)
         {
             var waited = Stopwatch.GetElapsedTime(pendingLiftSince).TotalSeconds;
-            if (pendingLiftMayRetry && !MustDieNow(reason) && waited < LiftRetrySeconds)
+            if (pendingLiftMayRetry && !MustDieNow(reason)
+                && LiftWait.Waits(innLoading, Stopwatch.GetElapsedTime(innReloadedAt).TotalSeconds, waited))
             {
                 if (liftHoldLoggedReason == reason) return;
                 liftHoldLoggedReason = reason;
-                DiagnosticLog.Warn($"[ZoneGuard] Lift held {waited:F2}s in ({when}): {reason} -- firewall stays up, re-checking every frame until {LiftRetrySeconds:F0}s.");
+                var until = innLoading ? $"the inn has loaded, at most {LiftWait.InnLoadSeconds:F0}s after the reload" : $"{LiftWait.RetrySeconds:F0}s";
+                DiagnosticLog.Warn($"[ZoneGuard] Lift held {waited:F2}s in ({when}): {reason} -- firewall stays up, re-checking every frame until {until}.");
                 return;
             }
             DiagnosticLog.Warn(StateSnapshot($"LIFT REFUSED after {waited:F2}s ({when}): {reason}"));
@@ -645,6 +670,7 @@ public sealed unsafe partial class ZoneControl
         pendingLift = null;
         liftHoldLoggedReason = null;
         guardArmed = false;
+        ReleasePlayerConditions();
         var counters = RestoreClientCounters(armedCounters);
         if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
         DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, {counters}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
