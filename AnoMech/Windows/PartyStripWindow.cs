@@ -64,7 +64,7 @@ internal sealed class PartyStripWindow : Window
         }
         ImGui.PushStyleColor(ImGuiCol.Text, MainWindow.PartyChangeColor);
         foreach (var change in MainWindow.PartyChanges().TakeLast(ChangesShown))
-            ImGui.TextWrapped($"{change.At:HH:mm}  {change.Text}");
+            ImGui.TextWrapped($"{change.ShownAt.ToLocalTime():HH:mm}  {change.Text}");
         ImGui.PopStyleColor();
     }
 }

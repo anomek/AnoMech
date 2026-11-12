@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using AnoMech.Core.Native.Implementations.Pointers;
@@ -11,69 +12,37 @@ using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using Lumina.Text.ReadOnly;
+using ThreadingTask = System.Threading.Tasks.Task;
 using Condition = Lumina.Excel.Sheets.Condition;
 using LogMessage = Lumina.Excel.Sheets.LogMessage;
 using World = Lumina.Excel.Sheets.World;
 
 namespace AnoMech.Core.Native.Implementations;
 
-// The game side of PartyStatusTracker. The receive filter needs the party-status packets' opcodes
-// to pick them out, and opcodes change with every game version, so they are learned from the
-// client's own handlers as live packets reach them, and kept per game version. The ones a fix
-// can't do without (conditions, online status, ActorControl) are learned through handlers that
-// upstream or ClientStructs keep current through patches; the ones that may not arrive before a
-// run (Party Finder notice, member events) are also read from the client's code at load.
+// The game side of PartyStatusTracker. The receive filter needs the party packets' opcodes to pick
+// them out, and opcodes change with every game version. They are read at load from the client's
+// protocol receiver (ProtocolReceiver), and checked against what the client's own handlers do with
+// live packets outside the sim: each handler, found through ClientStructs or a signature, names the
+// packet it ran for. What the handlers show is kept per game version, and outranks the receiver except
+// on which ready check start a packet was (PartyOpcodeSources). Built on the framework thread, where the
+// client runs these handlers: a hook backend may run a detour before it hands back the hook the detour
+// calls through.
 internal sealed unsafe class ServerPartyWatch : IDisposable
 {
-    // The packet the receive hook is handing the client right now, and the actor it's for; 0
-    // outside a dispatch (ZoneControl sets them around the real dispatcher's call).
+    // The packet the client's handlers are running for right now, and the actor it's for; 0 outside
+    // a dispatch. ZoneControl sets them: its dispatch hook outside the sim, its firewall within it.
     [ThreadStatic] internal static nint DispatchingPacket;
     [ThreadStatic] internal static uint DispatchingActor;
+    // ZoneControl is handing the client one of the plugin's own replays, which names nothing.
+    [ThreadStatic] internal static bool Replaying;
 
     // InfoProxyCrossRealm's handler for the Party Finder notice packet, which the client reaches only
-    // through that packet. It switches on the code at +6; code 0 clears AgentLookingForGroup's own
-    // listing, which nothing else does short of a zone change.
-    private const string NoticeHandlerSignature =
-        "4C 8B DC 53 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 49 89 73 20 48 8B D9 48 8B 49 08 49 89 7B F0 4D 89 73 E8 4C 8B F2 48 8B 01 FF 90 ?? ?? ?? ?? 48 8B C8 BA 82 00 00 00";
+    // through that packet: it fetches AgentLookingForGroup first.
+    private static readonly string NoticeHandlerSignature =
+        "4C 8B DC 53 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 49 89 73 20 48 8B D9 48 8B 49 08 49 89 7B F0 4D 89 73 E8 4C 8B F2 48 8B 01 FF 90 ?? ?? ?? ?? 48 8B C8 BA "
+        + string.Join(" ", BitConverter.GetBytes((uint)AgentId.LookingForGroup).Select(b => b.ToString("X2")));
 
-    // The zone dispatcher's switch on the opcode (DispatcherSwitch), and its case for the Party
-    // Finder notice: it prints the notice's log message unless the code at +6 is 0x27. Only the
-    // notice reaches that case.
-    private const string DispatcherSwitchSignature =
-        "41 83 C5 ?? 49 8B FC 41 81 FD ?? ?? ?? ?? 0F 87 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 49 63 C5 8B 8C 82 ?? ?? ?? ?? 48 03 CA FF E1";
-    private const string NoticeCaseSignature =
-        "48 8D 4F 10 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8B D8 48 85 C0 74 ?? 80 7F 16 27";
-
-    // How each of the dispatcher's ActorControl cases starts: hand the packet to the replay
-    // recorder, then check its category against the replay filter. Matches all three forms.
-    private const string ActorControlCaseSignature =
-        "4C 8D 47 10 41 8B D6 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? F6 05 ?? ?? ?? ?? 04 74 ?? 0F B7 57 10 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 84 C0 74 ?? 0F B7 57 10 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 84 C0 0F 84";
     private const ulong NoTarget = 0xE0000000;
-
-    // The party handler's branch for the cross-world party's member events (it checks the kind at
-    // +1 against 2) and its branch for "member left" (it compares the content id at +0 with the
-    // player's), and the two forms of the handler's switch that reach them: a byte-table range and
-    // a lone compare (SwitchCode).
-    private const string MemberEventCaseSignature = "40 32 FF 38 9E ?? ?? ?? ?? 0F 84 ?? ?? ?? ?? 41 0F B6 4E 11 80 F9 02 0F 85";
-    private const string MemberLeftCaseSignature =
-        "49 39 5E 10 0F 84 ?? ?? ?? ?? 49 8B 07 49 8B CF FF 90 ?? ?? ?? ?? 48 8B 88 ?? ?? ?? ?? 48 85 C9 75 ?? 48 8B 0D";
-    private const string ByteTableSwitchSignature =
-        "2D ?? ?? ?? ?? 3D ?? ?? ?? ?? 0F 87 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 98 0F B6 84 02 ?? ?? ?? ?? 8B 8C 82 ?? ?? ?? ?? 48 03 CA FF E1";
-    private const string CompareJumpSignature = "3D ?? ?? ?? ?? 0F 87 ?? ?? ?? ?? 0F 84";
-
-    // The party event packet's handler (PartyEvent); its dispatcher case calls it, which names the
-    // opcode (SwitchCode.JumpTableOpcodeCalling).
-    private const string PartyEventHandlerSignature =
-        "40 53 56 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B F2 48 89 54 24 ?? E8";
-
-    // A cross-world party's ready check (CrossWorldReadyCheck): the function its start is handed
-    // to (it opens AgentReadyCheck, 0x89), and the party handler's branch for an answer (it fetches
-    // AgentReadyCheck, then the content id at +0). Both are reached through the handler's
-    // byte-table switch.
-    private const string CrossWorldReadyCheckSignature =
-        "40 53 55 48 83 EC 48 48 89 74 24 60 48 8B F1 48 8B 49 08 48 89 7C 24 68 48 8B FA 48 8B 01 FF 90 ?? ?? ?? ?? 48 8B C8 BA 89 00 00 00";
-    private const string CrossWorldReadyCheckAnswerCaseSignature =
-        "49 8B 4C 24 08 48 8B 01 FF 90 ?? ?? ?? ?? 48 8B C8 BA 89 00 00 00 E8 ?? ?? ?? ?? 4D 8B 46 10";
 
     // The client opens a ready check it receives with HeldReadyCheck.Window on this float of
     // AgentReadyCheck, counting down; ClientStructs doesn't name it.
@@ -81,7 +50,7 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
 
     // InfoProxyCrossRealm's roster parser: eight member entries into one group (0 for the party,
     // 0-5 for an alliance). A party roster hands it its payload + 8, after the leader's content id;
-    // an alliance's groups start at + 0x10. The 0x348 multiply is the group's size, and pins the match.
+    // an alliance's groups start further in. The 0x348 multiply is the group's size, and pins the match.
     private const string RosterParserSignature =
         "44 88 44 24 18 48 89 54 24 10 53 55 41 54 41 55 41 56 41 57 48 83 EC 48 48 8B E9 48 8B DA 48 8B 49 08 48 8B 01 FF 90 ?? ?? ?? ?? 4C 8B A0 ?? ?? ?? ?? 4D 85 E4 75 ?? 48 8B 0D ?? ?? ?? ?? 48 89 88 ?? ?? ?? ?? 4C 8B E1 48 85 C9 4C 0F 44 25 ?? ?? ?? ?? 45 32 ED 0F B6 8C 24 ?? ?? ?? ?? 48 69 C1 48 03 00 00";
     private const int RosterMembersOffset = 8;
@@ -98,8 +67,6 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
     // ZoneControl.InjectIncomingPacket: a server packet through the client's own dispatcher.
     internal delegate bool Inject(uint sourceEntityId, ushort opcode, ReadOnlySpan<byte> body, string what);
 
-    private enum Packet { PlayerStateFlags, Notice, Roster }
-
     private readonly ConditionFlag[] networked = Plugin.DataManager.GetExcelSheet<Condition>()
         .Where(row => row.IsNetworked)
         .Select(row => (ConditionFlag)row.RowId)
@@ -107,109 +74,120 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
         .ToArray();
 
     private readonly string gameVersion = Framework.Instance()->GameVersionString;
-    private readonly Hook<PacketDispatcherPointers.HandlePlayerStateFlagsPacketDelegate> stateFlagsHook;
+    private readonly Hook<PacketDispatcherPointers.HandlePlayerStateFlagsPacketDelegate>? stateFlagsHook;
     private readonly Hook<SetOnlineStatusFlagsDelegate>? onlineStatusHook;
     private readonly Hook<HandleActorControlDelegate>? actorControlHook;
     private readonly Hook<InitiateReadyCheckDelegate>? readyCheckHook;
     private readonly Hook<NoticeHandlerDelegate>? noticeHook;
     private readonly Hook<RosterParserDelegate>? rosterHook;
 
+    // Guards the tracker's opcodes against the receiver's read and the handlers at once.
+    private readonly object opcodes = new();
+    private readonly PartyOpcodeSources sources;
+    private readonly HashSet<PartyPacket> confirmed = [];
+    // Ready check opcodes the receiver's table filed under the other start; logged once each.
+    private readonly HashSet<ushort> moved = [];
+    private ProtocolReceiver? receiver;
+    private bool heardThrew;
+    private readonly HeldReadyCheckReplay heldReadyCheck = new();
+
     public PartyStatusTracker Tracker { get; }
 
-    public ServerPartyWatch()
+    // The notice handler and the roster parser, 0 where not found. A scan takes tens of milliseconds, so
+    // this runs before the watch is built on the framework thread.
+    public static (nint Notice, nint Roster) FindHandlers()
+    {
+        if (!Plugin.SigScanner.TryScanText(NoticeHandlerSignature, out var notice))
+            DiagnosticLog.Warn("[PartyWatch] The Party Finder notice handler was not found; the notice opcode is never confirmed from live packets.");
+        if (!Plugin.SigScanner.TryScanText(RosterParserSignature, out var roster))
+            DiagnosticLog.Warn("[PartyWatch] The cross-world roster parser was not found; the roster opcode is never confirmed from live packets.");
+        return (notice, roster);
+    }
+
+    public ServerPartyWatch((nint Notice, nint Roster) handlers)
     {
         Tracker = new PartyStatusTracker(networked, LogMessageText, WorldName, IsBlacklisted);
-        if (Plugin.Config.PartyOpcodesGameVersion == gameVersion)
-        {
-            Tracker.PlayerStateFlagsOpcode = Plugin.Config.PlayerStateFlagsOpcode;
-            Tracker.OnlineStatusOpcode = Plugin.Config.OnlineStatusOpcode;
-            Tracker.NoticeOpcode = Plugin.Config.PartyNoticeOpcode;
-            Tracker.RosterOpcodes = Plugin.Config.PartyRosterOpcodes;
-            Tracker.ActorControlOpcodes = Plugin.Config.PartyActorControlOpcodes;
-            Tracker.PartyEventOpcode = Plugin.Config.PartyEventOpcode;
-        }
-        var dispatcherSwitch = Plugin.SigScanner.TryScanText(DispatcherSwitchSignature, out var switchCode) ? switchCode : 0;
-        if (NoticeOpcodeFromDispatcher(dispatcherSwitch) is var noticeOpcode and not 0)
-        {
-            if (Tracker.NoticeOpcode is var saved and not 0 && saved != noticeOpcode)
-                DiagnosticLog.Warn($"[PartyWatch] The dispatcher sends the Party Finder notice as 0x{noticeOpcode:X4}, not the saved 0x{saved:X4}.");
-            Tracker.NoticeOpcode = noticeOpcode;
-        }
-        else DiagnosticLog.Warn("[PartyWatch] The Party Finder notice's opcode couldn't be read from the dispatcher; until one arrives outside the sim, a listing that ends during a run stays open.");
-        var actorControlFromDispatcher = ActorControlOpcodesFromDispatcher(dispatcherSwitch);
-        Tracker.ActorControlOpcodes = [.. Tracker.ActorControlOpcodes.Union(actorControlFromDispatcher)];
-        if (actorControlFromDispatcher.Length == 0)
-            DiagnosticLog.Warn("[PartyWatch] The ActorControl opcodes couldn't be read from the dispatcher; they're learned from live packets instead.");
-        var module = Plugin.SigScanner.Module;
-        Tracker.MemberEventOpcode = OpcodeReaching(MemberEventCaseSignature, ByteTableSwitchSignature,
-            (switchCode, caseStart) => SwitchCode.ByteTableOpcodeOf(switchCode, caseStart, module.BaseAddress, module.ModuleMemorySize));
-        Tracker.MemberLeftOpcode = OpcodeReaching(MemberLeftCaseSignature, CompareJumpSignature, SwitchCode.CompareOpcodeOf);
-        if (Tracker.MemberEventOpcode == 0 || Tracker.MemberLeftOpcode == 0)
-            DiagnosticLog.Warn("[PartyWatch] The party handler's member opcodes couldn't be read; who joins or leaves during a run, and a listing filling, aren't shown.");
-        if (PartyEventOpcodeFromDispatcher(dispatcherSwitch) is var partyEventOpcode and not 0)
-        {
-            if (Tracker.PartyEventOpcode is var savedEvent and not 0 && savedEvent != partyEventOpcode)
-                DiagnosticLog.Warn($"[PartyWatch] The dispatcher sends party events as 0x{partyEventOpcode:X4}, not the saved 0x{savedEvent:X4}.");
-            Tracker.PartyEventOpcode = partyEventOpcode;
-        }
-        else if (Tracker.PartyEventOpcode == 0)
-            DiagnosticLog.Warn("[PartyWatch] The party event opcode couldn't be read from the dispatcher; until a ready check happens outside the sim, one during a run isn't seen.");
-        Tracker.CrossWorldReadyCheckOpcode = CrossWorldReadyCheckOpcodeFromHandler(module.BaseAddress, module.ModuleMemorySize);
-        Tracker.CrossWorldReadyCheckAnswerOpcode = OpcodeReaching(CrossWorldReadyCheckAnswerCaseSignature, ByteTableSwitchSignature,
-            (switchCode, caseStart) => SwitchCode.ByteTableOpcodeOf(switchCode, caseStart, module.BaseAddress, module.ModuleMemorySize));
-        if (Tracker.CrossWorldReadyCheckOpcode == 0 || Tracker.CrossWorldReadyCheckAnswerOpcode == 0)
-            DiagnosticLog.Warn("[PartyWatch] The cross-world ready check opcodes couldn't be read; a cross-world party's ready check during a run isn't seen.");
-        stateFlagsHook = Plugin.GameInterop.HookFromAddress<PacketDispatcherPointers.HandlePlayerStateFlagsPacketDelegate>(
-            Marshal.GetFunctionPointerForDelegate(PacketDispatcherPointers.HandlePlayerStateFlagsPacket), StateFlagsDetour);
-        stateFlagsHook.Enable();
-        onlineStatusHook = HookOrWarn<SetOnlineStatusFlagsDelegate>((nint)InfoModule.MemberFunctionPointers.SetOnlineStatusFlags, OnlineStatusDetour,
-            "InfoModule.SetOnlineStatusFlags isn't resolved; the online status opcode can't be learned and recruiting stays on until the next zone change.");
-        actorControlHook = HookOrWarn<HandleActorControlDelegate>((nint)PacketDispatcher.MemberFunctionPointers.HandleActorControlPacket, ActorControlDetour,
-            "PacketDispatcher.HandleActorControlPacket isn't resolved; ActorControl opcodes come only from the dispatcher.");
-        readyCheckHook = HookOrWarn<InitiateReadyCheckDelegate>((nint)AgentReadyCheck.MemberFunctionPointers.InitiateReadyCheck, ReadyCheckDetour,
-            "AgentReadyCheck.InitiateReadyCheck isn't resolved; the party event opcode comes only from the dispatcher.");
-        if (Plugin.SigScanner.TryScanText(NoticeHandlerSignature, out var noticeHandler))
-        {
-            noticeHook = Plugin.GameInterop.HookFromAddress<NoticeHandlerDelegate>(noticeHandler, NoticeDetour);
-            noticeHook.Enable();
-        }
-        else DiagnosticLog.Warn("[PartyWatch] The Party Finder notice handler was not found; the Party Finder's own listing is left to the next zone change.");
-        if (Plugin.SigScanner.TryScanText(RosterParserSignature, out var rosterParser))
-        {
-            rosterHook = Plugin.GameInterop.HookFromAddress<RosterParserDelegate>(rosterParser, RosterDetour);
-            rosterHook.Enable();
-        }
-        else DiagnosticLog.Warn("[PartyWatch] The cross-world roster parser was not found; who joins and leaves isn't shown.");
-        DiagnosticLog.Info($"[PartyWatch] Opcodes for {gameVersion}: PlayerStateFlags 0x{Tracker.PlayerStateFlagsOpcode:X4}, online status 0x{Tracker.OnlineStatusOpcode:X4}, Party Finder notice 0x{Tracker.NoticeOpcode:X4}, roster {Opcodes(Tracker.RosterOpcodes)}, ActorControl {Opcodes(Tracker.ActorControlOpcodes)}, member event 0x{Tracker.MemberEventOpcode:X4}, member left 0x{Tracker.MemberLeftOpcode:X4}, party event 0x{Tracker.PartyEventOpcode:X4}, cross-world ready check 0x{Tracker.CrossWorldReadyCheckOpcode:X4}/0x{Tracker.CrossWorldReadyCheckAnswerOpcode:X4} (0 or empty = not known).");
-    }
-
-    private static string Opcodes(IEnumerable<ushort> opcodes) => $"[{string.Join(",", opcodes.Select(o => $"0x{o:X4}"))}]";
-
-    private static ushort OpcodeOf(nint dispatcherSwitch, nint caseStart)
-    {
-        var module = Plugin.SigScanner.Module;
-        return SwitchCode.JumpTableOpcodeOf(dispatcherSwitch, caseStart, module.BaseAddress, module.ModuleMemorySize);
-    }
-
-    // The one opcode any of the switches at `switchSignature` sends to the case at `caseSignature`.
-    private static ushort OpcodeReaching(string caseSignature, string switchSignature, Func<nint, nint, ushort> decode)
-    {
+        // Not from inside a packet's handler: saving writes the config file.
+        sources = new PartyOpcodeSources(Tracker, () => Plugin.Framework.RunOnTick(Save));
+        if (HandledPartyOpcodes.SavedFor(Plugin.Config, gameVersion) is { } saved) sources.Restore(saved);
         try
         {
-            if (!Plugin.SigScanner.TryScanText(caseSignature, out var caseStart)) return 0;
-            var opcodes = Plugin.SigScanner.ScanAllText(switchSignature)
-                .Select(switchCode => decode(switchCode, caseStart))
-                .Where(opcode => opcode != 0)
-                .Distinct()
-                .ToArray();
-            return opcodes.Length == 1 ? opcodes[0] : (ushort)0;
+            stateFlagsHook = Plugin.GameInterop.HookFromAddress<PacketDispatcherPointers.HandlePlayerStateFlagsPacketDelegate>(
+                Marshal.GetFunctionPointerForDelegate(PacketDispatcherPointers.HandlePlayerStateFlagsPacket), StateFlagsDetour);
+            stateFlagsHook.Enable();
+            onlineStatusHook = HookOrWarn<SetOnlineStatusFlagsDelegate>((nint)InfoModule.MemberFunctionPointers.SetOnlineStatusFlags, OnlineStatusDetour,
+                "InfoModule.SetOnlineStatusFlags isn't resolved; the online status opcode is never confirmed from live packets.");
+            actorControlHook = HookOrWarn<HandleActorControlDelegate>((nint)PacketDispatcher.MemberFunctionPointers.HandleActorControlPacket, ActorControlDetour,
+                "PacketDispatcher.HandleActorControlPacket isn't resolved; the ActorControl opcodes are never confirmed from live packets.");
+            readyCheckHook = HookOrWarn<InitiateReadyCheckDelegate>((nint)AgentReadyCheck.MemberFunctionPointers.InitiateReadyCheck, ReadyCheckDetour,
+                "AgentReadyCheck.InitiateReadyCheck isn't resolved; the ready check opcodes are never confirmed from live packets.");
+            if (handlers.Notice != 0)
+            {
+                noticeHook = Plugin.GameInterop.HookFromAddress<NoticeHandlerDelegate>(handlers.Notice, NoticeDetour);
+                noticeHook.Enable();
+            }
+            if (handlers.Roster != 0)
+            {
+                rosterHook = Plugin.GameInterop.HookFromAddress<RosterParserDelegate>(handlers.Roster, RosterDetour);
+                rosterHook.Enable();
+            }
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
+        var moduleBase = Plugin.SigScanner.Module.BaseAddress;
+        var exePath = Environment.ProcessPath;
+        // A fraction of a second of work, kept off the framework thread.
+        ThreadingTask.Run(() =>
+        {
+            try
+            {
+                ReadReceiver(moduleBase, exePath);
+            }
+            catch (Exception e)
+            {
+                DiagnosticLog.Warn($"[PartyWatch] Reading the client's protocol receiver threw: {e.Message}");
+            }
+        });
+    }
+
+    private void ReadReceiver(nint moduleBase, string? exePath)
+    {
+        var clock = Stopwatch.StartNew();
+        ProtocolReceiver? read;
+        string why;
+        var source = "the game";
+        try
+        {
+            read = ProtocolReceiver.Read(ModuleImage.OfRunningGame(moduleBase, exePath, out source), out why);
         }
         catch (Exception e)
         {
-            DiagnosticLog.Warn($"[PartyWatch] Reading a party opcode from the handler threw: {e.Message}");
-            return 0;
+            read = null;
+            why = e.Message;
+        }
+        lock (opcodes)
+        {
+            receiver = read;
+            if (read == null)
+                DiagnosticLog.Warn($"[PartyWatch] The client's protocol receiver couldn't be read ({why}); {WithoutTheReceiver}");
+            else if (PartyPacketMethods.For(read) is not { } known)
+                DiagnosticLog.Warn($"[PartyWatch] The client's protocol receiver has {read.Methods} methods, a revision this plugin doesn't know; {WithoutTheReceiver}");
+            else if (sources.UseReceiver(known) is { } disagreement)
+                DiagnosticLog.Warn($"[PartyWatch] {Capitalised(disagreement)}; the receiver's table doesn't fit this build, so its opcodes aren't used; {WithoutTheReceiver}");
+            DiagnosticLog.Info($"[PartyWatch] Opcodes for {gameVersion}{(read == null ? "" : $" (receiver: {read.Methods} methods, read from {source} in {clock.ElapsedMilliseconds} ms)")}: "
+                               + $"PlayerStateFlags 0x{Tracker.PlayerStateFlagsOpcode:X4}, online status 0x{Tracker.OnlineStatusOpcode:X4}, Party Finder notice 0x{Tracker.NoticeOpcode:X4}, roster {Opcodes(Tracker.RosterOpcodes)}, ActorControl {Opcodes(Tracker.ActorControlOpcodes)}, member event 0x{Tracker.MemberEventOpcode:X4}, member left 0x{Tracker.MemberLeftOpcode:X4}, member removed 0x{Tracker.MemberRemovedOpcode:X4}, disbanded 0x{Tracker.DisbandedOpcode:X4}, members' status 0x{Tracker.MemberStatusOpcode:X4}, party list 0x{Tracker.PartyListOpcode:X4} (key 0x{Tracker.PartyKeyOpcode:X4}), party event 0x{Tracker.PartyEventOpcode:X4}, cross-world ready check 0x{Tracker.CrossWorldReadyCheckOpcode:X4}/0x{Tracker.CrossWorldReadyCheckAnswerOpcode:X4} (0 or empty = not known).");
         }
     }
+
+    private const string WithoutTheReceiver = "a party packet is known once the client has handled one outside the sim on this game version, "
+                                              + "and member joins, leaves and removals, disbands and cross-world ready check answers aren't seen during runs.";
+
+    private static string Capitalised(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    private static string Opcodes(IEnumerable<ushort> opcodes) => $"[{string.Join(",", opcodes.Select(o => $"0x{o:X4}"))}]";
 
     // As the client checks a joiner before printing their name.
     private static bool IsBlacklisted(ulong accountId, ulong contentId)
@@ -222,55 +200,6 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
         catch (Exception)
         {
             return false;
-        }
-    }
-
-    private static ushort CrossWorldReadyCheckOpcodeFromHandler(nint moduleBase, long moduleSize)
-    {
-        try
-        {
-            if (!Plugin.SigScanner.TryScanText(CrossWorldReadyCheckSignature, out var start)) return 0;
-            var opcodes = Plugin.SigScanner.ScanAllText(ByteTableSwitchSignature)
-                .Select(switchCode => SwitchCode.ByteTableOpcodeCalling(switchCode, start, moduleBase, moduleSize))
-                .Where(opcode => opcode != 0)
-                .Distinct()
-                .ToArray();
-            return opcodes.Length == 1 ? opcodes[0] : (ushort)0;
-        }
-        catch (Exception e)
-        {
-            DiagnosticLog.Warn($"[PartyWatch] Reading the cross-world ready check opcode threw: {e.Message}");
-            return 0;
-        }
-    }
-
-    private static ushort PartyEventOpcodeFromDispatcher(nint dispatcherSwitch)
-    {
-        if (dispatcherSwitch == 0 || !Plugin.SigScanner.TryScanText(PartyEventHandlerSignature, out var handler)) return 0;
-        var module = Plugin.SigScanner.Module;
-        return SwitchCode.JumpTableOpcodeCalling(dispatcherSwitch, handler, module.BaseAddress, module.ModuleMemorySize);
-    }
-
-    private static ushort NoticeOpcodeFromDispatcher(nint dispatcherSwitch)
-        => dispatcherSwitch != 0 && Plugin.SigScanner.TryScanText(NoticeCaseSignature, out var noticeCase)
-            ? OpcodeOf(dispatcherSwitch, noticeCase)
-            : (ushort)0;
-
-    private static ushort[] ActorControlOpcodesFromDispatcher(nint dispatcherSwitch)
-    {
-        if (dispatcherSwitch == 0) return [];
-        try
-        {
-            return Plugin.SigScanner.ScanAllText(ActorControlCaseSignature)
-                .Select(actorControlCase => OpcodeOf(dispatcherSwitch, actorControlCase))
-                .Where(opcode => opcode != 0)
-                .Distinct()
-                .ToArray();
-        }
-        catch (Exception e)
-        {
-            DiagnosticLog.Warn($"[PartyWatch] Scanning for the ActorControl cases threw: {e.Message}");
-            return [];
         }
     }
 
@@ -302,10 +231,12 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
     // At arm, before the sim takes the conditions over.
     public void Begin()
     {
+        DropReadyCheck("a new run began");
         var info = InfoModule.Instance();
         var status = PartyOnlineStatus.FromFlags(info != null ? info->OnlineStatusFlags : 0);
-        var entityId = Plugin.ObjectTable.LocalPlayer?.EntityId ?? 0;
-        Tracker.Begin(ClientRoster(), PartyConditions.Read(flag => Plugin.Condition[flag]), status, Plugin.PlayerState.ContentId, entityId);
+        var player = Plugin.ObjectTable.LocalPlayer;
+        var accountId = player != null ? ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)player.Address)->AccountId : 0;
+        Tracker.Begin(ClientRoster(), PartyConditions.Read(flag => Plugin.Condition[flag]), status, Plugin.PlayerState.ContentId, player?.EntityId ?? 0, accountId);
     }
 
     // Null when it can't be read (ClientStructs throws for a function a patch moved), so entering
@@ -321,9 +252,7 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
             {
                 var member = InfoProxyCrossRealm.GetGroupMember(i, 0);
                 if (member == null || member->ContentId == 0) continue;
-                // The roster entry's account id, which the parser copies to +0x08; ClientStructs leaves it unnamed.
-                var accountId = *(ulong*)((byte*)member + 0x08);
-                members.Add(new PartyMember(member->ContentId, member->NameString, (ushort)member->HomeWorld, accountId));
+                members.Add(new PartyMember(member->ContentId, member->NameString, (ushort)member->HomeWorld, CrossWorldAccountId(member)));
                 if (member->IsPartyLeader) leader = member->ContentId;
             }
             return new PartyRoster(members, leader);
@@ -336,10 +265,11 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
     }
 
     // After the lift: what the server said about the party during the stay, put on the client
-    // through the handlers its packets go to; the notices themselves are replayed. Everything else
-    // stays as the client has it. Null when nothing changed. Never throws, so the lift's own party
-    // resync still runs.
-    public string? ApplyServerParty(Inject inject)
+    // through the handlers its packets go to (PartyLift); a held ready check waits for the client
+    // (TickReadyCheck). Everything else stays as the client has it. Applied: null when nothing
+    // changed. Refresh: why upstream's Social refresh still has to run, null when the client already
+    // asked for what it would (PartyResync). Never throws, so the lift goes on.
+    public (string? Applied, string? Refresh) ApplyServerParty(Inject inject)
     {
         try
         {
@@ -348,160 +278,272 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
         catch (Exception e)
         {
             DiagnosticLog.Warn($"[PartyWatch] Putting the server's party state on the client threw: {e.Message}");
-            return null;
+            return (null, "putting the server's party state on the client threw");
         }
     }
 
-    private string? ApplyServerPartyOrThrow(Inject inject)
+    private (string? Applied, string? Refresh) ApplyServerPartyOrThrow(Inject inject)
     {
-        var (conditions, status, statusIcon, notices, readyCheck, held) = Tracker.TakeFromServer(DateTime.Now);
-        if (held.Count > 0) DiagnosticLog.Info($"[PartyWatch] The stay held {string.Join(", ", held.Select(h => $"0x{h.Key:X4}x{h.Value}"))}.");
-        if (Tracker.RecruitmentEnded && statusIcon is null)
+        var now = PartyClock.UtcNow;
+        var state = Tracker.TakeFromServer(now);
+        if (state.Held.Count > 0) DiagnosticLog.Info($"[PartyWatch] The stay held {string.Join(", ", state.Held.Select(h => $"0x{h.Key:X4}x{h.Value}"))}.");
+        if (Tracker.RecruitmentEnded && state.StatusIcon is null)
             DiagnosticLog.Warn("[PartyWatch] Recruiting ended during the run but no status icon came with it; if the game still says you're looking for a party, the icon's ActorControl (category 504) or its opcode has changed.");
-        var applied = new List<string>();
-        if (conditions is { } serverConditions && serverConditions != PartyConditions.Read(flag => Plugin.Condition[flag]))
+        if (state.Steps.Any(step => step is LiftStep.Packet { Held.Kind: HeldKind.PartyKey }))
+            DiagnosticLog.Warn("[PartyWatch] The server rekeyed the party list's decoding during the run; the key is replayed in its place.");
+        if (Tracker.KeysNotReplayed > 0)
+            DiagnosticLog.Warn($"[PartyWatch] {Tracker.KeysNotReplayed} packets on the party list key's opcode weren't replayed (no live packet confirmed the opcode, or past the cap): no party list after them is, and what the client decodes with those keys may read wrongly until the server rekeys again.");
+        var client = new GameClient(inject);
+        var (done, readyCheck, handedOver, warnings) = PartyLift.Apply(state, client, networked, Tracker.LocalContentId, now);
+        foreach (var warning in warnings) DiagnosticLog.Warn($"[PartyWatch] At the lift, {warning}.");
+        if (Tracker.NoticesDropped > 0) done.Add($"{Tracker.NoticesDropped} notices past the cap dropped");
+        if (Tracker.MembershipDropped > 0) done.Add($"{Tracker.MembershipDropped} joins, leaves, removals and disbands past the cap dropped");
+        if (Tracker.WholePartyDropped > 0) done.Add($"{Tracker.WholePartyDropped} older rosters, party lists or members' status past the cap dropped");
+        if (Tracker.StatesMerged > 0) done.Add($"{Tracker.StatesMerged} party states past the cap merged");
+        if (readyCheck != null)
         {
-            var bits = stackalloc byte[PacketDispatcherPointers.PlayerStateFlagsLength];
-            serverConditions.WriteStateFlags(new Span<byte>(bits, PacketDispatcherPointers.PlayerStateFlagsLength), networked, flag => Plugin.Condition[flag]);
-            PacketDispatcherPointers.HandlePlayerStateFlagsPacket(Conditions.Instance(), bits);
-            applied.Add($"conditions {serverConditions}");
+            DiagnosticLog.Info($"[PartyWatch] A ready check from {readyCheck.Check.From} was held through the run: {readyCheck.Described()}.");
+            heldReadyCheck.Hold(readyCheck, client);
+            TickReadyCheck();
         }
-        var info = InfoModule.Instance();
-        if (status is { } serverStatus && info != null && serverStatus.MergeInto(info->OnlineStatusFlags) is var flags && flags != info->OnlineStatusFlags)
-        {
-            var before = info->OnlineStatusFlags;
-            info->SetOnlineStatusFlags(flags);
-            applied.Add($"online status 0x{before:X} -> 0x{flags:X}");
-        }
-        if (statusIcon is { } icon)
-        {
-            PacketDispatcher.HandleActorControlPacket(icon.EntityId, icon.Category, icon.P1, icon.P2, icon.P3, icon.P4, 0, 0, 0, 0, NoTarget, false);
-            applied.Add($"status icon {icon.P1}");
-        }
-        var replayed = notices.Count(notice => inject(notice.TargetId, Tracker.NoticeOpcode, notice.Payload, "held Party Finder notice"));
-        if (notices.Count > 0)
-            applied.Add($"{replayed} of {notices.Count} Party Finder notices replayed ({string.Join(", ", notices.Select(n => $"code {n.Code} message {n.LogMessage}"))})");
-        if (Tracker.NoticesDropped > 0) applied.Add($"{Tracker.NoticesDropped} notices past the cap dropped");
-        if (readyCheck is { } check)
-        {
-            var left = check.LeftAt(DateTime.Now);
-            var replayedCheck = check.Packets.Count(packet => inject(packet.TargetId, packet.Opcode, packet.Payload, "held ready check"));
-            applied.Add($"ready check from {check.From} replayed ({replayedCheck} of {check.Packets.Count} packets), {SetReadyCheckTimer(left)}");
-        }
-        return applied.Count == 0 ? null : $"the server's party state: {string.Join("; ", applied)}";
+        string? refresh;
+        lock (opcodes) refresh = PartyResync.Reason(state.Held, handedOver, Tracker.PartyViewOpcodes);
+        return (done.Count == 0 ? null : $"the server's party state, in the order it came: {string.Join("; ", done)}", refresh);
     }
 
-    // The replayed check started that long ago, so it gets only what's left. Left alone unless the
-    // timer reads what the client just opened it with: a patch may have moved it, or the client may
-    // not have opened the window.
-    private static string SetReadyCheckTimer(TimeSpan left)
+    // Every frame while the firewall is down.
+    public void TickReadyCheck()
     {
-        var agent = AgentReadyCheck.Instance();
-        if (agent == null) return "no ready check agent";
-        var timer = (float*)((byte*)agent + ReadyCheckTimerOffset);
-        if (*timer != (float)HeldReadyCheck.Window.TotalSeconds)
+        var from = heldReadyCheck.Check?.From;
+        Ended(from, heldReadyCheck.Tick(PartyClock.UtcNow));
+    }
+
+    // A held ready check still waiting is never handed over after this.
+    public void DropReadyCheck(string why)
+    {
+        var from = heldReadyCheck.Check?.From;
+        Ended(from, heldReadyCheck.Drop(why, PartyClock.UtcNow));
+    }
+
+    // ZoneControl's dispatch hook saw a live packet on the key's opcode change the dispatcher's keys.
+    internal void KeyConfirmed(ushort opcode)
+    {
+        if (Tracker.ConfirmedPartyKeyOpcode == opcode) return;
+        Tracker.ConfirmedPartyKeyOpcode = opcode;
+        DiagnosticLog.Info($"[PartyWatch] A live 0x{opcode:X4} changed the dispatcher's keys: party list keys held on it are replayed.");
+    }
+
+    // A live packet on its way to the client: an answer to the held ready check is kept for it. Inside
+    // the dispatch, so it never throws.
+    internal void HeardLive(nint packet, uint actor)
+    {
+        if (heldReadyCheck.Check is null) return;
+        try
         {
-            DiagnosticLog.Warn($"[PartyWatch] The ready check's timer read {*timer} after the replay, not {HeldReadyCheck.Window.TotalSeconds}; left as is.");
-            return "timer left as is";
+            heldReadyCheck.HeardLive(Tracker, packet, actor);
         }
-        *timer = (float)left.TotalSeconds;
-        return $"{left.TotalSeconds:F0}s left";
+        catch (Exception)
+        {
+            // Missed, the answer shows as not given in the replayed check.
+        }
+    }
+
+    private static void Ended(string? from, ReadyCheckStep? step)
+    {
+        if (step is not { } end) return;
+        var line = $"[PartyWatch] The ready check from {from} held through the run was {(end.Outcome == ReadyCheckOutcome.Opened ? "opened" : "dropped")}: {end.Note}.";
+        if (end.Warn) DiagnosticLog.Warn(line);
+        else DiagnosticLog.Info(line);
+    }
+
+    // The game as the lift puts the server's word on it.
+    private sealed class GameClient(Inject inject) : IPartyClient
+    {
+        public bool Condition(ConditionFlag flag) => Plugin.Condition[flag];
+
+        public void HandleStateFlags(ReadOnlySpan<byte> bits)
+        {
+            fixed (byte* at = bits) PacketDispatcherPointers.HandlePlayerStateFlagsPacket(Conditions.Instance(), at);
+        }
+
+        public ulong? OnlineStatusFlags
+        {
+            get
+            {
+                var info = InfoModule.Instance();
+                return info != null ? info->OnlineStatusFlags : null;
+            }
+        }
+
+        public void SetOnlineStatusFlags(ulong flags)
+        {
+            var info = InfoModule.Instance();
+            if (info != null) info->SetOnlineStatusFlags(flags);
+        }
+
+        public void HandleActorControl(HeldActorControl icon)
+            => PacketDispatcher.HandleActorControlPacket(icon.EntityId, icon.Category, icon.P1, icon.P2, icon.P3, icon.P4, 0, 0, 0, 0, NoTarget, false);
+
+        public bool Inject(HeldPacket packet, string what) => inject(packet.TargetId, packet.Opcode, packet.Payload, what);
+
+        public bool CountsItselfInAParty() => InfoProxyCrossRealm.IsLocalPlayerInParty();
+
+        public bool KnowsMember(ulong contentId) => InfoProxyCrossRealm.GetMemberByContentId(contentId) != null;
+
+        public bool StillInPartyOf(bool crossWorld)
+        {
+            if (crossWorld) return InfoProxyCrossRealm.IsCrossRealmParty();
+            var groups = FFXIVClientStructs.FFXIV.Client.Game.Group.GroupManager.Instance();
+            return groups != null && groups->MainGroup.IsAlliance || InfoProxyCrossRealm.IsLocalPlayerInParty();
+        }
+
+        public bool MainGroupHas(ulong contentId)
+        {
+            var groups = FFXIVClientStructs.FFXIV.Client.Game.Group.GroupManager.Instance();
+            return groups != null && groups->MainGroup.GetPartyMemberByContentId(contentId) != null;
+        }
+
+        public bool CanAskThePlayer() => Plugin.ObjectTable.LocalPlayer != null
+                                         && !Plugin.Condition[ConditionFlag.BetweenAreas] && !Plugin.Condition[ConditionFlag.BetweenAreas51]
+                                         && !Plugin.Condition[ConditionFlag.InCombat] && !Plugin.Condition[ConditionFlag.BoundByDuty56]
+                                         && !Plugin.Condition[ConditionFlag.WatchingCutscene] && !Plugin.Condition[ConditionFlag.WatchingCutscene78]
+                                         && !Plugin.Condition[ConditionFlag.OccupiedInCutSceneEvent];
+
+        public float? ReadyCheckTimer
+        {
+            get
+            {
+                var agent = AgentReadyCheck.Instance();
+                return agent != null ? *(float*)((byte*)agent + ReadyCheckTimerOffset) : null;
+            }
+            set
+            {
+                var agent = AgentReadyCheck.Instance();
+                if (agent != null && value is { } seconds) *(float*)((byte*)agent + ReadyCheckTimerOffset) = seconds;
+            }
+        }
     }
 
     private void StateFlagsDetour(Conditions* conditions, byte* bits)
     {
-        Learn((nint)bits, Packet.PlayerStateFlags);
-        stateFlagsHook.Original(conditions, bits);
+        Heard(PartyHandlerCalls.Payload(DispatchingPacket, (nint)bits, PartyPacket.PlayerStateFlags));
+        stateFlagsHook!.OriginalDisposeSafe(conditions, bits);
     }
 
     private void OnlineStatusDetour(InfoModule* info, ulong flags)
     {
-        if (DispatchingPacket != 0 && Tracker.LearnOnlineStatus(DispatchingPacket, flags))
-            Learned($"The online status arrives as opcode 0x{Tracker.OnlineStatusOpcode:X4}.");
-        onlineStatusHook!.Original(info, flags);
+        Heard(PartyHandlerCalls.OnlineStatus(DispatchingPacket, flags));
+        onlineStatusHook!.OriginalDisposeSafe(info, flags);
     }
 
     // Called for every ActorControl, the plugin's own included; those come outside a dispatch.
     private void ActorControlDetour(uint entityId, uint category, uint arg1, uint arg2, uint arg3, uint arg4,
         uint arg5, uint arg6, uint arg7, uint arg8, ulong targetId, byte isRecorded)
     {
-        if (DispatchingPacket != 0 && Tracker.LearnActorControl(DispatchingPacket, DispatchingActor, entityId, category, arg1))
-            Learned($"An ActorControl arrives as opcode 0x{*(ushort*)(DispatchingPacket + 2):X4}.");
-        actorControlHook!.Original(entityId, category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, targetId, isRecorded);
+        Heard(PartyHandlerCalls.ActorControl(DispatchingPacket, DispatchingActor, entityId, category, arg1, isRecorded != 0));
+        actorControlHook!.OriginalDisposeSafe(entityId, category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, targetId, isRecorded);
     }
 
-    // The client starting a ready check it received; the plugin's own starts come outside a dispatch.
+    // ClientStructs' InitiateReadyCheck resets the agent (HeldReadyCheckReplay.AgentReset). The plugin's
+    // replays come outside a dispatch.
     private void ReadyCheckDetour(AgentReadyCheck* agent)
-    {
-        if (DispatchingPacket != 0 && Tracker.LearnPartyEvent(DispatchingPacket))
-            Learned($"Party events arrive as opcode 0x{Tracker.PartyEventOpcode:X4}.");
-        readyCheckHook!.Original(agent);
-    }
-
-    private void Learned(string what)
-    {
-        DiagnosticLog.Info($"[PartyWatch] {what}");
-        Plugin.Framework.Run(Save);
-    }
-
-    private void NoticeDetour(nint infoProxy, byte* payload)
-    {
-        Learn((nint)payload, Packet.Notice);
-        noticeHook!.Original(infoProxy, payload);
-    }
-
-    // An alliance's group 0 is 8 bytes further in, so its header check reads the wrong bytes.
-    private void RosterDetour(nint infoProxy, byte* members, byte group)
-    {
-        if (group == 0) Learn((nint)(members - RosterMembersOffset), Packet.Roster);
-        rosterHook!.Original(infoProxy, members, group);
-    }
-
-    private void Learn(nint payload, Packet packet)
     {
         try
         {
-            GetCurrentThreadStackLimits(out var stackLow, out var stackHigh);
-            if (!PartyStatusTracker.TryReadLiveOpcode(payload, stackLow, stackHigh, out var opcode)) return;
-            if (packet == Packet.Roster)
-            {
-                if (Array.IndexOf(Tracker.RosterOpcodes, opcode) >= 0) return;
-                Tracker.RosterOpcodes = [.. Tracker.RosterOpcodes, opcode];
-                DiagnosticLog.Info($"[PartyWatch] A cross-world roster arrives as opcode 0x{opcode:X4}.");
-                Plugin.Framework.Run(Save);
-                return;
-            }
-            var known = packet == Packet.PlayerStateFlags ? Tracker.PlayerStateFlagsOpcode : Tracker.NoticeOpcode;
-            if (opcode == known) return;
-            if (packet == Packet.PlayerStateFlags) Tracker.PlayerStateFlagsOpcode = opcode;
-            else Tracker.NoticeOpcode = opcode;
-            DiagnosticLog.Info($"[PartyWatch] {packet} arrives as opcode 0x{opcode:X4} (was 0x{known:X4}).");
-            Plugin.Framework.Run(Save);
+            var from = heldReadyCheck.Check?.From;
+            Ended(from, heldReadyCheck.AgentReset(Replaying, PartyClock.UtcNow));
+        }
+        catch (Exception)
+        {
+            // Inside the client's handler: nothing may escape.
+        }
+        if (DispatchingPacket is var packet and not 0) Heard(ReadyCheckStart(packet));
+        readyCheckHook!.OriginalDisposeSafe(agent);
+    }
+
+    // Null when ClientStructs can't say who's in the party (it throws for a function a patch moved).
+    private static NamedOpcode? ReadyCheckStart(nint packet)
+    {
+        try
+        {
+            return PartyHandlerCalls.ReadyCheck(packet, MemberAccount);
         }
         catch (Exception e)
         {
-            DiagnosticLog.Warn($"[PartyWatch] Reading a live {packet} opcode threw: {e.Message}");
+            DiagnosticLog.Warn($"[PartyWatch] Telling a received ready check's packet threw: {e.Message}");
+            return null;
         }
     }
 
+    // A member of the cross-world party or of this world's party: their account id, 0 when not known.
+    private static ulong? MemberAccount(ulong contentId)
+    {
+        var crossWorld = InfoProxyCrossRealm.GetMemberByContentId(contentId);
+        if (crossWorld != null) return CrossWorldAccountId(crossWorld);
+        var groups = FFXIVClientStructs.FFXIV.Client.Game.Group.GroupManager.Instance();
+        var member = groups != null ? groups->MainGroup.GetPartyMemberByContentId(contentId) : null;
+        return member != null ? (ulong?)member->AccountId : null;
+    }
+
+    // The roster entry's account id, which the parser copies to +0x08; ClientStructs leaves it unnamed.
+    private static ulong CrossWorldAccountId(CrossRealmMember* member) => *(ulong*)((byte*)member + 0x08);
+
+    private void NoticeDetour(nint infoProxy, byte* payload)
+    {
+        Heard(PartyHandlerCalls.Payload(DispatchingPacket, (nint)payload, PartyPacket.Notice));
+        noticeHook!.OriginalDisposeSafe(infoProxy, payload);
+    }
+
+    // An alliance roster's group 0 isn't at its payload + 8, so it names nothing.
+    private void RosterDetour(nint infoProxy, byte* members, byte group)
+    {
+        if (group == 0) Heard(PartyHandlerCalls.Payload(DispatchingPacket, (nint)(members - RosterMembersOffset), PartyPacket.Roster));
+        rosterHook!.OriginalDisposeSafe(infoProxy, members, group);
+    }
+
+    // Under the opcode lock, as the receiver's read may be filling the tracker at the same time. Inside
+    // the client's handler, so it never throws.
+    private void Heard(NamedOpcode? named)
+    {
+        if (named is not { } handled || Replaying || handled.Opcode == 0) return;
+        try
+        {
+            lock (opcodes)
+            {
+                var seen = sources.Observed(handled);
+                if (seen.Retired != null)
+                {
+                    DiagnosticLog.Warn($"[PartyWatch] {Capitalised(seen.Retired)}; the receiver's table doesn't fit this build, so its opcodes aren't used again this session; {WithoutTheReceiver}");
+                    return;
+                }
+                if (seen.Packet != handled.Packet && moved.Add(handled.Opcode))
+                    DiagnosticLog.Info($"[PartyWatch] A ready check on 0x{handled.Opcode:X4} read as {handled.Packet}, but the receiver's table gives that opcode {seen.Packet}; kept as {seen.Packet}.");
+                if (!seen.Expected)
+                    DiagnosticLog.Info($"[PartyWatch] {seen.Packet} arrives as opcode 0x{handled.Opcode:X4}{MethodNote(handled.Opcode)}.");
+                else if (confirmed.Add(seen.Packet))
+                    DiagnosticLog.Info($"[PartyWatch] The client handled {seen.Packet} as 0x{handled.Opcode:X4}{MethodNote(handled.Opcode)}, as expected.");
+            }
+        }
+        catch (Exception e)
+        {
+            if (!heardThrew) DiagnosticLog.Warn($"[PartyWatch] Learning from the client's {handled.Packet} handler threw: {e.Message}");
+            heardThrew = true;
+        }
+    }
+
+    private string MethodNote(ushort opcode) => receiver?.MethodOf(opcode) is var method and >= 0 ? $" (receiver method {method})" : "";
+
     private void Save()
     {
-        Plugin.Config.PartyOpcodesGameVersion = gameVersion;
-        Plugin.Config.PlayerStateFlagsOpcode = Tracker.PlayerStateFlagsOpcode;
-        Plugin.Config.OnlineStatusOpcode = Tracker.OnlineStatusOpcode;
-        Plugin.Config.PartyNoticeOpcode = Tracker.NoticeOpcode;
-        Plugin.Config.PartyRosterOpcodes = Tracker.RosterOpcodes;
-        Plugin.Config.PartyActorControlOpcodes = Tracker.ActorControlOpcodes;
-        Plugin.Config.PartyEventOpcode = Tracker.PartyEventOpcode;
+        HandledPartyOpcodes saved;
+        lock (opcodes) saved = sources.Saved();
+        saved.SaveTo(Plugin.Config, gameVersion);
         Plugin.Config.Save();
     }
 
-    [DllImport("kernel32.dll")]
-    private static extern void GetCurrentThreadStackLimits(out nuint lowLimit, out nuint highLimit);
-
     public void Dispose()
     {
-        stateFlagsHook.Dispose();
+        stateFlagsHook?.Dispose();
         onlineStatusHook?.Dispose();
         actorControlHook?.Dispose();
         readyCheckHook?.Dispose();

@@ -1072,7 +1072,7 @@ public unsafe class MainWindow : Window, IDisposable
         ImGuiComponents.HelpMarker("While you're in the sim the game doesn't see party changes, so they're listed here. When you leave, the game's Party Finder status and party list catch up, and a ready check there's still time for opens so you can answer it.");
         DrawPartyAlerts();
         foreach (var change in changes.TakeLast(PartyChangesShown))
-            ImGui.TextUnformatted($"{change.At:HH:mm}  {change.Text}");
+            ImGui.TextUnformatted($"{change.ShownAt.ToLocalTime():HH:mm}  {change.Text}");
     }
 
     internal static void DrawPartyAlerts()

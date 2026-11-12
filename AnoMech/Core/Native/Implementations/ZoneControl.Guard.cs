@@ -92,6 +92,9 @@ public sealed unsafe partial class ZoneControl
         TickZoneChangeLatch();
         TickSessionGuard();
         TickSendHold();
+        // Last, and never while either filter is up: it may hand the client a held ready check, whose
+        // answer the send hold would swallow.
+        if (!guardArmed && !sendHoldActive) partyWatch?.TickReadyCheck();
     }
 
     private static bool Zoning() => Plugin.Condition[ConditionFlag.BetweenAreas] || Plugin.Condition[ConditionFlag.BetweenAreas51];
@@ -648,11 +651,20 @@ public sealed unsafe partial class ZoneControl
         var counters = RestoreClientCounters(armedCounters);
         if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
         DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, {counters}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
-        if (partyWatch?.ApplyServerParty(InjectIncomingPacket) is { } applied) DiagnosticLog.Info($"[ZoneGuard] Applied {applied}.");
+        var (applied, refresh) = partyWatch?.ApplyServerParty(InjectIncomingPacket) ?? (null, "the party watch is off");
+        if (applied != null) DiagnosticLog.Info($"[ZoneGuard] Applied {applied}.");
         if (partyResyncDue)
         {
             partyResyncDue = false;
-            OpenSocialForPartyResync();
+            if (refresh == null)
+            {
+                DiagnosticLog.Info("[ZoneGuard] Social refresh skipped: every party packet the run held reached the client, which asked for what it needed itself.");
+            }
+            else
+            {
+                DiagnosticLog.Info($"[ZoneGuard] Social refresh kept: {refresh}.");
+                OpenSocialForPartyResync();
+            }
         }
     }
 

@@ -98,6 +98,7 @@ public class Configuration : IPluginConfiguration
     public ushort[] PartyRosterOpcodes { get; set; } = [];
     public ushort[] PartyActorControlOpcodes { get; set; } = [];
     public ushort PartyEventOpcode { get; set; }
+    public ushort CrossWorldReadyCheckOpcode { get; set; }
 
     // Safe mode (incoming packet firewall):
     //   true  — only ZoneDownOpcodes pass; cuts you off from server traffic
