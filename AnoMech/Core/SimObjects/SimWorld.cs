@@ -187,12 +187,15 @@ public sealed class SimWorld : ISimObject, IDisposable
 
     // A scenario message the whole party should see (which arrow was missed, why everyone just
     // died). Printed here and mirrored to peers, which have no other channel for mid-run text.
-    public event Action<string>? Announced;
+    public event Action<string, string?>? Announced;
 
-    public void Announce(string text)
+    // With a speaker, the line reads as that NPC's dialogue (a boss quote) instead of a system message.
+    public void Announce(string text, string? speaker = null)
     {
-        Plugin.ChatGui.Print(new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[AnoMech] {text}" });
-        Announced?.Invoke(text);
+        Plugin.ChatGui.Print(speaker is null
+            ? new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[AnoMech] {text}" }
+            : new XivChatEntry { Type = XivChatType.NPCDialogueAnnouncements, Name = speaker, Message = text });
+        Announced?.Invoke(text, speaker);
     }
 
     // The run failed without anyone dying, e.g. a puzzle retail only punishes minutes later. Play

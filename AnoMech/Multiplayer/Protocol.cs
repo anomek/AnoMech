@@ -245,7 +245,7 @@ public sealed record P2AiReplayStateMessage(
 public sealed record P2LockonsUpdateMessage(Dictionary<PartyRole, uint> Lockons) : MpMessage, IScenarioMidRunUpdateMessage;
 
 // Replay of SimWorld.Announce: a scenario's own mid-run message to the party.
-public sealed record AnnouncementMessage(string Text) : MpMessage, IHostOnlyMessage;
+public sealed record AnnouncementMessage(string Text, string? Speaker = null) : MpMessage, IHostOnlyMessage;
 
 // The subset UmadP4KefkaSaysAi reads (UmadP4KefkaSaysState.FromNetworkReplay); MysteryCast
 // reduced to its three scalars.

@@ -425,7 +425,8 @@ public sealed partial class MultiplayerManager
                 BroadcastRunEnded(returnedToInn: true);
                 break;
             case AnnouncementMessage announcement when PeerInRun:
-                Plugin.Game.World.Announce(NetGuard.Clean(announcement.Text));
+                Plugin.Game.World.Announce(NetGuard.Clean(announcement.Text),
+                    announcement.Speaker is { } speaker ? NetGuard.Clean(speaker) : null);
                 break;
             // Every IMultiplayerReplayable scenario routes through these two cases.
             case MpMessage genericMsg when !IsHost && genericMsg is IScenarioReplayStateMessage:
