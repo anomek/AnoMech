@@ -2683,6 +2683,30 @@ public class PartyStatusTrackerTests
         });
     }
 
+    // The sim's forced flags may still be on at the lift, and the client's own may have changed since the
+    // start: the lift writes the party's part and every other condition as the client holds it then.
+    [Test]
+    public void EveryOtherConditionStaysAsTheClientHoldsItAtTheLift()
+    {
+        var client = new FakeClient { [ConditionFlag.UsingPartyFinder] = true, [ConditionFlag.BoundByDuty] = true };
+        using var run = new Run(client);
+        client[ConditionFlag.BoundByDuty] = false;
+        client[ConditionFlag.Occupied] = true;
+        client[ConditionFlag.InCombat] = true;
+        client[ConditionFlag.SufferingStatusAffliction63] = true;
+        client[ConditionFlag.SufferingStatusAffliction73] = true;
+
+        run.ServerSends(PlayerStateFlagsOpcode, StateFlags(ConditionFlag.BoundByDuty, ConditionFlag.Casting));
+        var atLift = Networked.Where(f => !IsParty(f)).ToDictionary(f => f, f => client[f]);
+        run.Lift();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(client.UsingPartyFinder, Is.False);
+            Assert.That(Networked.Where(f => !IsParty(f)).ToDictionary(f => f, f => client[f]), Is.EqualTo(atLift));
+        });
+    }
+
     [Test]
     public void NoticesReachTheClientAsTheServerSentThem()
     {

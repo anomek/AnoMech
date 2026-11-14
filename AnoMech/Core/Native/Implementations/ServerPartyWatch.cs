@@ -30,7 +30,7 @@ namespace AnoMech.Core.Native.Implementations;
 internal sealed unsafe class ServerPartyWatch : IDisposable
 {
     // The packet the client's handlers are running for right now, and the actor it's for; 0 outside
-    // a dispatch. ZoneControl sets them: its dispatch hook outside the sim, its firewall within it.
+    // a dispatch. ZoneControl's receive hook sets them for each live packet it hands the client.
     [ThreadStatic] internal static nint DispatchingPacket;
     [ThreadStatic] internal static uint DispatchingActor;
     // ZoneControl is handing the client one of the plugin's own replays, which names nothing.
@@ -139,7 +139,7 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
         }
         var moduleBase = Plugin.SigScanner.Module.BaseAddress;
         var exePath = Environment.ProcessPath;
-        // A fraction of a second of work, kept off the framework thread.
+        // Up to about a second of work, kept off the framework thread.
         ThreadingTask.Run(() =>
         {
             try
@@ -325,7 +325,7 @@ internal sealed unsafe class ServerPartyWatch : IDisposable
         Ended(from, heldReadyCheck.Drop(why, PartyClock.UtcNow));
     }
 
-    // ZoneControl's dispatch hook saw a live packet on the key's opcode change the dispatcher's keys.
+    // ZoneControl's receive hook saw a live packet on the key's opcode change the dispatcher's keys.
     internal void KeyConfirmed(ushort opcode)
     {
         if (Tracker.ConfirmedPartyKeyOpcode == opcode) return;
