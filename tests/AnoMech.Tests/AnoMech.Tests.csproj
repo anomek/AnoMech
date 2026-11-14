@@ -26,6 +26,7 @@
     <Reference Include="Lumina.Excel" HintPath="$(DalamudLibPath)Lumina.Excel.dll" Private="true" />
     <Reference Include="Serilog" HintPath="$(DalamudLibPath)Serilog.dll" Private="true" />
     <Reference Include="Microsoft.Extensions.ObjectPool" HintPath="$(DalamudLibPath)Microsoft.Extensions.ObjectPool.dll" Private="true" />
+    <Reference Include="Iced" HintPath="$(DalamudLibPath)Iced.dll" Private="true" />
   </ItemGroup>
 
   <!-- Real sheet data for DataminingGameData, from xivapi/ffxiv-datamining at a pinned commit. Each
@@ -37,7 +38,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <DataminingSheet Include="Action;BNpcBase;BNpcName;ClassJob;ContentFinderCondition;Knockback;ModelChara;ModelSkeleton;Omen;Status;TerritoryType;Weather" />
+    <DataminingSheet Include="Action;BNpcBase;BNpcName;ClassJob;Condition;ContentFinderCondition;Knockback;ModelChara;ModelSkeleton;Omen;Status;TerritoryType;Weather" />
   </ItemGroup>
 
   <Target Name="DownloadDataminingSheets" BeforeTargets="BeforeBuild">

@@ -27,4 +27,9 @@
     <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Dalamud ships it for its own hooks; ProtocolReceiver decodes the client's code with it. -->
+    <Reference Include="Iced" Private="false" />
+  </ItemGroup>
 </Project>

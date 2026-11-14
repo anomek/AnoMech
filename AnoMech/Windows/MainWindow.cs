@@ -33,6 +33,10 @@ public unsafe class MainWindow : Window, IDisposable
     private static readonly Vector4 RunningColor = new(0.35f, 0.85f, 0.45f, 1f);
     private static readonly Vector4 MistakeColor = new(1f, 0.65f, 0.25f, 1f);
     private static readonly Vector4 FailedColor = new(1f, 0.38f, 0.35f, 1f);
+    internal static readonly Vector4 PartyChangeColor = new(0.45f, 0.75f, 1f, 1f);
+    private static readonly Vector4 AlertColor = new(1f, 0.25f, 0.2f, 1f);
+    // A whole party filling during one run: seven joins and the listing's end.
+    private const int PartyChangesShown = 8;
     // Fixed rather than theme-derived: Dalamud's default ButtonActive is red, which reads as
     // "stop"/error next to the semantic Start/Stop buttons.
     private static readonly Vector4 SelectionColor = new(0.30f, 0.55f, 0.85f, 1f);
@@ -45,11 +49,15 @@ public unsafe class MainWindow : Window, IDisposable
     private IZone? _openZone;
     internal ScenarioPanelWindow ScenarioPanel { get; }
     internal PartyPanelWindow PartyPanel { get; }
+    internal PartyStripWindow PartyStrip { get; }
     private readonly MultiplayerUi multiplayerUi;
     internal Vector2 ScenarioPanelAnchor { get; private set; }
     internal Vector2 RightPanelAnchor { get; private set; }
     internal float ScenarioPanelHeight { get; private set; }
     internal bool IsActuallyCollapsed { get; private set; }
+    // The title bar's bottom-left corner and width, where PartyStrip docks while collapsed.
+    internal Vector2 TitleBarBottomLeft { get; private set; }
+    internal float TitleBarWidth { get; private set; }
     private float _windowChromeHeight;
     internal IScenario? SelectedScenario => _selectedScenario;
     private IScenario? _selectedScenario;
@@ -125,6 +133,7 @@ public unsafe class MainWindow : Window, IDisposable
         this.plugin = plugin;
         ScenarioPanel = new ScenarioPanelWindow(this);
         PartyPanel = new PartyPanelWindow(this, Plugin.Multiplayer);
+        PartyStrip = new PartyStripWindow(this);
         multiplayerUi = new MultiplayerUi(plugin);
         IsOpen = false;
         RestoreSelectedScenario();
@@ -294,6 +303,10 @@ public unsafe class MainWindow : Window, IDisposable
     {
         var window = ImGuiP.FindWindowByName(WindowName);
         IsActuallyCollapsed = !window.IsNull && window.Collapsed;
+        // Collapsed, the window is just its title bar.
+        if (!IsActuallyCollapsed) return;
+        TitleBarBottomLeft = window.Pos + new Vector2(0f, window.Size.Y);
+        TitleBarWidth = window.Size.X;
     }
 
     public override void Draw()
@@ -485,6 +498,7 @@ public unsafe class MainWindow : Window, IDisposable
         DrawPrimaryActions(game, inSession);
         if (!inSession) DrawSoloOption(game);
         DrawLocationHint();
+        DrawPartyChanges();
         DrawRunOptions(game, Plugin.Practice, inSession);
 
         ImGui.Spacing();
@@ -784,6 +798,9 @@ public unsafe class MainWindow : Window, IDisposable
         }
     }
 
+    // As the window's own Return to inn / Leave button.
+    internal void ReturnToInn() => plugin.Runs.Leave();
+
     private void DrawSession()
     {
         multiplayerUi.DrawSessionStrip(PartyPanel);
@@ -1031,5 +1048,52 @@ public unsafe class MainWindow : Window, IDisposable
         ImGui.TextDisabled("Scenarios only run in an inn");
         ImGui.SameLine();
         ImGuiComponents.HelpMarker("Scenarios can only be started from an inn — return to one to run a scenario.");
+    }
+
+    // The game itself only catches up on these once the sim is left.
+    internal static IReadOnlyList<PartyStatusEvent> PartyChanges()
+        => Plugin.Game.World.Map.IsInInstance && ZoneControl.Current is { } zone ? zone.PartyStatusEvents : [];
+
+    internal static bool PartyRecruitmentEnded()
+        => Plugin.Game.World.Map.IsInInstance && ZoneControl.Current is { PartyRecruitmentEnded: true };
+
+    internal static ReadyCheckAlert? PartyReadyCheck()
+        => Plugin.Game.World.Map.IsInInstance ? ZoneControl.Current?.PartyReadyCheck : null;
+
+    internal static bool HasPartyAlert() => PartyRecruitmentEnded() || PartyReadyCheck() != null;
+
+    private void DrawPartyChanges()
+    {
+        var changes = PartyChanges();
+        if (changes.Count == 0 && !HasPartyAlert()) return;
+        ImGui.Spacing();
+        ImGui.TextColored(PartyChangeColor, "Your party since you entered the sim");
+        ImGui.SameLine();
+        ImGuiComponents.HelpMarker("While you're in the sim the game doesn't see party changes, so they're listed here. When you leave, the game's Party Finder status and party list catch up, and a ready check there's still time for opens so you can answer it.");
+        DrawPartyAlerts();
+        foreach (var change in changes.TakeLast(PartyChangesShown))
+            ImGui.TextUnformatted($"{change.ShownAt.ToLocalTime():HH:mm}  {change.Text}");
+    }
+
+    internal static void DrawPartyAlerts()
+    {
+        if (PartyReadyCheck() is { } readyCheck)
+            DrawAlert($"Ready check from {readyCheck.From}: {Math.Ceiling(readyCheck.Left.TotalSeconds):F0}s left. Leave the sim to answer it.");
+        if (PartyRecruitmentEnded()) DrawAlert("Party Finder recruitment has ended");
+    }
+
+    // Pulses, to be noticed mid-fight.
+    private static void DrawAlert(string text)
+    {
+        var pulse = 0.6f + 0.4f * MathF.Sin((float)ImGui.GetTime() * MathF.Tau * 1.5f);
+        var color = AlertColor with { W = pulse };
+        var lineHeight = ImGui.GetTextLineHeight();
+        var at = ImGui.GetCursorScreenPos();
+        ImGui.GetWindowDrawList().AddCircleFilled(at + new Vector2(lineHeight * 0.5f), lineHeight * 0.3f, ImGui.GetColorU32(color));
+        ImGui.Dummy(new Vector2(lineHeight));
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextWrapped(text);
+        ImGui.PopStyleColor();
     }
 }

@@ -92,6 +92,9 @@ public sealed unsafe partial class ZoneControl
         TickZoneChangeLatch();
         TickSessionGuard();
         TickSendHold();
+        // Last, and never while either filter is up: it may hand the client a held ready check, whose
+        // answer the send hold would swallow.
+        if (!guardArmed && !sendHoldActive) partyWatch?.TickReadyCheck();
     }
 
     private static bool Zoning() => Plugin.Condition[ConditionFlag.BetweenAreas] || Plugin.Condition[ConditionFlag.BetweenAreas51];
@@ -394,7 +397,7 @@ public sealed unsafe partial class ZoneControl
         return $"[ZoneGuard] {where} -- stay #{stayId}, {Stopwatch.GetElapsedTime(guardArmedAt).TotalSeconds:F2}s in, armed={guardArmed}, sessionActive={IsActive}, trip={tripReason ?? "none"}; "
              + $"player {here}, inn {Describe(armedPosition, armedRotation)}, apart {apart}; "
              + $"territory Dalamud={Plugin.ClientState.TerritoryType} GameMain={NativeTerritory()} (inn {innClientTerritory}, loaded {loadedTerritory}, last finished load {completedLoad}); "
-             + $"loggedIn={Plugin.ClientState.IsLoggedIn}; hooks send={sendPacketHook.IsEnabled}/disposed={sendPacketHook.IsDisposed} recv={receivePacketHook.IsEnabled}/disposed={receivePacketHook.IsDisposed}; "
+             + $"loggedIn={Plugin.ClientState.IsLoggedIn}; hooks send={sendPacketHook.IsEnabled}/disposed={sendPacketHook.IsDisposed} recv filter={receiveFilterUp} hook={receivePacketHook.IsEnabled}/disposed={receivePacketHook.IsDisposed}; "
              + $"held {heldInbound} inbound, outbound [{outbound}]; conditions [{conditions}]";
     }
 
@@ -418,7 +421,7 @@ public sealed unsafe partial class ZoneControl
     private bool FirewallArmed(out string why)
     {
         if (!sendPacketHook.IsEnabled || sendPacketHook.IsDisposed) { why = "the send filter did not arm"; return false; }
-        if (!receivePacketHook.IsEnabled || receivePacketHook.IsDisposed) { why = "the receive filter did not arm"; return false; }
+        if (!ReceiveFiltering) { why = "the receive filter did not arm"; return false; }
         if (heartbeatOpcode == 0) { why = "no heartbeat opcode"; return false; }
         why = "";
         return true;
@@ -523,7 +526,7 @@ public sealed unsafe partial class ZoneControl
         LogNativeTerritoryChange();
         LogStayHeartbeat();
         var c = Plugin.Condition;
-        if (!sendPacketHook.IsEnabled || !receivePacketHook.IsEnabled)
+        if (!sendPacketHook.IsEnabled || !ReceiveFiltering)
             Trip("a firewall hook was found disabled while armed");
         else if (!Plugin.ClientState.IsLoggedIn)
             Trip("the client logged out while the firewall was up");
@@ -577,7 +580,7 @@ public sealed unsafe partial class ZoneControl
     private string? LiftBlockedReason()
     {
         if (tripReason is { } tripped) return tripped;
-        if (!sendPacketHook.IsEnabled || !receivePacketHook.IsEnabled) return HookDisabled;
+        if (!sendPacketHook.IsEnabled || !ReceiveFiltering) return HookDisabled;
         if (!Plugin.ClientState.IsLoggedIn) return "not logged in";
         var c = Plugin.Condition;
         if (c[ConditionFlag.BetweenAreas] || c[ConditionFlag.BetweenAreas51]) return "a zone transition is in progress";
@@ -648,10 +651,20 @@ public sealed unsafe partial class ZoneControl
         var counters = RestoreClientCounters(armedCounters);
         if (!DisableFirewall()) Die($"a filter would not come down after the lift was verified ({when})");
         DiagnosticLog.Info($"[ZoneGuard] Firewall lifted {when}: territory {innClientTerritory} (GameMain {NativeTerritory()}), player {here} vs inn {Describe(armedPosition, armedRotation)}, {counters}, held {heldInbound} inbound / {heldOutbound.Values.Sum()} outbound.");
+        var (applied, refresh) = partyWatch?.ApplyServerParty(InjectIncomingPacket) ?? (null, "the party watch is off");
+        if (applied != null) DiagnosticLog.Info($"[ZoneGuard] Applied {applied}.");
         if (partyResyncDue)
         {
             partyResyncDue = false;
-            OpenSocialForPartyResync();
+            if (refresh == null)
+            {
+                DiagnosticLog.Info("[ZoneGuard] Social refresh skipped: every party packet the run held reached the client, which asked for what it needed itself.");
+            }
+            else
+            {
+                DiagnosticLog.Info($"[ZoneGuard] Social refresh kept: {refresh}.");
+                OpenSocialForPartyResync();
+            }
         }
     }
 
