@@ -4,6 +4,8 @@ using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 using Dalamud.Game.Text;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.Game;
 
@@ -42,7 +44,18 @@ public sealed class Game : IDisposable
     public Game()
     {
         World = new SimWorld(Events);
+        Natives.UserActions.Acted += OnPlayerActed;
     }
+
+    // A peer's own actions reach the scenario through MultiplayerManager instead.
+    private void OnPlayerActed(PlayerAction action)
+    {
+        if (action.Step != PlayerActionStep.Resolved || action.ActionType != ActionType.Action || World.Party.Player is not { } player) return;
+        var target = (uint)action.TargetId is 0 or NoTargetId ? (GameObjectId?)null : new GameObjectId { ObjectId = (uint)action.TargetId, Type = (byte)(action.TargetId >> 32) };
+        World.PlayerActed(player, action.ActionId, target);
+    }
+
+    private const uint NoTargetId = 0xE0000000;
 
 
     public void ZoneIn(IZone zone, SessionMode mode, Action<string?>? resolved = null)
@@ -219,6 +232,7 @@ public sealed class Game : IDisposable
     // Framework.Run wrapper would never fire.
     public void Dispose()
     {
+        Natives.UserActions.Acted -= OnPlayerActed;
         run = null;
         Events.Clear();
         instance?.Dispose();

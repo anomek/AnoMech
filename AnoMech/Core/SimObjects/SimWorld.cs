@@ -11,6 +11,7 @@ using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
 using AnoMech.Scenarios;
 using AnoMech.Core.Native.Interfaces;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -202,6 +203,15 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void Fail(string reason, bool freeze = false) => Failed?.Invoke(reason, freeze);
 
     internal SimEvents SimEvents { get; } = new();
+
+    // A player's own action as it resolves, for the running scenario (IWorldEventListener.OnPlayerActed).
+    internal void PlayerActed(SimCharacter actor, uint actionId, GameObjectId? target)
+    {
+        var aimedAt = target is { } id
+            ? Party.AllMembers().Concat(children.OfType<SimEnemy>()).FirstOrDefault(c => c.IsActive && c.GameObjectId.ObjectId == id.ObjectId)
+            : null;
+        SimEvents.Raise(new PlayerActed(actor, actionId, aimedAt));
+    }
 
     // A one-shot VFX sheet row at a scenario-local point, e.g. FRU's Return marker (1013) under each
     // player. Shown on this client only.
