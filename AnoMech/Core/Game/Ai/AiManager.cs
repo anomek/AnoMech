@@ -35,7 +35,9 @@ public sealed class AiManager
     /// <summary>Schedule bots movement</summary> 
     /// <param name="arrivalTime">If not empty, this is expected arrival time for bots. They will sprint if there is not enough time to walk, and they will leave as late as possible otherwise</param>
     /// <param name="sprint">Ignored if arrivalTime is set. Sprint towards target instead of walking</param>
+    /// <param name="leaveNow">With arrivalTime: set off at once instead of as late as possible, still sprinting if walking can't make it</param>
     public void Move(float time, Func<IAiMove> positions, float jitter = DefaultJitter, float? arrivalTime = null, bool sprint = false,
+        bool leaveNow = false,
         [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {
         world.Events.Add(time, () =>
@@ -53,6 +55,7 @@ public sealed class AiManager
                 var (sprinting, delay) = arrivalTime is { } arrival
                     ? PlanArrival(dist, arrival - time - MoveDeadlineSafetyMargin)
                     : (sprint, 0f);
+                if (leaveNow) delay = 0f;
                 var speed = sprinting ? SprintSpeed : RunSpeed;
 
                 if (sprinting) partyMember?.UseAction(JobActions.Sprint);
