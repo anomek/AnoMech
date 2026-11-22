@@ -68,16 +68,18 @@ public class TopP2PartySynergyScenarioTests
             .TeleportAt(12f, to: new(0, -8))
             .ShouldKill(ActionId.BeyondStrength, RegenHealer);
 
+    // Just west of Optical Laser's line, 19.6 from OT.
     [Test]
     public void DiesWhenTooCloseOnMidTether()
         => Healer(PlaystationSymbol.Circle, GlitchType.Mid)
-            .TeleportAt(17f, to: new(-2, 5.5f))
+            .TeleportAt(17f, to: new(-8.6f, 5.5f))
             .ShouldKill(ActionId.OptimizedFireIII, RegenHealer, OffTank);
 
+    // Clear of Optical Laser's line, 30 from OT.
     [Test]
     public void DiesWhenTooCloseOnFarTether()
         => Healer(PlaystationSymbol.Circle, GlitchType.Far)
-            .TeleportAt(17f, to: new(-2, 5.5f))
+            .TeleportAt(17f, to: new(-12, 5.5f))
             .ShouldKill(ActionId.OptimizedFireIII, RegenHealer, OffTank);
 
     [Test]

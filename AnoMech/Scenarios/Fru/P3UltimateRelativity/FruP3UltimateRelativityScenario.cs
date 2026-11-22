@@ -28,9 +28,7 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
     private FruP3UltimateRelativityState state = null!;
     private SimEnemy? oracle;
     private readonly SimEnemy?[] hourglasses = new SimEnemy?[8];
-    private readonly SimEnemy?[] lasers = new SimEnemy?[8];
     private readonly Vector3[] laserDirections = new Vector3[8];
-    private readonly SimEnemy?[] debuffHelpers = new SimEnemy?[8];
     private readonly List<SimTether> speedTethers = [];
     private readonly Dictionary<PartyRole, Vector3> returns = new();
 
@@ -43,7 +41,7 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP3UltimateRelativityState>)AiStrats[idx]).Run(state, world);
 
-        world.Events.Add(0f, SpawnOracleAndHelpers);
+        world.Events.Add(0f, SpawnOracle);
         world.Events.Add(0.87f, StopTime);
         world.Events.Add(1f, () => oracle?.Cast(Actions.UltimateRelativity));
         world.Events.Add(5.9f, OracleBattleTalk);
@@ -60,7 +58,6 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
             world.Events.Add(LaserStartAt(w), () => StartLasers(w));
             if (w < 2) world.Events.Add(ReturnAt(earlyReturn: w == 0), () => SaveReturns(earlyReturn: w == 0));
             world.Events.Add(LaserHitAt(w, 0), () => FireFirstLasers(w));
-            world.Events.Add(LaserHitAt(w, 0) + 0.35f, () => TurnLasersToFirstSweep(w));
             for (var shot = 1; shot < LaserShots; shot++)
             {
                 var s = shot;
@@ -85,7 +82,7 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
         if (oracle is { } boss) world.Map.DirectorUpdate(0x80000027U, 0xDU, 0x2U, BNpcNameId.Oracle, boss.EntityId);
     }
 
-    private void SpawnOracleAndHelpers()
+    private void SpawnOracle()
     {
         oracle = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.OracleP3,
@@ -96,17 +93,7 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
             Placement: new Placement(Vector3.Zero, MathF.PI),
             LayoutId: LayoutId.OracleP3,
             Appearance: Appearance.Oracle));
-        for (var i = 0; i < debuffHelpers.Length; i++) debuffHelpers[i] = SpawnHelper(BNpcNameId.Oracle);
-        for (var i = 0; i < lasers.Length; i++) lasers[i] = SpawnHelper(BNpcNameId.DelightsHourglass);
     }
-
-    private SimEnemy? SpawnHelper(uint nameId) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: nameId,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: new Placement(Vector3.Zero, MathF.PI)));
 
     private void AssignDebuffs()
     {
@@ -163,24 +150,22 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
     {
         speedTethers.ForEach(tether => tether.Despawn());
         speedTethers.Clear();
-        var helper = 0;
         for (var clock = 0; clock < 8; clock++)
             if (Quickened(clock) || Slowed(clock))
-                debuffHelpers[helper++]?.Cast(Quickened(clock) ? Actions.Quicken : Actions.Slow, hourglasses[clock]);
+                oracle?.CastFromHelper(Quickened(clock) ? Actions.Quicken : Actions.Slow, hourglasses[clock]);
     }
 
     private void ResolveFire(int wave)
     {
-        var helper = 0;
         foreach (var role in Enum.GetValues<PartyRole>().Where(role => state.HasFire(role, wave)))
-            CastOn(debuffHelpers[helper++], Actions.DarkFire, role);
-        if (wave == 1) CastOn(debuffHelpers[helper++], Actions.DarkBlizzard, state.IceHolder);
-        CastOn(debuffHelpers[helper], Actions.UnholyDarkness, state.Darkness(wave));
+            CastOn(Actions.DarkFire, role);
+        if (wave == 1) CastOn(Actions.DarkBlizzard, state.IceHolder);
+        CastOn(Actions.UnholyDarkness, state.Darkness(wave));
     }
 
-    private void CastOn(SimEnemy? helper, EnemyAction action, PartyRole role)
+    private void CastOn(EnemyAction action, PartyRole role)
     {
-        if (world.Party.Get(role) is { } target && target.IsAlive()) helper?.Cast(action, target);
+        if (world.Party.Get(role) is { } target && target.IsAlive()) oracle?.CastFromHelper(action, target);
     }
 
     private void StartLasers(int wave)
@@ -205,25 +190,15 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
             var bait = world.Party.ActiveMembers().MinBy(m => Vector3.DistanceSquared(m.Position, origin));
             var offset = bait is null ? Vector3.Zero : bait.Position - origin;
             laserDirections[clock] = offset.LengthSquared() > 0.0001f ? Vector3.Normalize(offset) : -state.Direction(clock);
-            lasers[clock]?.SetPosition(new Placement(origin, Facing(laserDirections[clock])));
-            lasers[clock]?.Cast(Actions.SinboundMeltdownFirst);
+            hourglasses[clock]?.CastFromHelper(Actions.SinboundMeltdownFirst, at: new Placement(origin, Facing(laserDirections[clock])));
         }
-    }
-
-    private void TurnLasersToFirstSweep(int wave)
-    {
-        for (var clock = 0; clock < 8; clock++)
-            if (Wave(clock) == wave) lasers[clock]?.TurnTo(SweepFacing(clock, 1));
     }
 
     private void SweepLasers(int wave, int shot)
     {
         for (var clock = 0; clock < 8; clock++)
-        {
-            if (Wave(clock) != wave) continue;
-            if (shot > 1) lasers[clock]?.SetRotation(SweepFacing(clock, shot));
-            lasers[clock]?.Cast(Actions.SinboundMeltdownRest);
-        }
+            if (Wave(clock) == wave)
+                hourglasses[clock]?.CastFromHelper(Actions.SinboundMeltdownRest, at: new Placement(state.Hourglass(clock), SweepFacing(clock, shot)));
     }
 
     private float SweepFacing(int clock, int shot)
@@ -254,16 +229,12 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
 
     private void ResolveReturnDebuffs()
     {
-        var helper = 0;
         foreach (var role in Enum.GetValues<PartyRole>())
         {
             if (!state.Shadoweye(role))
-                CastOn(debuffHelpers[helper++], state.DarkWater(role) ? Actions.DarkWater : Actions.DarkEruption, role);
-            else if (world.Party.Get(role) is { } holder && holder.IsAlive() && debuffHelpers[helper++] is { } helperOnHolder)
-            {
-                helperOnHolder.SetPosition(holder.Placement());
-                helperOnHolder.Cast(Actions.Shadoweye);
-            }
+                CastOn(state.DarkWater(role) ? Actions.DarkWater : Actions.DarkEruption, role);
+            else if (world.Party.Get(role) is { } holder && holder.IsAlive())
+                oracle?.CastFromHelper(Actions.Shadoweye, at: holder.Placement());
         }
     }
 

@@ -198,15 +198,25 @@ public class TopP5SigmaScenarioTests
     public void BystanderInNearWorldWipes()
         => Sigma(PhysRangedDps)
             .TeleportAt(67.5f, to: new(-12, 2))
-            .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
+            .ShouldKill(ActionId.HelloNearWorld, OffTank, PhysRangedDps)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank, PhysRangedDps));
 
-    // With M2 gone the near jumps go OT -> R -> OT again, still vulnerable from the first hit.
+    // A kill on the last jump leaves nothing to fail.
     [Test]
-    public void NearWorldJumpingBackToHolderWipes()
+    public void BystanderInLastDistantWorldJumpKillsBoth()
+        => Sigma(RegenHealer)
+            .TeleportAt(69.5f, to: new(1, 18.5f))
+            .ShouldKill(ActionId.HelloDistantWorldJump, CasterDps, RegenHealer)
+            .ShouldKillNoOneElse();
+
+    // With M2 gone the near jumps go OT -> R -> OT again, still vulnerable from the first hit. A kill
+    // on the last jump leaves nothing to fail.
+    [Test]
+    public void NearWorldJumpingBackToHolderKillsThem()
         => Sigma(MeleeDpsB)
             .TeleportAt(67.5f, to: new(8, -3))
             .ShouldKill(ActionId.HelloNearWorldJump, OffTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank));
+            .ShouldKillNoOneElse();
 
     // RH comes off its arm vulnerable and ends up nearest OT.
     [Test]

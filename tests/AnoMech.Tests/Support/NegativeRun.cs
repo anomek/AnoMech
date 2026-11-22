@@ -89,6 +89,19 @@ internal sealed class NegativeRun<TScenario>(PartyRole role, int strat) where TS
     public NegativeRun<TScenario> ShouldDieOfStatus(ushort statusId, params PartyRole[] roles)
         => Judge(() => $"{string.Join(", ", roles)} to die of {Natives.Data.StatusName(statusId)} ({statusId})", d => d.StatusId == statusId, roles, roles);
 
+    // After the last ShouldKill: the deaths it judged are all there are, so nothing they set off
+    // (a fail raidwide) followed within the 5 s the run records after the first death.
+    public NegativeRun<TScenario> ShouldKillNoOneElse()
+    {
+        EnsureRun();
+        var rest = Enumerable.Range(0, run!.Deaths.Count).Where(i => !judged.Contains(i)).Select(i => run.Deaths[i]).ToList();
+        if (run.Failure is null && rest.Count == 0) return this;
+        var problem = run.Failure is not null ? "expected no other deaths, but the run failed." : $"expected no other deaths, but {Describe(rest)}.";
+        var detailed = ScenarioRun.Execute(typeof(TScenario), strat, runSeed, options with { AlwaysWriteArtifacts = true });
+        Assert.Fail($"{problem}{Environment.NewLine}{detailed}{Environment.NewLine}  replay: .Seed({runSeed})");
+        return this;
+    }
+
     // A failed mechanic nobody dies to (world.Fail).
     public NegativeRun<TScenario> ShouldFail()
     {

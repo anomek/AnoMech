@@ -30,7 +30,7 @@ public static class UwuActions
         Cast = new() { AnimationLock = 0.1f },
         Area = SparesGaoled,
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.96f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 1.1f },
     };
 
     public static readonly EnemyAction LandslideLine = Landslide(ActionId.LandslideLine, 2.1f);
@@ -40,9 +40,9 @@ public static class UwuActions
     private static EnemyAction Landslide(uint actionId, float animationLock) => new(actionId)
     {
         Cast = new() { AnimationLock = animationLock },
-        // TODO: add damage as well and verify damage delay
-        Effects = [LandslideKnockback],
-        Timing = new() { DamageDelay = 1.03f }, // TODO: verify with replay
+        Area = SparesGaoled,
+        Effects = [Damage(), LandslideKnockback],
+        Timing = new() { DamageDelay = 1.19f },
     };
 
     // -- Ultima --
@@ -74,14 +74,14 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.6f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.81f },
     };
 
     public static readonly EnemyAction RadiantPlumePuddle = new(ActionId.RadiantPlumePuddle)
     {
         Cast = new() { AnimationLock = 0.1f },
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.86f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 1.1f },
     };
 
     public static readonly EnemyAction HomingLasers = new(ActionId.HomingLasers)
@@ -92,14 +92,26 @@ public static class UwuActions
     };
 
     // TODO: real tank-purge damage
-    public static readonly EnemyAction TankPurge = Raidwide(ActionId.TankPurge, 2.1f, 1.12f);
+    public static readonly EnemyAction TankPurge = new(ActionId.TankPurge)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [Damage(VulnerableTo(StatusId.AetheroplasmVuln))],
+        Timing = new() { DamageDelay = 1.12f },
+    };
+
+    public static readonly EnemyAction Aetheroplasm = new(ActionId.Aetheroplasm)
+    {
+        Cast = new() { AnimationLock = 1.3f },
+        Effects = [Damage(), ApplyStatus(StatusId.AetheroplasmVuln, 1f, delayToEffectResult: true), DefeatCaster()],
+        Timing = new() { DamageDelay = 0.31f },
+    };
 
     public static readonly EnemyAction LightPillarCircle = new(ActionId.LightPillarCircle)
     {
         Cast = new() { AnimationLock = 0.1f },
         Area = SparesGaoled,
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.9f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 1.1f },
     };
 
     public static readonly EnemyAction AetherochemicalLaserCenter = AetherochemicalLaser(ActionId.AetherochemicalLaserCenter, 0f);
@@ -135,7 +147,7 @@ public static class UwuActions
         Cast = new() { AnimationLock = 2.1f },
         Area = new() { Size = 8.7f }, 
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.63f },
     };
 
     public static readonly EnemyAction WickedWheel = new(ActionId.WickedWheel)
@@ -147,12 +159,21 @@ public static class UwuActions
 
     public static readonly EnemyAction MistralShriek = Raidwide(ActionId.MistralShriek, 2.3f, damage: 1.23f);
 
+    // The sheet only has the circle; the eye is safe.
+    public static readonly EnemyAction EyeOfTheStorm = new(ActionId.EyeOfTheStorm)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Area = SparesGaoled with { CastTypeOverride = CastType.Donut, Size = 12f },
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.65f },
+    };
+
     public static readonly EnemyAction MistralSong = new(ActionId.MistralSong)
     {
         Cast = new() { AnimationLock = 1.8f },
         Area = SparesGaoled,
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.6f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.79f },
     };
     public static readonly EnemyAction MistralSongSuparnaChirada = new(ActionId.MistralSongSuparnaChirada)
     {
@@ -221,10 +242,25 @@ public static class UwuActions
         Cast = new() { AnimationLock = 2.1f },
         Area = SparesGaoled,
         Effects = [Damage(Lethal), DefeatCaster()],
-        Timing = new() { DamageDelay = 0.5f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.63f },
     };
 
     // -- Ifrit --
+    public static readonly EnemyAction InfernoHowl = new(ActionId.InfernoHowl)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [Damage()],
+        Timing = new() { DamageDelay = 1.2f },
+    };
+
+    public static readonly EnemyAction SearingWind = new(ActionId.SearingWind)
+    {
+        Cast = new() { AnimationLock = 0.6f },
+        Area = new() { CastTypeOverride = CastType.Circle, ExcludeCaster = true },
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.31f },
+    };
+
     public static readonly EnemyAction CrimsonCyclone = new(ActionId.CrimsonCyclone)
     {
         Cast = new() { AnimationLock = 2.1f },
@@ -236,7 +272,7 @@ public static class UwuActions
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.6f },
+        Timing = new() { DamageDelay = 0.66f },
         DeathExplanation = "Awaken",
     };
 
@@ -251,27 +287,83 @@ public static class UwuActions
     };
 
     // -- Titan --
+    public static readonly EnemyAction TitanAutoAttack = new(ActionId.TitanAutoAttack)
+    {
+        Cast = new() { AnimationLock = 0.1f },
+        Effects = [Damage()],
+        Timing = new() { DamageDelay = 0.78f },
+    };
+
     public static readonly EnemyAction Tumult = Raidwide(ActionId.Tumult, 1.1f, damage: 0.9f);
 
-    // Cancelled before it goes off: the sim always breaks the gaol in time.
-    public static readonly EnemyAction GraniteImpact = new(ActionId.GraniteImpact);
+    public static readonly EnemyAction Upheaval = new(ActionId.Upheaval)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [Damage(), Knockback(KnockbackId.Upheaval, knockbackDelay: 0.383f), ApplyStatus(StatusId.Stun, 2f)],
+        Timing = new() { DamageDelay = 0.77f },
+    };
+
+    // UNVERIFIED: the lethal radius. Retail non-tanks lived at 24y and beyond; a tank's HP and mitigation
+    // carry it closer, which the sim doesn't model.
+    public static readonly EnemyAction GeocrushJump = new(ActionId.GeocrushJump)
+    {
+        Cast = new() { AnimationLock = 2.4f },
+        Effects = [Damage(split: Distribution.Falloff(lethalWithin: 20f))],
+        Timing = new() { DamageDelay = 0.74f },
+    };
+
+    public static readonly EnemyAction WeightOfTheLand = new(ActionId.WeightOfTheLand)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Area = SparesGaoled,
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.6f },
+    };
+
+    // The gaol dies by its own Freefire.
+    public static readonly EnemyAction Freefire = new(ActionId.Freefire)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Area = SparesGaoled,
+        Effects = [Damage(Lethal), DefeatCaster()],
+        Timing = new() { DamageDelay = 0.62f },
+    };
+
+    // A gaol left unbroken: the whole arena dies, its prisoner too.
+    // UNVERIFIED: the animation lock, and GraniteImpactShort's damage delay; no clear replay lets one go off.
+    public static readonly EnemyAction GraniteImpactShort = GaolExplodes(ActionId.GraniteImpactShort, damageDelay: 1f);
+    public static readonly EnemyAction GraniteImpactLong = GaolExplodes(ActionId.GraniteImpactLong, damageDelay: 0.70f);
+
+    private static EnemyAction GaolExplodes(uint actionId, float damageDelay) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = damageDelay },
+    };
 
     public static readonly EnemyAction RockThrow = new(ActionId.RockThrow)
     {
-        Cast = new() { AnimationLock = 2.1f, FaceTarget = false },
+        Cast = new() { AnimationLock = 2.1f },
+    };
+
+    public static readonly EnemyAction RockThrowHelper = new(ActionId.RockThrowHelper)
+    {
+        Cast = new() { AnimationLock = 2.1f },
     };
 
     public static readonly EnemyAction Bury = new(ActionId.Bury)
     {
+        Area = SparesGaoled,
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.53f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.67f },
     };
 
     public static readonly EnemyAction Burst = new(ActionId.Burst)
     {
         Cast = new() { AnimationLock = 2.1f },
+        Area = SparesGaoled,
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.46f }, // TODO: verify with replay
+        Timing = new() { DamageDelay = 0.60f },
     };
 
     private static EnemyAction Raidwide(uint actionId, float animationLock, float damage) => new(actionId)

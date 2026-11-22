@@ -14,6 +14,7 @@ public static class TopReplayData
 {
     public static readonly DutyInitData DutyInitData = new(
         new EntranceBarrier(2007457, 0x91D196, 0x91D193, new Vector3(105f, 0f, 115f), 0f),
+        new HelperPool(9020, 36),
         [1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         [],
         []);

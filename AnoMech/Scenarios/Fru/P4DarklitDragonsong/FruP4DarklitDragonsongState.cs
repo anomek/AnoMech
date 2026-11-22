@@ -34,13 +34,13 @@ public sealed class FruP4DarklitDragonsongState
 
     public FruP4DarklitDragonsongState(Rng rng, FruP4DarklitDragonsongStateOverrides overrides)
     {
-        var tank = rng.NextTankRole();
-        var healer = rng.NextHealerRole();
-        var dps = rng.Shuffle(LineupDps);
-        var shape = rng.Next(3);
-        TetherWaterIndex = rng.Next(4);
-        FreeWaterIndex = rng.Next(4);
-        SpiritTakerTarget = rng.NextRole();
+        var tank = overrides.ChainedTank ?? rng.NextTankRole();
+        var healer = overrides.ChainedHealer ?? rng.NextHealerRole();
+        var dps = overrides.DpsOrder?.ToArray() ?? rng.Shuffle(LineupDps);
+        var shape = overrides.Shape ?? rng.Next(3);
+        TetherWaterIndex = overrides.TetherWaterIndex ?? rng.Next(4);
+        FreeWaterIndex = overrides.FreeWaterIndex ?? rng.Next(4);
+        SpiritTakerTarget = overrides.SpiritTakerTarget ?? rng.NextRole();
         EastWing = overrides.EastWing ?? rng.NextBool();
 
         var pair = LineupDps.Where(r => r == dps[0] || r == dps[1]).ToArray();

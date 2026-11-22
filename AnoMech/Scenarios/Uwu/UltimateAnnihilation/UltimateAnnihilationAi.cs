@@ -20,8 +20,6 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
     private const int ReplanSteps = 24;
     private const float Margin = 1f;
     private const float TightMargin = 0.5f;
-    private const float PlayerDrift = 2f;
-    private const float FeatherRainRadius = 3f;
     private const float OrbTouchRadius = 1.5f;
     private const float OrbBlastRadius = 6f;
     private const float OrbBlastClearance = 6.5f;
@@ -39,10 +37,10 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
     private static readonly Vector2 NorthWestStack = new(-6.5f, -7.5f);
     private static readonly Vector2 InwardOfNorthWestStack = new(-4.5f, -4f);
     private static readonly Vector2 HealersWest = new(-11f, 3f);
-    private static readonly Vector2 OutOfTheRadiantPlumes = new(-10.5f, -10.5f);
-    private static readonly Vector2 WestOfTheDiffractiveLaser = new(-7.5f, -3.5f);
     private static readonly Vector2 MainTankOrb = new(1.6f, -3.4f);
     private static readonly Vector2 OffTankOrb = new(2.6f, -4.4f);
+    private static readonly Vector2 MainTankFeatherRainBait = new(4.5f, -8f);
+    private static readonly Vector2 OffTankFeatherRainBait = new(6f, -7f);
 
     private readonly record struct Hazard(Vector2 Center, float Radius, float? LandsAt);
 
@@ -50,7 +48,6 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
     private SimWorld world = null!;
     private readonly Vector2?[] planned = new Vector2?[8];
     private List<Hazard> expected = [];
-    private readonly HashSet<int> unresolved = [];
 
     public void Run(UltimateAnnihilationState state, SimWorld world)
     {
@@ -66,48 +63,28 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
         ai.Move(17.6f, () => Plan(Dodging(17.6f, Everyone(WestStack), InsideTheEye)));
         ai.Move(20.6f, () => ClearOfTheFirstMesohigh(20.6f,
             BothHealersWest(Group(NorthWestOfStack, MainTankOrb, OffTankOrb, searingWind: HealersWest, firstMesohigh: new(-1f, 6.5f)))));
+        foreach (var at in new[] { 21.8f, 22.3f, 22.8f })
+            ai.Move(at, () => TanksBaitFeatherRainOnceTheOrbIsPopped(at));
         ai.Move(23f, () => Plan(Dodging(23f, Only(state.FirstMesohighTaker, new(12.5f, 1f)))));
         foreach (var at in new[] { 23.1f, 23.6f, 24.1f, 24.6f, 25.1f, 25.6f })
             ai.Move(at, () => TanksPopTheOrbOnceThePartyIsClear(at));
         ai.Move(24.5f, () => Plan(Dodging(24.5f, Only(state.SearingWindTarget, new(-3f, 14f)))));
         ai.Move(24.5f, () => Plan(Dodging(24.5f, Only(OtherHealer, NorthEdge))));
-        ai.Move(25.65f, () => AheadOfFeatherRain(25.65f, 26.81f,
-            Group(NorthEdge, new(4.5f, -8f), new(6f, -7f), searingWind: new(0f, 17.5f), firstMesohigh: new(11.5f, -11f))));
+        ai.Move(25.65f, () => Plan(Dodging(25.65f,
+            Group(NorthEdge, MainTankOrb, OffTankOrb, searingWind: new(0f, 17.5f), firstMesohigh: new(11.5f, -11f)))));
         ai.Move(26f, () => OutOfThePuddles(26f));
         ai.Move(27.3f, () => Plan(Group(NorthEdge, MainTankOrb, OffTankOrb, searingWind: new(0f, 17.5f), firstMesohigh: new(11.5f, -11f))));
         ai.Move(28.8f, () => Plan(Group(null, new(-1.5f, -15.5f), new(1f, -16.5f))));
         ai.Move(29.2f, () => Plan(Only(state.FirstMesohighTaker, NorthEdge)));
-        ai.Move(31.8f, () => Plan(SearingWindHoldsStill(Group(NorthWestOutOfLines, new(-8.5f, -10f), new(7.5f, -11f)))));
-        ai.Move(32.2f, () => Plan(Only(state.SearingWindTarget, new(9f, 11f))));
-        ai.Move(35.3f, () => Plan(Group(NorthWestStack, NorthWestStack, OffTankOrb, searingWind: new(0f, 10.5f))));
+        ai.Move(31.8f, () => Plan(SearingWindHoldsStill(Group(NorthWestOutOfLines, new(7.5f, -11f), new(-8.5f, -10f)))));
+        ai.Move(32.2f, () => Plan(Only(state.SearingWindTarget, BesideIfrit)));
+        ai.Move(34.45f, () => Plan(Only(PartyRole.MainTank, OffTankOrb)));
+        ai.Move(35.3f, () => Plan(Group(NorthWestStack, OffTankOrb, NorthWestStack, searingWind: new(0f, 10.5f))));
         ai.Move(40.3f, () => Plan(Only(PartyRole.MainTank, new(-2.5f, -6f))));
-        ai.Move(43.02f, () => AheadOfFeatherRain(43.02f, 44.22f,
-            Group(InwardOfNorthWestStack, new(-0.5f, -14.5f), new(6f, -8f), searingWind: new(3.5f, 9.5f))));
+        ai.Move(43.02f, () => Plan(Dodging(43.02f,
+            Group(InwardOfNorthWestStack, new(-0.5f, -14.5f), new(6f, -8f), searingWind: new(3.5f, 9.5f)))));
         ai.Move(43.4f, () => OutOfThePuddles(43.4f));
         ai.Move(46f, () => Plan(Group(NorthWestStack, new(0f, -7.7f), new(7.3f, -3.7f), searingWind: new(0.5f, 11f))));
-        ai.Move(54.6f, () => Plan(Only(state.SearingWindTarget, NorthWestStack)));
-        if (!state.UltimaAboveHalf) return;
-        ai.Move(66.4f, () => Plan(Group(OutOfTheRadiantPlumes, new(0f, -16f), new(10.5f, -10.5f))));
-        ai.Move(69.4f, () => Plan(Group(WestOfTheDiffractiveLaser, new(0.5f, -8.3f), new(6.5f, -4.5f))));
-    }
-
-    private IAiMove AheadOfFeatherRain(float now, float landsAt, Vector2?[] spots)
-    {
-        var result = new Vector2?[8];
-        foreach (var drift in new[] { PlayerDrift, 0f })
-        {
-            expected = Enumerable.Range(0, 8)
-                .Where(slot => world.Party.Get(slot) != null)
-                .Select(slot => new Hazard(Projected(slot, now + ReactionDelay, now), FeatherRainRadius + (IsLivePlayer(slot) ? drift : 0f), landsAt))
-                .ToList();
-            unresolved.Clear();
-            var dodged = Dodging(now, spots);
-            for (var slot = 0; slot < 8; slot++)
-                if (result[slot] == null && !unresolved.Contains(slot)) result[slot] = dodged[slot];
-        }
-        expected = [];
-        for (var slot = 0; slot < 8; slot++) result[slot] ??= spots[slot];
-        return Plan(result);
     }
 
     private IAiMove OutOfThePuddles(float now)
@@ -175,6 +152,15 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
         return Plan(spots);
     }
 
+    private IAiMove TanksBaitFeatherRainOnceTheOrbIsPopped(float now)
+    {
+        if (state.UnpoppedOrbs > 0) return Plan(new Vector2?[8]);
+        var spots = new Vector2?[8];
+        spots[(int)PartyRole.MainTank] = MainTankFeatherRainBait;
+        spots[(int)PartyRole.OffTank] = OffTankFeatherRainBait;
+        return Plan(Dodging(now, spots));
+    }
+
     private Vector2?[] Dodging(float now, Vector2?[] spots, float reach = ArenaReach)
     {
         var depart = now + ReactionDelay;
@@ -188,7 +174,6 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
             if (state.UnpoppedOrbs > 0 && !group.Key.Tank) expected = [.. saved, new Hazard(Orb, OrbBlastRadius, null)];
             var found = NearestClear(group.Key.Spot, group.Select(slot => Projected(slot, depart, now)).ToList(), now, depart, reach);
             expected = saved;
-            if (found == null) unresolved.UnionWith(group);
             foreach (var slot in group) result[slot] = found ?? group.Key.Spot;
         }
         return result;
@@ -246,8 +231,6 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
 
     private bool IsBot(int slot) => world.Party.Get(slot) is { } member && world.Party.IsBotDriven(member) && member.IsAlive();
 
-    private bool IsLivePlayer(int slot) => world.Party.Get(slot) is { } member && !world.Party.IsBotDriven(member) && member.IsAlive();
-
     private static bool IsTank(int slot) => slot is (int)PartyRole.MainTank or (int)PartyRole.OffTank;
 
     private IAiMove Plan(Vector2?[] spots)
@@ -256,6 +239,8 @@ public class UltimateAnnihilationAi : IScenarioAi<UltimateAnnihilationState>
             if (spots[slot] is { } spot) planned[slot] = spot;
         return AiMove.Create(spots).NaturalOrder();
     }
+
+    private Vector2 BesideIfrit => state.IfritSouthWest ? new(-9f, 11f) : new(9f, 11f);
 
     private PartyRole OtherHealer =>
         state.SearingWindTarget == PartyRole.RegenHealer ? PartyRole.ShieldHealer : PartyRole.RegenHealer;

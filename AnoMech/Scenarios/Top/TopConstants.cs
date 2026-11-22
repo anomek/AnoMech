@@ -66,7 +66,6 @@ public static class TopConstants
         public const uint OmegaF = 15713;         // P2 variant
         public const uint OmegaMClone = 15714;        // P2 Omega-M
         public const uint OmegaFClone = 15715;        // P2 Omega-F
-        public const uint OmegaHelper = 9020;         // 0x233C — generic invisible helper used by all phases
         public const uint BeetleHelper = 15724;       // 0x3D6C — beetle / sigma helper visual
         public const uint FinalHelper = 14669;        // 0x394D — wave cannon spinner / ultimate visual
         public const uint RightArmUnit = 15719;       // 0x3D67 — Hyper Pulse caster

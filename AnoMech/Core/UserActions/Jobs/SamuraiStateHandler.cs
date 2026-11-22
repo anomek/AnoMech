@@ -11,7 +11,7 @@ namespace AnoMech.Core.UserActions.Jobs;
 //
 // This is the reference example for a per-job state handler: gate on job, switch on the executed
 // action id, write the gauge struct through a JobGaugeEdit, and combo-gate anything the sheet marks a combo
-// bonus (read PRE-advance combo via PlayerCombo — so state handlers run before ComboHandler).
+// bonus (read PRE-advance combo via PlayerCombo — so state handlers run before ActionEffectHandler).
 internal sealed unsafe class SamuraiStateHandler : IUserActionHandler
 {
     public void OnAction(ActionType actionType, uint actionId)

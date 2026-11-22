@@ -570,6 +570,9 @@ public sealed partial class MultiplayerManager : IDisposable
             foreach (var peerId in pendingRelayUnbans) _ = relay.ModerateAsync("unban", peerId);
             // The drop lost the pings in flight; nobody fell behind on those.
             foreach (var peerId in answeredPingMs.Keys.ToList()) answeredPingMs[peerId] = PingClockMs();
+            // Ping at once: a peer that joined while we were away has heard nothing from us and soon
+            // takes the session for gone (IsSessionNotFound), and the stream picks up from the ping.
+            pingTimer = PingIntervalSeconds;
         }
         pendingRelayUnbans.Clear();
         LobbyChanged?.Invoke();

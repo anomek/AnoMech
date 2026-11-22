@@ -21,6 +21,10 @@ public abstract record Distribution
 
     public static Distribution Falloff(float lethalWithin) => new FalloffDistribution(lethalWithin);
 
+    // Anything but `count` in it, and everyone takes `wrongCount` instead (Lethal by default): TEA's
+    // Crashing Thunder (two).
+    public static Distribution Exactly(int count, Hit? wrongCount = null) => new ExactDistribution(count, wrongCount);
+
     // `index` is the target's place in `hits`, front first: nearest the origin, or furthest up a line. The reason is said of a
     // death the hit deals.
     internal abstract (Hit? Hit, string? Reason) Assign(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits, int index, SimCharacter target);
@@ -52,4 +56,10 @@ internal sealed record FalloffDistribution(float LethalWithin) : Distribution
             ? (Severity.Lethal, $"{distance:F0}y from it, lethal inside {LethalWithin:F0}y")
             : (null, null);
     }
+}
+
+internal sealed record ExactDistribution(int Count, Hit? WrongCount) : Distribution
+{
+    internal override (Hit? Hit, string? Reason) Assign(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits, int index, SimCharacter target)
+        => hits.Count == Count ? (null, null) : (WrongCount ?? Severity.Lethal, $"{hits.Count} players in it, it takes exactly {Count}");
 }

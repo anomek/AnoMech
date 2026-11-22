@@ -52,11 +52,13 @@ public static class TopActions
     private static EnemyAction SuperliminalSteelSide(uint actionId) => new(actionId)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay, AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
     {
+        Timing = new() { DamageDelay = 0.76f },
         Effects =
         [
             OnOthers(Damage(Lethal)),
@@ -67,6 +69,7 @@ public static class TopActions
 
     public static readonly EnemyAction PilePitch = new(ActionId.PilePitch)
     {
+        Timing = new() { DamageDelay = 0.8f },
         Effects = [Damage(MagicVulns, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
     };
 
@@ -108,6 +111,7 @@ public static class TopActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { Size = MathF.PI / 3f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -166,27 +170,32 @@ public static class TopActions
 
     public static readonly EnemyAction HyperPulseCharging = new(ActionId.HyperPulseDeltaCharging)
     {
+        Timing = new() { DamageDelay = 0.79f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction HyperPulseShoot = new(ActionId.HyperPulseDeltaShoot)
     {
+        Timing = new() { DamageDelay = 0.49f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Delta-specific --
     public static readonly EnemyAction RunMiDeltaVersion = new(ActionId.RunMiDeltaVersion)
     {
+        Timing = new() { DamageDelay = 1.15f },
         Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction DeltaExplosion = new(ActionId.DeltaExplosion)
     {
+        Timing = new() { DamageDelay = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction DeltaUnmitigatedExplosion = new(ActionId.DeltaUnmitigatedExplosion)
     {
+        Timing = new() { DamageDelay = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -202,6 +211,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherBreak = new(ActionId.HwTetherBreak)
     {
+        Timing = new() { DamageDelay = 0.63f },
         Effects =
         [
             Damage(MagicVulns),
@@ -212,6 +222,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherFail = new(ActionId.HwTetherFail)
     {
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -237,6 +248,7 @@ public static class TopActions
     public static readonly EnemyAction HelloWorldFail = new(ActionId.HelloWorldFail)
     {
         Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
         DeathExplanation = "Failed Hello World mechanic",
     };
@@ -252,7 +264,7 @@ public static class TopActions
         Timing = new() { DamageDelay = damageDelay },
         Effects =
         [
-            Damage(MagicVulns),
+            Damage(MagicVulns, split: Exactly(1)),
             ApplyStatus(StatusId.QuickeningDynamis, 0f),
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
         ],
@@ -262,6 +274,7 @@ public static class TopActions
     public static readonly EnemyAction OpticalLaser = new(ActionId.OpticalLaser)
     {
         Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -271,6 +284,7 @@ public static class TopActions
         Cast = new() { AnimationLock = 1.1f },
         Timing = new() { DamageDelay = 0.6f },
         Effects = [Damage(MagicVulns, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        ShownAs = BNpcNameId.OmegaM,
     };
 
     // -- P6 Wave Cannon 2 --
@@ -293,6 +307,7 @@ public static class TopActions
     public static readonly EnemyAction CosmoArrowLine = new(ActionId.CosmoArrowDamage)
     {
         Cast = new() { AnimationLock = 2.1f },
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 

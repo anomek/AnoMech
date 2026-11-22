@@ -10,10 +10,10 @@ public static class SuperCyclone
     private const float AfterThermalLowLost = 0.07f;
 
     // Thermal Low's stacks pick the Super Cyclone that follows, from where its holder stands.
-    public static void FollowMesohigh(SimWorld world, StatusLost lost, SimEnemy? helper)
+    public static void FollowMesohigh(SimWorld world, StatusLost lost, SimEnemy? caster)
     {
-        if (lost is not { StatusId: StatusId.ThermalLow, Reason: StatusLossReason.Removed, Stacks: > 0 } || helper is null) return;
-        helper.SetPosition(lost.Holder.Position);
-        world.Events.Add(AfterThermalLowLost, () => helper.Cast(UwuActions.SuperCyclone(lost.Stacks)));
+        if (lost is not { StatusId: StatusId.ThermalLow, Reason: StatusLossReason.Removed, Stacks: > 0 } || caster is null) return;
+        var from = new Placement(lost.Holder.Position, 0f);
+        world.Events.Add(AfterThermalLowLost, () => caster.CastFromHelper(UwuActions.SuperCyclone(lost.Stacks), at: from));
     }
 }

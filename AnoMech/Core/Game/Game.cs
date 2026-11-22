@@ -109,11 +109,14 @@ public sealed class Game : IDisposable
     {
         // Leaving always finalizes its own log segment.
         DiagnosticLog.RotateNow();
-        Plugin.Framework.Run(() =>
-        {
-            EndRun();
-            ExitInstance();
-        });
+        Plugin.Framework.Run(LeaveNow);
+    }
+
+    // Framework thread only.
+    public void LeaveNow()
+    {
+        EndRun();
+        ExitInstance();
     }
 
 

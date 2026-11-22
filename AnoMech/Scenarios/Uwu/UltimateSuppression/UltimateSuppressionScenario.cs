@@ -44,8 +44,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
     private SimEnemy? chirada;
     private SimEnemy? suparna;
 
-    private SimEnemy?[] dummies = new SimEnemy?[13];
-
     // Seconds into the plumes' circling; null while it isn't running.
     private float? razorPlumesCircling;
     private Dictionary<SimEnemy, Placement> razorPlumes = new();
@@ -90,7 +88,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
     }
 
     public void OnActionResolved(ActionResolved resolved) => LeaveWhirlwindBehindMistralSong(resolved);
-    public void OnStatusLost(StatusLost lost) => SuperCyclone.FollowMesohigh(world, lost, dummies[0]);
+    public void OnStatusLost(StatusLost lost) => SuperCyclone.FollowMesohigh(world, lost, garuda);
 
     public void Tick(float delta, float elapsed)
     {
@@ -237,25 +235,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                         0))
             );
 
-            for (int i = 0; i < dummies.Length; i++)
-            {
-                dummies[i] = world.SpawnEnemy(
-                new EnemySpawnConfig(
-                    BNpcBaseId: BNpcBaseId.Dummy,
-                    NameId: BNpcNameId.Dummy,
-                    LayoutId: BNpcLayoutId.Dummy,
-                    Level: 1,
-                    Targetable: false,
-                    EnemyList: EnemyListMode.Never,
-                    Visibility: SpawnVisibility.InvisibleHelper,
-                    Engaged: false,
-                    Placement: new Placement(
-                        new Vector3(0, 0, 0),
-                        0)
-                    )
-                );
-            }
-
             var mt = party.Get(PartyRole.MainTank);
             var healer = party.Get(state.ThermalLowHealer);
 
@@ -281,7 +260,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             {
                 EObjId = 2007457,
                 Placement = new(new(0.16f, 0, 1.4434f), 0),
-                ObjectIndex = 1,
                 TargetableStatus = 5,
                 EntityId = 0x4000829C,
                 LayoutId = 7538913,
@@ -314,15 +292,15 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         AetherochemicalLaser(0, 24.47f);
 
-        LightPillar(() => dummies[5], 24.47f, true);
-        LightPillar(() => dummies[4], 25.50f);
-        LightPillar(() => dummies[10], 26.45f);
-        LightPillar(() => dummies[9], 27.47f);
-        LightPillar(() => dummies[10], 28.47f);
+        LightPillar(24.47f, true);
+        LightPillar(25.50f);
+        LightPillar(26.45f);
+        LightPillar(27.47f);
+        LightPillar(28.47f);
 
         AetherochemicalLaser(1, 28.60f);
 
-        LightPillar(() => dummies[12], 29.47f);
+        LightPillar(29.47f);
 
         AetherochemicalLaser(2, 32.73f);
 
@@ -406,13 +384,13 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             suparna?.PlayActionTimeline(ActionTimelineId.WarpStart2);
         });
 
-        utils.FeatherRain([() => dummies[6], () => dummies[7], () => dummies[8], () => dummies[9], () => dummies[10]], 22.53f, 24.07f, state.FeatherRainTargets, () => state.PlayerGaol);
+        utils.FeatherRain(() => garuda, 22.53f, 24.07f, state.FeatherRainTargets, () => state.PlayerGaol);
 
         world.Events.Add(22.60f, () => razorPlumesCircling = 0f);
 
         world.Events.Add(24.47f, () => garuda?.PlayActionTimeline(ActionTimelineId.WarpStart2));
 
-        utils.FeatherRain([() => dummies[0], () => dummies[1], () => dummies[2], () => dummies[3], () => dummies[5]], 24.47f, 26.00f, state.FeatherRainTargets, () => state.PlayerGaol);
+        utils.FeatherRain(() => garuda, 24.47f, 26.00f, state.FeatherRainTargets, () => state.PlayerGaol);
 
         world.Events.Add(30.58f, () => garuda?.PlayActionTimeline(ActionTimelineId.WarpEnd));
 
@@ -432,7 +410,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(40.88f, () => garuda?.PlayActionTimeline(ActionTimelineId.WarpStart2));
 
-        utils.FeatherRain([() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 40.88f, 42.38f, state.FeatherRainTargets);
+        utils.FeatherRain(() => garuda, 40.88f, 42.38f, state.FeatherRainTargets);
 
         world.Events.Add(42.97f, () => razorPlumesDamage = false);
 
@@ -454,21 +432,21 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
         world.Events.Add(14.33f, () => ifrit?.Cast(ActionId.EruptionIfrit, animationLock: 2.4f));
 
-        utils.EruptionPuddle(() => dummies[10], () => state.PlayerEruptions[0], 14.33f);
-        utils.EruptionPuddle(() => dummies[11], () => state.PlayerEruptions[1], 14.33f);
-        utils.EruptionPuddle(() => dummies[12], () => state.PlayerGaol, 14.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[0], 14.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[1], 14.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerGaol, 14.33f);
 
-        utils.EruptionPuddle(() => dummies[7], () => state.PlayerEruptions[0], 16.33f);
-        utils.EruptionPuddle(() => dummies[8], () => state.PlayerEruptions[1], 16.33f);
-        utils.EruptionPuddle(() => dummies[9], () => state.PlayerGaol, 16.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[0], 16.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[1], 16.33f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerGaol, 16.33f);
 
-        utils.EruptionPuddle(() => dummies[11], () => state.PlayerEruptions[0], 18.35f);
-        utils.EruptionPuddle(() => dummies[12], () => state.PlayerEruptions[1], 18.35f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[0], 18.35f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[1], 18.35f);
 
         world.Events.Add(19.28f, () => ifrit?.PlayActionTimeline(ActionTimelineId.WarpStart));
 
-        utils.EruptionPuddle(() => dummies[9], () => state.PlayerEruptions[0], 20.35f);
-        utils.EruptionPuddle(() => dummies[10], () => state.PlayerEruptions[1], 20.35f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[0], 20.35f);
+        utils.EruptionPuddle(() => ifrit, () => state.PlayerEruptions[1], 20.35f);
 
         world.Events.Add(31.47f, () => ifrit?.PlayActionTimeline(ActionTimelineId.WarpEnd));
 
@@ -531,11 +509,12 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             graniteGaol!.SetVisibleInEnemyList(true);
             graniteGaol!.SetTargetable(true);
 
-            graniteGaol?.Cast(Actions.GraniteImpact);
+            graniteGaol?.Cast(Actions.GraniteImpactShort);
         });
 
-        // Gaol gets removed as soon as cast ends, to not give that much of an advantage to the player
-        world.Events.Add(30.24f, () =>
+        // The gaol breaks just before Granite Impact (cast ends 30.12) goes off, as late as possible so the
+        // jailed player gets little advantage.
+        world.Events.Add(30.00f, () =>
         {
             state.PlayerGaol!.SetTargetable(true);
             state.PlayerGaol!.RemoveStatus(StatusId.Fetters);
@@ -552,14 +531,14 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             titan?.Cast(ActionId.LandslideTitan, animationLock: 4.1f);
         });
 
-        utils.LandslideLines(() => titan, [() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 32.84f, LandslideType.Normal);
+        utils.LandslideLines(() => titan, 32.84f, LandslideType.Normal);
 
-        utils.LandslideLines(() => titan, [() => dummies[3], () => dummies[4], () => dummies[5], () => dummies[6], () => dummies[7]], 35.07f, LandslideType.Awaken);
+        utils.LandslideLines(() => titan, 35.07f, LandslideType.Awaken);
 
         world.Events.Add(41.15f, () => titan?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
-    private void LightPillar(Func<SimEnemy?> getDummy, float castOffset, bool direct = false)
+    private void LightPillar(float castOffset, bool direct = false)
     {
         const float Distance = 3f;
         const float DistanceSquared = Distance * Distance;
@@ -574,7 +553,7 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                 : lightPillarPlacement.Face(playerPosition).MoveForward(Distance).Position;
             state.LightPillarPlacement = new(position, 0);
 
-            getDummy()?.Cast(Actions.LightPillarCircle, position);
+            ultima?.CastFromHelper(Actions.LightPillarCircle, position, at: UwuUtils.OnLocation(position));
         });
     }
 
@@ -605,9 +584,9 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
     private void LeaveWhirlwindBehindMistralSong(ActionResolved resolved)
     {
         if (resolved.Action.ActionId != ActionId.MistralSongSuparnaChirada || resolved.Hits is not [var front, ..]) return;
-        var whirlwind = resolved.Caster == chirada ? dummies[11] : resolved.Caster == suparna ? dummies[12] : null;
+        if (resolved.Caster is not SimEnemy sister || (sister != chirada && sister != suparna)) return;
         var at = front.Position;
-        world.Events.Add(3.1f, () => whirlwind?.Cast(Actions.GreatWhirlwind, at));
+        world.Events.Add(3.1f, () => sister.CastFromHelper(Actions.GreatWhirlwind, at, at: UwuUtils.OnLocation(at)));
     }
 
     private void DespawnRazorPlumes()

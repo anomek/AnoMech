@@ -6,19 +6,17 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.UserActions;
 
-// Linear combos (the 1-2-3 where using one action lights up the next) are driven by
-// the server's ActionEffect carrying a Type-0x1B effect; the sim firewall eats it, so
-// we replay that effect and let the client advance its own combo. Combo routes
-// (Gnashing Fang etc.) use a separate system and are out of scope. Dedup of
-// queued/re-entrant executions is UserActions' job, so OnAction only sees actual,
-// once-per-execution calls.
-internal sealed unsafe class ComboHandler : IUserActionHandler
+// The server's ActionEffect for the player's own actions, which the sim firewall eats: replayed so
+// the client plays the action landing (the hit on its target) and, for a linear combo step, carries
+// the Type-0x1B marker that advances the client's own combo. Combo routes (Gnashing Fang etc.) use
+// a separate system. Dedup of queued/re-entrant executions is UserActions' job, so OnAction only
+// sees actual, once-per-execution calls.
+internal sealed unsafe class ActionEffectHandler : IUserActionHandler
 {
     public void OnAction(ActionType actionType, uint actionId)
     {
         if (actionType != ActionType.Action) return;
         var role = PlayerCombo.RoleOf(actionId);
-        if (role == ComboRole.None) return;
 
         var player = BattleCharaProxy.LocalPlayer;
         if (!player.Exists) return;
@@ -29,7 +27,10 @@ internal sealed unsafe class ComboHandler : IUserActionHandler
         player.ReceiveActionEffect(new ActionEffectData(
             actionId, ActionType.Action, 0f, (ushort)actionId, 0, 0, player.Rotation, player.Position,
             AnimationTarget: target,
-            Targets: [new ActionEffectTarget(target, [ActionEffectEntry.ActionMarker(actionId, role == ComboRole.Continuation)])],
+            // Every action lands so its hit plays on the target; a combo step also carries its marker.
+            Targets: [role == ComboRole.None
+                ? new ActionEffectTarget(target)
+                : new ActionEffectTarget(target, [ActionEffectEntry.ActionMarker(actionId, role == ComboRole.Continuation)])],
             SourceSequence: am->LastUsedActionSequence));
     }
 

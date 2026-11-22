@@ -27,4 +27,12 @@ public interface ILocalPlayerInput : IDisposable
     // null lets go. The game moves them at its own speed; `speed` is the run
     // or sprint speed the sim expects, which a headless client moves them at.
     void Steer(System.Numerics.Vector2? direction, float speed);
+
+    // Asked whenever the client settles which action a button is, how long a spell casts and why an
+    // action can't be used, to stand in for state the firewall keeps from it; null keeps the game's
+    // own answer. AdjustActionStatus is asked only about a refusal, and 0 lifts it; its flag says
+    // whether a running recast counts (a press) or not (the hotbar, which shows it as a sweep).
+    Func<uint, uint?>? AdjustActionId { get; set; }
+    Func<ActionType, uint, int?>? AdjustCastTime { get; set; }
+    Func<ActionType, uint, bool, uint?>? AdjustActionStatus { get; set; }
 }

@@ -28,6 +28,7 @@ public sealed class UmadP5ForsakenNull : IScenario
 
     private SimWorld world = null!;
     private SimParty party = null!;
+    private SimEnemy? kefka;
 
     public IReadOnlyList<IScenarioAi> AiStrats => [];
 
@@ -37,11 +38,8 @@ public sealed class UmadP5ForsakenNull : IScenario
         party = worldParam.Party;
 
         Run_Kefka_4001DE6B();
-        Run_Kefka_4001D7AD();
-        Run_Kefka_4001D7AE();
-        Run_Kefka_4001D7AF();
-        Run_Kefka_4001D7AC();
-        Run_Kefka_4001D7AB();
+        Run_ForsakenPuddles();
+        Run_ForsakenBonds();
         Run_InstanceEvents();
         Run_PlayerLockons();
     }
@@ -110,70 +108,37 @@ public sealed class UmadP5ForsakenNull : IScenario
 
     private void Run_Kefka_4001DE6B()
     {
-        SimEnemy? kefka_4001DE6B = null;
-        world.Events.Add(0f, () => kefka_4001DE6B = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka, NameId: Constants.BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f))));
+        world.Events.Add(0f, () => kefka = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka, NameId: Constants.BNpcNameId.Kefka, Level: 100, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f))));
         
-        world.Events.Add(1.08f, () => kefka_4001DE6B?.Cast(Constants.ActionId.UnknownC652, animationLock: 1.1f));
-        world.Events.Add(3.21f, () => kefka_4001DE6B?.Cast(Constants.ActionId.Forsaken));
-        world.Events.Add(13.20f, () => kefka_4001DE6B?.AddStatus(Constants.StatusId.DirectionalDisregard));
-        world.Events.Add(21.39f, () => kefka_4001DE6B?.Cast(Constants.ActionId.Forsaken_BB36));
-        world.Events.Add(29.55f, () => kefka_4001DE6B?.Cast(Constants.ActionId.Forsaken_BB36));
-        world.Events.Add(37.69f, () => kefka_4001DE6B?.Cast(Constants.ActionId.Forsaken_BB36));
+        world.Events.Add(1.08f, () => kefka?.Cast(Constants.ActionId.UnknownC652, animationLock: 1.1f));
+        world.Events.Add(3.21f, () => kefka?.Cast(Constants.ActionId.Forsaken));
+        world.Events.Add(13.20f, () => kefka?.AddStatus(Constants.StatusId.DirectionalDisregard));
+        world.Events.Add(21.39f, () => kefka?.Cast(Constants.ActionId.Forsaken_BB36));
+        world.Events.Add(29.55f, () => kefka?.Cast(Constants.ActionId.Forsaken_BB36));
+        world.Events.Add(37.69f, () => kefka?.Cast(Constants.ActionId.Forsaken_BB36));
     }
 
-    private void Run_Kefka_4001D7AD()
+    private void Run_ForsakenPuddles()
     {
-        SimEnemy? kefka_4001D7AD = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka_233C, NameId: Constants.BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), -3.110f)));
-        world.Events.Add(13.20f, () => kefka_4001D7AD?.SetPosition(new Placement(new Vector3(0.000f, 0.000f, 13.500f), 0.000f)));
-        world.Events.Add(13.28f, () => kefka_4001D7AD?.Cast(Constants.ActionId.Forsaken_BB38));
-        world.Events.Add(21.39f, () => kefka_4001D7AD?.SetPosition(new Placement(new Vector3(-7.000f, 0.000f, 6.750f), 0.000f)));
-        world.Events.Add(21.48f, () => kefka_4001D7AD?.Cast(Constants.ActionId.Forsaken_BB38));
-        world.Events.Add(29.55f, () => kefka_4001D7AD?.SetPosition(new Placement(new Vector3(-6.750f, 0.000f, -6.750f), 0.000f)));
-        world.Events.Add(29.63f, () => kefka_4001D7AD?.Cast(Constants.ActionId.Forsaken_BB38));
-        world.Events.Add(37.69f, () => kefka_4001D7AD?.SetPosition(new Placement(new Vector3(7.000f, 0.000f, -6.750f), 0.000f)));
-        world.Events.Add(37.78f, () => kefka_4001D7AD?.Cast(Constants.ActionId.Forsaken_BB38));
+        world.Events.Add(13.28f, () => Puddles(new Vector3(0f, 0f, 13.5f), new Vector3(-13.5f, 0f, 13.5f), Vector3.Zero));
+        world.Events.Add(21.48f, () => Puddles(new Vector3(-7f, 0f, 6.75f), new Vector3(13.5f, 0f, 13.5f), new Vector3(13.5f, 0f, -13.5f)));
+        world.Events.Add(29.63f, () => Puddles(new Vector3(-6.75f, 0f, -6.75f), new Vector3(0f, 0f, -13.5f), new Vector3(-13.5f, 0f, -13.5f)));
+        world.Events.Add(37.78f, () => Puddles(new Vector3(7f, 0f, -6.75f), new Vector3(0f, 0f, 13.5f), new Vector3(13.5f, 0f, 0f)));
     }
 
-    private void Run_Kefka_4001D7AE()
+    private void Puddles(Vector3 forsaken, Vector3 ground1, Vector3 ground2)
     {
-        SimEnemy? kefka_4001D7AE = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka_233C, NameId: Constants.BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), -3.110f)));
-        world.Events.Add(13.20f, () => kefka_4001D7AE?.SetPosition(new Placement(new Vector3(-13.500f, 0.000f, 13.500f), 0.000f)));
-        world.Events.Add(13.28f, () => kefka_4001D7AE?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(21.39f, () => kefka_4001D7AE?.SetPosition(new Placement(new Vector3(13.500f, 0.000f, 13.500f), 0.000f)));
-        world.Events.Add(21.48f, () => kefka_4001D7AE?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(29.55f, () => kefka_4001D7AE?.SetPosition(new Placement(new Vector3(0.000f, 0.000f, -13.500f), 0.000f)));
-        world.Events.Add(29.63f, () => kefka_4001D7AE?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(37.69f, () => kefka_4001D7AE?.SetPosition(new Placement(new Vector3(0.000f, 0.000f, 13.500f), 0.000f)));
-        world.Events.Add(37.78f, () => kefka_4001D7AE?.Cast(Constants.ActionId.ForsakenGround));
+        kefka?.CastFromHelper(Constants.ActionId.Forsaken_BB38, at: new Placement(forsaken, 0f));
+        kefka?.CastFromHelper(Constants.ActionId.ForsakenGround, at: new Placement(ground1, 0f));
+        kefka?.CastFromHelper(Constants.ActionId.ForsakenGround, at: new Placement(ground2, 0f));
     }
 
-    private void Run_Kefka_4001D7AF()
+    private void Run_ForsakenBonds()
     {
-        SimEnemy? kefka_4001D7AF = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka_233C, NameId: Constants.BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), -3.110f)));
-        world.Events.Add(13.20f, () => kefka_4001D7AF?.SetPosition(new Placement(new Vector3(0.000f, 0.000f, 0.000f), 0.000f)));
-        world.Events.Add(13.28f, () => kefka_4001D7AF?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(21.39f, () => kefka_4001D7AF?.SetPosition(new Placement(new Vector3(13.500f, 0.000f, -13.500f), 0.000f)));
-        world.Events.Add(21.48f, () => kefka_4001D7AF?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(29.55f, () => kefka_4001D7AF?.SetPosition(new Placement(new Vector3(-13.500f, 0.000f, -13.500f), 0.000f)));
-        world.Events.Add(29.63f, () => kefka_4001D7AF?.Cast(Constants.ActionId.ForsakenGround));
-        world.Events.Add(37.69f, () => kefka_4001D7AF?.SetPosition(new Placement(new Vector3(13.500f, 0.000f, 0.000f), 0.000f)));
-        world.Events.Add(37.78f, () => kefka_4001D7AF?.Cast(Constants.ActionId.ForsakenGround));
-    }
-
-    private void Run_Kefka_4001D7AC()
-    {
-        SimEnemy? kefka_4001D7AC = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka_233C, NameId: Constants.BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.000f, 0.000f, 0.000f), -3.110f)));
-        world.Events.Add(18.32f, () => kefka_4001D7AC?.Cast(Constants.ActionId.ForsakenBonds, party.Player));
-        world.Events.Add(26.47f, () => kefka_4001D7AC?.Cast(Constants.ActionId.ForsakenBonds, party.Player));
-        world.Events.Add(34.62f, () => kefka_4001D7AC?.Cast(Constants.ActionId.ForsakenBonds, party.Player));
-        world.Events.Add(42.78f, () => kefka_4001D7AC?.Cast(Constants.ActionId.ForsakenBonds, party.Player));
-    }
-
-    private void Run_Kefka_4001D7AB()
-    {
-        SimEnemy? kefka_4001D7AB = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: Constants.BNpcBaseId.Kefka_233C, NameId: Constants.BNpcNameId.Kefka, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(10.610f, 0.000f, -10.610f), 0.790f)));
-        // world.Events.Add(41.88f, () => kefka_4001D7AB?.Cast(Constants.ActionId.UnknownC61a, party.Get(PartyRole.RegenHealer)));
-        // world.Events.Add(42.06f, () => party.Get(PartyRole.RegenHealer)?.AddStatus(Constants.StatusId.Forsaken));
+        world.Events.Add(18.32f, () => kefka?.CastFromHelper(Constants.ActionId.ForsakenBonds, party.Player));
+        world.Events.Add(26.47f, () => kefka?.CastFromHelper(Constants.ActionId.ForsakenBonds, party.Player));
+        world.Events.Add(34.62f, () => kefka?.CastFromHelper(Constants.ActionId.ForsakenBonds, party.Player));
+        world.Events.Add(42.78f, () => kefka?.CastFromHelper(Constants.ActionId.ForsakenBonds, party.Player));
     }
 
     public static class Constants
@@ -181,7 +146,6 @@ public sealed class UmadP5ForsakenNull : IScenario
         public static class BNpcBaseId
         {
             public const uint Kefka = 19511;
-            public const uint Kefka_233C = 9020;
         }
 
         public static class BNpcNameId

@@ -23,9 +23,7 @@ using AnoMech.Scenarios.Umad.P4KefkaSays;
 using AnoMech.Scenarios.Umad.P5Celestriad;
 using AnoMech.Scenarios.Umad.P5Exaflares;
 using AnoMech.Scenarios.Umad.P5Flood;
-using AnoMech.Scenarios.Uwu.P1Garuda;
-using AnoMech.Scenarios.Uwu.P2Ifrit;
-using AnoMech.Scenarios.Uwu.P3Titan;
+using AnoMech.Scenarios.Uwu.P3TitanGaols;
 using AnoMech.Scenarios.Uwu.UltimateAnnihilation;
 using AnoMech.Scenarios.Uwu.UltimatePredation;
 using AnoMech.Scenarios.Uwu.UltimateSuppression;
@@ -97,9 +95,7 @@ public sealed class ScenarioCatalog
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
         new TopP6WaveCannon2Scenario(),
-        new UwuP1GarudaScenario(),
-        new UwuP2IfritScenario(),
-        new UwuP3TitanScenario(),
+        new UwuP3TitanGaolsScenario(),
         new UltimatePredationScenario(),
         new UltimateAnnihilationScenario(),
         new UltimateSuppressionScenario(),

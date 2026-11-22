@@ -9,7 +9,7 @@ internal enum ComboRole { None, Starter, Continuation }
 // Queries the player's live linear-combo state (ActionManager.Combo) against the Action
 // sheet's ActionCombo chain. Shared by the combo and resource-gen handlers (resource
 // gen is combo-gated). Reads the PRE-advance state, so callers that also advance the
-// combo (ComboHandler) must query before firing. Combo routes (Gnashing Fang etc.) use
+// combo (ActionEffectHandler) must query before firing. Combo routes (Gnashing Fang etc.) use
 // a separate system and aren't covered.
 //
 // All id comparisons go through GetAdjustedActionId: an action that upgrades with level
@@ -34,6 +34,19 @@ internal static unsafe class PlayerCombo
         return set;
     }
 
+    // Actions the sheet doesn't chain but the game combos as another: RDM's enchanted melee, whose swap
+    // is gone by the time the press resolves, having spent the mana it read, and Verholy, which leads
+    // into Scorch as Verflare does though the sheet names only Verflare.
+    private static readonly Dictionary<uint, uint> ComboForms = new()
+    {
+        [7527] = 7504, [45960] = 7504, // Enchanted Riposte
+        [7528] = 7512, [45961] = 7512, // Enchanted Zwerchhau
+        [7529] = 7516, [45962] = 7516, // Enchanted Redoublement
+        [7526] = 7525,                 // Verholy
+    };
+
+    private static uint ComboId(uint actionId) => ComboForms.GetValueOrDefault(actionId, actionId);
+
     // The action `actionId` combos from (0 = it isn't a continuation).
     private static uint PrerequisiteOf(uint actionId)
     {
@@ -49,6 +62,7 @@ internal static unsafe class PlayerCombo
         var am = ActionManager.Instance();
         if (am == null) return ComboRole.None;
 
+        actionId = ComboId(actionId);
         var prereq = PrerequisiteOf(actionId);
         if (prereq != 0)
             return am->Combo.Timer > 0f && Same(am, am->Combo.Action, prereq)
@@ -66,5 +80,5 @@ internal static unsafe class PlayerCombo
 
     // Whether two action ids denote the same action once level upgrades are applied.
     private static bool Same(ActionManager* am, uint a, uint b)
-        => a == b || am->GetAdjustedActionId(a) == am->GetAdjustedActionId(b);
+        => ComboId(a) == ComboId(b) || am->GetAdjustedActionId(a) == am->GetAdjustedActionId(b);
 }

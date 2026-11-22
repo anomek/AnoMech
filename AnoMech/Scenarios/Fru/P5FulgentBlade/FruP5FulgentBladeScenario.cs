@@ -13,7 +13,7 @@ using Actions = AnoMech.Scenarios.Fru.FruActions;
 namespace AnoMech.Scenarios.Fru.P5FulgentBlade;
 
 // Pandora's exalines: three groups of two seams, each seam splitting into a light and a dark strip
-// telegraphed by its first cast's omen and then rolling on as instant hits from the same helper.
+// telegraphed by its first cast's omen and then rolling on as instant hits.
 // Akh Morn closes it on one member of each light party.
 public sealed class FruP5FulgentBladeScenario : IScenario
 {
@@ -38,9 +38,7 @@ public sealed class FruP5FulgentBladeScenario : IScenario
     private SimWorld world = null!;
     private FruP5FulgentBladeState state = null!;
     private SimEnemy? pandora;
-    private readonly SimEnemy?[,,] strips = new SimEnemy?[GroupCount, SeamsPerGroup, 2];
     private readonly SimEventObject?[,] seams = new SimEventObject?[GroupCount, SeamsPerGroup];
-    private readonly SimEnemy?[] targetedHelpers = new SimEnemy?[2];
     private SimCharacter? akhMornLeftTarget;
     private SimCharacter? akhMornRightTarget;
 
@@ -107,21 +105,7 @@ public sealed class FruP5FulgentBladeScenario : IScenario
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(Vector3.Zero, MathF.PI),
             LayoutId: LayoutId.PandoraP5));
-        for (var group = 0; group < GroupCount; group++)
-            for (var seam = 0; seam < SeamsPerGroup; seam++)
-                for (var light = 0; light < 2; light++)
-                    strips[group, seam, light] = SpawnHelper(state.Strip(group, seam, light == 1, 0)!.Value);
-        for (var i = 0; i < targetedHelpers.Length; i++)
-            targetedHelpers[i] = SpawnHelper(new Placement(Vector3.Zero, 0f));
     }
-
-    private SimEnemy? SpawnHelper(Placement placement) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: BNpcNameId.Pandora,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: placement));
 
     private void SpawnSeams()
     {
@@ -163,8 +147,8 @@ public sealed class FruP5FulgentBladeScenario : IScenario
     {
         for (var seam = 0; seam < SeamsPerGroup; seam++)
         {
-            strips[group, seam, 0]?.Cast(Actions.PathOfDarknessFirst);
-            strips[group, seam, 1]?.Cast(Actions.PathOfLightFirst);
+            pandora?.CastFromHelper(Actions.PathOfDarknessFirst, at: state.Strip(group, seam, false, 0)!.Value);
+            pandora?.CastFromHelper(Actions.PathOfLightFirst, at: state.Strip(group, seam, true, 0)!.Value);
         }
     }
 
@@ -174,8 +158,7 @@ public sealed class FruP5FulgentBladeScenario : IScenario
             for (var light = 0; light < 2; light++)
             {
                 if (state.Strip(group, seam, light == 1, hit) is not { } placement) continue;
-                strips[group, seam, light]?.SetPosition(placement);
-                strips[group, seam, light]?.Cast(light == 1 ? Actions.PathOfLightRest : Actions.PathOfDarknessRest);
+                pandora?.CastFromHelper(light == 1 ? Actions.PathOfLightRest : Actions.PathOfDarknessRest, at: placement);
             }
     }
 
@@ -184,10 +167,8 @@ public sealed class FruP5FulgentBladeScenario : IScenario
     // The hitting helpers stand on Pandora, facing her way.
     private void AutoAttackTanks()
     {
-        if (pandora is null) return;
-        foreach (var helper in targetedHelpers) helper?.SetPosition(pandora.Placement());
-        if (world.Party.Get(PartyRole.MainTank) is { } mainTank) targetedHelpers[0]?.Cast(Actions.PandoraAutoAttack, mainTank);
-        if (world.Party.Get(PartyRole.OffTank) is { } offTank) targetedHelpers[1]?.Cast(Actions.PandoraAutoAttack, offTank);
+        if (world.Party.Get(PartyRole.MainTank) is { } mainTank) pandora?.CastFromHelper(Actions.PandoraAutoAttack, mainTank);
+        if (world.Party.Get(PartyRole.OffTank) is { } offTank) pandora?.CastFromHelper(Actions.PandoraAutoAttack, offTank);
     }
 
     // As the bar ends: one random member of the four furthest to Pandora's left, and one of the
@@ -204,7 +185,7 @@ public sealed class FruP5FulgentBladeScenario : IScenario
 
     private void AkhMornOnLightParties()
     {
-        if (akhMornLeftTarget is { } left) targetedHelpers[0]?.Cast(Actions.AkhMornPandoraLeft, left);
-        if (akhMornRightTarget is { } right) targetedHelpers[1]?.Cast(Actions.AkhMornPandoraRight, right);
+        if (akhMornLeftTarget is { } left) pandora?.CastFromHelper(Actions.AkhMornPandoraLeft, left);
+        if (akhMornRightTarget is { } right) pandora?.CastFromHelper(Actions.AkhMornPandoraRight, right);
     }
 }

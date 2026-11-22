@@ -182,15 +182,14 @@ public class TopP5DeltaScenarioTests
             .ShouldKill(ActionId.OversampledWaveCannonAoe, MainTank)
             .ShouldKill(ActionId.HelloWorldFail, AllBut(MainTank));
 
-    // Faces north at x = -7, so only M1 and M2 are on its monitor's side; M2 is also Omega's.
-    // Away from the stack, SH leaves Pile Pitch to OT and RH, who die before M2's tether wipes.
+    // Faces north at x = -7, so only M1 and M2 are on its monitor's side; M2 is also Omega's. M2's
+    // tether wipes just before Pile Pitch lands on the stack SH left.
     [Test]
     public void PlayerMonitorOnOmegaMonitorTargetKillsThem()
         => Delta(ShieldHealer)
             .TeleportAt(40.45f, to: new(-7, -1), facing: FacingNorth)
             .ShouldKill(ActionId.OversampledWaveCannonAoe, MeleeDpsB)
-            .ShouldKill(ActionId.PilePitch, OffTank, RegenHealer)
-            .ShouldKill(ActionId.HwTetherFail, AllBut(MeleeDpsB, OffTank, RegenHealer));
+            .ShouldKill(ActionId.HwTetherFail, AllBut(MeleeDpsB));
 
     // Turned around, the monitor picks two of OT, RH, MT and Omega's targets at random. Every pick
     // kills: Omega's targets are hit twice, MT still has Twice Come Ruin, and OT and RH share a spot,
@@ -232,24 +231,28 @@ public class TopP5DeltaScenarioTests
     public void BystanderInFirstNearWorldWipes()
         => Delta(RegenHealer)
             .TeleportAt(52.5f, to: new(1, 9))
-            .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
+            .ShouldKill(ActionId.HelloNearWorld, OffTank, RegenHealer)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank, RegenHealer));
 
-    // Beside M1, whose jump comes first or second depending on the AI's jitter.
+    // M2 steps aside so M1 takes the first jump; their green tether is long broken, so only the chain fails.
     [Test]
     public void BystanderInNearWorldJumpWipes()
         => Delta(RegenHealer)
-            .TeleportAt(54f, to: new(-9.5f, 2))
-            .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
+            .TeleportAt(54.8f, to: new(-9.5f, 2))
+            .MoveBotAt(54.8f, MeleeDpsB, to: new(12, 12))
+            .ShouldKill(ActionId.HelloNearWorldJump, MeleeDpsA, RegenHealer)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(MeleeDpsA, RegenHealer));
 
     // With M2 gone the near jumps go OT -> M1 -> OT again, still vulnerable from the first hit. R
     // steps back from the tie it otherwise has with OT for M1's nearest; it stays the far's farthest.
+    // A kill on the last jump leaves nothing to fail.
     [Test]
-    public void NearWorldJumpingBackToFirstTargetWipes()
+    public void NearWorldJumpingBackToFirstTargetKillsThem()
         => Delta(MeleeDpsB)
             .TeleportAt(53.6f, to: new(8, -5))
             .MoveBotAt(53.6f, PhysRangedDps, to: new(-19, -3))
             .ShouldKill(ActionId.HelloNearWorldJump, OffTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank));
+            .ShouldKillNoOneElse();
 
     // Every jump target (M1 M2 R C) still has Magic Vulnerability Up; OT's and MT's from the first
     // hits has run out. Which of M1 and M2 the near jumps take first is down to the AI's jitter.

@@ -29,8 +29,6 @@ public unsafe class MainWindow : Window, IDisposable
 
     internal static readonly Vector4 StartColor = new(0.18f, 0.40f, 0.24f, 0.92f);
     internal static readonly Vector4 StopColor = new(0.45f, 0.14f, 0.16f, 0.92f);
-    // A live run's buttons: restarting or stopping it throws the attempt away, so neither leads.
-    private static readonly Vector4 RestartLiveColor = new(0.26f, 0.36f, 0.29f, 0.80f);
     private static readonly Vector4 StopRunColor = new(0.30f, 0.30f, 0.33f, 0.92f);
     private static readonly Vector4 RunningColor = new(0.35f, 0.85f, 0.45f, 1f);
     private static readonly Vector4 MistakeColor = new(1f, 0.65f, 0.25f, 1f);
@@ -813,7 +811,7 @@ public unsafe class MainWindow : Window, IDisposable
         var restart = game.ActiveScenario is { } active && active == _selectedScenario;
         var label = plugin.Runs.StartWaitingOn != null ? "Waiting to start..." : restart ? "Restart" : "Start";
         ImGui.BeginDisabled(refusal != null);
-        if (DrawSemanticButton($"{label}###start", size, restart && RunLive(game) ? RestartLiveColor : StartColor))
+        if (DrawSemanticButton($"{label}###start", size, StartColor))
             plugin.Runs.Start(selection, solo);
         ImGui.EndDisabled();
         if (refusal != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))

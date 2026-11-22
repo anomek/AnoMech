@@ -168,11 +168,6 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
             var obj = Ptr;
             return obj != null && obj->DrawObject != null && obj->DrawObject->IsVisible;
         }
-        set
-        {
-            var obj = Ptr;
-            if (obj != null && obj->DrawObject != null) obj->DrawObject->IsVisible = value;
-        }
     }
 
     public byte ModelState

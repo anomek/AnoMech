@@ -29,4 +29,11 @@ internal interface IUserActionHandler
 
     // Per-frame, for continuous behaviour (e.g. cast interruption).
     void OnTick(float deltaSeconds) { }
+
+    // Answers for state the client never receives (ILocalPlayerInput): what a button is (Ninjutsu
+    // after mudras), a cast time in ms (a spell Dualcast makes instant), and 0 to lift a refusal.
+    // null leaves it to the game.
+    uint? AdjustActionId(uint actionId) => null;
+    int? AdjustCastTime(ActionType actionType, uint actionId) => null;
+    uint? AdjustActionStatus(ActionType actionType, uint actionId, bool checkRecast) => null;
 }

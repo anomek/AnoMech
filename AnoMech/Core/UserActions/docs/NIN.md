@@ -13,21 +13,21 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Mug | 2248 | ➖ | target debuff; → Dokumori at 66 |
 | Trick Attack | 2258 | ✅ | consumes Shadow Walker |
 | Aeolian Edge | 2255 | ✅ | combo Ninki +15; Kazematoi −1 |
-| Ten | 2259 | ❌ | mudra; swap not simulable |
-| Ninjutsu | 2260 | ❌ | swap host; not simulable |
-| Chi | 2261 | ❌ | mudra; not simulable |
+| Ten | 2259 | ✅ | mudra; tracked, grants Mudra (496) |
+| Ninjutsu | 2260 | ✅ | becomes the jutsu the mudras spell (client's action-id query answered) |
+| Chi | 2261 | ✅ | mudra; tracked |
 | Death Blossom | 2254 | ✅ | Ninki +5 |
 | Assassinate | 2246 | ➖ | |
 | Shukuchi | 2262 | ➖ | |
-| Jin | 2263 | ❌ | mudra; not simulable |
-| Kassatsu | 2264 | ✅ | grant + native Goka/Hyosho swap |
+| Jin | 2263 | ✅ | mudra; tracked |
+| Kassatsu | 2264 | ✅ | grant; mudras skip charges, any ninjutsu consumes it, Katon/Hyoton → Goka/Hyosho |
 | Hakke Mujinsatsu | 16488 | ✅ | combo Ninki +5 |
 | Armor Crush | 3563 | ✅ | combo Ninki +15; Kazematoi +2 |
 | Dream Within a Dream | 3566 | ➖ | |
-| Hellfrog Medium | 7401 | ✅ | Ninki −50 (native cost); Deathfrog swap via Higi |
+| Hellfrog Medium | 7401 | ✅ | Ninki −50 (native cost); → Deathfrog Medium under Higi (handler swap) |
 | Dokumori | 36957 | ✅ | Ninki +40; grants Higi |
-| Bhavacakra | 7402 | ✅ | Ninki −50 (native cost) |
-| Ten Chi Jin | 7403 | ✅ | TCJ + Tenri Jindo Ready set; inner mudra mode not simulable |
+| Bhavacakra | 7402 | ✅ | Ninki −50 (native cost); → Zesho Meppo under Higi (handler swap) |
+| Ten Chi Jin | 7403 | ✅ | TCJ + Tenri Jindo Ready set; Ten/Chi/Jin step through its three jutsu; a spent mudra isn't greyed out |
 | Meisui | 16489 | ✅ | Ninki +50; grants Meisui; dispels Shadow Walker |
 | Bunshin | 16493 | ✅ | Ninki −50; Bunshin + PK Ready; per-hit +5 trickle not modelled |
 | Phantom Kamaitachi | 25774 | ✅ | Ninki +10; consumes PK Ready |
@@ -40,9 +40,9 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Tenri Jindo | 36961 | ✅ | consumes Tenri Jindo Ready |
 | Fuma Shuriken | 2265 | ➖ | requires mudra to cast |
 | Katon | 2266 | ➖ | → Goka under Kassatsu (native swap) |
-| Raiton | 2267 | ⚠️ | grants Raiju Ready 3 stacks/cast; should be 1 |
+| Raiton | 2267 | ✅ | grants a Raiju Ready stack, up to 3; Forked/Fleeting Raiju spend one, any other weaponskill ends them all |
 | Hyoton | 2268 | ➖ | target Bind |
-| Huton | 2269 | ❌ | grants Shadow Walker; no row (missing) |
+| Huton | 2269 | ✅ | grants Shadow Walker |
 | Doton | 2270 | ➖ | self status only gates Hollow Nozuchi damage |
 | Suiton | 2271 | ✅ | grants Shadow Walker |
 | Goka Mekkyaku | 16491 | ➖ | Kassatsu-only |
@@ -57,8 +57,7 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 Second Wind, Leg Sweep, Bloodbath, Feint, Arm's Length, True North — all ➖.
 
 ## Not simulated
-- **Mudra → Ninjutsu (Ten/Chi/Jin → Ninjutsu) not simulable.** The swap is computed by native `ProcessDeferredReplaceAction` from an internal ordered 3-mudra sequence value FFXIVClientStructs never exposes (the ~0x0C byte is undefined and one byte can't encode the ordered sequence). No rows for Ten/Chi/Jin/Ninjutsu; Mudra status (496) is never written. Consequence: the ninjutsu kit is uncastable in-sim, so Raiton→Raiju Ready and Suiton/Huton→Shadow Walker grants are unreachable through normal play.
-- **Raiton (2267) over-grants Raiju Ready.** `Status(2690, 30f, 3)` sets Param to 3 each cast → 3 Forked/Fleeting Raiju per Raiton. Should be 1 per cast, accumulating to max 3.
-- **Huton (2269) → Shadow Walker (3848) missing** — no data row (Suiton has one).
+- **Ten Chi Jin doesn't grey out a spent mudra.** Pressing it again isn't counted, but the client still plays it as the first step's Fuma Shuriken.
+- **Mudras are tracked by the plugin, not the game.** The native swap reads a mudra-combination value FFXIVClientStructs never exposes, so `NinjaStateHandler` keeps the sequence itself and answers `GetAdjustedActionId`: Ten/Chi/Jin become their mudra forms (18805-18807), Ninjutsu the jutsu, and under Ten Chi Jin each press that step's jutsu (18873-18881).
 - **Hide (2245) → Hidden (614) not set** (OOC-only, low impact).
 - **Bunshin per-hit +5 Ninki trickle not modelled** (the shadow's autonomous attacks aren't simulated) — minor.

@@ -26,15 +26,13 @@ public static class UcobActions
     {
         Cast = new() { AnimationLock = 1.6f },
         Effects = [Damage(Lethal)],
-        // UNVERIFIED: no recorded hit; assumes ExaflareRest's 0.32s after the ActionEffect, which
-        // comes CastSpec.ActionEffectOffset after the bar ends.
-        Timing = new() { DamageDelay = 0.62f },
+        Timing = new() { DamageDelay = 0.52f },
     };
 
     public static readonly EnemyAction ExaflareRest = new(ActionId.ExaflareRest)
     {
         Cast = new() { AnimationLock = 1.5f },
         Effects = [Damage(Lethal)],
-        Timing = new() { DamageDelay = 0.32f },
+        Timing = new() { DamageDelay = 0.22f },
     };
 }

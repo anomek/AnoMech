@@ -27,19 +27,17 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     private SimWorld world = null!;
     private FruP5ParadiseRegainedState state = null!;
     private SimEnemy? pandora;
-    private SimEnemy? busterHelper;
-    private SimEnemy? towerHelper;
     private readonly MapEffectTower?[] towers = new MapEffectTower?[3];
     private SimTether? wingTether;
     private const uint NoActor = 0xE0000000;
-    // Per round: the light line's helper, then the dark one's.
-    private readonly SimEnemy?[,] lineHelpers = new SimEnemy?[4, 2];
-    private readonly bool[] linesAimed = new bool[4];
+    // Per round: where the light and the dark line point, from the center.
+    private readonly (float Light, float Dark)?[] lineAims = new (float, float)?[4];
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
         state = new FruP5ParadiseRegainedState(world.Rng, settingsWindow.Overrides);
+        Array.Clear(lineAims);
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP5ParadiseRegainedState>)AiStrats[idx]).Run(state, world);
 
@@ -100,20 +98,7 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
             EnemyList: EnemyListMode.Always,
             Placement: new Placement(Vector3.Zero, MathF.PI),
             LayoutId: LayoutId.PandoraP5));
-        busterHelper = SpawnHelper(Vector3.Zero, MathF.PI);
-        towerHelper = SpawnHelper(Vector3.Zero);
-        for (var round = 0; round < 4; round++)
-            for (var side = 0; side < 2; side++)
-                lineHelpers[round, side] = SpawnHelper(Vector3.Zero);
     }
-
-    private SimEnemy? SpawnHelper(Vector3 position, float rotation = 0f) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: BNpcNameId.Pandora,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: new Placement(position, rotation)));
 
     private void ShowTower(int tower)
     {
@@ -135,8 +120,7 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     {
         towers[tower] = null;
         world.Map.AddEffect(MapEffect.TowerHide, state.TowerSlot(tower));
-        towerHelper?.SetPosition(new Placement(state.TowerPosition(tower), 0f).Face(Vector3.Zero));
-        towerHelper?.Cast(Actions.ParadiseTowerExplosion);
+        pandora?.CastFromHelper(Actions.ParadiseTowerExplosion, at: new Placement(state.TowerPosition(tower), 0f).Face(Vector3.Zero));
     }
 
     public void OnActionResolved(ActionResolved resolved)
@@ -161,7 +145,8 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     private void WingBuster(int wing)
     {
         if (wingTether?.B is not { } bait) return;
-        busterHelper?.Cast(state.IsDark(wing) ? Actions.WingsBusterDark : Actions.WingsBusterLight, bait);
+        pandora?.CastFromHelper(state.IsDark(wing) ? Actions.WingsBusterDark : Actions.WingsBusterLight, bait,
+            at: new Placement(Vector3.Zero, MathF.PI));
     }
 
     private void AimLines(int round)
@@ -173,24 +158,23 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
         var (light, dark) = Vector3.Dot(nearest[0].Position - nearest[1].Position, right) > 0f
             ? (nearest[0], nearest[1])
             : (nearest[1], nearest[0]);
-        linesAimed[round] = true;
-        TurnTo(lineHelpers[round, 0], light);
-        TurnTo(lineHelpers[round, 1], dark);
+        lineAims[round] = (FromCenter(light), FromCenter(dark));
     }
 
-    private static void TurnTo(SimEnemy? helper, SimCharacter bait) => helper?.SetRotation(helper.Placement().Face(bait.Position).Rotation);
+    private static float FromCenter(SimCharacter bait) => new Placement(Vector3.Zero, 0f).Face(bait.Position).Rotation;
 
     private void CastLines(int round)
     {
-        if (!linesAimed[round]) return;
-        lineHelpers[round, 0]?.Cast(Actions.CruelPathOfLight);
-        lineHelpers[round, 1]?.Cast(Actions.CruelPathOfDarkness);
+        if (lineAims[round] is not { } aim) return;
+        pandora?.CastFromHelper(Actions.CruelPathOfLight, at: new Placement(Vector3.Zero, aim.Light));
+        pandora?.CastFromHelper(Actions.CruelPathOfDarkness, at: new Placement(Vector3.Zero, aim.Dark));
     }
 
-    // The echo repeats each line where it went, from the same helper, still turned to its bait.
+    // The echo repeats each line where it went, still turned to its bait.
     private void Echo(int round)
     {
-        lineHelpers[round, 0]?.Cast(Actions.CruelPathOfLightEcho);
-        lineHelpers[round, 1]?.Cast(Actions.CruelPathOfDarknessEcho);
+        if (lineAims[round] is not { } aim) return;
+        pandora?.CastFromHelper(Actions.CruelPathOfLightEcho, at: new Placement(Vector3.Zero, aim.Light));
+        pandora?.CastFromHelper(Actions.CruelPathOfDarknessEcho, at: new Placement(Vector3.Zero, aim.Dark));
     }
 }

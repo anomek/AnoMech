@@ -19,9 +19,6 @@ public class UltimateAnnihilationState
     public PartyRole FirstMesohighTaker => PartyRole.PhysRangedDps;
     public PartyRole SecondMesohighTaker => SearingWindTarget;
 
-    // Below 50% Ultima goes straight into Suppression; above it, another Radiant Plume round comes first.
-    public bool UltimaAboveHalf { get; }
-
     // Ifrit and Titan take the two south corners, either way round.
     public bool IfritSouthWest { get; }
 
@@ -35,7 +32,6 @@ public class UltimateAnnihilationState
 
         SearingWindTarget = overrides.SearingWindOnPlayer && playerIsHealer ? playerRole : Rng.NextHealerRole();
         FlamingCrushTarget = overrides.FlamingCrushOnPlayer && playerRole.IsDps() ? playerRole : Rng.NextDpsRole();
-        UltimaAboveHalf = !overrides.UltimaPushedBelowHalf;
         IfritSouthWest = overrides.IfritCorner switch
         {
             IfritCorner.SouthWest => true,

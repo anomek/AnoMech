@@ -41,8 +41,8 @@ public sealed class FruP5FulgentBladeState
         Mirrored = overrides.Mirrored ?? rng.NextBool();
         for (var group = 0; group < GroupCount; group++)
             cardinalDarkInward[group] = overrides.CardinalDarkInward?[group] ?? rng.NextBool();
-        AkhMornLeftPick = rng.Next(4);
-        AkhMornRightPick = rng.Next(4);
+        AkhMornLeftPick = overrides.AkhMornLeftPick ?? rng.Next(4);
+        AkhMornRightPick = overrides.AkhMornRightPick ?? rng.Next(4);
     }
 
     public float Rotation => RotationIndex * MathF.PI / 2f;

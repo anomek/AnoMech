@@ -1,4 +1,5 @@
-using System.Numerics;
+using System.Linq;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
@@ -7,27 +8,27 @@ using static AnoMech.Scenarios.Top.TopConstants;
 namespace AnoMech.Scenarios.Top;
 
 // One Hello World puddle chain: the first hit lands on the starting holder, each jump on the party
-// member closest to (near) or farthest from (distant) the last one hit.
+// member closest to (near) or farthest from (distant) the last one hit, cast by a helper standing on
+// the last one hit.
 public sealed class HelloWorld(SimParty party, PartyRole holder, bool near)
 {
+    private const int ChainHits = 3;
+
     private SimCharacter? currentTarget = party.Get(holder);
-    private bool first = true;
+    private EnemyAction? lastAction;
+    private int hits;
 
-    public Vector3? Position => currentTarget?.Position;
+    // The resolve is this chain's latest hit and another one follows it.
+    public bool JumpsAfter(ActionResolved resolved)
+        => resolved.Action == lastAction && currentTarget is not null && resolved.Hits.Contains(currentTarget) && hits < ChainHits;
 
-    public void SetPosition(SimEnemy? helper)
+    public void CastSpell(SimEnemy? caster)
     {
-        if (currentTarget == null || helper == null) return;
-        helper.SetPosition(currentTarget.Placement());
-    }
-
-    public void CastSpell(SimEnemy? helper)
-    {
-        if (helper == null || currentTarget == null) return;
-        if (first)
+        if (caster == null || currentTarget == null) return;
+        var from = currentTarget.Placement();
+        if (hits == 0)
         {
-            first = false;
-            helper.Cast(near ? TopActions.HelloNearWorld : TopActions.HelloDistantWorld, currentTarget);
+            Hit(caster, near ? TopActions.HelloNearWorld : TopActions.HelloDistantWorld, currentTarget, from);
             return;
         }
         var nextTarget = near
@@ -35,10 +36,17 @@ public sealed class HelloWorld(SimParty party, PartyRole holder, bool near)
             : party.Find.Farest(currentTarget.Position, currentTarget);
         if (nextTarget == null)
         {
-            helper.Cast(TopActions.HelloWorldFail);
+            caster.CastFromHelper(TopActions.HelloWorldFail, at: from);
             return;
         }
-        helper.Cast(near ? TopActions.HelloNearWorldJump : TopActions.HelloDistantWorldJump, nextTarget);
-        currentTarget = nextTarget;
+        Hit(caster, near ? TopActions.HelloNearWorldJump : TopActions.HelloDistantWorldJump, nextTarget, from);
+    }
+
+    private void Hit(SimEnemy caster, EnemyAction action, SimCharacter target, Placement from)
+    {
+        caster.CastFromHelper(action, target, at: from);
+        currentTarget = target;
+        lastAction = action;
+        hits++;
     }
 }

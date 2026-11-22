@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core.Game.Party;
 
 namespace AnoMech.Scenarios.Fru.P2LightRampant;
 
@@ -9,6 +11,11 @@ public sealed class FruP2LightRampantStateOverrides
 {
     public bool? NorthOrbsFirst { get; set; }
     public bool? Pairs { get; set; }
+    public bool? SupportPairs { get; set; }
+    // The four who start with a Lightsteeped stack.
+    public IReadOnlyList<PartyRole>? InitiallySteeped { get; set; }
+    // Loop slot 0-5 of the first Powerful Light target; the second is the next slot.
+    public int? WeightSlot { get; set; }
 
     // Bait = one of the two Luminous Hammer baiters; Tether = one of the six chained.
     public PerRoleSetting<LightRampantDuty> Duty { get; set; } = new();

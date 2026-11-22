@@ -4,6 +4,7 @@ using AnoMech.Scenarios.Umad.P3BlackHole;
 using static AnoMech.Core.Game.Party.PartyRole;
 using static AnoMech.Tests.NegativeRun;
 using ActionId = AnoMech.Scenarios.Umad.UmadConstants.ActionId;
+using StatusId = AnoMech.Scenarios.Umad.UmadConstants.StatusId;
 
 namespace AnoMech.Tests;
 
@@ -123,6 +124,21 @@ public class UmadP3BlackHoleScenarioTests
             .TeleportAt(101.9f, to: new(-16.5f, 2.5f))
             .ShouldKill(ActionId.Earthquake_Cleanse, PerRole.All);
 
+    // Set back one Nothingness step just before the shot that would spend the crust, as if a
+    // tether turn had been missed: the shot only brings them back to Meanest Existence, and the
+    // crust runs out with its line (80.38, 114.38, 147.38).
+    [TestCase(MeleeDpsA, 62.6f)]
+    [TestCase(OffTank, 102f)]
+    [TestCase(RegenHealer, 137.4f)]
+    public void UnspentCrustDiesToStrayEarth(PartyRole holder, float at)
+        => BlackHole(holder)
+            .At(at, p =>
+            {
+                p.Member(holder)!.RemoveStatus(StatusId.MeanestExistence);
+                p.Member(holder)!.AddStatus(StatusId.Unbecoming);
+            })
+            .ShouldKill(ActionId.StrayEarth, holder);
+
     [TestCase(78.7f)]
     [TestCase(136.7f)]
     public void StandingInLookUponMeDies(float at)
@@ -131,7 +147,7 @@ public class UmadP3BlackHoleScenarioTests
             .ShouldKill(ActionId.LookUponMeAndDespair_Omen, MeleeDpsA);
 
     [TestCase(118.9f, -5.9f, 6.1f)]
-    [TestCase(120.9f, 4f, 6f)]
+    [TestCase(120.9f, -6f, -4f)]
     public void StandingInImplosionConeDies(float at, float x, float z)
         => BlackHole(MeleeDpsA)
             .TeleportAt(at, to: new(x, z))

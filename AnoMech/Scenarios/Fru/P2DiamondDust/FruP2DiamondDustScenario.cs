@@ -31,10 +31,6 @@ public sealed class FruP2DiamondDustScenario : IScenario
     private SimWorld world = null!;
     private FruP2DiamondDustState state = null!;
     private SimEnemy? usurper, mirror;
-    private readonly SimEnemy?[] icicleHelpers = new SimEnemy?[8];
-    private readonly SimEnemy?[] needleHelpers = new SimEnemy?[12];
-    private readonly SimEnemy?[] spreadHelpers = new SimEnemy?[4];
-    private readonly SimEnemy?[] reflectionHelpers = new SimEnemy?[2];
     private readonly FruHolyPuddles puddles = new();
 
     public void Run(SimWorld worldParam, int? selectedAi)
@@ -56,7 +52,7 @@ public sealed class FruP2DiamondDustScenario : IScenario
         world.Events.Add(7.1f, () => usurper?.Cast(Actions.DiamondDust));
         world.Events.Add(8.33f, ShowMirror);
         world.Events.Add(11.15f, () => world.Map.AddEffect(MapEffect.DiamondDustEnd, MapEffect.DiamondDust));
-        world.Events.Add(14.65f, () => DropIcicles(0, 0));
+        world.Events.Add(14.65f, () => DropIcicles(0));
         world.Events.Add(14.78f, () => mirror?.TurnTo(MathF.PI));
         world.Events.Add(14.95f, () => mirror?.VoiceLine(state.Axe ? VoiceLineId.AxeKick : VoiceLineId.ScytheKick));
         world.Events.Add(14.95f, () => mirror?.Cast(state.Axe ? Actions.AxeKick : Actions.ScytheKick));
@@ -64,10 +60,10 @@ public sealed class FruP2DiamondDustScenario : IScenario
         world.Events.Add(15.13f, MarkFrigidStones);
         world.Events.Add(15.22f, () => usurper?.PlayActionTimeline(TimelineId.UsurperHide));
         world.Events.Add(15.93f, () => mirror?.SetModeAttributeFlags(0xF9));
-        world.Events.Add(18.7f, () => DropIcicles(1, 2));
+        world.Events.Add(18.7f, () => DropIcicles(1));
         world.Events.Add(21.7f, HouseOfLight);
         world.Events.Add(22.33f, () => mirror?.SetModeAttributeFlags(0xFC));
-        world.Events.Add(22.7f, () => DropIcicles(2, 6));
+        world.Events.Add(22.7f, () => DropIcicles(2));
         world.Events.Add(23.3f, FrigidStones);
         world.Events.Add(24.48f, () => DashStart(mirror, state.MirrorPosition));
         world.Events.Add(25.15f, () => DashArrive(mirror, state.MirrorPosition));
@@ -90,8 +86,8 @@ public sealed class FruP2DiamondDustScenario : IScenario
         world.Events.Add(32.75f, () => usurper?.SetPosition(new Placement(state.GazePosition, 0f).Face(Vector3.Zero)));
         world.Events.Add(32.87f, () => usurper?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(34.9f, TurnUsurperToLightAndMirrorToIce);
-        world.Events.Add(39.93f, PlaceArmorHelpers);
-        world.Events.Add(40.05f, ShiningAndFrostArmor);
+        world.Events.Add(40.05f, () => usurper?.CastFromHelper(Actions.ShiningArmor));
+        world.Events.Add(40.05f, () => mirror?.CastFromHelper(ActionId.FrostArmor, animationLock: 2.1f));
         world.Events.Add(IceStart, () => mirror?.SetModeAttributeFlags(0xF0));
         world.Events.Add(IceStart, FreezeTheFloor);
         world.Events.Add(42.9f, () => mirror?.SetModeAttributeFlags(0xF3));
@@ -129,21 +125,7 @@ public sealed class FruP2DiamondDustScenario : IScenario
             Placement: new Placement(Vector3.Zero, 0f),
             InitialModeAttributeFlags: 0xFC,
             LayoutId: LayoutId.FrozenMirror));
-        for (var i = 0; i < icicleHelpers.Length; i++) icicleHelpers[i] = SpawnHelper(BNpcNameId.Usurper, new Placement(Vector3.Zero, 0f));
-        for (var i = 0; i < needleHelpers.Length; i++) needleHelpers[i] = SpawnHelper(BNpcNameId.Usurper, new Placement(Vector3.Zero, 0f));
-        for (var i = 0; i < spreadHelpers.Length; i++) spreadHelpers[i] = SpawnHelper(BNpcNameId.Usurper, new Placement(Vector3.Zero, 0f));
-        var reflectionSpots = state.Icicles(0).ToList();
-        for (var i = 0; i < reflectionHelpers.Length; i++)
-            reflectionHelpers[i] = SpawnHelper(BNpcNameId.FrozenMirror, new Placement(reflectionSpots[i], 0f).Face(Vector3.Zero));
     }
-
-    private SimEnemy? SpawnHelper(uint nameId, Placement placement) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: nameId,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: placement));
 
     private void ShowMirror()
     {
@@ -158,38 +140,25 @@ public sealed class FruP2DiamondDustScenario : IScenario
                 member.AttachLockonVfx(LockonId.FrigidStone);
     }
 
-    private void DropIcicles(int wave, int firstHelper)
+    private void DropIcicles(int wave)
     {
-        var helper = firstHelper;
         foreach (var position in state.Icicles(wave))
-        {
-            icicleHelpers[helper]?.SetPosition(new Placement(position, 0f).Face(Vector3.Zero));
-            icicleHelpers[helper]?.Cast(Actions.IcicleImpact, position);
-            helper++;
-        }
+            usurper?.CastFromHelper(Actions.IcicleImpact, position, at: new Placement(position, 0f).Face(Vector3.Zero));
     }
 
     // On the four nearest the Usurper's spot at the center.
     private void HouseOfLight()
     {
         var baits = world.Party.ActiveMembers().OrderBy(m => m.Position.LengthSquared()).Take(4).ToList();
-        for (var i = 0; i < baits.Count; i++)
-        {
-            spreadHelpers[i]?.SetPosition(new Placement(Vector3.Zero, 0f).Face(baits[i].Position));
-            spreadHelpers[i]?.Cast(Actions.HouseOfLightDiamondDust);
-        }
+        foreach (var bait in baits)
+            usurper?.CastFromHelper(Actions.HouseOfLightDiamondDust, at: new Placement(Vector3.Zero, 0f).Face(bait.Position));
     }
 
     private void FrigidStones()
     {
-        var i = 0;
         foreach (var role in Enum.GetValues<PartyRole>())
-        {
-            if (!state.Marked(role) || world.Party.Get(role) is not { } target || !target.IsAlive()) continue;
-            spreadHelpers[i]?.SetPosition(new Placement(target.Position, 0f));
-            spreadHelpers[i]?.Cast(Actions.FrigidStone, target.Position);
-            i++;
-        }
+            if (state.Marked(role) && world.Party.Get(role) is { } target && target.IsAlive())
+                usurper?.CastFromHelper(Actions.FrigidStone, target.Position, at: new Placement(target.Position, 0f));
     }
 
     private static readonly Vector3 UsurperOpeningSpot = new(0, 0, 5);
@@ -210,24 +179,17 @@ public sealed class FruP2DiamondDustScenario : IScenario
 
     private void LeaveStarWhereFrigidStoneLanded(ActionResolved resolved)
     {
-        if (resolved.Action.ActionId != ActionId.FrigidStone || resolved.Caster is not SimEnemy caster) return;
-        var stone = Array.IndexOf(spreadHelpers, caster);
-        if (stone < 0) return;
+        if (resolved.Action.ActionId != ActionId.FrigidStone) return;
         var star = resolved.Origin.Position;
-        world.Events.Add(NeedlesAfterStone, () => FrigidNeedles(stone, star));
+        world.Events.Add(NeedlesAfterStone, () => FrigidNeedles(star));
     }
 
     // Each stone leaves a star: a circle and an eight-way cross, the cross's diagonals cast by a
     // helper turned 45°.
-    private void FrigidNeedles(int stone, Vector3 star)
+    private void FrigidNeedles(Vector3 star)
     {
-        var helper = stone * 3;
         foreach (var (action, rotation) in new[] { (Actions.FrigidNeedleCross, -MathF.PI / 4f), (Actions.FrigidNeedleCross, 0f), (Actions.FrigidNeedleCircle, 0f) })
-        {
-            needleHelpers[helper]?.SetPosition(new Placement(star, rotation));
-            needleHelpers[helper]?.Cast(action);
-            helper++;
-        }
+            usurper?.CastFromHelper(action, at: new Placement(star, rotation));
     }
 
     private static readonly PartyRole[] Healers = [PartyRole.RegenHealer, PartyRole.ShieldHealer];
@@ -238,12 +200,14 @@ public sealed class FruP2DiamondDustScenario : IScenario
             if (world.Party.Get(role) is { } healer && healer.IsAlive()) puddles.Snapshot(healer);
     }
 
+    // From the first icicle wave's spots.
     private void SinboundHoly(int wave)
     {
+        var reflectionSpots = state.Icicles(0).ToList();
         for (var i = 0; i < Healers.Length; i++)
         {
             if (world.Party.Get(Healers[i]) is not { } healer || !healer.IsAlive()) continue;
-            reflectionHelpers[i]?.Cast(Actions.SinboundHoly, healer);
+            mirror?.CastFromHelper(Actions.SinboundHoly, healer, at: new Placement(reflectionSpots[i], 0f).Face(Vector3.Zero));
             puddles.Drop(wave, healer, HolyAt(wave) + PuddleShowsAfterHoly + PuddleArmsAfterShowing);
         }
     }
@@ -259,18 +223,6 @@ public sealed class FruP2DiamondDustScenario : IScenario
         usurper?.AddStatusParam(TransfigurationStatus, UsurperLightTransformation);
     }
 
-    private void PlaceArmorHelpers()
-    {
-        spreadHelpers[0]?.SetPosition(new Placement(state.GazePosition, 0f).Face(Vector3.Zero));
-        reflectionHelpers[0]?.SetPosition(new Placement(state.MirrorPosition, 0f).Face(Vector3.Zero));
-    }
-
-    private void ShiningAndFrostArmor()
-    {
-        spreadHelpers[0]?.Cast(Actions.ShiningArmor);
-        reflectionHelpers[0]?.Cast(ActionId.FrostArmor, animationLock: 2.1f);
-    }
-
     // The player slides on their own, by Thin Ice's param; the strat slides the bots.
     private void FreezeTheFloor()
     {
@@ -283,6 +235,6 @@ public sealed class FruP2DiamondDustScenario : IScenario
 
     public void Tick(float delta, float elapsed)
     {
-        puddles.KillWhoeverStandsIn(world.Party, elapsed, ActionId.SinboundHoly, "stepped in a Sinbound Holy puddle");
+        puddles.BleedWhoeverStandsIn(world, elapsed, "stepped in a Sinbound Holy puddle");
     }
 }

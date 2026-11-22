@@ -12,6 +12,8 @@ public sealed class FruHolyPuddles
 {
     private const float Radius = 6f;
     private const uint Arg2Base = 0x50;
+    private const float BleedingDuration = 30f;
+    private const float BleedingKillsAfter = 1.5f;
 
     // The puddle lands where its target stood this long before the hit, so it trails a moving target.
     public const float SnapshotBeforeHit = 0.35f;
@@ -72,10 +74,15 @@ public sealed class FruHolyPuddles
         puddles.RemoveAll(p => p.Wave == wave);
     }
 
-    public void KillWhoeverStandsIn(SimParty party, float elapsed, uint actionId, string explanation)
+    // Retail's Bleeding is a DoT that kills on its next server tick, 0-3s after the step.
+    public void BleedWhoeverStandsIn(SimWorld world, float elapsed, string explanation)
     {
-        foreach (var member in party.ActiveMembers().ToList())
-            if (puddles.Any(p => !p.Faded && elapsed >= p.ArmedAt && Vector3.Distance(p.Position, member.Position) <= Radius))
-                member.Die(actionId, explanation);
+        foreach (var member in world.Party.ActiveMembers().ToList())
+            if (!member.HasStatus(StatusId.Bleeding)
+                && puddles.Any(p => !p.Faded && elapsed >= p.ArmedAt && Vector3.Distance(p.Position, member.Position) <= Radius))
+            {
+                member.AddStatus(StatusId.Bleeding, BleedingDuration);
+                world.Events.Add(BleedingKillsAfter, () => member.DieOfStatus(StatusId.Bleeding, explanation));
+            }
     }
 }

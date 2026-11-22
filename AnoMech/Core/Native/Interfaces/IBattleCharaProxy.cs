@@ -43,7 +43,7 @@ public interface IBattleCharaProxy
 
     // DrawObject.Visibility: SpawnVisibility.HiddenUntilShown while there is no DrawObject.
     bool HasDrawObject { get; }
-    bool IsDrawObjectVisible { get; set; }
+    bool IsDrawObjectVisible { get; }
 
     byte ModelState { get; }
 

@@ -44,6 +44,7 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Enchanted Riposte | 7527 | ✅ | −20 W/−20 B via cost path; +1 Mana Stack. |
 | Enchanted Zwerchhau | 7528 | ✅ | −15 W/−15 B; +1 Mana Stack. |
 | Enchanted Redoublement | 7529 | ✅ | −15 W/−15 B; +1 Mana Stack. |
+| Enchanted Riposte/Zwerchhau/Redoublement (Manafication) | 45960-45962 | ✅ | +1 Mana Stack; combo as their base action. |
 | Enchanted Moulinet | 7530 | ✅ | −20 W/−20 B; +1 Mana Stack. |
 | Enchanted Moulinet Deux | 37002 | ✅ | Mana spend + 1 Mana Stack; decrements Magicked Swordplay. |
 | Enchanted Moulinet Trois | 37003 | ✅ | Mana spend + 1 Mana Stack; decrements Magicked Swordplay. |
@@ -52,13 +53,12 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 ## Traits
 | Trait | Status | Note |
 |-------|:------:|------|
-| Dualcast | ⚠️ | Buff granted on cast completion; consumed by any non-ability action (Acceleration-reduced casts excepted). Cast isn't actually made instant (client ignores the granted status). |
+| Dualcast | ✅ | Buff granted on cast completion; consumed by any non-ability action (Acceleration-reduced casts excepted). The next spell is made instant by answering the client's cast-time query. |
 
 ## Role actions
 Addle, Sleep, Lucid Dreaming, Surecast — ➖. Swiftcast ✅ (167 → next spell instant; priority Acceleration → Dualcast → Swiftcast).
 
 ## Not simulated
-- **Dualcast cast-time reduction** — the Dualcast buff is granted on cast completion and consumed by the next spell, but that spell isn't actually made instant: the client honours a granted Swiftcast/Acceleration status for cast time but not a granted Dualcast, and driving the cast directly glitched the UI.
 - **Unbalanced mana** — White/Black clamp independently; the |White − Black| > 30 penalty (lower colour generates at half rate) and crystal recolour are unmodelled (`// TODO`).
 - **Magicked Swordplay free-cast** — under Magicked Swordplay enchanted melee should cost a stack instead of mana; the generic cost path always subtracts White/Black mana, so enchanted melee never becomes free.
 - **Conditional proc guarantees** — procs roll their flat chance (Verthunder III/Veraero III/Impact 50%, Verflare/Verholy 20%) even where the game guarantees 100%: while Acceleration is up, and (for Verflare/Verholy) when the opposite mana colour is higher.

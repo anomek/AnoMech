@@ -59,11 +59,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     private int arrowsPlaced;
     private int arrowsSoakedByConfused;
     private readonly List<string> arrowSoakFailures = [];
-    // The real fight's 8 invisible helpers, teleported in front of each cast. Spawned with Kefka
-    // from the real NpcSpawn packet so the gimmick timelines have an actor to play on; a helper
-    // the engine refuses falls back to the plain KefkaHelper (no action VFX). Nothing is spawned
-    // at cast time: a packet spawn is pending for a few frames.
-    private readonly SimEnemy?[] helpers = new SimEnemy?[8];
     private readonly UmadP1TeleTrouncingSettingsWindow settingsWindow = new();
 
     // Gimmick rows the helpers' hit VFX ride on. Double-trouble Trap's and the arrow bursts' are
@@ -136,7 +131,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         arrowsPlaced = 0;
         arrowsSoakedByConfused = 0;
         arrowSoakFailures.Clear();
-        DespawnHelpers();
         // The props' SharedGroups outlive the EObj actor, so park each back in the hidden state
         // or a mid-scenario Reset leaves a statue standing until the zone reloads.
         DespawnProp(ref gazeStatueNormal);
@@ -159,7 +153,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
                 Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
                 Placement: new Placement(Vector3.Zero, -float.Pi), LayoutId: Constants.BNpcLayoutId.KefkaP3));
             kefka?.KeepFacing(party.Get(PartyRole.MainTank));
-            for (var i = 0; i < helpers.Length; i++) helpers[i] = SpawnHelper();
             // Applied here rather than resolved from the earlier, unmodeled wave, so the
             // duration is what's left until the real expiry (0.09s before the stack lands).
             var support = party.Get(state.ConfettiStackSupport);
@@ -463,41 +456,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         TickArrows(delta, elapsed);
     }
 
-    private SimEnemy? SpawnHelper()
-        => world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: UmadConstants.BNpcBaseId.KefkaHelper, NameId: UmadConstants.BNpcNameId.Kefka,
-            Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper,
-            Placement: new Placement(Vector3.Zero, 0f)));
 
-    // A helper the engine dropped after all (SimEnemy.PacketSpawnFailed) is replaced by the plain
-    // KefkaHelper so its casts still land; one still in flight at cast time can't cast this frame.
-    private SimEnemy? Helper(int index)
-    {
-        var helper = helpers[index];
-        if (helper is { PacketSpawnFailed: true })
-        {
-            helper.Despawn();
-            helper = helpers[index] = world.SpawnEnemy(new EnemySpawnConfig(
-                BNpcBaseId: UmadConstants.BNpcBaseId.KefkaHelper, NameId: UmadConstants.BNpcNameId.Kefka,
-                Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper,
-                Placement: new Placement(Vector3.Zero, 0f)));
-        }
-        if (helper is { PacketSpawnPending: true })
-        {
-            DiagnosticLog.Warn($"[UmadP1TeleTrouncing] helper {index} is still awaiting its packet actor at cast time -- this cast is lost.");
-            return null;
-        }
-        return helper is { IsActive: true } ? helper : null;
-    }
-
-    private void DespawnHelpers()
-    {
-        for (var i = 0; i < helpers.Length; i++)
-        {
-            helpers[i]?.Despawn();
-            helpers[i] = null;
-        }
-    }
 
     private void TickArrows(float delta, float elapsed)
     {
@@ -695,7 +654,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     private void SpawnArrowBursts(bool first)
     {
         pendingArrowPlacements.Clear();
-        var helperIndex = 0;
         foreach (var role in state.Debuffs.Keys)
         {
             var member = party.Get(role);
@@ -704,9 +662,8 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             var direction = first ? at7 : at10;
             var placement = new Placement(member.Position, Heading(direction));
             pendingArrowPlacements[role] = placement;
-            // The 0-damage placement tell, from a helper wherever it stands, as the real 8 are.
-            if (Helper(helperIndex++) is { } caster)
-                caster.Cast(UmadActions.TeleTrouncingArrowSpawn, member);
+            // The 0-damage placement tell.
+            kefka?.CastFromHelper(UmadActions.TeleTrouncingArrowSpawn, member);
         }
     }
 
@@ -752,15 +709,15 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             $"[UmadP1TeleTrouncing] Confetti-3 knockback resolving -- support stack={state.ConfettiStackSupport}, dps stack={state.ConfettiStackDps}, positions: {string.Join(", ", positions)}.");
 
         // The second stack's hit sees the first's vuln, so standing in both is lethal.
-        CastConfettiStack(state.ConfettiStackSupport, 4);
-        CastConfettiStack(state.ConfettiStackDps, 5);
+        CastConfettiStack(state.ConfettiStackSupport);
+        CastConfettiStack(state.ConfettiStackDps);
     }
 
-    // The real BAA7 comes from a helper wherever it stands; the stack and its push centre on the holder.
-    private void CastConfettiStack(PartyRole holderRole, int helperIndex)
+    // The stack and its push centre on the holder.
+    private void CastConfettiStack(PartyRole holderRole)
     {
         if (party.Get(holderRole) is not { } holder) return;
-        Helper(helperIndex)?.Cast(UmadActions.DoubleTroubleTrapStack, holder);
+        kefka?.CastFromHelper(UmadActions.DoubleTroubleTrapStack, holder);
     }
 
     private SimEnemy? SpawnGravenImage(Vector3 position)
@@ -861,18 +818,17 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     // cycle order (primary First + secondary Second, never the reverse), while the 7s/10s split
     // is the independent coin flip (12 real resolves). A matching role's two AddStatus calls
     // share one id, so distinct sourceObject tags keep them from collapsing into one refreshed
-    // stack; Kefka and a helper are just two stable ids.
+    // stack; Kefka and no source are just two distinct tags.
     private void ApplyDebuffs()
     {
         foreach (var (role, (first, second)) in state.Debuffs)
         {
             var member = party.Get(role);
             var firstSource = kefka?.GameObjectId ?? default;
-            var secondSource = helpers[0]?.GameObjectId ?? default;
             if (first == second)
             {
                 member?.AddStatus(PrimaryStatusId(first), 7.000f, sourceObject: firstSource);
-                member?.AddStatus(PrimaryStatusId(second), 10.000f, sourceObject: secondSource);
+                member?.AddStatus(PrimaryStatusId(second), 10.000f);
             }
             else
             {
@@ -929,11 +885,9 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             var real = (i + state.ThunderRealOffset) % 2 == 0;
             if (!real && !state.ThunderIsLie) continue; // truth: fakes don't appear at all
             var placement = ThunderAnchors[i].MulX(state.ThunderOrientation).MulRot(state.ThunderOrientation);
-            if (Helper(i) is not { } helper) continue;
-            helper.SetPosition(placement);
             lines++;
-            if (real) helper.Cast(realLine);
-            else helper.Cast(Constants.ActionId.ThrummingThunderIII_FakeOmen, animationLock: 1.1f);
+            if (real) kefka?.CastFromHelper(realLine, at: placement);
+            else kefka?.CastFromHelper(Constants.ActionId.ThrummingThunderIII_FakeOmen, at: placement, animationLock: 1.1f);
         }
         DiagnosticLog.Info(
             $"[UmadP1TeleTrouncing] Thunder lines: offset={state.ThunderRealOffset} orient={state.ThunderOrientation:F0} lie={state.ThunderIsLie} "
@@ -973,28 +927,27 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
     private void ResolveFireSpread()
     {
-        var helperIndex = 0;
         foreach (var role in state.Debuffs.Keys)
         {
             var member = party.Get(role);
             if (member == null || !member.IsAlive()) continue;
-            Helper(helperIndex++)?.Cast(UmadActions.FlagrantFireSpread, member);
+            kefka?.CastFromHelper(UmadActions.FlagrantFireSpread, member);
         }
         DiagnosticLog.Info("[UmadP1TeleTrouncing] Flagrant Fire III: SPREAD resolved.");
     }
 
     private void ResolveFireStack()
     {
-        ResolveOneFireStack(state.FireStackSupport, 2);
-        ResolveOneFireStack(state.FireStackDps, 3);
+        ResolveOneFireStack(state.FireStackSupport);
+        ResolveOneFireStack(state.FireStackDps);
         DiagnosticLog.Info(
             $"[UmadP1TeleTrouncing] Flagrant Fire III: STACK resolved (support={state.FireStackSupport}, dps={state.FireStackDps}).");
     }
 
-    private void ResolveOneFireStack(PartyRole holderRole, int helperIndex)
+    private void ResolveOneFireStack(PartyRole holderRole)
     {
         if (party.Get(holderRole) is not { } holder || !holder.IsAlive()) return;
-        Helper(helperIndex)?.Cast(UmadActions.FlagrantFireStack, holder);
+        kefka?.CastFromHelper(UmadActions.FlagrantFireStack, holder);
     }
 
     private void EndP1()

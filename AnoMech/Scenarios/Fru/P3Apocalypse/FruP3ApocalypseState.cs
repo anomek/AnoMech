@@ -32,7 +32,7 @@ public sealed class FruP3ApocalypseState
     {
         Rotation = overrides.Rotation ?? rng.Next(4);
         Clockwise = overrides.Clockwise ?? rng.NextBool();
-        WaterDurations = rng.Shuffle(0, 0, 1, 1, 2, 2, 3, 3).ToList();
+        WaterDurations = overrides.WaterDurations ?? rng.Shuffle(0, 0, 1, 1, 2, 2, 3, 3).ToList();
         SpiritTakerTarget = overrides.SpiritTakerTarget ?? rng.NextRole();
     }
 

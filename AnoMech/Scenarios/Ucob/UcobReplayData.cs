@@ -14,6 +14,7 @@ public static class UcobReplayData
 {
     public static readonly DutyInitData DutyInitData = new(
         new EntranceBarrier(2000182, 0x6BD976, 0x6BD972, new Vector3(0f, 0f, 18f), 0f),
+        new HelperPool(6358, 42),
         [],
         [],
         []);

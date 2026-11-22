@@ -29,9 +29,7 @@ public sealed class FruP3ApocalypseScenario : IScenario
     private SimWorld world = null!;
     private FruP3ApocalypseState state = null!;
     private SimEnemy? oracle;
-    private readonly SimEnemy?[] waterHelpers = new SimEnemy?[2];
-    private readonly SimEnemy?[] eruptionHelpers = new SimEnemy?[8];
-    private readonly SimEnemy?[] apocalypseHelpers = new SimEnemy?[6];
+
     private readonly List<SimEventObject?> centerLights = [];
     private readonly SimEventObject?[] spokeLights = new SimEventObject?[8];
     private Vector3 danceLanding;
@@ -111,18 +109,7 @@ public sealed class FruP3ApocalypseScenario : IScenario
             Placement: new Placement(Vector3.Zero, MathF.PI),
             LayoutId: LayoutId.OracleP3,
             Appearance: Appearance.Oracle));
-        for (var i = 0; i < waterHelpers.Length; i++) waterHelpers[i] = SpawnHelper();
-        for (var i = 0; i < eruptionHelpers.Length; i++) eruptionHelpers[i] = SpawnHelper();
-        for (var i = 0; i < apocalypseHelpers.Length; i++) apocalypseHelpers[i] = SpawnHelper();
     }
-
-    private SimEnemy? SpawnHelper() => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: BNpcNameId.Oracle,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: new Placement(Vector3.Zero, 0f)));
 
     private void MarkWaterHolders(uint lockonId, params int[] durations)
     {
@@ -133,13 +120,9 @@ public sealed class FruP3ApocalypseScenario : IScenario
 
     private void TargetWaterHolders()
     {
-        var holders = Enumerable.Range(1, 3).SelectMany(state.WaterHolders).Select(world.Party.Get).ToList();
-        for (var i = 0; i < holders.Count; i++)
-            if (holders[i] is { } holder && holder.IsAlive())
-            {
-                MoveToOracle(apocalypseHelpers[i]);
-                apocalypseHelpers[i]?.Cast(ActionId.DarkWaterTarget, holder, animationLock: 1.1f);
-            }
+        foreach (var holder in Enumerable.Range(1, 3).SelectMany(state.WaterHolders).Select(world.Party.Get))
+            if (holder is not null && holder.IsAlive())
+                oracle?.CastFromHelper(ActionId.DarkWaterTarget, holder, animationLock: 1.1f);
     }
 
     private void ApplyDarkWater()
@@ -203,38 +186,23 @@ public sealed class FruP3ApocalypseScenario : IScenario
 
     private void DarkWater(int duration)
     {
-        var holders = state.WaterHolders(duration).Select(world.Party.Get).ToList();
-        for (var i = 0; i < holders.Count; i++)
-            if (holders[i] is { } holder && holder.IsAlive())
-            {
-                MoveToOracle(waterHelpers[i]);
-                waterHelpers[i]?.Cast(Actions.DarkWater, holder);
-            }
+        foreach (var holder in state.WaterHolders(duration).Select(world.Party.Get))
+            if (holder is not null && holder.IsAlive())
+                oracle?.CastFromHelper(Actions.DarkWater, holder);
     }
 
     private void Explode(int wave)
     {
-        var i = 0;
         foreach (var position in state.Explosions(wave))
-        {
-            apocalypseHelpers[i]?.SetPosition(new Placement(position, 0f));
-            apocalypseHelpers[i]?.Cast(Actions.Apocalypse);
-            i++;
-        }
-    }
-
-    private void DarkEruption()
-    {
-        var members = world.Party.ActiveMembers().ToList();
-        for (var i = 0; i < members.Count; i++)
-        {
-            MoveToOracle(eruptionHelpers[i]);
-            eruptionHelpers[i]?.Cast(Actions.DarkEruption, members[i]);
-        }
+            oracle?.CastFromHelper(Actions.Apocalypse, at: new Placement(position, 0f));
     }
 
     // Retail casts the targeted helper actions from where the Oracle stands.
-    private void MoveToOracle(SimEnemy? helper) => helper?.SetPosition(oracle?.Position ?? Vector3.Zero);
+    private void DarkEruption()
+    {
+        foreach (var member in world.Party.ActiveMembers().ToList())
+            oracle?.CastFromHelper(Actions.DarkEruption, member);
+    }
 
     private void DarkestDance()
     {

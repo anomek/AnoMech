@@ -105,11 +105,11 @@ public class TopP5OmegaScenarioTests
             .ShouldKill(ActionId.OptimizedBlizzardIII, MainTank);
     }
 
-    // Beside M, clear of the cross.
+    // Beside M, clear of the cross, and west, between the north and south Diffuse Wave Cannons.
     [Test]
     public void DiesToEfficientBladework()
         => Omega(MainTank)
-            .TeleportAt(23.5f, to: Around(Direction.NE, 6, 9.8f))
+            .TeleportAt(23.5f, to: new(-11, 1))
             .ShouldKill(ActionId.EfficientBladework, MainTank);
 
     // Beside M, so Beyond Strength misses, but off F's line.
@@ -119,11 +119,11 @@ public class TopP5OmegaScenarioTests
             .TeleportAt(27.5f, to: Around(Direction.SE, 6, 9.8f))
             .ShouldKill(ActionId.SuperliminalSteelOmenL, MainTank);
 
-    // On F's line, so Superliminal Steel misses, but far from M.
+    // Near F's line, so Superliminal Steel misses, far from M, and between the east and west Diffuse Wave Cannons.
     [Test]
     public void DiesToBeyondStrength()
         => Omega(MainTank)
-            .TeleportAt(27.5f, to: Around(Direction.SE, 0, -5))
+            .TeleportAt(27.5f, to: new(2.5f, 5))
             .ShouldKill(ActionId.BeyondStrength, MainTank);
 
     // Clear of the first Omega attacks, 26.6° off the middle of a first cone.
@@ -146,21 +146,24 @@ public class TopP5OmegaScenarioTests
     public void BystanderInFirstNearWorldWipes()
         => Omega(MainTank)
             .TeleportAt(40.5f, to: new(10, -3))
-            .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
+            .ShouldKill(ActionId.HelloNearWorld, OffTank, MainTank)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank, MainTank));
 
     [Test]
     public void BystanderInFirstDistantWorldWipes()
         => Omega(MainTank)
             .TeleportAt(40.5f, to: new(0, -7))
-            .ShouldKill(ActionId.HelloWorldFail, PerRole.All);
+            .ShouldKill(ActionId.HelloDistantWorld, ShieldHealer, MainTank)
+            .ShouldKill(ActionId.HelloWorldFail, AllBut(ShieldHealer, MainTank));
 
-    // With RH gone the near jumps go OT -> R -> OT again, still vulnerable from the first hit.
+    // With RH gone the near jumps go OT -> R -> OT again, still vulnerable from the first hit. A kill
+    // on the last jump leaves nothing to fail.
     [Test]
-    public void NearWorldJumpingBackToHolderWipes()
+    public void NearWorldJumpingBackToHolderKillsThem()
         => Omega(RegenHealer)
             .TeleportAt(41.5f, to: new(12, -12))
             .ShouldKill(ActionId.HelloNearWorldJump, OffTank)
-            .ShouldKill(ActionId.HelloWorldFail, AllBut(OffTank));
+            .ShouldKillNoOneElse();
 
     // Fresh off its monitor, nearer to OT than RH and R.
     [Test]

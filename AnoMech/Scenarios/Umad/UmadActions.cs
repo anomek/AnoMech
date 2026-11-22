@@ -23,8 +23,10 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 0.1f },
         Effects = [Damage()],
-        Timing = new() { DamageDelay = 0.72f },
+        Timing = new() { DamageDelay = 0.80f },
     };
+
+    public static readonly EnemyAction ChaosAutoAttack = AutoAttack with { Timing = new() { DamageDelay = 0.54f } };
 
     // -- P1 Tele-trouncing --
 
@@ -32,6 +34,7 @@ public static class UmadActions
     public static readonly EnemyAction TeleTrouncingArrowSpawn = new(UmadConstants.ActionId.TeleTrouncingArrowSpawn)
     {
         Cast = new() { AnimationLock = 1.1f, FaceTarget = false },
+        Timing = new() { DamageDelay = 0.63f },
     };
 
     public static readonly EnemyAction DoubleTroubleTrapStack = new(UmadConstants.ActionId.DoubleTroubleTrapStack)
@@ -61,7 +64,6 @@ public static class UmadActions
         Timing = new() { DamageDelay = 0.63f },
     };
 
-    // UNVERIFIED for Real1: no replay has it hitting anyone; Real2's delay is reused.
     public static readonly EnemyAction ThrummingThunderReal1 = ThrummingThunder(UmadConstants.ActionId.ThrummingThunderIII_Real);
     public static readonly EnemyAction ThrummingThunderReal2 = ThrummingThunder(UmadConstants.ActionId.ThrummingThunderIII_FakeAnim);
 
@@ -69,7 +71,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.60f },
+        Timing = new() { DamageDelay = 0.92f },
     };
 
     public static readonly EnemyAction IndolentWill = StatueGaze(UmadConstants.ActionId.IndolentWill, lookAway: true);
@@ -116,6 +118,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.63f },
         DeathExplanation = "a tower taken by fewer than two",
     };
 
@@ -161,12 +164,14 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.18f },
     };
 
     public static readonly EnemyAction SlapHappyFinalSlap = new(UmadConstants.ActionId.SlapHappy_FinalSlap)
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.48f },
     };
 
     // Half-angle estimated from the animation.
@@ -192,13 +197,14 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 3.1f, OmenDelay = 4f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 1.19f },
     };
 
     public static readonly EnemyAction LookUponMeAndDespair = new(UmadConstants.ActionId.LookUponMeAndDespair_Omen)
     {
         Cast = new() { AnimationLock = 1.1f, OmenDelay = 4f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.4f },
+        Timing = new() { DamageDelay = 0.48f },
     };
 
     public static readonly EnemyAction ThunderIII = new(UmadConstants.ActionId.ThunderIII_Resolve)
@@ -217,12 +223,14 @@ public static class UmadActions
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { Size = MathF.PI / 4 },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.49f },
     };
 
     public static readonly EnemyAction BlizzardIII = new(UmadConstants.ActionId.BlizzardIII)
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.92f },
     };
 
     public static readonly EnemyAction KnockDown = new(UmadConstants.ActionId.KnockDown)
@@ -236,6 +244,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.67f },
         DeathExplanation = "a tower nobody took",
     };
 
@@ -247,7 +256,7 @@ public static class UmadActions
             Damage(MagicVulns, split: Stack(2)),
             ApplyStatus(UmadConstants.StatusId.MagicVulnerabilityUp, 3f),
         ],
-        Timing = new() { DamageDelay = 0.17f },
+        Timing = new() { DamageDelay = 0.48f },
     };
 
     public static readonly EnemyAction EarthquakeCleanse = new(UmadConstants.ActionId.Earthquake_Cleanse)
@@ -259,6 +268,14 @@ public static class UmadActions
             OnOthers(ApplyStatus(UmadConstants.StatusId.EarthResistanceDownII, 1.96f)),
         ],
         Timing = new() { DamageDelay = 0.64f },
+    };
+
+    public static readonly EnemyAction StrayEarth = new(UmadConstants.ActionId.StrayEarth)
+    {
+        Cast = new() { AnimationLock = 1.1f, FaceTarget = false },
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.63f },
+        DeathExplanation = "Primordial Crust ran out",
     };
 
     // Lands on everyone for 0, typeless, whatever the sheet's AttackType says.
@@ -282,7 +299,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 4.1f },
         Effects = [Damage(split: Falloff(20f))],
-        Timing = new() { DamageDelay = 2.08f },
+        Timing = new() { DamageDelay = 2.00f },
     };
 
     public static readonly EnemyAction VacuumWave = new(UmadConstants.ActionId.VacuumWave)
@@ -291,20 +308,42 @@ public static class UmadActions
         Effects =
         [
             Push(VacuumWavePush, 40f, pushDelay: 1.06f),
-            RemoveStatus(UmadConstants.StatusId.Headwind, atImpact: true),
-            RemoveStatus(UmadConstants.StatusId.Tailwind, atImpact: true),
+            new ConsumeWindEffect(),
         ],
-        Timing = new() { DamageDelay = 1.14f },
+        Timing = new() { DamageDelay = 1.06f },
     };
 
-    private static float? VacuumWavePush(EnemyActionContext ctx, SimCharacter target)
+    private enum WindFacing { NoWind, Correct, Opposite, Sideways }
+
+    // UNVERIFIED: Sideways. Players left with their wind after Vacuum Wave fly ~20y, as if windless,
+    // and die to Stray Gusts when it runs out; facing sideways is the inferred cause, never observed.
+    private static WindFacing ClassifyWindFacing(EnemyActionContext ctx, SimCharacter target)
     {
         var headwind = target.HasStatus(UmadConstants.StatusId.Headwind);
-        if (!headwind && !target.HasStatus(UmadConstants.StatusId.Tailwind)) return 20f;
+        if (!headwind && !target.HasStatus(UmadConstants.StatusId.Tailwind)) return WindFacing.NoWind;
         var facing = target.Placement();
         var from = ctx.Caster.Position;
-        return (headwind ? facing.IsLookingAwayFrom(from) : facing.IsLookingAt(from)) ? 10f : 40f;
+        var toward = facing.IsLookingAt(from);
+        var away = facing.IsLookingAwayFrom(from);
+        if (headwind ? away : toward) return WindFacing.Correct;
+        if (headwind ? toward : away) return WindFacing.Opposite;
+        return WindFacing.Sideways;
     }
+
+    private static float? VacuumWavePush(EnemyActionContext ctx, SimCharacter target) => ClassifyWindFacing(ctx, target) switch
+    {
+        WindFacing.Correct => 10f,
+        WindFacing.Opposite => 40f,
+        _ => 20f,
+    };
+
+    public static readonly EnemyAction StrayGusts = new(UmadConstants.ActionId.StrayGusts)
+    {
+        Cast = new() { AnimationLock = 1.1f, FaceTarget = false },
+        Effects = [Damage(Lethal)],
+        Timing = new() { DamageDelay = 0.49f },
+        DeathExplanation = "wind ran out uncleansed",
+    };
 
     // Shorter than the clone's 1.8s materialise leaves it frozen white and translucent.
     public static readonly EnemyAction UltimaBlaster = new(UmadConstants.ActionId.UltimaBlaster)
@@ -370,7 +409,7 @@ public static class UmadActions
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { Size = MathF.PI / 4 },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.6f },
+        Timing = new() { DamageDelay = 0.93f },
     };
 
     public static readonly EnemyAction ThrummingThunderIII = MysteryThunder(UmadConstants.ActionId.ThrummingThunderIII_Real);
@@ -380,13 +419,14 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.6f },
+        Timing = new() { DamageDelay = 0.93f },
     };
 
     public static readonly EnemyAction EdgeOfDeath = new(UmadConstants.ActionId.EdgeOfDeath)
     {
         Cast = new() { AnimationLock = 2.1f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.48f },
     };
 
     public static readonly EnemyAction WhiteAntilight = Antilight(UmadConstants.ActionId.WhiteAntilight, debuffsTrue: true, UmadConstants.StatusId.WhiteWound);
@@ -409,7 +449,7 @@ public static class UmadActions
                 RemoveStatus(UmadConstants.StatusId.BlackWound),
                 ApplyStatus(wound, 0f, delayToEffectResult: true),
             ],
-            Timing = new() { DamageDelay = 0.13f },
+            Timing = new() { DamageDelay = 0.48f },
         };
     }
 
@@ -439,6 +479,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Gaze(lookAway)],
+        Timing = new() { DamageDelay = 0.58f },
     };
 
     public static readonly EnemyAction StrayFlamesChariot = StrayBait(UmadConstants.ActionId.StrayFlames_Chariot);
@@ -451,13 +492,14 @@ public static class UmadActions
         Cast = new() { AnimationLock = 1.1f, OmenDelay = 4f },
         Area = new() { Size = 6f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.93f },
     };
 
     public static readonly EnemyAction DeathBomb = new(UmadConstants.ActionId.DeathBomb)
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.09f },
+        Timing = new() { DamageDelay = 0.18f },
         DeathExplanation = "failed Acceleration Bomb",
     };
 
@@ -508,7 +550,7 @@ public static class UmadActions
             Damage(),
             ApplyStatus(UmadConstants.StatusId.DamageDown, 180f),
         ],
-        Timing = new() { DamageDelay = 0.68f },
+        Timing = new() { DamageDelay = 0.63f },
     };
 
     public static readonly EnemyAction CatastrophicChoiceAero = new(UmadConstants.ActionId.CatastrophicChoiceAero_Resolve)
@@ -516,14 +558,14 @@ public static class UmadActions
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { Size = 10f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.23f },
+        Timing = new() { DamageDelay = 0.18f },
     };
 
     public static readonly EnemyAction CatastrophicChoiceEarth = new(UmadConstants.ActionId.CatastrophicChoiceEarth_Resolve)
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
-        Timing = new() { DamageDelay = 0.11f },
+        Timing = new() { DamageDelay = 0.18f },
     };
 
     // -- P5 Exaflares --
@@ -539,7 +581,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns), LongMagicVulnerabilityUp],
-        Timing = new() { DamageDelay = 0.57f },
+        Timing = new() { DamageDelay = 0.62f },
     };
 
     // -- P5 Flood --
@@ -548,6 +590,7 @@ public static class UmadActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
+        Timing = new() { DamageDelay = 0.62f },
     };
 
     public static readonly EnemyAction ChaoticFlood = new(UmadConstants.ActionId.ChaoticFlood)
@@ -556,6 +599,20 @@ public static class UmadActions
         Effects = [Damage(MagicVulns, split: Stack(8))],
         Timing = new() { DamageDelay = 0.64f },
     };
+
+    private sealed class ConsumeWindEffect : IEnemyActionEffect
+    {
+        public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+        {
+            foreach (var target in hits)
+            {
+                if (ctx.IsKilled(target) || !target.IsAlive()) continue;
+                if (ClassifyWindFacing(ctx, target) is not (WindFacing.Correct or WindFacing.Opposite)) continue;
+                ctx.RemoveStatusAtImpact(target, UmadConstants.StatusId.Headwind);
+                ctx.RemoveStatusAtImpact(target, UmadConstants.StatusId.Tailwind);
+            }
+        }
+    }
 
     private sealed class NothingnessEffect : IEnemyActionEffect
     {

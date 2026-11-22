@@ -18,7 +18,6 @@ public class UltimateAnnihilationSettingsWindow
             DrawIfritCorner();
             DrawSearingWind();
             DrawFlamingCrush();
-            DrawUltimaHp();
             SettingsGrid.End();
         }
     }
@@ -52,20 +51,10 @@ public class UltimateAnnihilationSettingsWindow
         if (ImGui.RadioButton("Me##flamingcrush", v)) Overrides.FlamingCrushOnPlayer = true;
     }
 
-    private void DrawUltimaHp()
-    {
-        var v = Overrides.UltimaPushedBelowHalf;
-        SettingsGrid.Row("Ultima HP after Homing Lasers:");
-        if (ImGui.RadioButton("Above 50%##ultimahp", !v)) Overrides.UltimaPushedBelowHalf = false;
-        ImGui.SameLine();
-        if (ImGui.RadioButton("Pushed below 50%##ultimahp", v)) Overrides.UltimaPushedBelowHalf = true;
-    }
-
     private void ResetAll()
     {
         Overrides.IfritCorner = IfritCorner.Random;
         Overrides.SearingWindOnPlayer = false;
         Overrides.FlamingCrushOnPlayer = false;
-        Overrides.UltimaPushedBelowHalf = false;
     }
 }

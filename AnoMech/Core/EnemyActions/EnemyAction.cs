@@ -17,6 +17,10 @@ public sealed record EnemyAction(uint ActionId)
 
     // Extra explanation for deaths caused by this action
     public string? DeathExplanation { get; init; }
+
+    // The BNpcName row a pooled helper casting it is shown under, where retail names it after
+    // someone other than the actor it acts for (TOP Spotlight).
+    public uint? ShownAs { get; init; }
 }
 
 // Cast bar and animation settings the Action sheet lacks, plus overrides of the ones it has.

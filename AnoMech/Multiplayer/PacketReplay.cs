@@ -301,7 +301,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         {
             EObjId = p.EObjId,
             Placement = world.Coordinates.ToLocal(placement),
-            ObjectIndex = p.ObjectIndex,
             TargetableStatus = p.TargetableStatus,
             Hidden = p.Hidden,
             EntityId = p.EntityId,

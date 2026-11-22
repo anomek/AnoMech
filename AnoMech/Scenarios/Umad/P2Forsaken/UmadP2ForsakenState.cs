@@ -52,7 +52,7 @@ public sealed record EndAttack(uint CastBarAction)
         Cast = new() { AnimationLock = 3f, Rotation = rotation },
         Area = new() { Size = Geometry.AllThingsEndHalfCone },
         Effects = [Damage(UmadActions.MagicVulns, Lethal)],
-        Timing = new() { ResolveSnapshotOffset = CastSpec.ActionEffectOffset },
+        Timing = new() { DamageDelay = 1.10f, ResolveSnapshotOffset = CastSpec.ActionEffectOffset },
     };
 }
 

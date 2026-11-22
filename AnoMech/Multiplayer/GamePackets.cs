@@ -67,7 +67,7 @@ public sealed record SpawnNpcPacket(
     : GamePacket;
 
 public sealed record SpawnObjPacket(
-    uint Actor, uint EObjId, sbyte ObjectIndex, byte TargetableStatus, bool Hidden, uint EntityId, uint LayoutId, uint EventId,
+    uint Actor, uint EObjId, byte TargetableStatus, bool Hidden, uint EntityId, uint LayoutId, uint EventId,
     uint Owner, uint GimmickId, float Radius, ushort FateId, byte EventState, uint Arg2, ushort TimelineState,
     float X, float Y, float Z, float Rotation) : GamePacket;
 

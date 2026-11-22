@@ -8,6 +8,7 @@ namespace AnoMech.Core.Map;
 // and empty = the zone has no MapEffect slots.
 public sealed record DutyInitData(
     EntranceBarrier EntranceBarrier,
+    HelperPool HelperPool,
     IReadOnlyList<ushort> MapEffectSnapshot,
     IReadOnlyList<byte[]> Rsv,
     IReadOnlyList<byte[]> Rsf);

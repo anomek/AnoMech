@@ -90,12 +90,13 @@ public sealed record NpcAppearance(
     // The 26 CustomizeData bytes.
     byte[]? Customize = null);
 
-public sealed partial class SimEnemy : SimNpc
+public sealed class SimEnemy : SimNpc
 {
     // The cast packets and the animation lock live in Casting; EnemyActionHandler decides when
     // they go out and what the action does.
     private readonly EnemyActionHandler actions;
     private readonly EventScheduler events;
+    private readonly SimWorld world;
 
     // The server's own ceiling: bosses turn at most ~145° per ~0.3s movement tick.
     private const float BossTurnSpeed = MathF.PI * 8f / 3f;
@@ -160,6 +161,7 @@ public sealed partial class SimEnemy : SimNpc
         EnemyListMode = enemyListMode;
         actions = new EnemyActionHandler(this, Casting, world);
         events = world.Events;
+        this.world = world;
         SimEvents = world.SimEvents;
     }
 
@@ -201,7 +203,7 @@ public sealed partial class SimEnemy : SimNpc
             ActorControl.SetInCombat(true);
         }
         DiagnosticLog.Info($"[SimEnemy.SpawnFromPacket] {DisplayName} (goid 0x{GameObjectId.ObjectId:X}) created by the engine after {PacketSpawnFrames} frames: {DescribeDrawState()} "
-            + $"Targetable=0x{targetableBefore:X}->0x{chara.TargetableStatus:X} name=\"{chara.Name}\" pos {chara.Position}.");
+            + $"Targetable=0x{targetableBefore:X}->0x{chara.TargetableStatus:X} name=\"{chara.Name}\" pos {chara.Position} hitbox={chara.HitboxRadius:F2}.");
     }
 
     /// <summary>
@@ -324,10 +326,28 @@ public sealed partial class SimEnemy : SimNpc
     public void Cast(EnemyAction action, CastTarget target = default, byte animationVariation = 0) =>
         actions.Start(action, target, animationVariation);
 
+    // The BNpcName row its pooled helpers are shown under where retail follows a form it took rather
+    // than its spawn name (TOP's Omega-M in its Omega-F form); null = its spawn NameId.
+    public uint? HelperName { get; set; }
+
+    // The action cast by one of the zone's pooled helpers acting for this enemy, standing at `at`
+    // (this enemy's placement by default). A dead or despawned enemy still casts, unlinked.
+    public void CastFromHelper(EnemyAction action, CastTarget target = default, Placement? at = null, byte animationVariation = 0) =>
+        world.CastFromHelper(this, action, target, at ?? this.Placement(), animationVariation);
+
+    public void CastFromHelper(uint actionId, CastTarget target = default, Placement? at = null, float animationLock = 0.6f) =>
+        CastFromHelper(new EnemyAction(actionId) { Cast = new() { AnimationLock = animationLock } }, target, at);
+
     // Interrupts the cast still on its bar: neither its effect nor its mechanics go out.
-    public void CancelCast(CastCancelReason reason) => actions.CancelCast(reason);
+    public void CancelCast(CastCancelReason reason)
+    {
+        if (actions.CancelCast(reason)) world.HelperCastCancelled(this);
+    }
 
     public override bool AnimationLock => Casting.IsBusy || actions.AwaitingRelease;
+
+    // Seconds until AnimationLock ends; infinite while the bar is up or the ActionEffect pending.
+    internal float BusyFor => Casting.IsCasting || actions.AwaitingRelease ? float.PositiveInfinity : Casting.RemainingAnimationLock;
 
     // Stays turned toward the target, holding still while casting or animation-locked; null releases it.
     public void KeepFacing(SimCharacter? target) => motion.KeepFacing(target);
@@ -376,7 +396,6 @@ public sealed partial class SimEnemy : SimNpc
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
-        TickLegacyVisibility();
         TickTimelineWatch(deltaSeconds);
         TickPacketSpawnCheckpoints();
 

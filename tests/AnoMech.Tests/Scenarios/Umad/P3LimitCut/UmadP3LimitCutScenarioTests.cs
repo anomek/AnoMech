@@ -61,6 +61,15 @@ public class UmadP3LimitCutScenarioTests
     public void WrongFacingForWindPushesOffArena(PartyRole player, float facing)
         => Assert.That(PushedTo(player, new(0, -7), facing).Length(), Is.GreaterThan(Umad.Geometry.ArenaRadius));
 
+    // Facing south with Exdeath east: neither toward nor away, so the wind stays. The 20y push
+    // still lands inside the arena.
+    [TestCase(RegenHealer)]
+    [TestCase(CasterDps)]
+    public void SidewaysFacingKeepsWindAndDiesToStrayGusts(PartyRole player)
+        => LimitCut(player)
+            .TeleportAt(15.5f, to: new(3, -7), facing: 0f)
+            .ShouldKill(Umad.ActionId.StrayGusts, player);
+
     [Test]
     public void CorrectFacingAtEdgePushesOffArena()
         => Assert.That(PushedTo(CasterDps, new(-15, -7), FacingEast).Length(), Is.GreaterThan(Umad.Geometry.ArenaRadius));

@@ -9,4 +9,7 @@ public sealed class FruP5FulgentBladeStateOverrides
     public bool? Mirrored { get; set; }
     // One per group.
     public bool[]? CardinalDarkInward { get; set; }
+    // 0-3: which of the four furthest to Pandora's left / right each Akh Morn picks.
+    public int? AkhMornLeftPick { get; set; }
+    public int? AkhMornRightPick { get; set; }
 }

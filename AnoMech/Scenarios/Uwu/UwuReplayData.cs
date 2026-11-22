@@ -14,6 +14,7 @@ public static class UwuReplayData
 {
     public static readonly DutyInitData DutyInitData = new(
         new EntranceBarrier(2007457, 0x700D77, 0x700D76, new Vector3(100f, 0f, 116f), 0f),
+        new HelperPool(9020, 14),
         [],
         [],
         []);

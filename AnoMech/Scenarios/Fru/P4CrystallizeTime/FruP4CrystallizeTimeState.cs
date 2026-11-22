@@ -48,13 +48,13 @@ public sealed class FruP4CrystallizeTimeState
             var chosen = choices[rng.Next(choices.Length)];
             (deck[(int)playerRole], deck[chosen]) = (deck[chosen], deck[(int)playerRole]);
         }
-        foreach (var role in Enum.GetValues<PartyRole>()) debuffs[role] = deck[(int)role];
+        foreach (var role in Enum.GetValues<PartyRole>()) debuffs[role] = overrides.Debuffs?[role] ?? deck[(int)role];
         SlowNorthwest = rng.NextBool();
         Corner = (CrystallizeCorner)rng.Next(4);
         if (overrides.SlowNorthwest is { } slowNorthwest) SlowNorthwest = slowNorthwest;
         if (overrides.Corner is { } corner) Corner = corner;
-        Quietus = rng.Shuffle(Enum.GetValues<PartyRole>()).Take(3).ToList();
-        SpiritTakerTarget = rng.NextRole();
+        Quietus = overrides.Quietus ?? rng.Shuffle(Enum.GetValues<PartyRole>()).Take(3).ToList();
+        SpiritTakerTarget = overrides.SpiritTakerTarget ?? rng.NextRole();
     }
 
     public CrystallizeDebuff Debuff(PartyRole role) => debuffs[role];

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AnoMech.Core.Game.Party;
 
 namespace AnoMech.Scenarios.Fru.P4CrystallizeTime;
 
@@ -10,4 +11,9 @@ public sealed class FruP4CrystallizeTimeStateOverrides
 
     public bool? SlowNorthwest { get; set; }
     public CrystallizeCorner? Corner { get; set; }
+
+    // Every role's debuff, overriding PlayerDebuffs: two of each red, one of each blue.
+    public IReadOnlyDictionary<PartyRole, CrystallizeDebuff>? Debuffs { get; set; }
+    public IReadOnlyList<PartyRole>? Quietus { get; set; }
+    public PartyRole? SpiritTakerTarget { get; set; }
 }

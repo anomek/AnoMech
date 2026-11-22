@@ -13,7 +13,6 @@ public static class UmadConstants
 {
     public static class BNpcBaseId
     {
-        public const uint KefkaHelper = 9020;  // generic invisible helper (also used as a Chaos helper in P3)
         public const uint Kefka       = 18475; // "Kefka Says" boss (P4); distinct row from GodKefka (19506) and KefkaP3 (19504)
         public const uint KefkaCloneP3 = 19451; // the eight Limit Cut clones; cf. KefkaClone 19513
         public const uint KefkaP3     = 19504; // visible boss
@@ -180,7 +179,9 @@ public static class UmadConstants
         public const uint StompAMole_Cast              = 0xBAEFU; // single-target, cast 5.0s (cf. StompAMole 0xBAF0)
         public const uint StompAMole                   = 0xBAF0U; // circle r=5, cast 1.5s
         public const uint UnmitigatedImpact            = 0xBAF1U; // circle r=100, instant; StompAMole (0xBAF0) failure resolution
+        public const uint StrayGusts                   = 0xBAF7U; // single-target, instant
         public const uint Cyclone                      = 0xBAF8U; // circle r=6, instant
+        public const uint StrayEarth                   = 0xBAF9U; // single-target, instant
         public const uint Earthquake_Cleanse           = 0xBAFAU; // circle r=100, instant (cf. Earthquake 0xC571)
         public const uint BlackHole                    = 0xBAFBU; // single-target, cast 3.0s
         public const uint Nothingness                  = 0xBAFCU; // rect 125x6 (len x width), instant

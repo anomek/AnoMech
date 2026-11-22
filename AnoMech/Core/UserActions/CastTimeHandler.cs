@@ -5,8 +5,8 @@ namespace AnoMech.Core.UserActions;
 
 // Instant-cast enablers for the player's own spells. Cast time is resolved client-side, so for
 // Swiftcast/Acceleration granting the status is enough for the client to make the next cast instant.
-// Dualcast's cast-time reduction is NOT reproduced (the client ignores a granted Dualcast status, and
-// driving the cast directly glitched the UI) — only its buff is modelled.
+// The client ignores a granted Dualcast status, so under it the handler answers the client's cast-time
+// question itself (AdjustCastTime): 0 for a spell. Driving the cast directly instead glitched the UI.
 //
 // The server-driven status removal is firewalled, so we consume the enablers. Consumption differs:
 //  - Swiftcast / Triplecast — consumed by the next cast-time spell (priority below Dualcast; skipped
@@ -39,6 +39,14 @@ internal sealed class CastTimeHandler : IUserActionHandler
     }
 
     public void OnCastInterrupted(ActionType actionType, uint actionId) => castAction = 0;
+
+    public int? AdjustCastTime(ActionType actionType, uint actionId)
+        => actionType == ActionType.Action && Plugin.Game?.Player is { } player && player.HasStatus(DualcastStatus)
+           && IsCastTimeSpell(actionId) ? 0 : null;
+
+    private static bool IsCastTimeSpell(uint actionId)
+        => Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>().TryGetRow(actionId, out var row)
+           && row.ActionCategory.RowId == 2 && row.Cast100ms > 0 && actionId != Foul;
 
     public void OnAction(ActionType actionType, uint actionId)
     {

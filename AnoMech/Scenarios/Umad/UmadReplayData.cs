@@ -1790,6 +1790,7 @@ public static class UmadReplayData
     // After the records: static fields initialize in textual order.
     public static readonly DutyInitData DutyInitData = new(
         new EntranceBarrier(2000182, 0xBC174E, 0xBC174C, new Vector3(100.41f, 0f, 115.75f), 0f),
+        new HelperPool(9020, 37),
         [1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         Array.ConvertAll(RsvRecords, Convert.FromBase64String),
         Array.ConvertAll(RsfRecords, Convert.FromBase64String));

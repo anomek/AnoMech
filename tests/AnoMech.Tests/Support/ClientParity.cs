@@ -140,7 +140,7 @@ internal static partial class ClientParity
     {
         0x15 or 0x23 => 2,
         0x22 => 1,
-        0x25F => 0,
+        0x25F or 0x1A1 => 0,
         _ => -1,
     };
 

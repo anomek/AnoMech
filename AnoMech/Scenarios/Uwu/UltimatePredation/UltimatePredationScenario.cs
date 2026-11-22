@@ -41,10 +41,7 @@ public class UltimatePredationScenario : IMultiplayerReplayable
     private SimEnemy? garuda;
     private SimEnemy? ifrit;
 
-    private SimEnemy?[] dummies = new SimEnemy?[13];
-
     private SimEnemy? titan => state.ScenarioObjects.Titan;
-    private Func<SimEnemy?>[] featherRainDummies => [() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]];
 
     public void OnStatusLost(StatusLost lost) => ExplodeViscousAetheroplasm(lost);
 
@@ -150,25 +147,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
             );
 
             state.ScenarioObjects.Titan = titan;
-
-            for (int i = 0; i < dummies.Length; i++)
-            {
-                dummies[i] = world.SpawnEnemy(
-                new EnemySpawnConfig(
-                    BNpcBaseId: BNpcBaseId.Dummy,
-                    NameId: BNpcNameId.Dummy,
-                    LayoutId: BNpcLayoutId.Dummy,
-                    Level: 1,
-                    Targetable: false,
-                    EnemyList: EnemyListMode.Never,
-                    Visibility: SpawnVisibility.InvisibleHelper,
-                    Engaged: false,
-                    Placement: new Placement(
-                        new Vector3(0, 0, 0),
-                        0)
-                    )
-                );
-            }
         });
 
         // Once the engine has created the actors; an ActorControl sent before that is dropped.
@@ -184,7 +162,7 @@ public class UltimatePredationScenario : IMultiplayerReplayable
     private void ExplodeViscousAetheroplasm(StatusLost lost)
     {
         if (lost is not { StatusId: StatusId.ViscousAetheroplasm, Reason: StatusLossReason.Expired, Holder: ISimPartyMember holder }) return;
-        dummies[^(1 + (int)holder.Role)]?.Cast(Actions.ViscousAetheroplasm, lost.Holder);
+        ultima?.CastFromHelper(Actions.ViscousAetheroplasm, lost.Holder);
     }
 
     private void Arena()
@@ -195,7 +173,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
             {
                 EObjId = EObjId.Arena,
                 Placement = new(new(0.16f, 0, 1.4434f), 0),
-                ObjectIndex = 1,
                 TargetableStatus = 5,
                 EntityId = 0x4000829C,
                 LayoutId = EObjId.ArenaLayoutId,
@@ -272,7 +249,7 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         for (int i = 0; i < Geometry.UltimaRadiantPlumePositions.Length; i++)
         {
-            RadiantPlume(Geometry.UltimaRadiantPlumePositions[i], 5 + i);
+            RadiantPlume(Geometry.UltimaRadiantPlumePositions[i]);
         }
 
         world.Events.Add(55.09f, () =>
@@ -282,7 +259,7 @@ public class UltimatePredationScenario : IMultiplayerReplayable
             ultima?.Cast(ActionId.LandslideUltima, animationLock: 2.1f);
         });
 
-        utils.LandslideLines(() => ultima, [() => dummies[5], () => dummies[6], () => dummies[7]], 55.09f, LandslideType.Ultima);
+        utils.LandslideLines(() => ultima, 55.09f, LandslideType.Ultima);
 
         world.Events.Add(58.33f, () => ultima?.Cast(Actions.UltimaAttack, mt, animationVariation: 0));
 
@@ -342,14 +319,11 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(17.52f, () => garuda?.Cast(Actions.WickedWheelAwaken));
 
-        // Wicked Tornado is handled by dummies[2]
-        world.Events.Add(22.28f, () => dummies[2]?.SetPosition(garuda!.Placement()));
-
-        world.Events.Add(22.48f, () => dummies[2]?.Cast(Actions.WickedTornado));
+        world.Events.Add(22.48f, () => garuda?.CastFromHelper(Actions.WickedTornado));
 
         world.Events.Add(25.25f, () => garuda?.PlayActionTimeline(ActionTimelineId.WarpStart2));
 
-        utils.FeatherRain(featherRainDummies, 25.25f, 26.72f, state.FeatherRainTargets);
+        utils.FeatherRain(() => garuda, 25.25f, 26.72f, state.FeatherRainTargets);
     }
 
     private void GarudaPost()
@@ -379,12 +353,12 @@ public class UltimatePredationScenario : IMultiplayerReplayable
         world.Events.Add(68.61f, () => garuda?.Cast(Actions.MistralShriek));
 
         // Technically these are for the Sisters. But adding it to their code section will duplicate the amount (10) that the actual fight uses (5), so it's kept here.
-        utils.FeatherRain(featherRainDummies, 72.49f, 73.91f, state.FeatherRainTargets);
+        utils.FeatherRain(() => garuda, 72.49f, 73.91f, state.FeatherRainTargets);
 
         // These are actually from Garuda
         world.Events.Add(76.04f, () => garuda?.PlayActionTimeline(ActionTimelineId.WarpStart2));
 
-        utils.FeatherRain(featherRainDummies, 76.04f, 77.46f, state.FeatherRainTargets);
+        utils.FeatherRain(() => garuda, 76.04f, 77.46f, state.FeatherRainTargets);
     }
 
     private void Ifrit()
@@ -398,8 +372,8 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(17.52f, () => ifrit?.Cast(Actions.CrimsonCyclone));
 
-        CrimsonCycloneAwaken(Geometry.CrimsonCycloneAwakenPlacements[0], 11);
-        CrimsonCycloneAwaken(Geometry.CrimsonCycloneAwakenPlacements[1], 12);
+        CrimsonCycloneAwaken(Geometry.CrimsonCycloneAwakenPlacements[0]);
+        CrimsonCycloneAwaken(Geometry.CrimsonCycloneAwakenPlacements[1]);
     }
 
     private void IfritPost()
@@ -420,26 +394,25 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         IReadOnlyList<SimCharacter> eruptionBaits = null!;
         world.Events.Add(39.03f, () => eruptionBaits = party.Find.FarestN(ifrit!.Position, 2));
-        utils.EruptionPuddle(() => dummies[11], () => eruptionBaits[0], 39.03f);
-        utils.EruptionPuddle(() => dummies[12], () => eruptionBaits[1], 39.03f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[0], 39.03f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[1], 39.03f);
 
-        utils.EruptionPuddle(() => dummies[9], () => eruptionBaits[0], 41.13f);
-        utils.EruptionPuddle(() => dummies[10], () => eruptionBaits[1], 41.13f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[0], 41.13f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[1], 41.13f);
 
-        utils.EruptionPuddle(() => dummies[11], () => eruptionBaits[0], 43.02f);
-        utils.EruptionPuddle(() => dummies[12], () => eruptionBaits[1], 43.02f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[0], 43.02f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[1], 43.02f);
 
-        utils.EruptionPuddle(() => dummies[9], () => eruptionBaits[0], 45.15f);
-        utils.EruptionPuddle(() => dummies[10], () => eruptionBaits[1], 45.15f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[0], 45.15f);
+        utils.EruptionPuddle(() => ifrit, () => eruptionBaits[1], 45.15f);
 
         // TODO: Actual Infernal Fetters logic
         world.Events.Add(46.94f, () => world.Tether(ot, dps, TetherId.InfernalFetters, 21, StatusId.InfernalFetters));
 
-        // Infernal Fetters VFX is handled by dummies[11] and dummies[12]
         world.Events.Add(47.19f, () =>
         {
-            dummies[11]?.Cast(ActionId.InfernalFetters, dps, 0.6f);
-            dummies[12]?.Cast(ActionId.InfernalFetters, ot, 0.6f);
+            ifrit?.CastFromHelper(ActionId.InfernalFetters, dps);
+            ifrit?.CastFromHelper(ActionId.InfernalFetters, ot);
         });
 
         world.Events.Add(49.05f, () => ifrit?.PlayActionTimeline(ActionTimelineId.WarpStart));
@@ -456,9 +429,9 @@ public class UltimatePredationScenario : IMultiplayerReplayable
 
         world.Events.Add(18.22f, () => titan?.Cast(ActionId.LandslideTitan, animationLock: 4.1f));
 
-        utils.LandslideLines(() => titan, [() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 18.22f, LandslideType.Normal);
+        utils.LandslideLines(() => titan, 18.22f, LandslideType.Normal);
 
-        utils.LandslideLines(() => titan, [() => dummies[3], () => dummies[4], () => dummies[5], () => dummies[6], () => dummies[7]], 20.43f, LandslideType.Awaken);
+        utils.LandslideLines(() => titan, 20.43f, LandslideType.Awaken);
 
         world.Events.Add(25.50f, () => titan?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
@@ -504,9 +477,9 @@ public class UltimatePredationScenario : IMultiplayerReplayable
             titan?.Cast(ActionId.LandslideTitan, animationLock: 4.1f);
         });
 
-        utils.LandslideLines(() => titan, [() => dummies[8], () => dummies[9], () => dummies[10], () => dummies[11], () => dummies[12]], 54.45f, LandslideType.Normal);
+        utils.LandslideLines(() => titan, 54.45f, LandslideType.Normal);
 
-        utils.LandslideLines(() => titan, [() => dummies[0], () => dummies[1], () => dummies[2], () => dummies[3], () => dummies[4]], 56.50f, LandslideType.Awaken);
+        utils.LandslideLines(() => titan, 56.50f, LandslideType.Awaken);
 
         world.Events.Add(61.79f, () => titan?.Cast(Actions.Tumult));
         world.Events.Add(62.79f, () => titan?.Cast(Actions.Tumult));
@@ -519,8 +492,8 @@ public class UltimatePredationScenario : IMultiplayerReplayable
         world.Events.Add(69.61f, () => titan?.PlayActionTimeline(ActionTimelineId.WarpStart));
     }
 
-    private void RadiantPlume(Vector3 position, int dummyIndex)
-        => world.Events.Add(49.05f, () => dummies[dummyIndex]?.Cast(Actions.RadiantPlumePuddle, position));
+    private void RadiantPlume(Vector3 position)
+        => world.Events.Add(49.05f, () => ultima?.CastFromHelper(Actions.RadiantPlumePuddle, position, at: UwuUtils.OnLocation(position)));
 
     private void GarudaSister(Placement placement, Placement exitPlacement, uint nameId, uint layoutId)
     {
@@ -551,15 +524,8 @@ public class UltimatePredationScenario : IMultiplayerReplayable
         world.Events.Add(74.37f, () => sister?.SetPosition(exitPlacement));
     }
 
-    private void CrimsonCycloneAwaken(Placement placement, int dummyIndex)
-    {
-        world.Events.Add(22.48f, () =>
-        {
-            var dummy = dummies[dummyIndex];
-            dummy?.SetPosition(placement);
-            dummy?.Cast(Actions.CrimsonCycloneAwaken);
-        });
-    }
+    private void CrimsonCycloneAwaken(Placement placement)
+        => world.Events.Add(22.48f, () => ifrit?.CastFromHelper(Actions.CrimsonCycloneAwaken, at: placement));
 
     private void BombBoulder(float spawnOffset, float buryOffset, float castOffset, float fadeOffset, Vector3 position)
     {

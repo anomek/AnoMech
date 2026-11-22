@@ -160,6 +160,7 @@ public sealed class ScenarioSession
         {
             // Log-and-rethrow, so the exception reaches our own log too.
             world.SimEvents.Listener = Scenario;
+            world.SpawnHelperPool(zone.DutyInitData.HelperPool);
             try
             {
                 zone.Run(world);

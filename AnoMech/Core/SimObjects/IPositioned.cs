@@ -11,7 +11,6 @@ public interface IPositioned
     Vector3 Position { get; }
     float Rotation { get; }
     static IPositioned From(Vector3 target) => new At(target);
-    static IPositioned From(Placement placement) => new At(placement.Position, placement.Rotation);
 
     private readonly record struct At(Vector3 Position, float Rotation = 0f) : IPositioned;
 }

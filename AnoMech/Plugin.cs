@@ -1,4 +1,7 @@
 using System;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native.Implementations;
@@ -18,7 +21,7 @@ using CSFramework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework;
 
 namespace AnoMech;
 
-public sealed class Plugin : IDalamudPlugin
+public sealed class Plugin : IAsyncDalamudPlugin
 {
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
@@ -121,7 +124,6 @@ public sealed class Plugin : IDalamudPlugin
 
             // Initialize Pointers
             EventObjectManagerPointers.Initialize();
-            EventObjectPointers.Initialize();
             GameMainPointers.Initialize();
             ModelContainerPointers.Initialize();
             PacketDispatcherPointers.Initialize();
@@ -149,9 +151,49 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    public Task LoadAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    // Dalamud keeps this plugin's services and hooks until this completes, so an unload during a
+    // stay leaves it as the Leave button does and frames tick on until the guarded lift is done.
+    public async ValueTask DisposeAsync()
+    {
+        var since = Stopwatch.GetTimestamp();
+        try
+        {
+            while (!await Framework.RunOnFrameworkThread(() => DisposeOnceOutOfStay(since)))
+                await Framework.DelayTicks(1);
+        }
+        catch (OperationCanceledException)
+        {
+            // The game began closing mid-wait.
+            await Framework.RunOnFrameworkThread(Dispose);
+        }
+    }
+
+    // Leaving and the check share one callback, so no tick can start another stay in between.
+    // The lift dies by itself well inside the timeout when it can't verify the inn.
+    private bool DisposeOnceOutOfStay(long since)
+    {
+        if (ZoneControl.Current is { } zone && !Framework.IsFrameworkUnloading
+            && Stopwatch.GetElapsedTime(since) < UnloadLiftTimeout)
+        {
+            if (zone.IsActive)
+            {
+                Log.Information("[Plugin] Unloaded during a stay -- leaving it before teardown.");
+                Game?.LeaveNow();
+                zone.Revert();
+            }
+            if (zone.GuardArmed) return false;
+        }
+        Dispose();
+        return true;
+    }
+
+    private static readonly TimeSpan UnloadLiftTimeout = TimeSpan.FromSeconds(10);
+
     // Null-tolerant throughout: the constructor's failure path calls this on a half-built
     // instance, where anything past the throwing step was never assigned.
-    public void Dispose()
+    private void Dispose()
     {
         try
         {

@@ -304,7 +304,7 @@ internal sealed class PacketRecorder
             SimAssets.WarnIfUnknown(SimAssetKind.Layout, config.LayoutId, "event object layout");
             SimAssets.WarnIfUnknown(SimAssetKind.EventId, (uint)config.EventId, "event object EventId");
             spawned.Add(obj.EntityId);
-            Add(new SpawnObjPacket(obj.EntityId, config.EObjId, config.ObjectIndex, config.TargetableStatus, config.Hidden, config.EntityId,
+            Add(new SpawnObjPacket(obj.EntityId, config.EObjId, config.TargetableStatus, config.Hidden, config.EntityId,
                 config.LayoutId, (uint)config.EventId, ActorOf(config.OwnerId), config.GimmickId, config.Radius, config.FateId, config.EventState,
                 config.Arg2, config.TimelineState, placement.Position.X, placement.Position.Y, placement.Position.Z, placement.Rotation));
         }
@@ -361,7 +361,7 @@ internal sealed class PacketRecorder
         public float Rotation => inner.Rotation;
         public float HitboxRadius => inner.HitboxRadius;
         public bool HasDrawObject => inner.HasDrawObject;
-        public bool IsDrawObjectVisible { get => inner.IsDrawObjectVisible; set => inner.IsDrawObjectVisible = value; }
+        public bool IsDrawObjectVisible => inner.IsDrawObjectVisible;
         public byte ModelState => inner.ModelState;
         public bool IsCasting => inner.IsCasting;
         public uint CastActionId => inner.CastActionId;
@@ -461,12 +461,6 @@ internal sealed class PacketRecorder
             recorder.RecordObjectControl(inner, category, [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8]);
             inner.ActorControl(category, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
         }
-
-        public void SetState(ushort state) => inner.SetState(state);
-        public ushort SharedTimelineState => inner.SharedTimelineState;
-        public void UpdateSharedTimelineState(ushort from, ushort to) => inner.UpdateSharedTimelineState(from, to);
-        public void ForceSharedGroupActive() => inner.ForceSharedGroupActive();
-        public void DeactivateSharedGroup() => inner.DeactivateSharedGroup();
 
         public void Despawn()
         {

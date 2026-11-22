@@ -48,7 +48,6 @@ public class UwuConstants
         public const uint UltimaWeapon = 8734;
         public const uint Aetheroplasm = 8735;
         public const uint Ultimaplasm = 8736;
-        public const uint Dummy = 9020;
     }
 
     public class BNpcLayoutId
@@ -62,12 +61,11 @@ public class UwuConstants
         public const uint BombBoulder = 0x701FD1;
         public const uint GraniteGaol = 0x701FD3;
         public const uint UltimaWeapon = 0x701FD7;
-        public const uint Dummy = 0x704D3F;
+        public const uint Aetheroplasm = 0x701FD8;
     }
 
     public class BNpcNameId
     {
-        public const uint Dummy = 108;
         public const uint BombBoulder = 1803;
         public const uint Ifrit = 1185;
         public const uint InfernalNail = 1186;
@@ -123,6 +121,7 @@ public class UwuConstants
         public const uint RadiantPlumePuddle = 11105;
         public const uint RockBuster = 11106;
         public const uint MountainBuster = 11107;
+        public const uint TitanAutoAttack = 872;
         public const uint WeightOfTheLandTitan = 11108;
         public const uint WeightOfTheLand = 11109;
         public const uint GeocrushJump = 11110;
@@ -132,7 +131,7 @@ public class UwuConstants
         public const uint Burst = 11114;
         public const uint RockThrow = 11115;
         public const uint RockThrowHelper = 11116;
-        public const uint GraniteImpactGaols = 11117;
+        public const uint GraniteImpactLong = 11117;
         public const uint Freefire = 11118;
         public const uint LandslideTitanNormal = 11119;
         public const uint LandslideLine = 11120;
@@ -147,6 +146,8 @@ public class UwuConstants
         public const uint RadiantPlumeUltima = 11133;
         public const uint LandslideUltima = 11134;
         public const uint LandslideLineUltima = 11135;
+        // Unnamed on the sheet; Ultima uses it on itself every ~6 s during Ultimate Annihilation.
+        public const uint UltimaSelf = 11136;
         public const uint Aetheroplasm = 11137;
         public const uint LightPillarUltima = 11138;
         public const uint LightPillarCircle = 11139;
@@ -165,7 +166,7 @@ public class UwuConstants
         public const uint Tumult = 11288;
         public const uint InfernalFetters = 11289;
         public const uint LandslideAwaken = 11298;
-        public const uint GraniteImpact = 11448;
+        public const uint GraniteImpactShort = 11448;
         public const uint PostUltimatePredation1 = 11475;
         public const uint PostUltimatePredation2 = 11476;
         public const uint PostUltimatePredation3 = 11477;
@@ -177,6 +178,8 @@ public class UwuConstants
 
     public static class TimelineId
     {
+        // UNVERIFIED what it plays; Garuda gets it once, as Weight of the Land starts.
+        public const ushort Garuda1411 = 1411;
         public const ushort RazorPlume = 1412;
         public const ushort WarpStart = 7737;
         public const ushort WarpStart2 = 7738;
@@ -189,7 +192,9 @@ public class UwuConstants
         public const ushort MistralSongVuln = SimOnlyStatus.First + 0;
         public const ushort ViscousVuln = SimOnlyStatus.First + 1;
         public const ushort SuperCycloneVuln = SimOnlyStatus.First + 2;
+        public const ushort AetheroplasmVuln = SimOnlyStatus.First + 3;
 
+        public const ushort Stun = 149;
         public const ushort VulnerabilityUp = 202;
         public const ushort Fetters = 292;
         public const ushort InfernalFetters = 377;
@@ -206,6 +211,7 @@ public class UwuConstants
 
     public class TetherId
     {
+        public const ushort Aetheroplasm = 1;
         public const ushort Mesohigh = 4;
         public const ushort InfernalFetters = 9;
         public const ushort SpinyFixate = 17;
@@ -218,6 +224,23 @@ public class UwuConstants
         public const uint Sludge = 0x1EA988;
     }
 
+    public const uint DirectorEventId = 0x80037573;
+
+    // The arena's SharedGroups, bound to EObjs the server spawns at zone-in: (LayoutId, GimmickId).
+    public class ArenaLayout
+    {
+        public static readonly (uint Layout, uint Gimmick) Titan = (0x707FC0, 0x707FBF);
+        // Switched to state 1 as Titan's phase ends.
+        public static readonly (uint Layout, uint Gimmick)[] SwitchedAfterTitan =
+        [
+            (0x70F01A, 0x6E707A),
+            (0x70F01B, 0x6E7079),
+            (0x70F01C, 0x6E707C),
+            (0x70F01D, 0x6E707B),
+        ];
+        public static readonly (uint Layout, uint Gimmick) Static = (0x708E98, 0x708100);
+    }
+
     public class LockonId
     {
         public const ushort MistralSong = 16;
@@ -227,6 +250,7 @@ public class UwuConstants
     public class KnockbackId
     {
         public const uint SuperCyclone = 123;
+        public const uint Upheaval = 117;
     }
 
     public class Duration

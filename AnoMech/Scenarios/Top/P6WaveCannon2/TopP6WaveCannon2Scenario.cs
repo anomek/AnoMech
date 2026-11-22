@@ -30,6 +30,7 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
     private TopP6WaveCannon2State state = null!;
     private SimWorld world = null!;
     private SimParty party = null!;
+    private SimEnemy? alphaOmega;
 
     // Exposed so MultiplayerManager can read the AI-relevant subset (InFirst) after a host
     // Start and broadcast it -- see UmadP3BlackHoleScenario.LastState for the pattern.
@@ -55,16 +56,15 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
 
     private void Run_Alpha_Omega_4000A771(bool solo)
     {
-        SimEnemy? alpha_Omega_4000A771 = null;
-        world.Events.Add(0f, () => alpha_Omega_4000A771 = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.AlphaOmega, NameId: BNpcNameId.AlphaOmega, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.AlphaOmega, Placement: new Placement(new Vector3(0.000f, -0.000f, 0.000f), -MathF.PI))));
-        world.Events.Add(0.5f, () => alpha_Omega_4000A771?.AddStatus(StatusId.CodeMi));
-        world.Events.Add(1.90f, () => alpha_Omega_4000A771?.Cast(Actions.CosmoArrow, new Vector3(-0.008f, -0.015f, -0.008f)));
+        world.Events.Add(0f, () => alphaOmega = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.AlphaOmega, NameId: BNpcNameId.AlphaOmega, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.AlphaOmega, Placement: new Placement(new Vector3(0.000f, -0.000f, 0.000f), -MathF.PI))));
+        world.Events.Add(0.5f, () => alphaOmega?.AddStatus(StatusId.CodeMi));
+        world.Events.Add(1.90f, () => alphaOmega?.Cast(Actions.CosmoArrow, new Vector3(-0.008f, -0.015f, -0.008f)));
         if (solo) return;
-        world.Events.Add(16.03f, () => alpha_Omega_4000A771?.Cast(Actions.AlphaOmegaWaveCannon, new Vector3(-0.008f, -0.015f, -0.008f)));
+        world.Events.Add(16.03f, () => alphaOmega?.Cast(Actions.AlphaOmegaWaveCannon, new Vector3(-0.008f, -0.015f, -0.008f)));
         world.Events.Add(27.40f, () =>
         {
             if (party.Get(state.WildChargeTarget) is { } target)
-                alpha_Omega_4000A771?.Cast(Actions.WaveCannonWildCharge, target);
+                alphaOmega?.Cast(Actions.WaveCannonWildCharge, target);
         });
     }
     
@@ -100,24 +100,12 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
         
         for (int i = 0; i < 12; i++)
         {
-            SimEnemy? alpha_Omega_4000A40B = null;
-            world.Events.Add(0f, () => alpha_Omega_4000A40B = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.AlphaOmega, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0.200f, -0.000f, 19.320f), 3.140f))));
-            
             var offset = initial[i/4];
             var e = early[i/4];
             var pos = i % 2 == 0 ? new Placement(new(-20f, 0, offset), MathF.PI/2) : new Placement(new(offset, 0, -20), 0);
             var inhale = i % 4 > 1;
 
-            if (e)
-            {
-                world.Events.Add(1.82f, () => alpha_Omega_4000A40B?.SetPosition(pos));
-                world.Events.Add(1.90f, () => CastCosmoArrow(alpha_Omega_4000A40B, inhale));
-            }
-            else
-            {
-                world.Events.Add(3.82f, () => alpha_Omega_4000A40B?.SetPosition(pos));
-                world.Events.Add(3.91f, () => CastCosmoArrow(alpha_Omega_4000A40B, inhale));
-            }
+            world.Events.Add(e ? 1.90f : 3.91f, () => alphaOmega?.CastFromHelper(inhale ? Actions.Inhale : Actions.CosmoArrowOmen, at: pos));
             
             var list = Init(early, initial, []);
             for (int k = 0; k < 7; k++)
@@ -129,35 +117,26 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
                     var pos2 = newI % 2 == 0 ? new Placement(new(-20f, 0, offset), MathF.PI/2) : new Placement(new(offset, 0, -20), 0);
                     var delta = k * 2f;
                     
-                    world.Events.Add(11.82f + delta, () => alpha_Omega_4000A40B?.SetPosition(pos2));
-                    world.Events.Add(11.91f + delta, () => alpha_Omega_4000A40B?.Cast(Actions.CosmoArrowLine));
+                    world.Events.Add(11.91f + delta, () => alphaOmega?.CastFromHelper(Actions.CosmoArrowLine, at: pos2));
                 }
                 list = k == 0 ? Init(early, initial, list) : Progress(list);
             }
         }
     }
 
-    private static void CastCosmoArrow(SimEnemy? helper, bool inhale)
-    {
-        if (inhale) helper?.Cast(Actions.Inhale);
-        else helper?.Cast(Actions.CosmoArrowOmen);
-    }
-
     private void Run_Alpha_Omega_4000A40C()
     {
         for (int index = 0; index < 4; index++)
         {
-            SimEnemy? alpha_Omega_4000A40C = null;
             var i = index;
-            world.Events.Add(0f, () => alpha_Omega_4000A40C = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaHelper, NameId: BNpcNameId.AlphaOmega, Level: 1, Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.InvisibleHelper, Placement: new Placement(new Vector3(0f, -0.000f, 0.000f), 1.570f))));
-            world.Events.Add(19.07f, () => CastProtean(alpha_Omega_4000A40C, state.ProteanOrder.Get(i)));
-            world.Events.Add(21.07f, () => CastProtean(alpha_Omega_4000A40C, state.ProteanOrder.Get(i + 4)));
+            world.Events.Add(19.07f, () => CastProtean(state.ProteanOrder.Get(i)));
+            world.Events.Add(21.07f, () => CastProtean(state.ProteanOrder.Get(i + 4)));
         }
     }
 
-    private static void CastProtean(SimEnemy? helper, SimCharacter? target)
+    private void CastProtean(SimCharacter? target)
     {
-        if (target is not null) helper?.Cast(Actions.WaveCannonProtean, target);
+        if (target is not null) alphaOmega?.CastFromHelper(Actions.WaveCannonProtean, target);
     }
 
     public MpMessage? BuildReplayStateMessage()

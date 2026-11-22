@@ -828,12 +828,17 @@ public sealed unsafe partial class ZoneControl : IZoneControl
     {
         Plugin.AddonLifecycle.UnregisterListener(AddonEvent.PostSetup, "Social", OnSocialPostSetup);
 
-        // The inn reload finishes over the next second and then sends its post-load packets, which
-        // an unload has no frames left to hold back.
-        if (IsActive) Die("AnoMech was unloaded during a run");
+        // Game exit: no frames are left to revert or lift in, and the server still has the
+        // character in the inn. UNVERIFIED that what the closing client sends unfiltered is harmless.
+        var gameClosing = Plugin.Framework.IsFrameworkUnloading;
+
+        // Plugin.DisposeAsync leaves the stay and waits out the lift first, so only an unload
+        // that couldn't wait gets here. The inn reload finishes over the next second and then
+        // sends its post-load packets, which an unload has no frames left to hold back.
+        if (IsActive && !gameClosing) Die("AnoMech was unloaded during a run");
 
         // The 1s lift after a Revert may still be pending, position re-assert included.
-        if (guardArmed)
+        if (guardArmed && !gameClosing)
         {
             // Nothing would close the window again: its listener is gone.
             partyResyncDue = false;

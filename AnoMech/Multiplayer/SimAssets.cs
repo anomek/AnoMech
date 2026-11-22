@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using AnoMech.Core;
 using AnoMech.Core.EnemyActions;
+using AnoMech.Core.Map;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.UserActions;
 
@@ -18,7 +19,8 @@ internal enum SimAssetKind { Action, BNpcBase, EObj, Tether, Layout, EventId, Mo
 // unconstrained id field would let a malicious host make someone else's client load anything.
 //
 // The allowlist is harvested by reflection: every constant in a class named for an id kind
-// (UmadConstants.ActionId, ...) plus any static field whose own name names one.
+// (UmadConstants.ActionId, ...) plus any static field whose own name names one, every EnemyAction's
+// action and every DutyInitData's helper pool BNpcBase.
 // Declaring a constant is registering it; there is no manifest to drift.
 //
 // A keyword must be the id-suffixed form, never a bare noun: the field name wins over the class,
@@ -64,6 +66,15 @@ internal static class SimAssets
                     try
                     {
                         if (field.GetValue(null) is EnemyAction action) numbers[SimAssetKind.Action].Add(action.ActionId);
+                    }
+                    catch (Exception) { }
+                    continue;
+                }
+                if (field.FieldType == typeof(DutyInitData))
+                {
+                    try
+                    {
+                        if (field.GetValue(null) is DutyInitData duty) numbers[SimAssetKind.BNpcBase].Add(duty.HelperPool.BNpcBaseId);
                     }
                     catch (Exception) { }
                     continue;

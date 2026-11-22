@@ -45,11 +45,11 @@ public sealed class FruP2LightRampantState
         var tethers = duties.Where(d => d.Value == LightRampantDuty.Tether).Select(d => d.Role).ToList();
         var puddles = baits.Concat(roles.Where(r => !tethers.Contains(r))).Concat(roles).Distinct().Take(2)
                            .OrderBy(r => Array.IndexOf(PuddlePriority, r)).ToArray();
-        InitiallySteeped = rng.Shuffle(Enum.GetValues<PartyRole>()).Take(4).ToList();
-        WeightSlot = rng.Next(6);
+        InitiallySteeped = overrides.InitiallySteeped ?? rng.Shuffle(Enum.GetValues<PartyRole>()).Take(4).ToList();
+        WeightSlot = overrides.WeightSlot ?? rng.Next(6);
         NorthOrbsFirst = overrides.NorthOrbsFirst ?? rng.NextBool();
         Pairs = overrides.Pairs ?? rng.NextBool();
-        SupportPairs = rng.NextBool();
+        SupportPairs = overrides.SupportPairs ?? rng.NextBool();
 
         var north = new[] { PartyRole.OffTank, PartyRole.MainTank, PartyRole.ShieldHealer, PartyRole.RegenHealer }.Except(puddles).ToList();
         var south = new[] { PartyRole.PhysRangedDps, PartyRole.CasterDps, PartyRole.MeleeDpsA, PartyRole.MeleeDpsB }.Except(puddles).ToList();

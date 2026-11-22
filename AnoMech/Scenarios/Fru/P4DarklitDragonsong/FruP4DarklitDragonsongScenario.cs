@@ -27,9 +27,8 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     private readonly FruP4DarklitDragonsongSettingsWindow settingsWindow = new();
 
     private static readonly Vector3 FragmentPosition = new(0, 0, -16);
-    private const float S = 1f / 2.358f;
-    private const float ChainMin = 22f * S;
-    private const float ChainMax = 61f * S;
+    // Curse chains stretched shorter than this snap. UNVERIFIED: retail's limit lies between 9.4 and 9.8.
+    private const float CurseMinLength = 9.5f;
     // The Oracle's jumps land this short of their target, and don't move her when it's closer.
     private const float JumpLandingShort = 7.5f;
     // It takes every one of these and breaks on any other hit.
@@ -41,12 +40,8 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
 
     private SimWorld world = null!;
     private FruP4DarklitDragonsongState state = null!;
-    private SimEnemy? usurper, oracle, wyrm, fragment, gaia, ryne, edgeHelper;
-    private readonly SimEnemy?[] akhRhaiHelpers = new SimEnemy?[8];
-    // 0 and 7 take the north and south tower, 2-5 Path of Light; 1 and 6 speak for the Oracle.
-    private readonly SimEnemy?[] helpers = new SimEnemy?[8];
-    private int akhRhaiPuddles;
-    private int pathOfLightBaits;
+    private SimEnemy? usurper, oracle, wyrm, fragment, gaia, ryne;
+    private readonly List<Vector3> akhRhaiPuddles = [];
     private readonly List<SimTether> links = [];
     private bool fragmentBroken;
     private readonly List<MapEffectTower> towers = [];
@@ -58,8 +53,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         links.Clear();
         fragmentBroken = false;
         towers.Clear();
-        akhRhaiPuddles = 0;
-        pathOfLightBaits = 0;
+        akhRhaiPuddles.Clear();
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<FruP4DarklitDragonsongState>)AiStrats[idx]).Run(state, world);
 
@@ -99,11 +93,10 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         world.Events.Add(24.1f, () => BattleTalk(gaia, 0x7, BNpcNameId.Gaia));
         world.Events.Add(24.2f, () => usurper?.Cast(ActionId.PathOfLightCast, animationLock: 2.1f));
         world.Events.Add(CursesAt, () => Chain(StatusId.RefulgentFate, TetherId.CurseOfEverlastingLight, CursesEndAt - CursesAt)
-            .ForEach(curse => curse.BreaksWhen(t => t.StretchLt(ChainMin) || t.StretchGt(ChainMax))));
+            .ForEach(curse => curse.BreaksWhen(t => t.StretchLt(CurseMinLength))));
         world.Events.Add(29.1f, () => BattleTalk(ryne, 0x8, BNpcNameId.Ryne));
         world.Events.Add(TowersAt, BrightHunger);
         world.Events.Add(32.2f, () => oracle?.Cast(ActionId.SpiritTakerCast, animationLock: 0.2f));
-        world.Events.Add(33f, AimPathOfLight);
         world.Events.Add(33.05f, PathOfLight);
         world.Events.Add(35f, () => BattleTalk(gaia, 0x9, BNpcNameId.Gaia));
         world.Events.Add(35.1f, () => MarkWaters(LockonId.WaterCountdown));
@@ -167,9 +160,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
             0x4020B, LayoutId.VisionOfGaia, 0x79);
         ryne = SpawnVision(BNpcBaseId.VisionOfRyne, BNpcNameId.Ryne, Appearance.VisionOfRyne, new Placement(new Vector3(0.71f, 0, -16), -0.84f),
             0x4020A, LayoutId.VisionOfRyne, 0x07);
-        for (var i = 0; i < akhRhaiHelpers.Length; i++) akhRhaiHelpers[i] = SpawnHelper(BNpcNameId.Usurper);
-        for (var i = 0; i < helpers.Length; i++) helpers[i] = SpawnHelper(i is 1 or 6 ? BNpcNameId.Oracle : BNpcNameId.Usurper);
-        edgeHelper = SpawnHelper(BNpcNameId.FragmentOfFate);
+
     }
 
     // Spawned as they stand once shown: retail's DisplayFlags less the hidden-until-shown bit.
@@ -194,13 +185,6 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         EnemyList: EnemyListMode.Never,
         Placement: new Placement(Vector3.Zero, MathF.PI)));
 
-    private SimEnemy? SpawnHelper(uint nameId) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.Helper,
-        NameId: nameId,
-        Level: 1,
-        EnemyList: EnemyListMode.Never,
-        Visibility: SpawnVisibility.InvisibleHelper,
-        Placement: new Placement(Vector3.Zero, 0f)));
 
     private void BattleTalk(SimEnemy? speaker, uint line, uint nameId)
     {
@@ -210,16 +194,10 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     private void EdgeOfOblivion()
     {
         fragment?.Cast(Actions.EdgeOfOblivion);
-        edgeHelper?.SetPosition(new Placement(FragmentPosition, 0f));
-        edgeHelper?.Cast(Actions.EdgeOfOblivionAnimation);
+        fragment?.CastFromHelper(Actions.EdgeOfOblivionAnimation);
     }
 
-    private void DrachenArmor()
-    {
-        if (usurper is null) return;
-        helpers[0]?.SetPosition(usurper.Placement());
-        helpers[0]?.Cast(ActionId.DrachenArmor, animationLock: 2.1f);
-    }
+    private void DrachenArmor() => usurper?.CastFromHelper(ActionId.DrachenArmor, animationLock: 2.1f);
 
     private void BreakFragmentOnAvoidableHit(ActionResolved resolved)
     {
@@ -235,20 +213,18 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
 
     private void AkhRhai()
     {
-        var members = world.Party.ActiveMembers().ToList();
-        akhRhaiPuddles = members.Count;
-        for (var i = 0; i < members.Count; i++)
+        foreach (var member in world.Party.ActiveMembers().ToList())
         {
-            var position = members[i].Position;
-            akhRhaiHelpers[i]?.SetPosition(position);
-            akhRhaiHelpers[i]?.Cast(Actions.AkhRhaiCast, position);
+            var position = member.Position;
+            akhRhaiPuddles.Add(position);
+            usurper?.CastFromHelper(ActionId.AkhRhaiCast, position, at: new Placement(position, 0f), animationLock: 3.1f);
         }
     }
 
     private void RepeatAkhRhai()
     {
-        foreach (var helper in akhRhaiHelpers.Take(akhRhaiPuddles))
-            helper?.Cast(Actions.AkhRhai, helper.Position);
+        foreach (var position in akhRhaiPuddles)
+            usurper?.CastFromHelper(Actions.AkhRhai, position, at: new Placement(position, 0f));
     }
 
     private List<SimTether> Chain(ushort statusId, ushort tetherId, float duration)
@@ -279,7 +255,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
             member.RemoveStatus(StatusId.RefulgentChain);
             member.RemoveStatus(StatusId.RefulgentFate);
         }
-        helpers[0]?.Cast(Actions.RefulgentFate);
+        usurper?.CastFromHelper(Actions.RefulgentFate);
     }
 
     private static Vector3 Tower(int index) => new(0, 0, index == 0 ? -8f : 8f);
@@ -301,29 +277,15 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         for (var i = 0; i < 2; i++)
         {
             world.Map.AddEffect(MapEffect.TowerHide, (byte)(MapEffect.DarklitFirstTower + i));
-            BrightHunger(helpers[i == 0 ? 0 : 7], Tower(i));
+            usurper?.CastFromHelper(Actions.BrightHungerDarklit, Tower(i), at: new Placement(Tower(i), 0f));
         }
     }
 
-    private void BrightHunger(SimEnemy? helper, Vector3 tower)
-    {
-        helper?.SetPosition(tower);
-        helper?.Cast(Actions.BrightHungerDarklit, tower);
-    }
-
     // Path of Light's four cones go to whoever stands nearest the center.
-    private void AimPathOfLight()
-    {
-        var baits = world.Party.ActiveMembers().OrderBy(m => m.Position.LengthSquared()).Take(4).ToList();
-        pathOfLightBaits = baits.Count;
-        for (var i = 0; i < baits.Count; i++)
-            helpers[2 + i]?.SetPosition(new Placement(Vector3.Zero, 0f).Face(baits[i].Position));
-    }
-
     private void PathOfLight()
     {
-        for (var i = 0; i < pathOfLightBaits; i++)
-            helpers[2 + i]?.Cast(Actions.PathOfLight);
+        foreach (var bait in world.Party.ActiveMembers().OrderBy(m => m.Position.LengthSquared()).Take(4).ToList())
+            usurper?.CastFromHelper(Actions.PathOfLight, at: new Placement(Vector3.Zero, 0f).Face(bait.Position));
     }
 
     // Aimed at a point behind the north-facing Usurper on the wing's side: the sheet's 80y rect runs
@@ -351,13 +313,8 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
 
     private void DarkWater()
     {
-        SimEnemy?[] casters = [helpers[1], helpers[6]];
-        var i = 0;
         foreach (var holder in Waters())
-        {
-            casters[i]?.SetPosition(holder.Position);
-            casters[i++]?.Cast(Actions.DarkWater, holder);
-        }
+            oracle?.CastFromHelper(Actions.DarkWater, holder, at: new Placement(holder.Position, 0f));
     }
 
     private void SomberDance(EnemyAction action, bool farthest)
@@ -372,15 +329,14 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
 
     private void AkhMorn()
     {
-        CastAkhMorn(helpers[0], Actions.AkhMornUsurperHit, PartyRole.MainTank);
-        CastAkhMorn(helpers[1], Actions.AkhMornOracleHit, PartyRole.OffTank);
+        CastAkhMorn(usurper, Actions.AkhMornUsurperHit, PartyRole.MainTank);
+        CastAkhMorn(oracle, Actions.AkhMornOracleHit, PartyRole.OffTank);
     }
 
-    private void CastAkhMorn(SimEnemy? helper, EnemyAction action, PartyRole role)
+    private void CastAkhMorn(SimEnemy? caster, EnemyAction action, PartyRole role)
     {
         if (world.Party.Get(role) is not { } tank || !tank.IsAlive()) return;
-        helper?.SetPosition(tank.Position);
-        helper?.Cast(action, tank);
+        caster?.CastFromHelper(action, tank, at: new Placement(tank.Position, 0f));
     }
 
     public void OnActionResolved(ActionResolved resolved)
@@ -390,7 +346,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         Towers.ResolveTower(world, resolved, ActionId.BrightHunger, Actions.InescapableIllumination, minSoakers: 2);
     }
     public void OnTetherEnded(TetherEnded ended) => BreakChainsOnSnappedLink(ended);
-    public void OnStatusAdded(StatusAdded added) => Lightsteeped.ExplodeFifthStack(added);
+    public void OnStatusAdded(StatusAdded added) => Lightsteeped.ExplodeFifthStack(world, added);
 
     public void Tick(float delta, float elapsed)
     {

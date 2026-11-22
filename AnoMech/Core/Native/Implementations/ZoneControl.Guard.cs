@@ -295,6 +295,8 @@ public sealed unsafe partial class ZoneControl
     // ---- Session guard ------------------------------------------------------------------
 
     private bool guardArmed;
+    // From Enter until the lift after the inn reload: the hooks must outlive this.
+    internal bool GuardArmed => guardArmed;
     private long guardArmedAt;
     private int stayId;
     private string? tripReason;

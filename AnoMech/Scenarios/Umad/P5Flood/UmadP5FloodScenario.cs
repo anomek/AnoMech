@@ -38,16 +38,8 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
     private SimWorld world = null!;
     private SimParty party = null!;
     private SimEnemy? kefka;
-    // Spawned once up front: a DrawObject only comes up a frame or two after SpawnEnemy, and a
-    // helper that spawns and casts in the same call renders nothing.
-    private SimEnemy? chaoticFloodCaster;
-    // Indexed per tick: every telegraph lands before any resolve, so a shared buffer clobbered
-    // all but the last tick's pair.
-    private readonly SimEnemy?[]?[] tickHelpers = new SimEnemy?[]?[TickCount];
-    // Each tick's lane anchors and rotation, for ResolveWaves.
-    private readonly (Vector3 A, Vector3 B, float Rotation)[] tickLanes = new (Vector3, Vector3, float)[TickCount];
 
-    // Kefka and the carriers spawn at t=0; anything they do in their first 0.5s is dropped.
+    // Kefka spawns at t=0; anything it does in its first 0.5s is dropped.
     private const float FloodCastStart = 1.0f;
     // internal: UmadP5FloodAi schedules against these, and hand-copied duplicates rotted once.
     internal const float FirstTelegraphAt = 1.1f;
@@ -57,8 +49,7 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
     internal const float ResolveDelayAfterTelegraph = 6.05f;
     private const float StackLeadBeforeWaves = 0.12f;
     internal const int TickCount = 4;
-    // Helpers live until DespawnAll (a wave VFX dies with its actor, and the real helpers
-    // persist); this is the last wave's travel-and-fade window, sized generously.
+    // The last wave's travel-and-fade window, sized generously.
     private const float DespawnBuffer = 6.0f;
 
     // From the real ActionEffect headers: helper actions 1.1s, FloodCast 3.1s. Sent as 0, the
@@ -69,8 +60,8 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
 
     // Each diagonal has a fixed +-45 deg rotation, and its 4 anchors sit at along=-20 (the wall),
     // offset +-5 or +-15 from the centreline, so the near and far rect on one side tile edge to
-    // edge. The 40 x 10 rect (anchor at the back edge) runs straight through the arena. Its carrier
-    // stands at the lane's midpoint and casts onto the anchor: the wave VFX plays on the carrier,
+    // edge. The 40 x 10 rect (anchor at the back edge) runs straight through the arena. Its helper
+    // stands at the lane's midpoint and casts onto the anchor: the wave VFX plays on the helper,
     // and played from the wall half its 40y sweep would fall outside the arena. The near
     // point on one side always resolves with the far point on the other, then the remaining
     // pair; NW-SE mirrors NE-SW in X. Both hit VFX (z5r2_b2_g02/g04_c0v) are action vfx the
@@ -116,8 +107,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         party = worldParam.Party;
         state = new UmadP5FloodState(world.Rng, settingsWindow.Overrides);
         LastState = state;
-        chaoticFloodCaster = null;
-        for (var i = 0; i < TickCount; i++) tickHelpers[i] = null;
         var solo = !selectedAi.HasValue;
 
         if (selectedAi is { } idx && idx < AiStrats.Count)
@@ -142,27 +131,19 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
 
         for (var tick = 0; tick < TickCount; tick++)
         {
-            var (a, b, rotation) = ticks[tick];
-            tickLanes[tick] = (a, b, rotation);
-            tickHelpers[tick] = [SpawnHelper(LaneMiddle(a, rotation), rotation), SpawnHelper(LaneMiddle(b, rotation), rotation)];
-        }
-
-        for (var tick = 0; tick < TickCount; tick++)
-        {
             var tTelegraph = FirstTelegraphAt + tick * TelegraphStagger;
             var tResolve = tTelegraph + ResolveDelayAfterTelegraph;
             var (a, b, rotation) = ticks[tick];
-            var tickIndex = tick; // for loop's own `tick` is one shared variable -- copy per iteration
-            world.Events.Add(tTelegraph, () => TelegraphTick(tickIndex, a, b, rotation));
+            world.Events.Add(tTelegraph, () => TelegraphTick(a, b, rotation));
             if (!solo) world.Events.Add(tResolve - StackLeadBeforeWaves, ResolveChaoticFlood);
-            world.Events.Add(tResolve, () => ResolveWaves(tickIndex));
+            world.Events.Add(tResolve, () => ResolveWaves(a, b, rotation));
         }
 
         var lastResolve = FirstTelegraphAt + (TickCount - 1) * TelegraphStagger + ResolveDelayAfterTelegraph;
         world.Events.Add(lastResolve + DespawnBuffer, DespawnAll);
     }
 
-    // Host and peer alike: a peer's wave carriers replay the same gimmick timelines.
+    // Host and peer alike: a peer's wave helpers replay the same gimmick timelines.
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
         Natives.TimelinePreload.Preload(WaveTimelines, "UmadP5Flood");
@@ -201,30 +182,20 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             Visibility: SpawnVisibility.Visible,
             Placement: new Placement(Vector3.Zero, MathF.PI),
             LayoutId: BNpcLayoutId.KefkaP5));
-
-        // ~6s before its first cast, so its DrawObject is live by then.
-        chaoticFloodCaster = SpawnHelper(Vector3.Zero, MathF.PI);
     }
 
-    private void TelegraphTick(int tick, Vector3 a, Vector3 b, float rotation)
+    // The cast alone draws the telegraph (the native ActorCastPacket path spawns the sheet omen);
+    // an explicit SpawnOmen on top drew a second one.
+    private void TelegraphTick(Vector3 a, Vector3 b, float rotation)
     {
-        var helpers = tickHelpers[tick] ??= [null, null];
-        EnsureCarrier(ref helpers[0], LaneMiddle(a, rotation), rotation);
-        EnsureCarrier(ref helpers[1], LaneMiddle(b, rotation), rotation);
-        helpers[0]?.Cast(ActionId.FloodTelegraph, a, animationLock: HelperAnimationLock);
-        helpers[1]?.Cast(ActionId.FloodTelegraph, b, animationLock: HelperAnimationLock);
-        // The cast alone draws the telegraph (the native ActorCastPacket path spawns the sheet
-        // omen); an explicit SpawnOmen on top drew a second one.
+        kefka?.CastFromHelper(ActionId.FloodTelegraph, a, at: new Placement(LaneMiddle(a, rotation), rotation), animationLock: HelperAnimationLock);
+        kefka?.CastFromHelper(ActionId.FloodTelegraph, b, at: new Placement(LaneMiddle(b, rotation), rotation), animationLock: HelperAnimationLock);
     }
 
-    // No per-helper despawn: the wave VFX lives on the caster and outlasts any short grace window,
-    // and the real helpers persist through the whole mechanic.
-    private void ResolveWaves(int tick)
+    private void ResolveWaves(Vector3 a, Vector3 b, float rotation)
     {
-        if (tickHelpers[tick] is not { } helpers) return;
-        var (a, b, _) = tickLanes[tick];
-        helpers[0]?.Cast(UmadActions.FloodWave, a);
-        helpers[1]?.Cast(UmadActions.FloodWave, b);
+        kefka?.CastFromHelper(UmadActions.FloodWave, a, at: new Placement(LaneMiddle(a, rotation), rotation));
+        kefka?.CastFromHelper(UmadActions.FloodWave, b, at: new Placement(LaneMiddle(b, rotation), rotation));
     }
 
     // Cast from arena centre, where the real caster stands, onto a fresh non-tank each tick.
@@ -239,52 +210,8 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             else role = state.PickStackTarget();
         }
         if (target is null) return;
-
-        EnsureCarrier(ref chaoticFloodCaster, Vector3.Zero, MathF.PI);
-        chaoticFloodCaster?.Cast(UmadActions.ChaoticFlood, target);
+        kefka?.CastFromHelper(UmadActions.ChaoticFlood, target, at: new Placement(Vector3.Zero, MathF.PI));
     }
-
-    // The Chaos carrier stands in if the handler declines.
-    private SimEnemy? SpawnHelper(Vector3 position, float rotation)
-    {
-        var real = world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.KefkaHelper,
-            NameId: BNpcNameId.Kefka,
-            Level: 1,
-            Targetable: false,
-            EnemyList: EnemyListMode.Never,
-            Visibility: SpawnVisibility.InvisibleHelper,
-            Placement: new Placement(position, rotation)));
-        if (real != null) return real;   // pending until the engine fills the slot (SimEnemy.PacketSpawnPending)
-        DiagnosticLog.Warn($"[UmadP5Flood] real-packet helper spawn at {position} was refused -- falling back to the Chaos carrier.");
-        return SpawnChaosCarrier(position, rotation);
-    }
-
-    // A carrier whose packet spawn the engine dropped is replaced by the Chaos carrier; one still
-    // in flight is left alone (its cast this frame is lost).
-    private void EnsureCarrier(ref SimEnemy? helper, Vector3 position, float rotation)
-    {
-        if (helper is { IsActive: true, PacketSpawnPending: false }) return;
-        if (helper is { PacketSpawnPending: true })
-        {
-            DiagnosticLog.Warn($"[UmadP5Flood] carrier at {position} is still awaiting its packet actor at cast time -- this cast is lost.");
-            return;
-        }
-        DiagnosticLog.Warn($"[UmadP5Flood] carrier at {position} is {(helper == null ? "missing" : "dead (packet spawn dropped)")} -- spawning the Chaos carrier in its place.");
-        helper?.Despawn();
-        helper = SpawnChaosCarrier(position, rotation);
-    }
-
-    // Chaos is a real Type=3 model at scale 1, hidden by its DrawObject's visibility.
-    private SimEnemy? SpawnChaosCarrier(Vector3 position, float rotation)
-        => world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.Chaos,
-            NameId: BNpcNameId.Kefka,
-            Level: 1,
-            Targetable: false,
-            EnemyList: EnemyListMode.Never,
-            Visibility: SpawnVisibility.HiddenUntilShown,
-            Placement: new Placement(position, rotation)));
 
     // The gimmick timelines this mechanic plays (LoadType 0: not resident, not in Kefka's own
     // set); every run put 10690 in the base slot with its clock stuck at 0.00 before dropping it.
@@ -295,16 +222,5 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         (1378, "mon_sp/gimmick/monster_hanyou_hitclip_nomi_saisoku"),      // FloodTelegraph AnimationEnd
     ];
 
-    private void DespawnAll()
-    {
-        kefka?.Despawn();
-        chaoticFloodCaster?.Despawn();
-        chaoticFloodCaster = null;
-        for (var i = 0; i < TickCount; i++)
-        {
-            if (tickHelpers[i] is not { } helpers) continue;
-            foreach (var helper in helpers) helper?.Despawn();
-            tickHelpers[i] = null;
-        }
-    }
+    private void DespawnAll() => kefka?.Despawn();
 }

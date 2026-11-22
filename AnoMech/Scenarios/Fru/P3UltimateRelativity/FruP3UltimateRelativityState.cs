@@ -50,16 +50,18 @@ public sealed class FruP3UltimateRelativityState
         debuffs[supports[1]] = RelativityDebuff.MediumSupport;
         debuffs[supports[2]] = RelativityDebuff.LongSupport;
         debuffs[supports[3]] = RelativityDebuff.LongSupport;
+        if (overrides.Debuffs is { } forced)
+            foreach (var (role, debuff) in forced) debuffs[role] = debuff;
         DpsIce = overrides.DpsIce ?? rng.NextBool();
-        North = rng.Next(8);
-        ClockwiseMask = rng.Next(256);
+        North = overrides.North ?? rng.Next(8);
+        ClockwiseMask = overrides.ClockwiseMask ?? rng.Next(256);
         for (var wave = 0; wave < 3; wave++)
         {
             var w = wave;
             var valid = Enum.GetValues<PartyRole>().Where(role => CanTakeDarkness(role, w) && !darkness.Take(w).Contains(role)).ToArray();
-            darkness[wave] = valid[rng.Next(valid.Length)];
+            darkness[wave] = overrides.Darkness?[wave] ?? valid[rng.Next(valid.Length)];
         }
-        ShellCrusherTarget = rng.NextRole();
+        ShellCrusherTarget = overrides.ShellCrusherTarget ?? rng.NextRole();
     }
 
     public RelativityDebuff Debuff(PartyRole role) => debuffs[role];

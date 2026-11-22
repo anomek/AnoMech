@@ -14,6 +14,7 @@ public static class FruReplayData
 {
     public static readonly DutyInitData DutyInitData = new(
         new EntranceBarrier(2007457, 0xA58C08, 0xA58C07, new Vector3(100f, 0f, 115f), 0f),
+        new HelperPool(9020, 24),
         [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         [],
         []);

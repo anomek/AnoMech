@@ -51,10 +51,6 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     private List<SimEnemy?>? armUnits;
     private HelloWorld? nearSolver;
     private HelloWorld? farSolver;
-    private readonly Dictionary<SimCharacter, SimEnemy?> tetherHelpers = [];
-    private List<SimEnemy?> monitorHelpers = [];
-    private SimEnemy? nearHelloHelper;
-    private SimEnemy? farHelloHelper;
     private HelloWorldFailures helloWorldFailures = null!;
 
     public void Run(SimWorld worldParam, int? selectedAi)
@@ -64,14 +60,13 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         state = new TopP5DeltaState(world.Rng, settingsWindow.Overrides, party.PlayerRole);
         LastState = state;
         lastBroadcastBeyondDefenseTarget = null;
-        helloWorldFailures = new HelloWorldFailures(world);
+        helloWorldFailures = new HelloWorldFailures(world, () => omega);
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP5DeltaState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0.1f, SpawnOmega);
         world.Events.Add(2f, () => omega?.Cast(Actions.RunMiDeltaVersion));
         world.Events.Add(2.1f, SpawnDeltaAdds);
-        world.Events.Add(2.1f, SpawnHelpers);
         // Delta arena transition animation (index 0x07) — real game fires these
         // at +8/+24/+27/+42s relative to the Run: mi cast. Cast is at t=2f here.
         world.Events.Add(10f, EyeSpawn);
@@ -281,34 +276,8 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     {
         tether.Despawn();
         if (tether.A is not { } a || tether.B is not { } b) return;
-        SpawnHwTetherHelper(a, explosion);
-        SpawnHwTetherHelper(b, explosion);
-    }
-
-    // Casts on a helper spawned the same frame play no animation, so every helper exists well
-    // before its cast and is moved onto the spot when it fires.
-    private void SpawnHelpers()
-    {
-        foreach (var member in party.AllMembers())
-            tetherHelpers[member] = SpawnHelper();
-        monitorHelpers = Enumerable.Range(0, 4).Select(_ => SpawnHelper()).ToList();
-        nearHelloHelper = SpawnHelper();
-        farHelloHelper = SpawnHelper();
-        helloWorldFailures.SpawnHelpers();
-    }
-
-    private SimEnemy? SpawnHelper()
-        => world.SpawnEnemy(new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.OmegaHelper, Visibility: SpawnVisibility.InvisibleHelper,
-            Targetable: false,
-            EnemyList: EnemyListMode.Never,
-            Placement: new Placement(Vector3.Zero, 0f)));
-
-    private void SpawnHwTetherHelper(SimCharacter member, EnemyAction action)
-    {
-        if (tetherHelpers.GetValueOrDefault(member) is not { } helper) return;
-        helper.SetPosition(member.Position);
-        helper.Cast(action);
+        omega?.CastFromHelper(explosion, at: new Placement(a.Position, 0f));
+        omega?.CastFromHelper(explosion, at: new Placement(b.Position, 0f));
     }
 
     private void StartMonitors()
@@ -419,12 +388,8 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         targets.AddRange(MonitorTargets(playerMonitor.Placement(), state.PlayerMonitorSide, exclude: playerMonitor));
         playerMonitor.RemoveStatus(state.PlayerMonitorSide.MonitorDebuffId);
 
-        foreach (var (member, monitorHelper) in targets.Zip(monitorHelpers))
-        {
-            if (monitorHelper is null) continue;
-            monitorHelper.SetPosition(member.Position);
-            monitorHelper.Cast(Actions.OversampledWaveCannon, member);
-        }
+        foreach (var member in targets.Take(4))
+            finalHelper?.CastFromHelper(Actions.OversampledWaveCannon, member, at: new Placement(member.Position, 0f));
     }
 
     private IReadOnlyList<SimCharacter> MonitorTargets(Placement src, Side side, SimCharacter? exclude)
@@ -457,19 +422,15 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
     private void DropHelloPuddle(PartyRole role, bool near)
     {
         if (near)
-            nearSolver = new HelloWorld(world.Party, role, true);
+            nearSolver = helloWorldFailures.Chain(role, true);
         else
-            farSolver = new HelloWorld(world.Party, role, false);
+            farSolver = helloWorldFailures.Chain(role, false);
         HopHelloPuddle(near);
     }
 
     private void HopHelloPuddle(bool near)
     {
-        var solver = near ? nearSolver : farSolver;
-        var helper = near ? nearHelloHelper : farHelloHelper;
-        if (solver is null) return;
-        solver.SetPosition(helper);
-        solver.CastSpell(helper);
+        (near ? nearSolver : farSolver)?.CastSpell(omega);
     }
 
     // Delta arena transition animation (index 0x07).

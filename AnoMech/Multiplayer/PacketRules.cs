@@ -53,6 +53,7 @@ internal static class PacketRules
         [0x48] = new(Everyone, OwnPlayer: true),                // limit break resolve
         [0x50] = new(Everyone),                                 // wall death
         [0x52] = new(Everyone),                                 // confusion
+        [0x62] = new(Everyone),                                 // helper name
         [0x6A] = new(Everyone),                                 // director EObj mod
         [0xB7] = new(EachOwnPlayer),                            // ground VFX
         [0xC8] = new(ZoneIn, OwnPlayer: true),                  // zone-in
@@ -65,6 +66,7 @@ internal static class PacketRules
         [0x197] = new(Everyone),                                // action timeline
         [0x199] = new(Everyone),                                // EObj set state
         [0x19D] = new(Everyone),                                // EObj animation beat
+        [0x1A1] = new(Everyone, ActorArg: 0),                   // helper owner
         [0x1F9] = new(EachOwnPlayer),                           // limit break gauge
         [0x25F] = new(Everyone, ActorArg: 0),                   // fade out
         [0x5F9] = new(Everyone),                                // revive

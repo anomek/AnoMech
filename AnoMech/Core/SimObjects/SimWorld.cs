@@ -4,6 +4,7 @@ using System.Linq;
 using Dalamud.Game.Text;
 using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
@@ -100,6 +101,28 @@ public sealed class SimWorld : ISimObject, IDisposable
         if (enemy != null) children.Add(enemy);
         return enemy;
     }
+
+    // The zone's helpers, spawned at the start of every run as retail spawns them at every pull's.
+    internal void SpawnHelperPool(HelperPool pool)
+    {
+        var config = new EnemySpawnConfig(BNpcBaseId: pool.BNpcBaseId, Level: 1, EnemyList: EnemyListMode.Never,
+            Visibility: SpawnVisibility.InvisibleHelper);
+        var helpers = Enumerable.Range(0, pool.Count).Select(_ => SpawnEnemy(config)).OfType<SimEnemy>().ToList();
+        children.SetSingleton(new SimHelperPool(helpers));
+    }
+
+    // A pooled cast dropped because every helper was still busy: the zone's pool is too small for
+    // what the scenario casts at once.
+    public event Action<uint>? HelperPoolExhausted;
+
+    internal void CastFromHelper(SimEnemy parent, EnemyAction action, CastTarget target, Placement at, byte animationVariation)
+    {
+        if (children.Singleton<SimHelperPool>()?.Cast(parent, action, target, at, animationVariation) == true) return;
+        Plugin.Log.Warning($"Helper pool exhausted: {Natives.Data.ActionName(action.ActionId)} ({action.ActionId}) for {parent.DisplayName} dropped.");
+        HelperPoolExhausted?.Invoke(action.ActionId);
+    }
+
+    internal void HelperCastCancelled(SimEnemy helper) => children.Singleton<SimHelperPool>()?.Unlink(helper);
 
     // Allocates an EventObject actor in EventObjectManager's 40-slot pool and
     // wires it to the given EObj sheet row. Mirror of SpawnEnemy for the EObj
