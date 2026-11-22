@@ -19,7 +19,7 @@ public sealed class FruP2LightRampantScenario : IScenario
     public string Name => "Light Rampant";
     public IPhase Phase => FruZone.P2;
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2LightRampantAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2LightRampantAi(), new FruP2LightRampantJpAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
     public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
@@ -60,7 +60,8 @@ public sealed class FruP2LightRampantScenario : IScenario
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
-        state = new FruP2LightRampantState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        var chainRing = selectedAi is { } strat && strat < AiStrats.Count && AiStrats[strat] is IFruP2LightRampantChainRing ring ? ring.ClockwiseRing : null;
+        state = new FruP2LightRampantState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides, chainRing);
         foreach (var wave in orbs) wave.Clear();
         links.Clear();
         puddles.Clear();

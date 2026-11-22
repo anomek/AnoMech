@@ -12,8 +12,8 @@ namespace AnoMech.Scenarios.Fru.P2LightRampant;
 // Banish as pairs or spreads.
 //
 // Simplification: retail chains the six in a random loop, which the NA conga then sorts by
-// priority. Here the loop already is that conga order, so the bots and the player resolve it
-// alike.
+// priority. Here the loop already is that conga order, or the selected strat's ring when it has
+// one (IFruP2LightRampantChainRing), so the bots and the player resolve it alike.
 public sealed class FruP2LightRampantState
 {
     public const float CursesAt = 18.75f;
@@ -37,7 +37,8 @@ public sealed class FruP2LightRampantState
     public bool Pairs { get; }
     public bool SupportPairs { get; }
 
-    public FruP2LightRampantState(Rng rng, PartyRole playerRole, FruP2LightRampantStateOverrides overrides)
+    public FruP2LightRampantState(Rng rng, PartyRole playerRole, FruP2LightRampantStateOverrides overrides,
+        IReadOnlyList<PartyRole>? chainRing = null)
     {
         var roles = rng.Shuffle(Enum.GetValues<PartyRole>());
         var duties = overrides.Duty.Resolve(playerRole);
@@ -55,7 +56,7 @@ public sealed class FruP2LightRampantState
         var south = new[] { PartyRole.PhysRangedDps, PartyRole.CasterDps, PartyRole.MeleeDpsA, PartyRole.MeleeDpsB }.Except(puddles).ToList();
         if (north.Count == 4) { south.Add(north[0]); north.RemoveAt(0); }
         if (south.Count == 4) { north.Add(south[0]); south.RemoveAt(0); }
-        slots = [.. north, .. south, .. puddles];
+        slots = chainRing is null ? [.. north, .. south, .. puddles] : [.. chainRing.Except(puddles), .. puddles];
     }
 
     public PartyRole Slot(int index) => slots[index];

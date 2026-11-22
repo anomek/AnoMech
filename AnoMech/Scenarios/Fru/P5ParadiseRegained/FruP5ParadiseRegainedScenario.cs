@@ -18,7 +18,7 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     public string Name => "Paradise Regained";
     public IPhase Phase => FruZone.P5;
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP5ParadiseRegainedAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP5ParadiseRegainedAi(), new FruP5ParadiseRegainedJpAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
     public object SettingsOverrides => settingsWindow.Overrides;
