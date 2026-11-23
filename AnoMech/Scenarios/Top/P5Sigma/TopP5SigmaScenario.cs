@@ -26,7 +26,7 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly TopP5SigmaSettingsWindow settingsWindow = new();
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5SigmaAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP5SigmaAi(), new TopP5SigmaTuuflessAi()];
 
 
     private TopP5SigmaState state = null!;
