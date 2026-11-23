@@ -73,12 +73,16 @@ All using default NA pf strats unless noted otherwise:
       - NA pf
       - LPDU _by [Quantumlyy](https://github.com/Quantumlyy)_
     - P5 Delta
+      - NA pf
+      - Tuufless (Elemental) _by [AppleCronch](https://github.com/AppleCronch)_
     - P5 Sigma
+      - NA pf
+      - Tuufless (Elemental) _by [AppleCronch](https://github.com/AppleCronch)_
     - P5 Omega
     - P6 Exasquares / Wave Cannon 2
 - The Weapon's Refrain (Ultimate)
     - P3 Titan Gaols _by [Asunnya](https://github.com/Asunnya)_
-    - Ultimate Predaction _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
+    - Ultimate Predation _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
     - Ultimate Annihilation _by [Asunnya](https://github.com/Asunnya)_
     - Ultimate Suppression _by [WorstAquaPlayer](https://github.com/WorstAquaPlayer)_
 - The Unending Coil of Bahamut (Ultimate) _by [RoarkGit](https://github.com/RoarkGit)_
@@ -118,6 +122,7 @@ Thanks for contributors:
 * [altair9x](https://github.com/altair9x) - extra strategies
 * [Quantumlyy](https://github.com/Quantumlyy) - extra strategies
 * [Linqx](https://github.com/Linqx) - success/failure checkmarks
+* [AppleCronch](https://github.com/AppleCronch) - extra strategies
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:
