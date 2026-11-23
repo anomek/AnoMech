@@ -13,9 +13,10 @@ namespace AnoMech.Scenarios.Umad.P1TeleTrouncing;
 // Sleep players don't move. After the chase releases, MysteryFormation puts every role on its
 // fixed strat spot unless a real Thunder line covers it, then FaceGaze turns each bot in place.
 // Reads state directly (the truth), not Kefka's orbs.
-public sealed class UmadP1TeleTrouncingAi : IScenarioAi<UmadP1TeleTrouncingState>
+public sealed class UmadP1TeleTrouncingAi(bool hino = false) : IScenarioAi<UmadP1TeleTrouncingState>
 {
-    public string Name => "Tele-trouncing";
+    public string Name => hino ? "Yoruha" : "Tele-trouncing";
+    public string? Group => hino ? "JP" : "Original";
 
     private static readonly Vector2 ConfettiStackSupportSpot = new(-6f, -6f);
     private static readonly Vector2 ConfettiSpreadSupportSpot = new(-4f, -4f);
@@ -31,17 +32,19 @@ public sealed class UmadP1TeleTrouncingAi : IScenarioAi<UmadP1TeleTrouncingState
     {
         var ai = new AiManager(world);
 
-        ai.Move(7.5f, () => Spots(state, first: true), jitter: 0.5f, arrivalTime: 14.3f);
-        ai.Move(14.4f, () => Spots(state, first: false), jitter: 0.5f, arrivalTime: 17.3f);
+        ai.Move(7.5f, () => hino ? HinoSpots(state, first: true) : Spots(state, first: true), jitter: hino ? 0f : 0.5f, arrivalTime: 14.3f);
+        ai.Move(14.4f, () => hino ? HinoSpots(state, first: false) : Spots(state, first: false), jitter: hino ? 0f : 0.5f, arrivalTime: 17.3f);
         // No arrivalTime: this move starts on the arrow the role just placed, and deferring the
         // walk kept it parked there past the arrow's 3.0s grace.
-        ai.Move(17.5f, () => ConfettiSpots(state), jitter: 0.5f);
+        ai.Move(17.5f, () => hino ? HinoConfettiSpots(state) : ConfettiSpots(state), jitter: hino ? 0f : 0.5f);
         // After the 22.78s Confetti knockback finishes sliding (0.7s); an earlier MoveTo cancels it.
-        ai.Move(23.6f, () => TetherSpots(state), jitter: 0.5f, arrivalTime: 27.5f);
+        if (hino) ai.Move(23.6f, HinoTetherSpots, jitter: 0f);
+        else ai.Move(23.6f, () => TetherSpots(state), jitter: 0.5f, arrivalTime: 27.5f);
 
         // Mystery Magic: lines 41.26s, gaze 41.36s, Flagrant Fire 42.06s. One move, then an
         // in-place turn.
-        ai.Move(34.6f, () => MysteryFormation(state), jitter: 0.4f, arrivalTime: 39.5f);
+        if (hino) ai.Move(35.2f, () => MysteryFormation(state), jitter: 0.4f, sprint: true);
+        else ai.Move(34.6f, () => MysteryFormation(state), jitter: 0.4f, arrivalTime: 39.5f);
         world.Events.Add(40.9f, () => FaceGaze(state, world));
     }
 
@@ -268,6 +271,61 @@ public sealed class UmadP1TeleTrouncingAi : IScenarioAi<UmadP1TeleTrouncingState
     }
 
     // SpotsInExpiryOrder, not Spots: which direction expires at 7s is a coin flip.
+    internal static IAiMove HinoSpots(UmadP1TeleTrouncingState state, bool first)
+    {
+        var coords = new Vector2?[8];
+        foreach (var role in state.Debuffs.Keys)
+        {
+            var (a, b) = state.ExpiryDirections(role);
+            coords[(int)role] = HinoArrowSpot(first ? a : b, first ? b : a, first);
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    internal static Vector2 HinoArrowSpot(TelePortentDirection direction, TelePortentDirection other, bool first)
+    {
+        if (direction == other)
+            return direction switch
+            {
+                TelePortentDirection.Down => new(-12f, first ? -12f : -6f),
+                TelePortentDirection.Left => new(first ? 12f : 6f, -12f),
+                TelePortentDirection.Up => new(12f, first ? 12f : 6f),
+                TelePortentDirection.Right => new(first ? -12f : -6f, 12f),
+                _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+            };
+        return (direction, other) switch
+        {
+            (TelePortentDirection.Up, TelePortentDirection.Left) => new(-6f, -6f),
+            (TelePortentDirection.Left, TelePortentDirection.Up) => new(-6f, -12f),
+            (TelePortentDirection.Right, TelePortentDirection.Up) => new(6f, -6f),
+            (TelePortentDirection.Up, TelePortentDirection.Right) => new(12f, -6f),
+            (TelePortentDirection.Left, TelePortentDirection.Down) => new(-6f, 6f),
+            (TelePortentDirection.Down, TelePortentDirection.Left) => new(-12f, 6f),
+            (TelePortentDirection.Down, TelePortentDirection.Right) => new(6f, 6f),
+            (TelePortentDirection.Right, TelePortentDirection.Down) => new(6f, 12f),
+            _ => throw new ArgumentException("Adjacent Tele-portent directions required."),
+        };
+    }
+
+    private static IAiMove HinoConfettiSpots(UmadP1TeleTrouncingState state)
+    {
+        var coords = new Vector2?[8];
+        foreach (var role in state.Debuffs.Keys)
+        {
+            var dps = UmadP1TeleTrouncingState.IsDps(role);
+            var holder = role == (dps ? state.ConfettiStackDps : state.ConfettiStackSupport);
+            coords[(int)role] = new Vector2((dps ? 1f : -1f) * (holder ? 6f : 4f), 0f);
+        }
+        return AiMove.Create(coords).NaturalOrder();
+    }
+
+    internal static IAiMove HinoTetherSpots()
+        => AiMove.Create(
+            new(-4f, -4f), new(4f, -4f),
+            new(-9f, 9f), new(9f, 9f),
+            new(-4f, 4f), new(4f, 4f),
+            new(-9f, -9f), new(9f, -9f)
+        ).NaturalOrder();
     private static IAiMove Spots(UmadP1TeleTrouncingState state, bool first)
     {
         var coords = new Vector2?[8];

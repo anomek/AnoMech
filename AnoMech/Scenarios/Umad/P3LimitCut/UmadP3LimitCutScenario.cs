@@ -19,6 +19,9 @@ using static UmadP3LimitCutState;
 
 // Dancing Mad P3 "Limit Cut". Scenario time 0 is 8.0s before Chaos starts casting Umbra Smash,
 // the earliest start inside this mechanic (the previous resolve is 9.2s before).
+internal sealed record UmadP3LimitCutContinuation(SimEnemy? Kefka, SimEnemy? Chaos, SimEnemy? Exdeath,
+    SimEventObject? WindCrystal, IReadOnlyDictionary<PartyRole, Wind> Winds, int BossSpot);
+
 public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
 {
     public string Name => "Limit Cut";
@@ -41,6 +44,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     private readonly SimEnemy?[] cycloneHelpers = new SimEnemy?[8];
     private SimEventObject? windCrystal;
     private Vector3 umbraImpact;
+    private bool continuation;
 
     // Clone k is teleported to its spot, then fires its appearance ~0.1s later, ~2.0s apart.
     private static readonly float[] PlaceCloneAt = [8.803f, 10.808f, 12.815f, 14.821f, 16.830f, 18.836f, 20.840f, 22.846f];
@@ -63,11 +67,31 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         world.Events.Add(0.09f, () => state.Objects.Chaos?.CastFromHelper(UmadActions.StrayGusts, lost.Holder, at: new Placement(WindCrystalPos, 0f)));
     }
 
-    public void Run(SimWorld worldParam, int? selectedAi)
+    public void Run(SimWorld worldParam, int? selectedAi) => RunCore(worldParam, selectedAi, null);
+
+    internal void RunContinuation(SimWorld worldParam, int? selectedAi, UmadP3LimitCutContinuation carry)
+        => RunCore(worldParam, selectedAi, carry);
+
+    private void RunCore(SimWorld worldParam, int? selectedAi, UmadP3LimitCutContinuation? carry)
     {
         world = worldParam;
         party = world.Party;
-        state = new UmadP3LimitCutState(world.Rng, party, settingsWindow.Overrides);
+        continuation = carry is not null;
+        var overrides = settingsWindow.Overrides;
+        if (carry is not null)
+            overrides = new UmadP3LimitCutStateOverrides
+            {
+                StartSpot = overrides.StartSpot, Clockwise = overrides.Clockwise, BossSpot = carry.BossSpot,
+                Number = overrides.Number, ThunderPlan = P3BlackHole.ThunderIIIAssignment.ShareMtFirst, BaitRole = overrides.BaitRole,
+            };
+        state = new UmadP3LimitCutState(world.Rng, party, overrides, carry?.Winds);
+        if (carry is not null)
+        {
+            state.IsContinuation = true;
+            state.Objects.Kefka = carry.Kefka; state.Objects.Chaos = carry.Chaos; state.Objects.Exdeath = carry.Exdeath;
+            state.ChaosTank = PartyRole.OffTank; state.ExdeathTank = PartyRole.MainTank;
+            windCrystal = carry.WindCrystal;
+        }
         LastState = state;
         DiagnosticLog.Info(
             $"[UmadP3LimitCut] Roll: clones start {SpotName(state.StartSpot)} going {(state.Clockwise ? "clockwise" : "counter-clockwise")}, "
@@ -79,17 +103,22 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             ((IScenarioAi<UmadP3LimitCutState>)AiStrats[idx]).Run(state, world);
 
         SpawnActors();
-        ApplyStartingStatuses();
+        if (!continuation) ApplyStartingStatuses();
+        else
+        {
+            RunInstanceEvents(world);
+            world.Events.Add(0.1f, () => state.Objects.Kefka?.AddStatusParam(StatusId.KefkaTrance, 0x1FF));
+        }
 
         world.Events.Add(1.0f, () =>
         {
-            state.Objects.Chaos?.Follow(party.Get(PartyRole.MainTank));
-            state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank));
+            state.Objects.Chaos?.Follow(party.Get(state.ChaosTank));
+            state.Objects.Exdeath?.Follow(party.Get(state.ExdeathTank));
         });
-        foreach (var at in ChaosAutoAt)
-            world.Events.Add(at, () => state.Objects.Chaos?.Cast(UmadActions.ChaosAutoAttack, party.Get(PartyRole.MainTank)));
-        foreach (var at in ExdeathAutoAt)
-            world.Events.Add(at, () => state.Objects.Exdeath?.Cast(UmadActions.ExdeathAutoAttack, party.Get(PartyRole.OffTank)));
+        foreach (var at in ChaosAutoAt.Where(at => !continuation || at < 42.5f))
+            world.Events.Add(at, () => state.Objects.Chaos?.Cast(UmadActions.ChaosAutoAttack, party.Get(state.ChaosTank)));
+        foreach (var at in ExdeathAutoAt.Where(at => !continuation || at < 42.5f))
+            world.Events.Add(at, () => state.Objects.Exdeath?.Cast(UmadActions.ExdeathAutoAttack, party.Get(state.ExdeathTank)));
         // The real packet refreshes Kefka's trance aura in place; AddStatusParam adds a slot, so
         // drop the first or Kefka wears two auras at once.
         world.Events.Add(6.915f, () =>
@@ -112,7 +141,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             world.Events.Add(CloneAppearAt[k], () => CloneAppear(clone));
         }
         world.Events.Add(14.799f, ChaosLands);
-        world.Events.Add(17.56f, () => state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank)));
+        world.Events.Add(17.56f, () => state.Objects.Exdeath?.Follow(party.Get(state.ExdeathTank)));
         world.Events.Add(NumbersAt, AttachNumbers);
         world.Events.Add(20.934f, () => windCrystal?.Despawn());
         world.Events.Add(21.379f, () =>
@@ -130,7 +159,9 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         world.Events.Add(33.49f, () => state.Objects.Exdeath?.Cast(ActionId.ThunderIII_Cast, animationLock: 3.1f));
         world.Events.Add(38.57f, ResolveThunder);
         world.Events.Add(41.60f, ResolveThunder);
-        world.Events.Add(42.10f, () => state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank)));
+        world.Events.Add(42.10f, () => state.Objects.Exdeath?.Follow(party.Get(state.ExdeathTank)));
+        if (!continuation)
+        {
         world.Events.Add(43.30f, () =>
         {
             state.Objects.Chaos?.Follow();
@@ -144,8 +175,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         world.Events.Add(46.49f, ResolveDecisiveBattle);
         world.Events.Add(46.69f, () =>
         {
-            state.Objects.Chaos?.Follow(party.Get(PartyRole.MainTank));
-            state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank));
+            state.Objects.Chaos?.Follow(party.Get(state.ChaosTank));
+            state.Objects.Exdeath?.Follow(party.Get(state.ExdeathTank));
         });
         world.Events.Add(50.581f, () => state.Objects.Kefka?.PlayActionTimeline(ActionTimelineId.WarpEnd));
         world.Events.Add(50.746f, () =>
@@ -153,16 +184,18 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             state.Objects.Exdeath?.Follow();
             state.Objects.Exdeath?.Cast(ActionId.ThunderIII_Cast, animationLock: 3.1f);
         });
+        }
+        else world.Events.Add(42.5f, () => DiagnosticLog.Info("[FirstDecisiveBattle] Yoruha complete through Ultima Blaster and Thunder III."));
     }
 
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
         Natives.TimelinePreload.Preload(CloneTimelines, "UmadP3LimitCut");
-        instanceWorld.Party.LimitBreak.Set(3f);
+        if (!continuation) instanceWorld.Party.LimitBreak.Set(3f);
         instanceWorld.Events.Add(1.988f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x18U, 0x2U, 0x1BDBU, 0x4000EFB9U));
         instanceWorld.Events.Add(8.981f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x2FU, 0x2U, 0x1BDBU, 0x4000EFB9U));
         instanceWorld.Events.Add(31.059f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x19U, 0x2U, 0x1BDBU, 0x4000EFB9U));
-        instanceWorld.Events.Add(52.629f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x1AU, 0x2U, 0x1BDBU, 0x4000EFB9U));
+        if (!continuation) instanceWorld.Events.Add(52.629f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x1AU, 0x2U, 0x1BDBU, 0x4000EFB9U));
     }
 
     public MpMessage? BuildReplayStateMessage()
@@ -210,6 +243,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     {
         var objects = state.Objects;
         var hold = SpotHeading(state.BossSpot);
+        if (!continuation)
+        {
         objects.Kefka = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.KefkaP3, NameId: BNpcNameId.Kefka, Level: 100,
             Targetable: false, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
@@ -227,6 +262,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             Placement: new Placement(
                 OnCircle(hold, 10.6f) + OnCircle(hold + MathF.PI / 2f, 1.6f),
                 hold + MathF.PI)));
+        }
         for (var k = 0; k < 8; k++)
             objects.Clones[k] = world.SpawnEnemy(new EnemySpawnConfig(
                 BNpcBaseId: BNpcBaseId.KefkaCloneP3, NameId: BNpcNameId.Kefka, Level: 100,
@@ -240,11 +276,14 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
                 Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.HiddenUntilShown,
                 Placement: new Placement(WindCrystalPos, 0f)));
         // The fire and water crystals faded when their elements resolved, before this window.
+        if (!continuation)
+        {
         windCrystal = world.SpawnEventObject(new EventObjectSpawnConfig
         {
             EObjId = EObjId.WindCrystal, LayoutId = WindCrystalLayoutId, TargetableStatus = 5, Arg2 = EObjId.WindCrystalArg2,
             Placement = new Placement(WindCrystalPos, hold + MathF.PI),
         });
+        }
 
         // Set once the draw objects exist.
         world.Events.Add(0.5f, () =>
@@ -298,7 +337,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     {
         if (state.Objects.Chaos is not { } chaos) return;
         chaos.SetPosition(new Placement(umbraImpact, chaos.Rotation));
-        chaos.Follow(party.Get(PartyRole.MainTank));
+        chaos.Follow(party.Get(state.ChaosTank));
     }
 
     private void PlaceClone(int k)
@@ -328,7 +367,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     private void QueueCyclonesForWinds(ActionResolved resolved)
     {
         if (resolved.Action.ActionId != ActionId.VacuumWave) return;
-        var winds = resolved.Hits.Count(h => h.HasStatus(StatusId.Headwind) || h.HasStatus(StatusId.Tailwind));
+        var winds = resolved.Hits.Count(h => (h.HasStatus(StatusId.Headwind) || h.HasStatus(StatusId.Tailwind))
+            && (!continuation || h.Placement().IsLookingAt(resolved.Origin.Position) || h.Placement().IsLookingAwayFrom(resolved.Origin.Position)));
         world.Events.Add(4.14f, () => FireCyclones(winds));
     }
 

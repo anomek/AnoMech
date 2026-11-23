@@ -33,7 +33,7 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
         world.Events.Add(33.6f, FirstTankOntoExdeath);
         ai.Move(38.9f, SwapThunderTanks, arrivalTime: 41.2f);
         ScheduleThunderClearance(36.5f, 38.9f, 42.2f);
-        ai.Move(47.0f, StackAtBosses);
+        if (!state.IsContinuation) ai.Move(47.0f, StackAtBosses);
     }
 
     private (PartyRole First, PartyRole? Second) ThunderRoles => ThunderIIIPlanning.Roles(state.ThunderPlan);
@@ -144,8 +144,8 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
     private IAiMove StackAtBosses()
     {
         var coords = new Vector2?[8];
-        coords[(int)PartyRole.MainTank] = Flat(OnCircle(Hold, 7.5f));
-        coords[(int)PartyRole.OffTank] = Flat(OnCircle(Hold, 9.1f) + OnCircle(Hold + MathF.PI / 2f, 2.5f));
+        coords[(int)state.ChaosTank] = Flat(OnCircle(Hold, 7.5f));
+        coords[(int)state.ExdeathTank] = Flat(OnCircle(Hold, 9.1f) + OnCircle(Hold + MathF.PI / 2f, 2.5f));
         for (var slot = 2; slot < 8; slot++) coords[slot] = StackSpot(slot);
         return AiMove.Create(coords).NaturalOrder();
     }

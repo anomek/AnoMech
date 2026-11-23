@@ -1,5 +1,15 @@
 # CLAUDE.md
 
+## User-required local workflow
+
+- The canonical working project is `D:\FF14\ModCoding\AnoMech`. Make all future AnoMech changes here, including work shared with the user's friend. Other AnoMech copies are reference/recovery sources only.
+- Preserve the merged Yoruha custom scenarios and the collaborators' existing work. Keep the `(custom)` display name and Yoruha attribution.
+- After changing the mod, run `tools/Rebuild-Custom.ps1` to perform a Release **Rebuild**, then verify the resulting DLL. Do not claim runtime/gameplay/audio validation from compilation or headless tests.
+- Publish only to `D:\FF14\Mods\AnoMesh\` (DLL directly inside) and its `AnoMech-custom-Yoruha.zip`. Replace these fixed outputs on each successful rebuild. Do not create timestamped mod folders, backup ZIPs, or duplicate installation copies.
+- Delete superseded generated outputs after the replacement has been built and verified. Temporary `.AnoMesh.next` / `.AnoMesh.previous` directories must not accumulate. Build failures must leave the last successful package intact.
+- Cleanup is limited to this script's generated artifact directories and files. Never delete source, `.git`, game/plugin configuration, the friend's development files, or unrelated mods. Do not silently overwrite a different active development plugin.
+- A deliberately focused test run may use `-TestFilter`. Use `-SkipTests` only when the same sources have already passed appropriate checks; record the limitation.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
 repository.
 

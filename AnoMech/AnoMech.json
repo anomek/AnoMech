@@ -1,6 +1,6 @@
 {
-    "Author": "Anomek",
-    "Name": "AnoMech",
+    "Author": "Yoruha",
+    "Name": "AnoMech (custom)",
     "MinimumDalamudVersion": "15.0.3.5",
     "Punchline": "Another FFXIV mechanics simulator. Go to an inn and start practice.",
     "Description": "Spawns fake party members and bosses client-side so you can practice raid mechanics without a full party.",

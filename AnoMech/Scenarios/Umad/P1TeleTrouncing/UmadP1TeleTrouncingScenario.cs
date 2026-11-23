@@ -30,7 +30,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     public float BgmSecondsAtStart => 17.73f;
     public bool SupportsSolo => true;
     public bool SupportsMultiplayer => true;
-    public IReadOnlyList<IScenarioAi> AiStrats => [new UmadP1TeleTrouncingAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new UmadP1TeleTrouncingAi(), new UmadP1TeleTrouncingAi(hino: true)];
     public object SettingsOverrides => settingsWindow.Overrides;
 
     private SimWorld world = null!;

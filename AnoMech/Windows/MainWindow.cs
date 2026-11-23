@@ -105,7 +105,7 @@ public unsafe class MainWindow : Window, IDisposable
     {
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         var version = v is null ? "" : $" v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
-        return $"AnoMech{version}";
+        return $"AnoMech{version} (custom)";
     }
 
     // The title bar still shows while the window is collapsed for the run.

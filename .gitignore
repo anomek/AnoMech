@@ -11,3 +11,4 @@ FFXIV-RaidsRewritten-Reference.md
 __pycache__
 /tools/.venv/
 TestResults/
+artifacts/

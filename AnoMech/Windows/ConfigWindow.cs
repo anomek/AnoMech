@@ -16,7 +16,7 @@ public class ConfigWindow : Window, IDisposable
     private string relayPassword;
     private bool askedForLocations;
 
-    public ConfigWindow(Plugin plugin) : base("AnoMech Settings###AnoMechConfig")
+    public ConfigWindow(Plugin plugin) : base("AnoMech (custom) Settings###AnoMechConfig")
     {
         Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysAutoResize;
@@ -42,10 +42,13 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
-        var suppressBgm = configuration.SuppressBgm;
-        if (ImGui.Checkbox("Suppress scenario BGM", ref suppressBgm))
+        var playBgm = !configuration.SuppressBgm;
+        if (ImGui.Checkbox("Play scenario BGM", ref playBgm))
         {
-            configuration.SuppressBgm = suppressBgm;
+            configuration.SuppressBgm = !playBgm;
+            if (!playBgm) Natives.Bgm.Reset();
+            else if (Plugin.Game.ActiveScenario is { } scenario && scenario.Phase.Bgm != 0)
+                Plugin.Game.World.PlayBgm(scenario.Phase.Bgm, scenario.BgmSecondsAtStart + Plugin.Game.Events.Elapsed);
             configuration.Save();
         }
 

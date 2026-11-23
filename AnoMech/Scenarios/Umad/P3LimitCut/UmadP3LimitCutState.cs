@@ -27,6 +27,9 @@ public sealed class UmadP3LimitCutState
     private readonly Rng rng = Rng.Detached;
 
     public UmadP3LimitCutScenarioObjects Objects { get; } = new();
+    internal bool IsContinuation { get; set; }
+    public PartyRole ChaosTank { get; internal set; } = PartyRole.MainTank;
+    public PartyRole ExdeathTank { get; internal set; } = PartyRole.OffTank;
     public int StartSpot { get; }
     public bool Clockwise { get; }
     // Numbers[k] holds Blaster k+1.
@@ -64,7 +67,7 @@ public sealed class UmadP3LimitCutState
     // The run's own dice, for the one choice made mid-run: who a dead number's clone charges.
     public T PickRandom<T>(T[] values) => rng.NextObj(values);
 
-    public UmadP3LimitCutState(Rng rng, SimParty party, UmadP3LimitCutStateOverrides overrides)
+    public UmadP3LimitCutState(Rng rng, SimParty party, UmadP3LimitCutStateOverrides overrides, IReadOnlyDictionary<PartyRole, Wind>? carriedWinds = null)
     {
         this.rng = rng;
         StartSpot = overrides.StartSpot ?? rng.NextInt(8);
@@ -74,7 +77,7 @@ public sealed class UmadP3LimitCutState
         ThunderPlan = overrides.ThunderPlan;
 
         Numbers = BuildNumbers(party.PlayerRole, overrides);
-        Winds = BuildWinds(party.PlayerRole, overrides);
+        Winds = carriedWinds ?? BuildWinds(party.PlayerRole, overrides);
     }
 
     // A forced number takes its slot outright; a second seat asking for the same one keeps the
