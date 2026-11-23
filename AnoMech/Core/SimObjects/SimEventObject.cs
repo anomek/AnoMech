@@ -16,7 +16,6 @@ public sealed record EventObjectSpawnConfig
     // same coordinate space as SimEventObject.Position once spawned.
     public Placement Placement { get; init; }
 
-    public sbyte ObjectIndex { get; init; } = -1;
     public byte TargetableStatus { get; init; } = 1; // 1 - untargettable
     public bool Hidden { get; init; }
     public uint EntityId { get; init; } = 0;

@@ -304,7 +304,7 @@ internal sealed class PacketRecorder
             SimAssets.WarnIfUnknown(SimAssetKind.Layout, config.LayoutId, "event object layout");
             SimAssets.WarnIfUnknown(SimAssetKind.EventId, (uint)config.EventId, "event object EventId");
             spawned.Add(obj.EntityId);
-            Add(new SpawnObjPacket(obj.EntityId, config.EObjId, config.ObjectIndex, config.TargetableStatus, config.Hidden, config.EntityId,
+            Add(new SpawnObjPacket(obj.EntityId, config.EObjId, config.TargetableStatus, config.Hidden, config.EntityId,
                 config.LayoutId, (uint)config.EventId, ActorOf(config.OwnerId), config.GimmickId, config.Radius, config.FateId, config.EventState,
                 config.Arg2, config.TimelineState, placement.Position.X, placement.Position.Y, placement.Position.Z, placement.Rotation));
         }

@@ -173,7 +173,6 @@ public class UltimatePredationScenario : IMultiplayerReplayable
             {
                 EObjId = EObjId.Arena,
                 Placement = new(new(0.16f, 0, 1.4434f), 0),
-                ObjectIndex = 1,
                 TargetableStatus = 5,
                 EntityId = 0x4000829C,
                 LayoutId = EObjId.ArenaLayoutId,

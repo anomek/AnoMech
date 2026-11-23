@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
@@ -19,7 +20,28 @@ public enum LandslideType
 
 public class UwuUtils(SimWorld world)
 {
+    public const byte Level = 70;
+
     private readonly SimWorld world = world;
+
+    // Server-spawned floor EObj; the sky itself comes from the phase weather.
+    public SimEventObject? SpawnArenaFloor() => world.SpawnEventObject(new EventObjectSpawnConfig
+    {
+        EObjId = 2007457,
+        Placement = new(new(0.16f, 0, 1.4434f), 0),
+        TargetableStatus = 5,
+        EntityId = 0x4000829C,
+        LayoutId = 7538913,
+        GimmickId = 7538258,
+        TimelineState = 1,
+    });
+
+    // Native head marker; its AVFX ends on its own, so it isn't tracked as a SimVfx.
+    public static void Lockon(SimCharacter? target, uint lockonId)
+    {
+        if (target == null) return;
+        target.ActorControl.HeadMarker(lockonId);
+    }
 
     public void UpdateArena(byte value)
     {
@@ -27,15 +49,21 @@ public class UwuUtils(SimWorld world)
         Natives.Director.SetDirectorData(1, 0, unionData);
     }
 
+    // The awakening is earned: each charge adds an Aetherially Charged stack, which Awaken swaps for Woken.
+    public static void Charge(SimEnemy? enemy) => enemy?.AddStatus(StatusId.AetheriallyCharged);
+
+    public static int Charges(SimEnemy? enemy) => enemy?.FindStatus(StatusId.AetheriallyCharged)?.Stacks ?? 0;
+
     public void Awaken(SimEnemy? enemy, bool isUltima)
     {
+        enemy?.RemoveStatus(StatusId.AetheriallyCharged);
         enemy?.AddStatusParam(StatusId.Woken, isUltima ? 97 : 0);
         enemy?.SetAnimationState(0, 1);
     }
 
-    // Five rains, each dropped where its target stood at `targetOffset`.
+    // Five rains, each dropped where its target stood at `targetOffset`; `onTargeted` learns each spot then.
     public void FeatherRain(Func<SimEnemy?> getCaster, float targetOffset, float castOffset,
-        IReadOnlyList<PartyRole>? targets = null, Func<SimCharacter?>? getExcluded = null)
+        IReadOnlyList<PartyRole>? targets = null, Func<SimCharacter?>? getExcluded = null, Action<Vector3>? onTargeted = null)
     {
         const int rains = 5;
         var positions = new List<Vector3>();
@@ -46,24 +74,26 @@ public class UwuUtils(SimWorld world)
             positions.AddRange(
                 (targets ?? RoleList.AllExcept(world.Rng, world.Party, excluded).List.Take(rains))
                 .Select(x => world.Party.Get(x)!.Position));
+            if (onTargeted != null) positions.ForEach(onTargeted);
         });
 
         world.Events.Add(castOffset, () =>
         {
+            // Unlike the other location casts, retail teleports Feather Rain's helpers onto their spot, turned south.
             foreach (var position in positions.Take(rains))
-                getCaster()?.CastFromHelper(UwuActions.FeatherRain, position, at: OnLocation(position));
+                getCaster()?.CastFromHelper(UwuActions.FeatherRain, position, at: new Placement(position, 0f));
         });
     }
 
     public void EruptionPuddle(Func<SimEnemy?> getCaster, Func<SimCharacter?> getBait, float castOffset)
-        => world.Events.Add(castOffset, () =>
-        {
-            var location = getBait()!.Position;
-            getCaster()?.CastFromHelper(UwuActions.EruptionPuddle, location, at: OnLocation(location));
-        });
+        => world.Events.Add(castOffset, () => CastOnLocation(getCaster(), UwuActions.EruptionPuddle, getBait()!.Position));
 
-    // Retail stands a location-targeted helper on its location, turned north.
+    // Retail's location casts carry a north rotation; their helpers cast from wherever they stand,
+    // which the pool can't do, so it stands them on the location.
     public static Placement OnLocation(Vector3 location) => new(location, MathF.PI);
+
+    public static void CastOnLocation(SimEnemy? caster, EnemyAction action, Vector3 location) =>
+        caster?.CastFromHelper(action, location, at: OnLocation(location));
 
     // One line per offset, each from the enemy's spot turned by its offset.
     public void LandslideLines(Func<SimEnemy?> getEnemy, float castOffset, LandslideType type)

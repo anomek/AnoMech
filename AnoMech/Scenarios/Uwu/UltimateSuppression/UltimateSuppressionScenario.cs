@@ -260,7 +260,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             {
                 EObjId = 2007457,
                 Placement = new(new(0.16f, 0, 1.4434f), 0),
-                ObjectIndex = 1,
                 TargetableStatus = 5,
                 EntityId = 0x4000829C,
                 LayoutId = 7538913,
@@ -510,11 +509,12 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
             graniteGaol!.SetVisibleInEnemyList(true);
             graniteGaol!.SetTargetable(true);
 
-            graniteGaol?.Cast(Actions.GraniteImpact);
+            graniteGaol?.Cast(Actions.GraniteImpactShort);
         });
 
-        // Gaol gets removed as soon as cast ends, to not give that much of an advantage to the player
-        world.Events.Add(30.24f, () =>
+        // The gaol breaks just before Granite Impact (cast ends 30.12) goes off, as late as possible so the
+        // jailed player gets little advantage.
+        world.Events.Add(30.00f, () =>
         {
             state.PlayerGaol!.SetTargetable(true);
             state.PlayerGaol!.RemoveStatus(StatusId.Fetters);

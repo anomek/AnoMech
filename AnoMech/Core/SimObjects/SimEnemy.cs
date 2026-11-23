@@ -203,7 +203,7 @@ public sealed class SimEnemy : SimNpc
             ActorControl.SetInCombat(true);
         }
         DiagnosticLog.Info($"[SimEnemy.SpawnFromPacket] {DisplayName} (goid 0x{GameObjectId.ObjectId:X}) created by the engine after {PacketSpawnFrames} frames: {DescribeDrawState()} "
-            + $"Targetable=0x{targetableBefore:X}->0x{chara.TargetableStatus:X} name=\"{chara.Name}\" pos {chara.Position}.");
+            + $"Targetable=0x{targetableBefore:X}->0x{chara.TargetableStatus:X} name=\"{chara.Name}\" pos {chara.Position} hitbox={chara.HitboxRadius:F2}.");
     }
 
     /// <summary>
