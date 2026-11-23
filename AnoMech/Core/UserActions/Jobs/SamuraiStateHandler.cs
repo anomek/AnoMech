@@ -39,7 +39,7 @@ internal sealed unsafe class SamuraiStateHandler : IUserActionHandler
             case 25781: jgm->Samurai.Kaeshi = KaeshiAction.Namikiri; break;   // Ogi Namikiri (no Sen)
             case 7495: jgm->Samurai.SenFlags = SenFlags.None; break;          // Hagakure (converts Sen → Kenki)
             // Kaeshi mirrors consume the armed Kaeshi:
-            case 16485 or 16486 or 25782: jgm->Samurai.Kaeshi = default; break;   // Kaeshi: Goken / Setsugekka / Namikiri
+            case 16485 or 16486 or 25782 or 36967 or 36968: jgm->Samurai.Kaeshi = default; break;   // Kaeshi: Goken / Setsugekka / Namikiri, Tendo Kaeshi: Goken / Setsugekka
         }
     }
 

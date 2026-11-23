@@ -8,26 +8,26 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Heavy Shot | 97 | ➖ | Upgraded to Burst Shot. |
 | Straight Shot | 98 | ➖ | Upgraded to Refulgent Arrow. |
 | Raging Strikes | 101 | ✅ | |
-| Venomous Bite | 100 | ➖ | Upgraded to Caustic Bite. |
-| Bloodletter | 110 | ➖ | |
+| Venomous Bite | 100 | ✅ | DoT (124, 45s) on the target; upgraded to Caustic Bite. |
+| Bloodletter | 110 | ✅ | A Mage's Ballad Repertoire runs its recast on by a charge (BardStateHandler). |
 | Repelling Shot | 112 | ➖ | |
 | Quick Nock | 106 | ➖ | Upgraded to Ladonsbite. |
 | Wide Volley | 36974 | ✅ | Consumes Hawk's Eye/Barrage. |
-| Windbite | 113 | ➖ | Upgraded to Stormbite. |
-| Mage's Ballad | 114 | ⚠️ | Song buff icon only; no Song Gauge / Repertoire / Soul Voice / coda. |
+| Windbite | 113 | ✅ | DoT (129, 45s) on the target; upgraded to Stormbite. |
+| Mage's Ballad | 114 | ✅ | Song Gauge (BardStateHandler); every 3s with DoTs up, 80% to refund a Bloodletter charge. |
 | The Warden's Paean | 3561 | ➖ | |
 | Barrage | 107 | ✅ | Barrage + Resonant Arrow Ready. |
-| Army's Paeon | 116 | ⚠️ | Song buff icon only; gauge economy unmodelled. |
+| Army's Paeon | 116 | ✅ | Song Gauge; every 3s with DoTs up, 80% for a Repertoire (max 4). |
 | Rain of Death | 117 | ➖ | |
 | Battle Voice | 118 | ✅ | |
-| The Wanderer's Minuet | 3559 | ⚠️ | Song buff icon only; Repertoire gauge (gates Pitch Perfect) unmodelled. |
-| Pitch Perfect | 7404 | ⚠️ | Clears Repertoire status (3137); gauge spend unmodelled — moot, Repertoire never generated. |
-| Empyreal Arrow | 3558 | ⚠️ | Faked as flat Status(3137); no Repertoire/Soul Voice generation, no song-active gate. |
-| Iron Jaws | 3560 | ✅ | 35% Hawk's Eye; DoT refresh out of scope. |
+| The Wanderer's Minuet | 3559 | ✅ | Song Gauge; every 3s with DoTs up, 80% for a Repertoire (max 3, gates Pitch Perfect). |
+| Pitch Perfect | 7404 | ✅ | Spends all Repertoire. |
+| Empyreal Arrow | 3558 | ✅ | A Repertoire for the song playing. |
+| Iron Jaws | 3560 | ✅ | 35% Hawk's Eye; renews the DoTs already on its target. |
 | Sidewinder | 3562 | ➖ | |
 | Troubadour | 7405 | ➖ | |
-| Caustic Bite | 7406 | ✅ | 35% Hawk's Eye; DoT out of scope. |
-| Stormbite | 7407 | ✅ | 35% Hawk's Eye; DoT out of scope. |
+| Caustic Bite | 7406 | ✅ | DoT (1200, 45s) on the target; 35% Hawk's Eye. DoTs deal no damage in the sim. |
+| Stormbite | 7407 | ✅ | DoT (1201, 45s) on the target; 35% Hawk's Eye. DoTs deal no damage in the sim. |
 | Nature's Minne | 7408 | ➖ | |
 | Refulgent Arrow | 7409 | ✅ | Consumes Hawk's Eye/Barrage. |
 | Shadowbite | 16494 | ✅ | Consumes Hawk's Eye/Barrage. |
@@ -43,16 +43,14 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 ## Traits
 | Trait | Status | Note |
 |-------|:------:|------|
-| Enhanced Empyreal Arrow | ❌ | Guarantees song Repertoire on Empyreal Arrow — Repertoire system unmodelled. |
+| Enhanced Empyreal Arrow | ✅ | Empyreal Arrow gives the song's Repertoire. |
 | Bite Mastery II | ✅ | Adds 35% Hawk's Eye to Caustic/Stormbite/Iron Jaws. |
-| Soul Voice | ❌ | +5 Soul Voice per Repertoire — Repertoire never fires, so Soul Voice never fills. |
+| Soul Voice | ✅ | +5 Soul Voice per Repertoire from level 80 (UNVERIFIED in game). |
 | Minstrel's Coda | ❌ | Grants the three Codas on singing — coda flags unmodelled (procs still fire; potency/display only). |
 
 ## Role actions
 Leg Graze, Second Wind, Foot Graze, Peloton, Head Graze, Arm's Length — all ➖.
 
 ## Not simulated
-- **Song-tick Repertoire.** No timed/DoT-tick handler generates Repertoire (no BRD entry in `TimedGauges`), so the whole Repertoire → Soul Voice → Pitch Perfect economy is absent.
-- **Soul Voice is never generated.** Only a spender (`CostGauges[(Brd,59)]`); stays 0, so Apex Arrow's 20-cost spend and its SV≥80 Blast gate are permanently inert. Blast Arrow works only because Apex Arrow grants Blast Arrow Ready unconditionally.
-- **Codas / Song Gauge widget not driven.** Songs grant only the buff-bar status; they never set `BardGauge.SongFlags`/`SongTimer`/coda bits, so the Song Gauge UI stays blank and Radiant Finale's coda gate is unrepresented (procs still fire).
-- **Empyreal Arrow (3558) approximated.** Grants a flat `Status(3137)` instead of +1 Repertoire (→ +5 Soul Voice via the Soul Voice trait), with no gauge change and no song-active check.
+- **Apex Arrow spends 20 Soul Voice, not all of it**, and grants Blast Arrow Ready whatever the Soul Voice (retail: 80+).
+- **Codas** (Radiant Finale's gate) are not written.

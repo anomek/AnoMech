@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Implementations;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.UserActions;
@@ -112,6 +113,17 @@ internal sealed class ComboEffect(IActionEffect[] inner) : IActionEffect
     public void Apply(ActionContext ctx)
     {
         if (!ctx.CasterIsPlayer || !PlayerCombo.IsActiveContinuation(ctx.ActionId)) return;
+        foreach (var e in inner) e.Apply(ctx);
+    }
+}
+
+// Wrapper: apply the inner effects only once the player's level reaches the action they unlock. A
+// trait's Ready status granted below it would turn a button into an action the player can't use yet.
+internal sealed class UnlocksEffect(uint actionId, IActionEffect[] inner) : IActionEffect
+{
+    public void Apply(ActionContext ctx)
+    {
+        if (ctx.CasterIsPlayer && Plugin.ObjectTable.LocalPlayer?.Level < Natives.Data.Action(actionId)?.ClassJobLevel) return;
         foreach (var e in inner) e.Apply(ctx);
     }
 }
