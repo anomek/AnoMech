@@ -87,9 +87,16 @@ internal static class TeaShown
     // at once and each ActorMove turning it toward its facing at the model's turn rate, the packets of
     // `row`'s own frame before it included.
     public static float FacingOnScreen(IReadOnlyList<Dictionary<string, string>> rows, string actor, Dictionary<string, string> row)
+        => Facing(rows.TakeWhile(r => !ReferenceEquals(r, row)), actor, ShownRun.Time(row));
+
+    // The same at `time`, every packet up to it included.
+    public static float FacingOnScreen(IReadOnlyList<Dictionary<string, string>> rows, string actor, float time)
+        => Facing(rows.TakeWhile(r => ShownRun.Time(r) <= time), actor, time);
+
+    private static float Facing(IEnumerable<Dictionary<string, string>> before, string actor, float time)
     {
         var (facing, toward, at) = (0f, 0f, float.NaN);
-        foreach (var r in rows.TakeWhile(r => !ReferenceEquals(r, row)))
+        foreach (var r in before)
         {
             if (r["actor"] != actor || r["kind"] is not ("spawn" or "set_pos" or "move")) continue;
             if (!float.IsNaN(at)) facing = Turned(facing, toward, ShownRun.Time(r) - at);
@@ -97,7 +104,7 @@ internal static class TeaShown
             if (r["kind"] != "move") facing = toward;
             at = ShownRun.Time(r);
         }
-        return float.IsNaN(at) ? facing : Turned(facing, toward, ShownRun.Time(row) - at);
+        return float.IsNaN(at) ? facing : Turned(facing, toward, time - at);
     }
 
     private static float Turned(float from, float toward, float seconds)
@@ -114,6 +121,18 @@ internal static class TeaShown
         foreach (var hit in rows.Where(r => r["actor"] == actor && r["kind"] == "ability" && hitIds.Contains(uint.Parse(r["id"], CultureInfo.InvariantCulture))))
             Assert.That(Angle(FacingOnScreen(rows, actor, hit), ShownRun.Number(hit, "rot")), Is.LessThan(FacingSlack),
                 $"{what}: facing elsewhere as the hit at {hit["t"]} went out along {hit["rot"]}");
+    }
+
+    // `actor`'s model on screen turns round from `oldFacing` to `newFacing` in [from, until) rather than
+    // snapping to it: some frame shows it partway between the two.
+    public static void TurnsRoundOnScreen(IReadOnlyList<Dictionary<string, string>> rows, string actor, float from, float until, float oldFacing,
+        float newFacing, string what)
+    {
+        var whole = Angle(oldFacing, newFacing);
+        var frames = Enumerable.Range(0, (int)MathF.Ceiling((until - from) / ScenarioRun.FrameSeconds)).Select(n => from + n * ScenarioRun.FrameSeconds);
+        Assert.That(frames.Select(t => FacingOnScreen(rows, actor, t)).Any(facing => Angle(oldFacing, facing) > 0.05f && Angle(facing, newFacing) > 0.05f
+                                                                                   && MathF.Abs(Angle(oldFacing, facing) + Angle(facing, newFacing) - whole) < 0.02f),
+            Is.True, $"{what}: a frame partway from {oldFacing:F2} to {newFacing:F2} in [{from:F2}, {until:F2})");
     }
 
     // Cruise Chaser's three swords: onto three players, cutting three ways, each along his facing.

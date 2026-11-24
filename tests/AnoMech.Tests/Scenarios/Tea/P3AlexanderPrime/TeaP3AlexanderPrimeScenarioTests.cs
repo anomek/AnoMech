@@ -822,29 +822,23 @@ public class TeaP3AlexanderPrimeScenarioTests
             .TeleportAt(88.6f, to: new(19f, 0f))
             .ShouldKill(ActionId.SuperJumpLanding, MeleeDpsA);
 
-    // The client plays a slash along the model's facing: each sword goes out on Cruise Chaser himself
-    // after a teleport on his own spot turned the model to its bait.
+    // The client plays a slash along the model's facing: each sword goes out on Cruise Chaser himself,
+    // his model on screen already turned along it.
     [Test]
     public void EachSwordFollowsCruiseChasersTurnToItsBait()
     {
         string? cruiseChaser = null;
         var run = Run(RegenHealer, 89f, p => cruiseChaser ??= State(p).Objects.CruiseChaser?.EntityId.ToString("X8"));
         Assert.That(run.Passed, run.ToString);
-        var rows = ((FakeBattleCharas)Natives.BattleCharas).Timeline.Rows.Where(r => r["actor"] == cruiseChaser).ToList();
-        var swords = rows.Where(r => r["kind"] == "ability" && r["id"] == ActionId.AlphaSwordP3.ToString()).ToList();
+        var rows = ((FakeBattleCharas)Natives.BattleCharas).Timeline.Rows;
+        var swords = rows.Where(r => r["actor"] == cruiseChaser && r["kind"] == "ability" && r["id"] == ActionId.AlphaSwordP3.ToString()).ToList();
         Assert.That(swords, Has.Count.EqualTo(3));
-        Assert.That(swords.Select(s => s["targets"]).Distinct().Count(), Is.EqualTo(3), "each sword on its own player");
-        foreach (var sword in swords)
+        Assert.Multiple(() =>
         {
-            var turn = rows.Take(rows.IndexOf(sword)).Last(r => r["kind"] is "set_pos" or "move");
-            Assert.Multiple(() =>
-            {
-                Assert.That(sword["target"], Is.EqualTo(cruiseChaser));
-                Assert.That(turn["kind"], Is.EqualTo("set_pos"));
-                Assert.That(Number(turn["rot"]), Is.EqualTo(Number(sword["rot"])).Within(0.011f));
-                Assert.That(Number(sword["t"]) - Number(turn["t"]), Is.EqualTo(0.13f).Within(0.02f));
-            });
-        }
+            Assert.That(swords.Select(s => s["targets"]).Distinct().Count(), Is.EqualTo(3), "each sword on its own player");
+            Assert.That(swords.Select(s => s["target"]), Is.All.EqualTo(cruiseChaser));
+            TeaShown.FacesEachHitOnScreen(rows, cruiseChaser!, [ActionId.AlphaSwordP3], "Cruise Chaser");
+        });
     }
 
     private static float Number(string value) => float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
@@ -853,8 +847,8 @@ public class TeaP3AlexanderPrimeScenarioTests
 
     private static float FacingFrom(Vector3 from, Vector3 to) => MathF.Atan2(to.X - from.X, to.Z - from.Z);
 
-    // Brute Justice turns to each flame's bait by ActorMoves at a boss's 480 degrees a second from the
-    // wall's due east, the first turn at 60.25 and each next one 2.02s after the last flame, and fires
+    // Brute Justice's model turns round to each flame's bait at a boss's 480 degrees a second from the
+    // wall's due east, the first turn at 60.25 and each next one 2.02s after the last flame, and he fires
     // on himself once facing them: MT, OT, then the party. The times land up to two frames late.
     [Test]
     public void EachFlarethrowerFollowsBruteJusticesTurnToItsBait() => FlarethrowersFollowTheirTurns(PhysRangedDps);
@@ -906,8 +900,8 @@ public class TeaP3AlexanderPrimeScenarioTests
                 Assert.That(flame["targets"].Split(' '), Does.Contain(bait), $"flame {k + 1}'s bait");
                 Assert.That(Angle(rot, facings[bait]), Is.LessThan(0.011f), $"flame {k + 1} aimed at its bait");
                 Assert.That(Number(flame["t"]), Is.EqualTo(flameAt).Within(2 * ScenarioRun.FrameSeconds), $"flame {k + 1} once facing");
+                TeaShown.TurnsRoundOnScreen(rows, bruteJustice!, at, Number(flame["t"]), before, rot, $"flame {k + 1}");
             });
-            TurnsByActorMoves(rows, at, Number(flame["t"]), before, rot);
             (turns[k], times[k]) = (Angle(before, rot), Number(flame["t"]));
             facing = rot;
             turnAt = flameAt + 2.02f;
@@ -916,23 +910,8 @@ public class TeaP3AlexanderPrimeScenarioTests
         return (turns, times);
     }
 
-    // Only ActorMoves turn him in [from, until), one of them mid-turn.
-    private static void TurnsByActorMoves(List<Dictionary<string, string>> rows, float from, float until, float oldFacing, float newFacing)
-    {
-        var turns = rows.Where(r => r["kind"] is "set_pos" or "move")
-            .Where(r => Number(r["t"]) >= from && Number(r["t"]) < until).ToList();
-        var whole = Angle(oldFacing, newFacing);
-        Assert.Multiple(() =>
-        {
-            Assert.That(turns.Select(r => r["kind"]), Is.Not.Empty.And.All.EqualTo("move"), $"facing packets in [{from:F2}, {until:F2})");
-            Assert.That(turns.Select(r => Number(r["rot"])).Any(rot => Angle(oldFacing, rot) > 0.05f && Angle(rot, newFacing) > 0.05f
-                                                                      && MathF.Abs(Angle(oldFacing, rot) + Angle(rot, newFacing) - whole) < 0.02f),
-                $"an ActorMove between {oldFacing:F2} and {newFacing:F2} in [{from:F2}, {until:F2})");
-        });
-    }
-
-    // Every number's hit, Alpha Sword or charge, goes out on Cruise Chaser himself after a teleport on
-    // his own spot turned the model to its number.
+    // Every number's hit, Alpha Sword or charge, goes out on Cruise Chaser himself, his model on screen
+    // already turned along it.
     [Test]
     public void EachLimitCutHitFollowsCruiseChasersTurnToItsBait()
     {
@@ -944,26 +923,17 @@ public class TeaP3AlexanderPrimeScenarioTests
             if (ids.Count == 0) foreach (var role in PerRole.All) ids[role] = p.Member(role)!.EntityId.ToString("X8");
         });
         Assert.That(run.Passed, run.ToString);
-        var rows = Rows().Where(r => r["actor"] == cruiseChaser).ToList();
-        var hits = rows.Where(r => r["kind"] == "ability"
+        var rows = Rows();
+        var hits = rows.Where(r => r["actor"] == cruiseChaser && r["kind"] == "ability"
                                    && (r["id"] == ActionId.AlphaSword.ToString() || r["id"] == ActionId.SuperBlasstyChargeP3.ToString())).ToList();
         Assert.That(hits, Has.Count.EqualTo(8));
         Assert.Multiple(() =>
         {
             Assert.That(hits.Select(h => h["id"]), Is.EqualTo(Enumerable.Range(0, 8).Select(k => (k % 2 == 0 ? ActionId.AlphaSword : ActionId.SuperBlasstyChargeP3).ToString())));
             Assert.That(hits.Select(h => h["targets"]), Is.EqualTo(PinnedNumbers.Select(r => ids[r])), "each hit on its number alone");
+            Assert.That(hits.Select(h => h["target"]), Is.All.EqualTo(cruiseChaser));
+            TeaShown.FacesEachHitOnScreen(rows, cruiseChaser!, [ActionId.AlphaSword, ActionId.SuperBlasstyChargeP3], "Cruise Chaser");
         });
-        foreach (var hit in hits)
-        {
-            var turn = rows.Take(rows.IndexOf(hit)).Last(r => r["kind"] is "set_pos" or "move");
-            Assert.Multiple(() =>
-            {
-                Assert.That(hit["target"], Is.EqualTo(cruiseChaser));
-                Assert.That(turn["kind"], Is.EqualTo("set_pos"));
-                Assert.That(Number(turn["rot"]), Is.EqualTo(Number(hit["rot"])).Within(0.011f));
-                Assert.That(Number(hit["t"]) - Number(turn["t"]), Is.EqualTo(0.13f).Within(0.02f));
-            });
-        }
     }
 
     // OT, #5, steps between Cruise Chaser and M2 as M2 takes the charge for #2.

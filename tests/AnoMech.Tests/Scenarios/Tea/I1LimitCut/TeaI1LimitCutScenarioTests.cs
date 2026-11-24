@@ -182,6 +182,8 @@ public class TeaI1LimitCutScenarioTests
             .At(14.0f, p => p.Member(OffTank)!.SetPosition((CruiseChaser(p).Position + p.Member(MainTank)!.Position) / 2f))
             .ShouldKill(ActionId.SuperBlasstyCharge, OffTank);
 
+    // The client plays a hit along the model's facing: each one goes out on Cruise Chaser himself, his
+    // model on screen already turned along it.
     [Test]
     public void EachHitFollowsCruiseChasersTurnToItsBait()
     {
@@ -189,25 +191,17 @@ public class TeaI1LimitCutScenarioTests
         var run = Run(MainTank, 28.5f, p => cruiseChaser ??= p.Game.Catalog.Scenarios.OfType<TeaI1LimitCutScenario>().Single().LastState?.Objects.CruiseChaser
             ?.EntityId.ToString("X8"));
         Assert.That(run.Passed, run.ToString);
-        var rows = Timeline().Where(r => r["actor"] == cruiseChaser).ToList();
-        var hits = rows.Where(r => r["kind"] == "ability"
+        var rows = Timeline();
+        var hits = rows.Where(r => r["actor"] == cruiseChaser && r["kind"] == "ability"
                                    && (r["id"] == ActionId.AlphaSword.ToString() || r["id"] == ActionId.SuperBlasstyCharge.ToString())).ToList();
         Assert.That(hits, Has.Count.EqualTo(8));
-        Assert.That(hits.Select(h => h["targets"]).Distinct().Count(), Is.EqualTo(8), "each hit on its own player");
-        foreach (var hit in hits)
+        Assert.Multiple(() =>
         {
-            var turn = rows.Take(rows.IndexOf(hit)).Last(r => r["kind"] is "set_pos" or "move");
-            Assert.Multiple(() =>
-            {
-                Assert.That(hit["target"], Is.EqualTo(cruiseChaser));
-                Assert.That(turn["kind"], Is.EqualTo("set_pos"));
-                Assert.That(Number(turn["rot"]), Is.EqualTo(Number(hit["rot"])).Within(0.011f));
-                Assert.That(At(hit) - At(turn), Is.EqualTo(0.13f).Within(0.02f));
-            });
-        }
+            Assert.That(hits.Select(h => h["targets"]).Distinct().Count(), Is.EqualTo(8), "each hit on its own player");
+            Assert.That(hits.Select(h => h["target"]), Is.All.EqualTo(cruiseChaser));
+            TeaShown.FacesEachHitOnScreen(rows, cruiseChaser!, [ActionId.AlphaSword, ActionId.SuperBlasstyCharge], "Cruise Chaser");
+        });
     }
-
-    private static float Number(string value) => float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 
     // The rectangle only runs forward from Cruise Chaser.
     [Test]
