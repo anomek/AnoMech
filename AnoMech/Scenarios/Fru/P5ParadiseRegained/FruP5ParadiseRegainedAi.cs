@@ -11,6 +11,7 @@ namespace AnoMech.Scenarios.Fru.P5ParadiseRegained;
 public sealed class FruP5ParadiseRegainedAi : IScenarioAi<FruP5ParadiseRegainedState>
 {
     public string Name => "H first / M1-R1 NW / M2-R2 NE; lines T-M-R-H";
+    public string Group => "NA";
 
     private FruP5ParadiseRegainedState state = null!;
 

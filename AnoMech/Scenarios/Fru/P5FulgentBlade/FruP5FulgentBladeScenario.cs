@@ -21,7 +21,7 @@ public sealed class FruP5FulgentBladeScenario : IScenario
     public IPhase Phase => FruZone.P5;
     public bool SupportsSolo => true;
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP5FulgentBladeAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP5FulgentBladeAi(), new FruP5FulgentBladeJpAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
     public object SettingsOverrides => settingsWindow.Overrides;

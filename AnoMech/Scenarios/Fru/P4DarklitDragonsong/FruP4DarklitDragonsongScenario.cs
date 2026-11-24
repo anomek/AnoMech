@@ -20,7 +20,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
     public string Name => "Darklit Dragonsong";
     public IPhase Phase => FruZone.P4;
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP4DarklitDragonsongAi(playerBaitsSomberDance: false), new FruP4DarklitDragonsongAi(playerBaitsSomberDance: true)];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP4DarklitDragonsongAi(playerBaitsSomberDance: false), new FruP4DarklitDragonsongAi(playerBaitsSomberDance: true), new FruP4DarklitDragonsongJpAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
     public object SettingsOverrides => settingsWindow.Overrides;
