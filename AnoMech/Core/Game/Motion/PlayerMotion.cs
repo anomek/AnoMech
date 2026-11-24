@@ -153,7 +153,6 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
         navigator.Clear();
         ForceFollow(null);
         holdRemaining = 0f;
-        march = null;
     }
 
     public override void Force(ForcedMove move)
@@ -193,50 +192,7 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
             case ForcedMove.Follow follow:
                 ForceFollow(follow.Target);
                 break;
-            case ForcedMove.March march:
-                StartMarch(march.To, march.Speed);
-                break;
         }
-    }
-
-    // Retail streams the next point of the march every ~0.25s, ~0.37s ahead of where the player is,
-    // then the end point with speed 0. UNVERIFIED how the client walks its player on them.
-    private const float MarchStepSeconds = 0.25f;
-    private const float MarchLeadSeconds = 0.37f;
-
-    private Trajectory? march;
-    private float marchHeading;
-    private float marchSpeed;
-    private float marchStepIn;
-
-    private void StartMarch(Vector3 to, float speed)
-    {
-        var start = Position;
-        var direction = to - start;
-        var distance = new Vector2(direction.X, direction.Z).Length();
-        if (distance < 1e-3f || speed <= 0f) return;
-        var duration = distance / speed;
-        march = Trajectory.Walk(start, to, duration);
-        marchHeading = MathF.Atan2(direction.X, direction.Z);
-        marchSpeed = speed;
-        marchStepIn = 0f;
-        Hold(duration);
-    }
-
-    private void TickMarch(float deltaSeconds)
-    {
-        if (march is not { } walk) return;
-        walk.Advance(deltaSeconds);
-        if (walk.Done)
-        {
-            march = null;
-            actorControl.ForcedMarchEnd(coordinates.ToGlobal(walk.End), marchHeading);
-            return;
-        }
-        marchStepIn -= deltaSeconds;
-        if (marchStepIn > 0f) return;
-        marchStepIn = MarchStepSeconds;
-        actorControl.ForcedMarchStep(coordinates.ToGlobal(walk.Ahead(MarchLeadSeconds)), marchHeading, marchSpeed);
     }
 
     // A player standing on `from` has no direction to be pushed in.
@@ -259,10 +215,8 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
         {
             if (navigator.HasOrders) navigator.Clear();
             ForceFollow(null);
-            march = null;
             return;
         }
-        TickMarch(deltaSeconds);
         TickForcedFollow(deltaSeconds);
         if (!DebugBotControl.Enabled || gates.MovementLocked) navigator.DropUnforced();
         navigator.Tick(deltaSeconds, held: IsHeld || gates.AnimationLocked, gates.SpeedFactor);

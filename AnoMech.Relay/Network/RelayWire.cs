@@ -173,7 +173,7 @@ public static class RelayWire
     {
         "hello", "claim", "release", "pose", "pong", "startCheckResponse", "startAbort", "entered", "sessionEnded",
         "resetRequest", "leaveRequest", "peerAppliedEnemyStatus", "peerAppliedRoleStatus", "streamGap", "streamLost", "acted",
-        "peerDispelled", "peerProvokedEnemy", "peerAttackedEnemy",
+        "peerDispelled",
     };
 
     // Before typed deserialization. A host message only needs its type here: the host already

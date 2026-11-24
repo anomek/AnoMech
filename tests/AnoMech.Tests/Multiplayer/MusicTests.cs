@@ -10,7 +10,7 @@ namespace AnoMech.Tests;
 // RunInstanceEvents). Every client's game is told the same; with music suppressed, nothing.
 public class MusicTests
 {
-    private const double SwitchAt = 5, SilenceAt = 8;
+    private const double SwitchAt = 5;
     private static readonly ushort NextTrack = UmadZone.P1.Bgm;
 
     [TestCase(true)]
@@ -18,16 +18,15 @@ public class MusicTests
     public void EveryClientPlaysTheSameMusic(bool music)
     {
         void Switch(TestClient client) => client.Game.World.SwitchBgm(NextTrack);
-        void Silence(TestClient client) => client.Game.World.SilenceBgm();
         var run = MultiplayerRun.Play(typeof(UmadP3BlackHoleScenario), 0, 1, new PlayerSeat(PartyRole.MeleeDpsA), [new PlayerSeat(PartyRole.CasterDps)],
             immortal: true, configure: client => client.Config.SuppressBgm = !music,
-            inputs: [(SwitchAt, 0, Switch), (SwitchAt, 1, Switch), (SilenceAt, 0, Silence), (SilenceAt, 1, Silence)]);
+            inputs: [(SwitchAt, 0, Switch), (SwitchAt, 1, Switch)]);
         Assert.That(run.Failure, Is.Null);
         Assert.That(run.InputsLeft, Is.Zero, "changes the fight ended before");
 
         IScenario scenario = new UmadP3BlackHoleScenario();
         string[] played = music
-            ? [$"{scenario.Phase.Bgm} seconds_in={SimTimeline.F(scenario.BgmSecondsAtStart)}", $"{NextTrack} switch", " silence"]
+            ? [$"{scenario.Phase.Bgm} seconds_in={SimTimeline.F(scenario.BgmSecondsAtStart)}", $"{NextTrack} switch"]
             : [];
         Assert.That(Music(run.Host), Is.EqualTo(played), "the host's");
         Assert.That(Music(run.Peers[0]), Is.EqualTo(played), "the peer's");

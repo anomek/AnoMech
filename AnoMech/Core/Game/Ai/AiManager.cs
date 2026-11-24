@@ -18,7 +18,7 @@ namespace AnoMech.Core.Game.Ai;
 public sealed class AiManager
 {
     // Measured in-game.
-    public const float RunSpeed = 6.5f;
+    private const float RunSpeed = 6.5f;
     public const float SprintSpeed = 8.3f;
     private const float DefaultJitter = 0.3f;
     // Move's deadline math leaves zero margin, and a move needing speed within a hair of RunSpeed
@@ -35,8 +35,9 @@ public sealed class AiManager
     /// <summary>Schedule bots movement</summary> 
     /// <param name="arrivalTime">If not empty, this is expected arrival time for bots. They will sprint if there is not enough time to walk, and they will leave as late as possible otherwise</param>
     /// <param name="sprint">Ignored if arrivalTime is set. Sprint towards target instead of walking</param>
+    /// <param name="facing">Rotation the bots turn to on arrival</param>
     public void Move(float time, Func<IAiMove> positions, float jitter = DefaultJitter, float? arrivalTime = null, bool sprint = false,
-        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+        float? facing = null, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {
         world.Events.Add(time, () =>
         {
@@ -58,8 +59,8 @@ public sealed class AiManager
                 if (sprinting) partyMember?.UseAction(JobActions.Sprint);
                 // `for`: the spot before the jitter, which each client rolls on its own stream.
                 AnoMech.Core.DiagnosticLog.Info($"[AiManager] Move@{time:F1}: {role} ({member.Position.X:F1},{member.Position.Z:F1}) -> ({target.X:F1},{target.Z:F1}) for ({local.X:F2},{local.Y:F2}) {dist:F1}y{(sprinting ? " sprinting" : "")}{(delay > 0f ? $", leaving in {delay:F2}s" : "")}.");
-                if (delay > 0f) world.Events.Add(delay, () => member.MoveTo(target, speed: speed), file, line);
-                else member.MoveTo(target, speed: speed);
+                if (delay > 0f) world.Events.Add(delay, () => member.MoveTo(target, speed, facing), file, line);
+                else member.MoveTo(target, speed, facing);
             }
         }, file, line);
     }
@@ -81,23 +82,6 @@ public sealed class AiManager
                     member.UseAction(Natives.Data.CanUse(member.ClassJob, JobActions.ArmsLength) ? JobActions.ArmsLength : JobActions.Surecast);
         }, file, line);
     }
-
-    // `target` is read when the press happens and a null one skips it; no `target` presses on
-    // themselves.
-    public void UseAction(float time, PartyRole role, uint actionId, Func<SimCharacter?>? target = null,
-        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
-        => UseAction(time, role, _ => actionId, target, file, line);
-
-    // The action picked from the member's job, e.g. Arm's Length or Surecast.
-    public void UseAction(float time, PartyRole role, Func<byte, uint> actionForJob, Func<SimCharacter?>? target = null,
-        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
-        => world.Events.Add(time, () =>
-        {
-            if (world.Party.Get(role) is not ISimPartyMember member) return;
-            var at = target?.Invoke();
-            if (target is not null && at is null) return;
-            member.UseAction(actionForJob(member.ClassJob), at);
-        }, file, line);
 
     public void Automarker(float time, Func<Dictionary<PartyRole, Sign>> mapping, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {

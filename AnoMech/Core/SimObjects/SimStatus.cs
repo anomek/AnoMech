@@ -47,16 +47,6 @@ public sealed class SimStatus : ISimObject
         return this;
     }
 
-    // While it lasts, every other status on its holder keeps its remaining time; its own runs on
-    // (TEA's Temporal Displacement).
-    internal bool HoldsOtherTimers { get; private set; }
-
-    public SimStatus HoldingOtherTimers()
-    {
-        HoldsOtherTimers = true;
-        return this;
-    }
-
     internal void Reveal()
     {
         if (!Hidden) return;
@@ -77,7 +67,7 @@ public sealed class SimStatus : ISimObject
 
     public void Tick(float deltaSeconds)
     {
-        if (!IsActive || duration <= 0f || (target.StatusTimersHeld && !HoldsOtherTimers)) return;
+        if (!IsActive || duration <= 0f) return;
         elapsed += deltaSeconds;
         if (elapsed >= duration) End(StatusLossReason.Expired);
     }

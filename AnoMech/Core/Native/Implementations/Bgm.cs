@@ -56,8 +56,6 @@ internal sealed unsafe class Bgm : IBgm
         Play(bgmId);
     }
 
-    public void Silence() => Switch(SilentBgmId);
-
     public void Reset()
     {
         StopPlayer();

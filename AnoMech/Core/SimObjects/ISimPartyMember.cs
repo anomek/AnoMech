@@ -26,10 +26,8 @@ public interface ISimPartyMember : ISimObject, IPositioned
     byte ClassJob { get; }
 
     // A no-op for humans, who press their own buttons; only bots use actions, including a debug bot
-    // in the local player's seat. Presses `actionId` at `target` (null: themselves) with the effects
-    // JobActions gives a player's press; one aimed at an enemy lands on it (SimEnemy.Attacked).
-    // False when KO'd, locked out of actions, or the target is gone.
-    bool UseAction(uint actionId, SimCharacter? target = null) => false;
+    // in the local player's seat.
+    void UseAction(uint actionId) { }
 }
 
 // Bridges the party-member death model onto SimCharacter-typed call sites. Party

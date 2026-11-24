@@ -12,8 +12,6 @@ internal sealed class SimBgm : ISimObject
 
     internal void Switch(ushort bgmId) => Natives.Bgm.Switch(bgmId);
 
-    internal void Silence() => Natives.Bgm.Silence();
-
     public void Tick(float deltaSeconds) => Natives.Bgm.Tick(deltaSeconds);
 
     public void Despawn() => Natives.Bgm.Reset();

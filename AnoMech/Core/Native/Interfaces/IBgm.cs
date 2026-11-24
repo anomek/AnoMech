@@ -13,9 +13,6 @@ public interface IBgm : IDisposable
     // the territory's music in. Nothing to do while no scenario track plays.
     void Switch(ushort bgmId);
 
-    // The director's null track.
-    void Silence();
-
     // Hands the scene back so the territory's own BGM resumes.
     void Reset();
 

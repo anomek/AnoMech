@@ -295,17 +295,16 @@ internal static unsafe class JobActions
         // Tank role
         [7531] = [Status(1191, 20f)],   // Rampart
         [7535] = [EnemyStatus(1193, 15f)],   // Reprisal
-        [7533] = [Provoke()],   // Provoke
 
         // Cleanses
         [7568] = [Dispel()],   // Esuna
         [3561] = [Dispel()],   // The Warden's Paean (its barrier on an unafflicted target is not modelled)
 
         // Tank LB3
-        [199]   = [LimitBreakStatus(196, 8f)],    // Last Bastion
-        [4240]  = [LimitBreakStatus(863, 8f)],    // Land Waker
-        [4241]  = [LimitBreakStatus(864, 8f)],    // Dark Force
-        [17105] = [LimitBreakStatus(1931, 8f)],   // Gunmetal Soul
+        [199]   = [TargetStatus(196, 8f)],    // Last Bastion
+        [4240]  = [TargetStatus(863, 8f)],    // Land Waker
+        [4241]  = [TargetStatus(864, 8f)],    // Dark Force
+        [17105] = [TargetStatus(1931, 8f)],   // Gunmetal Soul
 
         // WAR
         [37] = [Combo(Gauge(WarBeast, 10))],   // Maim
@@ -753,13 +752,6 @@ internal static unsafe class JobActions
     public static void ApplyAutoAttack(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)
         => ApplyJobEffects(AutoAttacks, caster, actionId, targetId, rng);
 
-    public const uint AttackActionId = 7;
-    public const uint ShotActionId = 8;
-
-    // Dancer's chakram throw is Attack at range; Shot plays nothing on it.
-    public static uint AutoAttackActionId(byte classJob)
-        => (JobId)classJob is JobId.Archer or JobId.Bard or JobId.Machinist ? ShotActionId : AttackActionId;
-
     public static void ApplyStartingResources(SimCharacter caster, System.Random rng)
         => ApplyJobEffects(StartingResources, caster, 0, 0, rng);
 
@@ -831,10 +823,8 @@ internal static unsafe class JobActions
     private static IActionEffect SetGauge(ResourceGauge gauge, int value) => new SetGaugeEffect(gauge, value);
     private static IActionEffect Status(ushort statusId, float duration, int stacks = 0) => new StatusEffect(statusId, duration, stacks);
     private static IActionEffect TargetStatus(ushort statusId, float duration, int stacks = 0) => new TargetStatusEffect(statusId, duration, stacks);
-    private static IActionEffect LimitBreakStatus(ushort statusId, float duration) => new LimitBreakStatusEffect(statusId, duration);
     private static IActionEffect EnemyStatus(ushort statusId, float duration, int stacks = 0) => new EnemyStatusEffect(statusId, duration, stacks);
     private static IActionEffect Dispel() => new DispelEffect();
-    private static IActionEffect Provoke() => new ProvokeEffect();
     private static IActionEffect Combo(params IActionEffect[] inner) => new ComboEffect(inner);
     private static IActionEffect Random(float chance, params IActionEffect[] inner) => new RandomEffect(chance, inner);
     private static IActionEffect Unlocks(uint actionId, params IActionEffect[] inner) => new UnlocksEffect(actionId, inner);

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using AnoMech.Core.Game;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
-using AnoMech.Core.UserActions;
 
 namespace AnoMech.Core.EnemyActions;
 
@@ -16,8 +15,10 @@ public sealed class EnemyActionContext
     private readonly List<(SimStatus Status, float RevealAt)> hiddenStatuses = [];
     private readonly List<(SimCharacter, ushort)> impactRemovals = [];
 
-    internal EnemyActionContext(EnemyAction action, SimCharacter caster, SimCharacter? target, Placement origin, SimParty party, float releaseDelay,
-        EventScheduler events)
+    // Surecast, Arm's Length, Inner Strength.
+    internal static readonly ushort[] KnockbackImmunityStatuses = [160, 1209, 2663];
+
+    internal EnemyActionContext(EnemyAction action, SimCharacter caster, SimCharacter? target, Placement origin, SimParty party, float releaseDelay)
     {
         this.releaseDelay = releaseDelay;
         Action = action;
@@ -25,7 +26,6 @@ public sealed class EnemyActionContext
         Target = target;
         Origin = origin;
         Party = party;
-        Events = events;
     }
 
     // From this resolve to the ActionEffect: a cast's CastSpec.ActionEffectOffset, 0 for an instant action.
@@ -37,8 +37,6 @@ public sealed class EnemyActionContext
     public SimCharacter? Target { get; }
     public Placement Origin { get; }
     public SimParty Party { get; }
-    // For an effect whose consequence comes later than this action's own hit.
-    public EventScheduler Events { get; }
     // Everyone the area caught, nearest to Origin first.
     public IReadOnlyList<SimCharacter> Hits { get; internal set; } = [];
 
@@ -68,7 +66,7 @@ public sealed class EnemyActionContext
     // row. The first push wins. Unless ignoresKbi, a knockback immunity status stops it.
     public void Knockback(SimCharacter who, float distance, float speed, float? delay = null, uint? knockbackRow = null, bool ignoresKbi = true)
     {
-        if (!ignoresKbi && KnockbackImmunity.Has(who)) return;
+        if (!ignoresKbi && Array.Exists(KnockbackImmunityStatuses, who.HasStatus)) return;
         var row = knockbackRow is { } id ? Natives.Data.Knockback(id) : null;
         var from = row switch
         {
@@ -94,7 +92,7 @@ public sealed class EnemyActionContext
         if (who.AddStatus(statusId, duration + delay, stacks, overrideStacks: false, sourceObject: default, broadcastAddEvent: false, hidden: revealAt > 0f,
                 appliedBy: (Action, Caster)) is not { Slot: >= 0 } status) return;
         status.ShownAsFrom(Caster);
-        Outcome(who).StatusGains.Add((statusId, entryParam));
+        if (!SimOnlyStatus.Is(statusId)) Outcome(who).StatusGains.Add((statusId, entryParam));
         if (status.Hidden) hiddenStatuses.Add((status, revealAt));
     }
 

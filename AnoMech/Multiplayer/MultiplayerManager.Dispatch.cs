@@ -120,10 +120,6 @@ public sealed partial class MultiplayerManager
     // for a network race, not for a player who joins and immediately leaves again.
     private const long RejoinGraceMs = 2000;
 
-    // A peer's report names the host's own enemy by entity id.
-    private static SimEnemy? LiveEnemy(uint entityId)
-        => Plugin.Game.World.Children.OfType<SimEnemy>().FirstOrDefault(e => e.IsActive && e.EntityId == entityId);
-
     // Host-driven state is applied only once this run's zone entry is done; outside one it would
     // act on the real inn.
     private bool PeerInRun => !IsHost && running && peerEnteredInstance && Plugin.Game.World.Map.IsInInstance;
@@ -294,42 +290,6 @@ public sealed partial class MultiplayerManager
                 }
                 break;
             }
-            // Only a tank's own provoke, on enemies the host knows.
-            case PeerProvokedEnemyMessage provoked when IsHost:
-            {
-                var who = Session.NameOf(provoked.PeerId);
-                if (Session.RoleOf(provoked.PeerId) is not { } role || Plugin.Game.World.Party.Get(role) is not { } member
-                    || member is not ISimPartyMember seat) break;
-                if (!Enmity.KnowsProvoke(seat.ClassJob))
-                {
-                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported a provoke from role {role}, whose job has no Provoke -- dropping.");
-                    break;
-                }
-                foreach (var entityId in NetGuard.Cap(provoked.Enemies, NetGuard.MaxReportedEnemies))
-                {
-                    if (LiveEnemy(entityId) is not { } enemy)
-                    {
-                        DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported provoking unknown enemy 0x{entityId:X} -- dropping.");
-                        continue;
-                    }
-                    enemy.Provoke(member);
-                    DiagnosticLog.Info($"[Multiplayer] Host: {who} (role {role}) provoked enemy 0x{entityId:X}.");
-                }
-                break;
-            }
-            case PeerAttackedEnemyMessage attacked when IsHost:
-            {
-                var who = Session.NameOf(attacked.PeerId);
-                if (Session.RoleOf(attacked.PeerId) is not { } role || Plugin.Game.World.Party.Get(role) is not { } member) break;
-                if (LiveEnemy(attacked.Enemy) is not { } enemy)
-                {
-                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported attacking unknown enemy 0x{attacked.Enemy:X} -- dropping.");
-                    break;
-                }
-                enemy.NoteAttack(member);
-                DiagnosticLog.Info($"[Multiplayer] Host: {who} (role {role}) attacked enemy 0x{attacked.Enemy:X}.");
-                break;
-            }
             // Only a cleanser's own press.
             case PeerDispelledMessage dispelled when IsHost:
             {
@@ -416,9 +376,6 @@ public sealed partial class MultiplayerManager
                 break;
             case FollowMessage follow when !IsHost:
                 OnFollowReceived(follow);
-                break;
-            case MarchMessage march when !IsHost:
-                OnMarchReceived(march);
                 break;
             case EndMessage end when !IsHost:
                 OnEndReceived(end);

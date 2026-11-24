@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
@@ -70,7 +71,7 @@ internal sealed class StatusEffect(ushort statusId, float duration, int stacks =
 internal static class HostReport
 {
     public static bool IsReported(ushort statusId)
-        => Mitigation.ByStatusId.ContainsKey(statusId) || KnockbackImmunity.IsImmunity(statusId) || statusId == JobActions.SprintStatus;
+        => Mitigation.ByStatusId.ContainsKey(statusId) || Array.IndexOf(EnemyActionContext.KnockbackImmunityStatuses, statusId) >= 0 || statusId == JobActions.SprintStatus;
 
     public static void RoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, int stacks)
     {
@@ -78,12 +79,7 @@ internal static class HostReport
             Plugin.Multiplayer?.ReportAppliedRoleStatus(roles, statusId, duration, (ushort)stacks);
     }
 
-    // True when a host now owns the cleanse.
     public static bool Dispelled(PartyRole role) => Plugin.Multiplayer?.ReportDispelled(role) ?? false;
-
-    public static void Provoked(IReadOnlyList<SimEnemy> enemies) => Plugin.Multiplayer?.ReportProvokedEnemies(enemies);
-
-    public static void Attacked(SimEnemy enemy) => Plugin.Multiplayer?.ReportAttackedEnemy(enemy);
 }
 
 // Leaf: remove the first dispellable status (Status sheet CanDispel) from each friendly recipient.
@@ -102,22 +98,10 @@ internal sealed class DispelEffect : IActionEffect
 
     public static void Dispel(SimCharacter member)
     {
-        if (member.ActiveStatuses.FirstOrDefault(s => Natives.Data.CanDispel(s.StatusId)) is not { } status) return;
+        if (member.ActiveStatuses.FirstOrDefault(s => Natives.Data.Status(s.StatusId) is { CanDispel: true }) is not { } status) return;
         void Remove() => member.RemoveStatus(status.StatusId, status.SourceObject);
         if (Plugin.Game is { } game) game.Events.Add(Delay, Remove);
         else Remove();
-    }
-}
-
-// Leaf: tell the targeted enemy who provoked it; what that does is the scenario's to decide
-// (SimEnemy.Provoked).
-internal sealed class ProvokeEffect : IActionEffect
-{
-    public void Apply(ActionContext ctx)
-    {
-        var enemies = ActionTargets.Hostile(ctx);
-        foreach (var enemy in enemies) enemy.Provoke(ctx.Caster);
-        HostReport.Provoked(enemies);
     }
 }
 
@@ -134,38 +118,6 @@ internal sealed class TargetStatusEffect(ushort statusId, float duration, int st
             if (member is ISimPartyMember slot) roles.Add(slot.Role);
         }
         HostReport.RoleStatus(roles, statusId, duration, stacks);
-    }
-}
-
-// When a staggered status lands: on the caster OnCaster seconds after the action, then on each other
-// recipient EachNext seconds after the one before.
-public readonly record struct StatusLanding(float OnCaster, float EachNext);
-
-// Leaf: a tank LB3's status, on the friendly recipients at the press unless the zone staggers it
-// (IZone.TankLimitBreakLanding).
-internal sealed class LimitBreakStatusEffect(ushort statusId, float duration) : IActionEffect
-{
-    private readonly TargetStatusEffect atThePress = new(statusId, duration);
-
-    public void Apply(ActionContext ctx)
-    {
-        if (Plugin.Game is not { Zone.TankLimitBreakLanding: { } landing } game)
-        {
-            atThePress.Apply(ctx);
-            return;
-        }
-        var members = ActionTargets.Friendly(ctx).OrderBy(m => !ReferenceEquals(m, ctx.Caster)).ToList();
-        for (var k = 0; k < members.Count; k++)
-        {
-            var member = members[k];
-            game.Events.Add(landing.OnCaster + landing.EachNext * k, () =>
-            {
-                if (!member.IsAlive()) return;
-                member.RemoveStatus(statusId);
-                member.AddStatusParam(statusId, 0, duration);
-                if (member is ISimPartyMember slot) HostReport.RoleStatus([slot.Role], statusId, duration, 0);
-            });
-        }
     }
 }
 

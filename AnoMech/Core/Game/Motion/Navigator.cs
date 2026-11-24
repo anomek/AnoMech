@@ -47,8 +47,6 @@ internal sealed class Navigator(INavigated walker)
     private bool followForced;
     private bool followWalking;
     private float followCooldown;
-    private float followReach;
-    private bool followToCentre;
 
     private SimTether? interceptTether;
     private float interceptMargin = 3f;   // park this many yards short of either tether endpoint
@@ -67,10 +65,8 @@ internal sealed class Navigator(INavigated walker)
     public void MoveTo(Vector3 to, float sp, float? finalRot) => SetDestination(to, sp, finalRot, forced: false);
 
     // forced: the mechanic itself is taking control (UMAD P1's Confusion), as opposed to a
-    // strat walking a bot to its spot. A null or dead target releases the follow. reach: how far
-    // past touching hitboxes to stop, or past the target's centre with toCentre, whatever either
-    // hitbox is.
-    public void Follow(SimCharacter? target, float sp, bool forced, float reach = 0f, bool toCentre = false)
+    // strat walking a bot to its spot. A null or dead target releases the follow.
+    public void Follow(SimCharacter? target, float sp, bool forced)
     {
         if (!target.IsAlive())
         {
@@ -82,8 +78,6 @@ internal sealed class Navigator(INavigated walker)
         followTarget = target;
         followForced = forced;
         followCooldown = 0f;
-        followReach = reach;
-        followToCentre = toCentre;
         interceptTether = null;
         speed = MathF.Max(0f, sp);
     }
@@ -259,7 +253,7 @@ internal sealed class Navigator(INavigated walker)
 
         var position = walker.Position;
         var target = followTarget.Position;
-        var stopDist = followToCentre ? followReach : walker.HitboxRadius + followTarget.HitboxRadius + followReach;
+        var stopDist = walker.HitboxRadius + followTarget.HitboxRadius;
         var reach = stopDist + FollowArrivalSlack;
         var away = new Vector2(position.X - target.X, position.Z - target.Z);
         if (away.LengthSquared() <= reach * reach)

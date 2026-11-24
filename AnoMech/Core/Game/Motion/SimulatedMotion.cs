@@ -32,7 +32,6 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
     // The forced move's packet animates the model itself (a server carry, an NPC knockback), so no
     // ActorMove may cut across it.
     private bool forcedByActorControl;
-    private ActorMoveFlags forcedFlags;
     private float forcedSpeed;
 
     // An NPC, which the server moves through a knockback with its own packet; a bot's knockback is
@@ -111,10 +110,6 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
 
     public override void Follow(SimCharacter? target, float speed) => navigator.Follow(target, speed, forced: false);
 
-    public void Follow(SimCharacter? target, float speed, float reach) => navigator.Follow(target, speed, forced: false, reach);
-
-    public void HomeIn(SimCharacter? target, float speed) => navigator.Follow(target, speed, forced: false, toCentre: true);
-
     public void KeepFacing(SimCharacter? target) => navigator.KeepFacing(target);
 
     public override void Intercept(SimTether? tether, float margin) => navigator.Intercept(tether, margin);
@@ -168,20 +163,6 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
             case ForcedMove.Follow follow:
                 navigator.Follow(follow.Target, follow.Speed, forced: true);
                 break;
-            case ForcedMove.March march:
-            {
-                navigator.Clear();
-                var direction = march.To - position;
-                var distance = new Vector2(direction.X, direction.Z).Length();
-                if (distance < 1e-3f || march.Speed <= 0f) break;
-                rotation = MathF.Atan2(direction.X, direction.Z);
-                model.Face(rotation);
-                forcedMove = Trajectory.Walk(position, march.To, distance / march.Speed);
-                forcedByActorControl = false;
-                forcedFlags = ActorMoveFlags.None;
-                forcedSpeed = march.Speed;
-                break;
-            }
         }
     }
 
@@ -203,7 +184,6 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
         }
         forcedMove = Trajectory.Slide(position, to, duration);
         forcedByActorControl = false;
-        forcedFlags = ActorMoveFlags.Knockback;
         forcedSpeed = duration > 0f ? Vector3.Distance(position, to) / duration : 0f;
     }
 
@@ -230,7 +210,7 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
             if (!forcedByActorControl)
             {
                 stepping = true;
-                model.Glide(trajectory.Ahead(ModelSync.LeadSeconds), forcedFlags, forcedSpeed, now: trajectory.Done);
+                model.Glide(trajectory.Ahead(ModelSync.LeadSeconds), ActorMoveFlags.Knockback, forcedSpeed, now: trajectory.Done);
             }
             if (trajectory.Done) forcedMove = null;
             else if (forcedByActorControl) return;

@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
-using AnoMech.Scenarios.Tea.P3AlexanderPrime;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
 using AnoMech.Scenarios.Umad.P2Forsaken;
@@ -35,7 +34,6 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(PushMessage), "push")]
 [JsonDerivedType(typeof(CarryMessage), "carry")]
 [JsonDerivedType(typeof(FollowMessage), "follow")]
-[JsonDerivedType(typeof(MarchMessage), "march")]
 [JsonDerivedType(typeof(EndMessage), "end")]
 [JsonDerivedType(typeof(PingMessage), "ping")]
 [JsonDerivedType(typeof(PongMessage), "pong")]
@@ -62,14 +60,12 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
 [JsonDerivedType(typeof(TeaI1LimitCutAiReplayStateMessage), "teaI1LimitCutAiReplayState")]
-[JsonDerivedType(typeof(TeaP3AlexanderPrimeAiReplayStateMessage), "teaP3AlexanderPrimeAiReplayState")]
+[JsonDerivedType(typeof(TeaP3WormholeAiReplayStateMessage), "teaP3WormholeAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
 [JsonDerivedType(typeof(PeerDispelledMessage), "peerDispelled")]
-[JsonDerivedType(typeof(PeerProvokedEnemyMessage), "peerProvokedEnemy")]
-[JsonDerivedType(typeof(PeerAttackedEnemyMessage), "peerAttackedEnemy")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 [JsonDerivedType(typeof(ActedMessage), "acted")]
 [JsonDerivedType(typeof(StreamStateMessage), "streamState")]
@@ -201,12 +197,11 @@ public sealed record KnockbackMessage(PartyRole Role, float SourceX, float Sourc
 
 // The other forced movements a scenario applies to a party member, each from the matching
 // ForcedMove on a SimNetworkPuppet. Push takes DurationSeconds when > 0, else Distance / Speed;
-// Follow with a null TargetRole releases the follow; March walks to (X, Y, Z) at Speed.
+// Follow with a null TargetRole releases the follow.
 public sealed record TeleportMessage(PartyRole Role, float X, float Y, float Z, float Rotation) : MpMessage, IHostOnlyMessage;
 public sealed record PushMessage(PartyRole Role, float Heading, float Distance, float Speed, float DurationSeconds) : MpMessage, IHostOnlyMessage;
 public sealed record CarryMessage(PartyRole Role, float X, float Y, float Z) : MpMessage, IHostOnlyMessage;
 public sealed record FollowMessage(PartyRole Role, PartyRole? TargetRole, uint TargetEnemy, float Speed) : MpMessage, IHostOnlyMessage;
-public sealed record MarchMessage(PartyRole Role, float X, float Y, float Z, float Speed) : MpMessage, IHostOnlyMessage;
 
 // ReturnedToInn distinguishes Reset() (stays in-zone) from Leave() (unloads); both clear
 // ActiveScenario identically. Reason is set only when the group couldn't otherwise explain
@@ -308,11 +303,9 @@ public sealed record UltimateSuppressionAiReplayStateMessage(
 public sealed record TeaI1LimitCutAiReplayStateMessage(PartyRole[] Numbers, int FirstBlasterAxis) : MpMessage, IScenarioReplayStateMessage;
 
 // Every roll; the chakrams' and Incinerating Heat's targets are picked live and the peer reads them
-// off its own screen. Aggravated Assault is the two DPS left over.
-public sealed record TeaP3AlexanderPrimeAiReplayStateMessage(
-    P3Practice Practice, PartyRole[] OrbHolders, PartyRole RestrainingOrderTank, PartyRole RestrainingOrderDps, PartyRole SharedSentence,
-    bool AlexanderPrimeNorth, int SacramentSpot, bool BruteJusticeNorthWest, bool PuddlesMirrored, PartyRole[] Numbers,
-    PartyRole[] Enumerations) : MpMessage, IScenarioReplayStateMessage;
+// off its own screen.
+public sealed record TeaP3WormholeAiReplayStateMessage(
+    bool BruteJusticeNorthWest, bool PuddlesMirrored, PartyRole[] Numbers, PartyRole[] Enumerations) : MpMessage, IScenarioReplayStateMessage;
 
 // InFirst is TopP6WaveCannon2Ai's entire read set.
 public sealed record TopP6WaveCannon2AiReplayStateMessage(bool InFirst) : MpMessage, IScenarioReplayStateMessage;
@@ -372,12 +365,6 @@ public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> R
 
 // Peer -> host: this player's cleanse (Esuna) landed on Role; the host's copy picks what comes off.
 public sealed record PeerDispelledMessage(Guid PeerId, PartyRole Role) : MpMessage, IPeerMessage;
-
-// Peer -> host: this player provoked these enemies, by host entity id.
-public sealed record PeerProvokedEnemyMessage(Guid PeerId, List<uint> Enemies) : MpMessage, IPeerMessage;
-
-// Peer -> host: this player's first attack on this enemy, by host entity id, landed.
-public sealed record PeerAttackedEnemyMessage(Guid PeerId, uint Enemy) : MpMessage, IPeerMessage;
 
 // Peer -> host: a step of this player's own action (IUserActions.Acted), which the host shows on
 // the peer's seat for the rest of the party. Target names an actor as a GamePacket does.
