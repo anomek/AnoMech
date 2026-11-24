@@ -33,7 +33,6 @@ public sealed class UmadP3LimitCutAi : IScenarioAi<UmadP3LimitCutState>
         world.Events.Add(33.6f, FirstTankOntoExdeath);
         ai.Move(38.9f, SwapThunderTanks, arrivalTime: 41.2f);
         ScheduleThunderClearance(36.5f, 38.9f, 42.2f);
-        ai.Move(47.0f, StackAtBosses);
     }
 
     private (PartyRole First, PartyRole? Second) ThunderRoles => ThunderIIIPlanning.Roles(state.ThunderPlan);

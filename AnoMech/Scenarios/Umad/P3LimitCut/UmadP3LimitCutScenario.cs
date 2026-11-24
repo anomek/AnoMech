@@ -50,8 +50,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     private static readonly float[] ChargeAt = [30.953f, 31.175f, 31.398f, 31.621f, 31.845f, 32.068f, 32.291f, 32.515f];
     private const float NumbersAt = 18.83f;
     // Both bosses stop swinging for their own casts.
-    private static readonly float[] ChaosAutoAt = [3.904f, 6.928f, 18.066f, 21.095f, 26.162f, 29.189f, 32.214f, 37.285f, 40.311f, 43.335f, 49.381f, 52.407f];
-    private static readonly float[] ExdeathAutoAt = [4.259f, 7.284f, 20.379f, 26.473f, 29.501f, 32.525f, 41.603f, 47.647f, 50.671f];
+    private static readonly float[] ChaosAutoAt = [3.904f, 6.928f, 18.066f, 21.095f, 26.162f, 29.189f, 32.214f, 37.285f, 40.311f];
+    private static readonly float[] ExdeathAutoAt = [4.259f, 7.284f, 20.379f, 26.473f, 29.501f, 32.525f, 41.603f];
 
     public UmadP3LimitCutState? LastState { get; private set; }
 
@@ -131,28 +131,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         world.Events.Add(38.57f, ResolveThunder);
         world.Events.Add(41.60f, ResolveThunder);
         world.Events.Add(42.10f, () => state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank)));
-        world.Events.Add(43.30f, () =>
-        {
-            state.Objects.Chaos?.Follow();
-            state.Objects.Exdeath?.Follow();
-        });
-        world.Events.Add(43.50f, () =>
-        {
-            state.Objects.Chaos?.Cast(ActionId.DecisiveBattle_Chaos, animationLock: 3.1f);
-            state.Objects.Exdeath?.Cast(ActionId.DecisiveBattle_Exdeath, animationLock: 3.1f);
-        });
-        world.Events.Add(46.49f, ResolveDecisiveBattle);
-        world.Events.Add(46.69f, () =>
-        {
-            state.Objects.Chaos?.Follow(party.Get(PartyRole.MainTank));
-            state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank));
-        });
-        world.Events.Add(50.581f, () => state.Objects.Kefka?.PlayActionTimeline(ActionTimelineId.WarpEnd));
-        world.Events.Add(50.746f, () =>
-        {
-            state.Objects.Exdeath?.Follow();
-            state.Objects.Exdeath?.Cast(ActionId.ThunderIII_Cast, animationLock: 3.1f);
-        });
     }
 
     public void RunInstanceEvents(SimWorld instanceWorld)
@@ -162,7 +140,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         instanceWorld.Events.Add(1.988f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x18U, 0x2U, 0x1BDBU, 0x4000EFB9U));
         instanceWorld.Events.Add(8.981f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x2FU, 0x2U, 0x1BDBU, 0x4000EFB9U));
         instanceWorld.Events.Add(31.059f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x19U, 0x2U, 0x1BDBU, 0x4000EFB9U));
-        instanceWorld.Events.Add(52.629f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x1AU, 0x2U, 0x1BDBU, 0x4000EFB9U));
     }
 
     public MpMessage? BuildReplayStateMessage()
@@ -253,7 +230,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         });
     }
 
-    // No Epic/Fated sides: stripped 44.3s before the Umbra cast, back with the Decisive Battle.
+    // No Epic/Fated sides: stripped 44.3s before the Umbra cast.
     // The winds land 68s long at Bowels of Agony, 48.4s before scenario start.
     private void ApplyStartingStatuses()
     {
@@ -273,16 +250,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     {
         if (state.Objects.Exdeath is not { } exdeath) return;
         exdeath.CastFromHelper(UmadActions.ThunderIII, party.Find.Closest(exdeath.Position), at: new Placement(WindCrystalPos, 0f));
-    }
-
-    private void ResolveDecisiveBattle()
-    {
-        state.Objects.Chaos?.AddStatus(StatusId.EpicVillain);
-        state.Objects.Exdeath?.AddStatus(StatusId.FatedVillain);
-        foreach (var role in Enum.GetValues<PartyRole>())
-            if (party.Get(role) is { } member && member.IsAlive())
-                member.AddStatus(role is PartyRole.MainTank or PartyRole.RegenHealer or PartyRole.MeleeDpsA or PartyRole.MeleeDpsB
-                    ? StatusId.EpicHero : StatusId.FatedHero);
     }
 
     private void StartUmbraSmash()
