@@ -41,6 +41,10 @@ public enum TetherEndReason
 
 public sealed record TetherEnded(SimTether Tether, TetherEndReason Reason);
 
+// An action a player pressed, as it resolves: the local player's own, or a peer's on the host.
+// Target is null when it was aimed at nothing the sim spawned.
+public sealed record PlayerActed(SimCharacter Actor, uint ActionId, SimCharacter? Target);
+
 // What a scenario reacts to as retail does when it happens: a debuff that detonates as it runs
 // out, a tether that snaps. Only for that: the fight's timeline stays in Events, and what an action
 // does to its own targets in its EnemyAction effects. A scenario forwards to a shared helper
@@ -52,6 +56,7 @@ public interface IWorldEventListener
     // A death godmode spares loses nothing.
     void OnStatusLost(StatusLost lost) { }
     void OnTetherEnded(TetherEnded ended) { }
+    void OnPlayerActed(PlayerActed acted) { }
 }
 
 // Queued where they happen and delivered at the end of SimWorld.Tick, so a hook can spawn, cast and
@@ -67,6 +72,7 @@ public sealed class SimEvents
     internal void Raise(StatusAdded e) => Enqueue(l => l.OnStatusAdded(e));
     internal void Raise(StatusLost e) => Enqueue(l => l.OnStatusLost(e));
     internal void Raise(TetherEnded e) => Enqueue(l => l.OnTetherEnded(e));
+    internal void Raise(PlayerActed e) => Enqueue(l => l.OnPlayerActed(e));
 
     // Events a hook raises are delivered in the same pass.
     internal void Dispatch()

@@ -75,10 +75,10 @@ public sealed partial class MultiplayerManager
         gameEventsSubscribed = true;
         Plugin.Game.InstanceExited += OnInstanceExited;
         Natives.UserActions.Acted += OnActed;
-        Plugin.Game.World.Announced += text =>
+        Plugin.Game.World.Announced += (text, speaker) =>
         {
             if (!IsHost || stream == null) return;
-            _ = Send(new AnnouncementMessage(text));
+            _ = Send(new AnnouncementMessage(text, speaker));
         };
     }
 

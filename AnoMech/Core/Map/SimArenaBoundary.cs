@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.SimObjects;
 
@@ -14,6 +15,7 @@ internal sealed class SimArenaBoundary : ISimObject
     private readonly SimParty party;
     private readonly float radiusSq;
     private readonly string cause;
+    private readonly HashSet<SimCharacter> outside = new();
 
     public bool IsAlive => true;
     public bool IsActive => true;
@@ -34,8 +36,14 @@ internal sealed class SimArenaBoundary : ISimObject
         // Member positions are scenario-local; the boundary is centered on local zero.
         foreach (var member in party.ActiveMembers())
         {
-            if (!IsOutside(member.Position)) continue;
-            member.Die(SimCharacterDeathExtensions.Environment, cause);
+            if (!IsOutside(member.Position))
+            {
+                outside.Remove(member);
+                continue;
+            }
+            // Once per crossing: a death that doesn't take (godmode) would otherwise be retried
+            // and printed every frame the member stays out.
+            if (outside.Add(member)) member.Die(SimCharacterDeathExtensions.Environment, cause);
         }
     }
 
