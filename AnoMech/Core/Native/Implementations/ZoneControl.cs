@@ -418,6 +418,7 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         pendingWeather = null;
         RestoreOriginalWeather();
 
+        innReloadedAt = Stopwatch.GetTimestamp();
         // The reload can throw; the firewall and the Occupied flag must be released regardless,
         // or the client is left unable to send anything until the plugin is unloaded.
         try
@@ -456,7 +457,6 @@ public sealed unsafe partial class ZoneControl : IZoneControl
             {
                 AnoMech.Core.DiagnosticLog.Warn($"[ZoneGuard] The restore before the lift threw: {e}");
             }
-            ReleasePlayerConditions();
             LiftFirewallOrDie("after the inn reload");
         }));
     }
@@ -470,9 +470,9 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         AnoMech.Core.DiagnosticLog.Info($"[ZoneGuard] Position re-asserted to {savedPosition.X:F2},{savedPosition.Y:F2},{savedPosition.Z:F2}: was {Describe(beforeRestore)}, now {Describe(afterRestore)}.");
     }
 
-    // What the settle and the sim hold on the character: Occupied for the settle, and the
-    // untargetable state Suppression leaves. Every lift path releases them, and
-    // none may be kept from its lift by a throw here.
+    // What the settle and the sim hold on the character: Occupied from the revert until the lift,
+    // and the untargetable state Suppression leaves. The lift releases them once verified, and a
+    // throw here must not keep it from lifting.
     private static void ReleasePlayerConditions()
     {
         var condition = Conditions.Instance();
@@ -833,7 +833,7 @@ public sealed unsafe partial class ZoneControl : IZoneControl
         var gameClosing = Plugin.Framework.IsFrameworkUnloading;
 
         // Plugin.DisposeAsync leaves the stay and waits out the lift first, so only an unload
-        // that couldn't wait gets here. The inn reload finishes over the next second and then
+        // that couldn't wait gets here. The inn reload finishes on the client's own time and then
         // sends its post-load packets, which an unload has no frames left to hold back.
         if (IsActive && !gameClosing) Die("AnoMech was unloaded during a run");
 
@@ -843,7 +843,6 @@ public sealed unsafe partial class ZoneControl : IZoneControl
             // Nothing would close the window again: its listener is gone.
             partyResyncDue = false;
             SetLocalPlayerPosition(armedPosition, armedRotation);
-            ReleasePlayerConditions();
             LiftFirewallOrDie("on plugin unload during the post-revert wait", mayRetry: false);
         }
         // Through its own release, which puts the character back first.

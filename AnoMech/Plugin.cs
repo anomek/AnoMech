@@ -189,7 +189,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
         return true;
     }
 
-    private static readonly TimeSpan UnloadLiftTimeout = TimeSpan.FromSeconds(10);
+    // The guard's wait for the inn counts from the reload, which an unload mid-stay starts a frame
+    // after this clock: the margin lets the guard make the call.
+    private static readonly TimeSpan UnloadLiftTimeout = TimeSpan.FromSeconds(LiftWait.InnLoadSeconds + 2);
 
     // Null-tolerant throughout: the constructor's failure path calls this on a half-built
     // instance, where anything past the throwing step was never assigned.
