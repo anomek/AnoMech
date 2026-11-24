@@ -13,6 +13,7 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
     private static readonly Lazy<Sheet> BNpcBases = Load("BNpcBase");
     private static readonly Lazy<Sheet> BNpcNames = Load("BNpcName");
     private static readonly Lazy<Sheet> ClassJobs = Load("ClassJob");
+    private static readonly Lazy<Sheet> ClassJobCategories = Load("ClassJobCategory");
     private static readonly Lazy<Sheet> Knockbacks = Load("Knockback");
     private static readonly Lazy<Sheet> ModelCharas = Load("ModelChara");
     private static readonly Lazy<Sheet> ModelSkeletons = Load("ModelSkeleton");
@@ -40,7 +41,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
             row.SByte("AttackType"),
             row.Bool("TargetArea"),
             row.Bool("IsPlayerAction"),
-            row.Byte("ClassJobLevel"));
+            row.Byte("ClassJobLevel"),
+            row.UInt("ClassJobCategory"));
     }
 
     // Every action a player presses outside PvP.
@@ -86,6 +88,12 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
         => ContentFinderConditions.Value.Row(contentFinderConditionId) is { } row
             ? new ContentFinderConditionRow(contentFinderConditionId, row.Byte("ClassJobLevelSync"))
             : null;
+
+    // A column per ClassJob, named by its Abbreviation.
+    public bool ClassJobCategoryIncludes(uint classJobCategoryId, byte classJob)
+        => ClassJobCategories.Value.Row(classJobCategoryId) is { } category
+           && ClassJobs.Value.Row(classJob) is { } job
+           && category.Bool(job.Text("Abbreviation"));
 
     public string? BNpcName(uint nameId) => NonEmpty(Resolve(BNpcNames.Value.Row(nameId)?.Text("Singular")));
 

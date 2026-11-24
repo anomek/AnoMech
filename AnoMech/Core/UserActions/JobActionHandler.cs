@@ -1,4 +1,5 @@
 using System;
+using AnoMech.Core.Native.Interfaces;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace AnoMech.Core.UserActions;
@@ -12,16 +13,22 @@ internal sealed class JobActionHandler : IUserActionHandler
 {
     private readonly Random rng = new();
 
+    // ApplyEffects decides which actions resolve with the module off.
+    public bool RunsWhenDisabled => true;
+
     public void OnAction(ActionType actionType, uint actionId, ulong targetId)
     {
         if (actionType != ActionType.Action) return;
         var player = Plugin.Game?.Player;
         if (player == null) return;
 
-        var free = JobActions.IsFree(player, actionId);
-        // Clear first so a line action can re-grant after its own weaponskill clear.
-        JobActions.ClearStatuses(player, actionId);
-        if (!free) JobActions.ApplyCost(actionId);   // generic spender pass (sheet PrimaryCost)
+        if (Natives.UserActions.Enabled)
+        {
+            var free = JobActions.IsFree(player, actionId);
+            // Clear first so a line action can re-grant after its own weaponskill clear.
+            JobActions.ClearStatuses(player, actionId);
+            if (!free) JobActions.ApplyCost(actionId);   // generic spender pass (sheet PrimaryCost)
+        }
 
         JobActions.ApplyEffects(player, actionId, targetId, rng);
     }

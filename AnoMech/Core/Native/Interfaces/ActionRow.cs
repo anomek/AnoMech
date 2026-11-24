@@ -18,4 +18,5 @@ public sealed record ActionRow(
     // Aimed at a ground point: the server's ActionEffect then carries no animation target.
     bool TargetArea,
     bool IsPlayerAction,
-    byte ClassJobLevel);
+    byte ClassJobLevel,
+    uint ClassJobCategory);

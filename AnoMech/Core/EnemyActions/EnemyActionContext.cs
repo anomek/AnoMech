@@ -15,6 +15,9 @@ public sealed class EnemyActionContext
     private readonly List<(SimStatus Status, float RevealAt)> hiddenStatuses = [];
     private readonly List<(SimCharacter, ushort)> impactRemovals = [];
 
+    // Surecast, Arm's Length, Inner Strength.
+    internal static readonly ushort[] KnockbackImmunityStatuses = [160, 1209, 2663];
+
     internal EnemyActionContext(EnemyAction action, SimCharacter caster, SimCharacter? target, Placement origin, SimParty party, float releaseDelay)
     {
         this.releaseDelay = releaseDelay;
@@ -60,9 +63,10 @@ public sealed class EnemyActionContext
 
     // Decided now; moves the character after `delay` (null = TimingSpec.DamageDelay), unless it died
     // meanwhile. knockbackRow goes into the ActionEffect; null for a push with no Knockback sheet
-    // row. The first push wins.
-    public void Knockback(SimCharacter who, float distance, float speed, float? delay = null, uint? knockbackRow = null)
+    // row. The first push wins. Unless ignoresKbi, a knockback immunity status stops it.
+    public void Knockback(SimCharacter who, float distance, float speed, float? delay = null, uint? knockbackRow = null, bool ignoresKbi = true)
     {
+        if (!ignoresKbi && Array.Exists(KnockbackImmunityStatuses, who.HasStatus)) return;
         var row = knockbackRow is { } id ? Natives.Data.Knockback(id) : null;
         var from = row switch
         {

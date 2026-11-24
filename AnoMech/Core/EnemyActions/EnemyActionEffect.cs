@@ -49,18 +49,19 @@ public static class EnemyActionEffects
 
     // Away from the caster, by a Knockback sheet row. Survivors only.
     // `knockbackDelay` is from resolve and used only for bots and NPCs; null = TimingSpec.DamageDelay.
-    public static IEnemyActionEffect Knockback(uint knockbackId, float? knockbackDelay = null)
-        => new KnockbackEffect((_, _) => Natives.Data.Knockback(knockbackId) is { } kb ? (kb.Distance, kb.Speed) : null, knockbackDelay, knockbackId);
+    // ignoresKbi: false only where retail lets knockback immunity stop it and a strat relies on that.
+    public static IEnemyActionEffect Knockback(uint knockbackId, float? knockbackDelay = null, bool ignoresKbi = true)
+        => new KnockbackEffect((_, _) => Natives.Data.Knockback(knockbackId) is { } kb ? (kb.Distance, kb.Speed) : null, knockbackDelay, ignoresKbi, knockbackId);
 
     // A scripted push away from the caster, which no Knockback row describes. Survivors only.
-    // `pushDelay` as Knockback's.
-    public static IEnemyActionEffect Push(float distance, float speed, float? pushDelay = null)
-        => new KnockbackEffect((_, _) => (distance, speed), pushDelay);
+    // `pushDelay` and `ignoresKbi` as Knockback's.
+    public static IEnemyActionEffect Push(float distance, float speed, float? pushDelay = null, bool ignoresKbi = true)
+        => new KnockbackEffect((_, _) => (distance, speed), pushDelay, ignoresKbi);
 
     // A scripted push away from the caster, as far as `distance` says for each target (read at
     // resolve; null = not pushed). Survivors only.
-    public static IEnemyActionEffect Push(Func<EnemyActionContext, SimCharacter, float?> distance, float speed, float? pushDelay = null)
-        => new KnockbackEffect((ctx, target) => distance(ctx, target) is { } d ? (d, speed) : null, pushDelay);
+    public static IEnemyActionEffect Push(Func<EnemyActionContext, SimCharacter, float?> distance, float speed, float? pushDelay = null, bool ignoresKbi = true)
+        => new KnockbackEffect((ctx, target) => distance(ctx, target) is { } d ? (d, speed) : null, pushDelay, ignoresKbi);
 
     // Kills by facing alone: with `lookAway`, whoever has the origin in their front 90° arc; without,
     // whoever has it in their back 90° arc.
@@ -198,7 +199,7 @@ internal sealed class GazeEffect(bool lookAway) : IEnemyActionEffect
     }
 }
 
-internal sealed class KnockbackEffect(Func<EnemyActionContext, SimCharacter, (float Distance, float Speed)?> push, float? knockbackDelay, uint? knockbackRow = null) : IEnemyActionEffect
+internal sealed class KnockbackEffect(Func<EnemyActionContext, SimCharacter, (float Distance, float Speed)?> push, float? knockbackDelay, bool ignoresKbi, uint? knockbackRow = null) : IEnemyActionEffect
 {
     public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
     {
@@ -206,7 +207,7 @@ internal sealed class KnockbackEffect(Func<EnemyActionContext, SimCharacter, (fl
         {
             if (ctx.IsKilled(target) || !target.IsAlive()) continue;
             if (push(ctx, target) is { } p)
-                ctx.Knockback(target, p.Distance, p.Speed, knockbackDelay, knockbackRow);
+                ctx.Knockback(target, p.Distance, p.Speed, knockbackDelay, knockbackRow, ignoresKbi);
         }
     }
 }

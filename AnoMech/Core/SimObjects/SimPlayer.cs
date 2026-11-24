@@ -1,3 +1,4 @@
+using System;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Motion;
@@ -24,9 +25,11 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     internal override IBattleCharaProxy Proxy => Natives.BattleCharas.LocalPlayer;
 
-    public void UseSprint(float duration)
+    public byte ClassJob => Proxy.ClassJob;
+
+    public void UseAction(uint actionId)
     {
-        if (DebugBotControl.Enabled && !Dead && !ActionsLocked) SprintHandler.Apply(this, duration);
+        if (DebugBotControl.Enabled && !Dead && !ActionsLocked) JobActions.ApplyEffects(this, actionId, (ulong)GameObjectId, Random.Shared);
     }
 
     public override void Tick(float deltaSeconds)

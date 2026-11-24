@@ -37,22 +37,19 @@ public sealed class SimParty : ISimObject
 
     public LimitBreakGauge LimitBreak { get; }
 
-    // The bot in `role` casts its job's limit break at the level the gauge allows, emptying it.
-    // False if the slot is not a live bot (humans press their own), no bar is filled, or the job
-    // has none at that level.
-    public bool UseLimitBreak(PartyRole role)
+    // The bot in `role` uses its job's limit break at the level the gauge allows. Skipped for a
+    // slot that is not a bot (humans press their own), with no bar filled, or while mitigation is
+    // not required: the limit break is mitigation, and nothing would check it.
+    public void UseLimitBreak(PartyRole role)
     {
-        if (Get(role) is not SimPartyNpc bot) return false;
-        var level = LimitBreak.FilledBars;
-        if (level == 0)
+        if (Get(role) is not SimPartyNpc bot || !Mitigation.Required) return;
+        var actionId = LimitBreakHandler.ActionId(bot.ClassJob, LimitBreak.FilledBars);
+        if (actionId == 0)
         {
-            DiagnosticLog.Info($"[SimParty] {role} limit break skipped: no bar is filled.");
-            return false;
+            DiagnosticLog.Info($"[SimParty] {role} limit break skipped: no limit break at {LimitBreak.FilledBars} bars.");
+            return;
         }
-        var actionId = bot.UseLimitBreak(level);
-        if (actionId == 0) return false;
-        LimitBreakHandler.Resolve(this, bot, actionId);
-        return true;
+        bot.UseAction(actionId);
     }
 
     public SimCharacter? Get(int roleId)

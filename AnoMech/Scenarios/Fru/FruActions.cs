@@ -492,7 +492,7 @@ public static class FruActions
                     ApplyStatus(StatusId.MagicVulnerabilityUp, 6f, delayToEffectResult: true)
             ),
             OnBehindFront(4, Damage()),
-            Knockback(KnockbackId.HallowedWings, 1.36f)
+            Knockback(KnockbackId.HallowedWings, 1.36f, ignoresKbi: false)
         ],
         Timing = new() { DamageDelay = 1.8f },
     };

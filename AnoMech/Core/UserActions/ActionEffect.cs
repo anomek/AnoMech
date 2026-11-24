@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
@@ -63,11 +64,13 @@ internal sealed class StatusEffect(ushort statusId, float duration, int stacks =
 }
 
 // A peer runs no scenario logic: the host decides who lives, from the statuses on its own copy
-// of each character. Only mitigation, the one kind of status the host acts on, and Sprint, which
-// every other client shows, are sent.
+// of each character. Only the statuses the host acts on (mitigation, knockback immunity) and Sprint,
+// which every other client shows, are sent.
 internal static class HostReport
 {
-    public static bool IsReported(ushort statusId) => Mitigation.ByStatusId.ContainsKey(statusId) || statusId == SprintHandler.SprintStatusId;
+    public static bool IsReported(ushort statusId) => Mitigation.ByStatusId.ContainsKey(statusId)
+        || Array.IndexOf(EnemyActionContext.KnockbackImmunityStatuses, statusId) >= 0
+        || statusId == JobActions.SprintStatus;
 
     public static void RoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, int stacks)
     {

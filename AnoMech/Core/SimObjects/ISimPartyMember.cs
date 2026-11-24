@@ -23,9 +23,11 @@ public interface ISimPartyMember : ISimObject, IPositioned
     // Game.Kill calls this outside godmode. byEnvironment: no action dealt the death.
     void OnKilled(bool byEnvironment);
 
-    // A no-op for humans, who press their own Sprint; only bots cast, including a debug bot in the
-    // local player's seat.
-    void UseSprint(float duration) { }
+    byte ClassJob { get; }
+
+    // A no-op for humans, who press their own buttons; only bots use actions, including a debug bot
+    // in the local player's seat.
+    void UseAction(uint actionId) { }
 }
 
 // Bridges the party-member death model onto SimCharacter-typed call sites. Party

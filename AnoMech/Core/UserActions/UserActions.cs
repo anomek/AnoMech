@@ -26,7 +26,6 @@ public sealed unsafe class UserActions : IUserActions
     private readonly List<IUserActionHandler> handlers =
     [
         new ResetHandler(),
-        new SprintHandler(),
         new CastTimeHandler(),
         new JobActionHandler(),
         new LimitBreakHandler(),

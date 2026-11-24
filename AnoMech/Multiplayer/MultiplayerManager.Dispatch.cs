@@ -267,10 +267,10 @@ public sealed partial class MultiplayerManager
             {
                 var who = Session.NameOf(applied.PeerId);
                 if (Session.RoleOf(applied.PeerId) is not { } reporter) break;
-                var sprint = applied.StatusId == SprintHandler.SprintStatusId;
-                if (!sprint && !Mitigation.ByStatusId.ContainsKey(applied.StatusId))
+                var sprint = applied.StatusId == JobActions.SprintStatus;
+                if (!HostReport.IsReported(applied.StatusId))
                 {
-                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported role status {applied.StatusId}, which is no known mitigation -- dropping.");
+                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported role status {applied.StatusId}, which is not one the host acts on -- dropping.");
                     break;
                 }
                 var duration = NetGuard.Clamp(applied.Duration, 0f, NetGuard.MaxMitigationSeconds);
@@ -283,13 +283,9 @@ public sealed partial class MultiplayerManager
                         DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported status {applied.StatusId} on role {role}, but that slot is empty -- dropping.");
                         continue;
                     }
-                    if (sprint) SprintHandler.Apply(member, duration);
-                    else
-                    {
-                        // A re-press replaces the status, as it does on the peer; AddStatus alone would stack it.
-                        member.RemoveStatus(applied.StatusId);
-                        member.AddStatusParam(applied.StatusId, applied.Param, duration);
-                    }
+                    // A re-press replaces the status, as it does on the peer; AddStatus alone would stack it.
+                    member.RemoveStatus(applied.StatusId);
+                    member.AddStatusParam(applied.StatusId, applied.Param, duration);
                     DiagnosticLog.Info($"[Multiplayer] Host: applied {who}'s reported status {applied.StatusId} (duration={duration:F1}) to role {role}.");
                 }
                 break;

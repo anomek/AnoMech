@@ -1,4 +1,5 @@
 using AnoMech.Core.Native.Interfaces;
+using Lumina.Excel;
 using LuminaAction = Lumina.Excel.Sheets.Action;
 using LuminaBNpcBase = Lumina.Excel.Sheets.BNpcBase;
 using LuminaBNpcName = Lumina.Excel.Sheets.BNpcName;
@@ -33,7 +34,8 @@ internal sealed class GameData : IGameData
             (sbyte)row.AttackType.RowId,
             row.TargetArea,
             row.IsPlayerAction,
-            row.ClassJobLevel);
+            row.ClassJobLevel,
+            row.ClassJobCategory.RowId);
     }
 
     public KnockbackRow? Knockback(uint knockbackId)
@@ -75,6 +77,11 @@ internal sealed class GameData : IGameData
         => Plugin.DataManager.GetExcelSheet<LuminaContentFinderCondition>().TryGetRow(contentFinderConditionId, out var row)
             ? new ContentFinderConditionRow(contentFinderConditionId, row.ClassJobLevelSync)
             : null;
+
+    // A bool column per ClassJob row, in row order, after Name.
+    public bool ClassJobCategoryIncludes(uint classJobCategoryId, byte classJob)
+        => Plugin.DataManager.GetExcelSheet<RawRow>(name: "ClassJobCategory").TryGetRow(classJobCategoryId, out var row)
+           && row.ReadBoolColumn(classJob + 1);
 
     public string? BNpcName(uint nameId)
         => Plugin.DataManager.GetExcelSheet<LuminaBNpcName>().TryGetRow(nameId, out var row) ? NonEmpty(row.Singular.ExtractText()) : null;

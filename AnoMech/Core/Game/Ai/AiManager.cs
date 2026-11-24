@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using AnoMech.Core.Native.Interfaces;
+using AnoMech.Core.UserActions;
 
 namespace AnoMech.Core.Game.Ai;
 
@@ -54,7 +55,7 @@ public sealed class AiManager
                     : (sprint, 0f);
                 var speed = sprinting ? SprintSpeed : RunSpeed;
 
-                if (sprinting) partyMember?.UseSprint(dist / SprintSpeed + 1f);
+                if (sprinting) partyMember?.UseAction(JobActions.Sprint);
                 // `for`: the spot before the jitter, which each client rolls on its own stream.
                 AnoMech.Core.DiagnosticLog.Info($"[AiManager] Move@{time:F1}: {role} ({member.Position.X:F1},{member.Position.Z:F1}) -> ({target.X:F1},{target.Z:F1}) for ({local.X:F2},{local.Y:F2}) {dist:F1}y{(sprinting ? " sprinting" : "")}{(delay > 0f ? $", leaving in {delay:F2}s" : "")}.");
                 if (delay > 0f) world.Events.Add(delay, () => member.MoveTo(target, speed: speed), file, line);
@@ -68,6 +69,17 @@ public sealed class AiManager
     {
         var slack = available - dist / RunSpeed;
         return slack >= 0f ? (false, slack) : (true, 0f);
+    }
+
+    // Arm's Length or Surecast, whichever each one's job has. No roles = the whole party.
+    public void Kbi(float time, IReadOnlyCollection<PartyRole>? roles = null, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        world.Events.Add(time, () =>
+        {
+            foreach (var role in roles ?? Enum.GetValues<PartyRole>())
+                if (world.Party.Get(role) is ISimPartyMember member)
+                    member.UseAction(Natives.Data.CanUse(member.ClassJob, JobActions.ArmsLength) ? JobActions.ArmsLength : JobActions.Surecast);
+        }, file, line);
     }
 
     public void Automarker(float time, Func<Dictionary<PartyRole, Sign>> mapping, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using AnoMech.Core.Native.Implementations;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
@@ -251,8 +252,19 @@ internal static unsafe class JobActions
         new(JobId.BlackMage, BlmPolyglot, 30f, decay: false),     // Polyglot: +1/30s (real gen needs active Enochian; approximated as always-on in-sim)
     ];
 
+    public const uint Sprint = 3, ArmsLength = 7548, Surecast = 7559;
+    public const ushort SprintStatus = 50;
+
+    // Resolved even with the module off: they change how a mechanic plays out, not just a rotation.
+    private static readonly HashSet<uint> AlwaysResolved = [Sprint, ArmsLength, Surecast];
+
     private static readonly Dictionary<uint, IActionEffect[]> Actions = new()
     {
+        // All jobs
+        [Sprint]     = [Status(SprintStatus, 10f, 30)],   // Param = speed
+        [ArmsLength] = [Status(1209, 6f)],
+        [Surecast]   = [Status(160, 6f)],
+
         // GNB
         [16145] = [Combo(Gauge(GnbCartridge, 1)), Gauge(GnbComboStep, -2)],   // Solid Barrel (+ breaks Gnashing Fang)
         [16149] = [Combo(Gauge(GnbCartridge, 1)), Gauge(GnbComboStep, -2)],   // Demon Slaughter (+ breaks)
@@ -722,8 +734,12 @@ internal static unsafe class JobActions
 
     public static bool Knows(uint actionId) => Actions.ContainsKey(actionId);
 
+    // What the action does, whoever used it.
     public static void ApplyEffects(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)
     {
+        if (!Natives.UserActions.Enabled && !AlwaysResolved.Contains(actionId)) return;
+        if (LimitBreakHandler.IsLimitBreak(actionId) && Plugin.Game?.World.Party is { } party)
+            LimitBreakHandler.Resolve(party, caster, actionId);
         if (!Actions.TryGetValue(actionId, out var effects)) return;
         var ctx = new ActionContext(actionId, targetId, caster, rng);
         foreach (var effect in effects) effect.Apply(ctx);

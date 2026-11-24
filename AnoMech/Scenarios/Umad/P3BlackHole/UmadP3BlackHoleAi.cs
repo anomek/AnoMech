@@ -5,6 +5,7 @@ using System.Numerics;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using AnoMech.Core.UserActions;
 using static AnoMech.Scenarios.Umad.UmadConstants;
 
 namespace AnoMech.Scenarios.Umad.P3BlackHole;
@@ -193,7 +194,7 @@ public sealed class UmadP3BlackHoleAi(UmadP3BlackHoleAi.TetherOrder tetherOrder)
         if (state.ScenarioObjects.Exdeath is not { } exdeath) return;
         var (first, _) = ThunderIIIPlanning.Roles(state.ThunderSet1);
         if (world.Party.Get((int)first) is not { } firstMember || !firstMember.IsAlive()) return;
-        (firstMember as ISimPartyMember)?.UseSprint(3.5f);
+        (firstMember as ISimPartyMember)?.UseAction(JobActions.Sprint);
         firstMember.Follow(exdeath, speed: AiManager.SprintSpeed);
     }
 

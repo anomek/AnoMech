@@ -12,6 +12,7 @@ public interface IGameData
     StatusRow? Status(ushort statusId);
     TerritoryTypeRow? TerritoryType(uint territoryId);
     ContentFinderConditionRow? ContentFinderCondition(uint contentFinderConditionId);
+    bool ClassJobCategoryIncludes(uint classJobCategoryId, byte classJob);
 
     // Null for a missing row or an empty name.
     string? BNpcName(uint nameId);
@@ -29,6 +30,9 @@ public static class GameDataExtensions
 
     public static string StatusName(this IGameData data, ushort statusId)
         => data.Status(statusId) is { Name.Length: > 0 } row ? row.Name : statusId.ToString();
+
+    public static bool CanUse(this IGameData data, byte classJob, uint actionId)
+        => data.Action(actionId) is { } action && data.ClassJobCategoryIncludes(action.ClassJobCategory, classJob);
 
     // The level the duty syncs everyone to.
     public static byte? DutyLevel(this IGameData data, uint territoryId)
