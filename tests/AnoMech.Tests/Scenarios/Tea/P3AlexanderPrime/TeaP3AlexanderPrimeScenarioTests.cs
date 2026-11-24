@@ -1,4 +1,5 @@
 using System.Numerics;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
@@ -1324,6 +1325,309 @@ public class TeaP3AlexanderPrimeScenarioTests
             Assert.That(leftovers, Is.Zero, "Inception's orbs, crystals or heart");
             Assert.That(robotsUp, Is.True, "Brute Justice and Cruise Chaser for Wormhole");
         });
+    }
+
+    // Its player's view of each orb on any roll and either side: tethered to them from 36.45s to 42.89s,
+    // then going off once, on them, the client last told of it by them as it does; down within 2s and
+    // its zone under them within a second. None is left to burst.
+    [Test]
+    public void EveryOrbVisiblyGoesOffOnItsOwnPlayer()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            var orbs = new string[TeaP3AlexanderPrimeState.Orbs];
+            var holders = new string[TeaP3AlexanderPrimeState.Orbs];
+            var apart = new Dictionary<string, (float Told, Vector2 Player)>();
+            var seen = 0;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 60f,
+                Probe = p =>
+                {
+                    if (p.Crossed(36.3f))
+                        for (var k = 0; k < orbs.Length; k++)
+                        {
+                            orbs[k] = TeaShown.Id(State(p).Objects.Plasmaspheres[k]);
+                            holders[k] = TeaShown.Id(p.Member(State(p).OrbHolders[k]));
+                        }
+                    var rows = Rows();
+                    for (; seen < rows.Count; seen++)
+                    {
+                        if (rows[seen]["kind"] != "ability" || rows[seen]["id"] != ActionId.Aetheroplasm.ToString()
+                            || Array.IndexOf(orbs, rows[seen]["actor"]) is not (var k and >= 0)) continue;
+                        var holder = Flat(p.Member(State(p).OrbHolders[k])!.Position);
+                        var told = rows.Take(seen).Last(r => r["actor"] == orbs[k] && r["kind"] is "move" or "set_pos" or "spawn");
+                        apart[orbs[k]] = (Vector2.Distance(new(ShownRun.Number(told, "x") - 100f, ShownRun.Number(told, "z") - 100f), holder), holder);
+                    }
+                },
+            });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var zones = shown.Of("eobj_spawn", EObjId.VoidzonePlasmasphere).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(shown.Of("cast", ActionId.Burst).Concat(shown.Of("ability", ActionId.Burst)), Is.Empty, $"seed {seed}: an orb burst");
+                Assert.That(zones, Has.Count.EqualTo(TeaP3AlexanderPrimeState.Orbs), $"seed {seed}: the orbs' zones");
+                for (var k = 0; k < orbs.Length; k++)
+                {
+                    var what = $"seed {seed}, orb {k} on {shown.SeatOf(holders[k])}";
+                    var mine = shown.Rows.Where(r => r["actor"] == orbs[k]).ToList();
+                    var pops = mine.Where(r => r["kind"] == "ability" && r["id"] == ActionId.Aetheroplasm.ToString()).ToList();
+                    Assert.That(pops, Has.Count.EqualTo(1), what);
+                    if (pops.Count != 1) continue;
+                    var pop = pops[0];
+                    var at = ShownRun.Time(pop);
+                    Assert.That(ShownRun.Hits(pop), Does.Contain(holders[k]), what);
+                    Assert.That(apart[orbs[k]].Told, Is.LessThan(OrbToldTouching), $"{what}: the client last told of its orb this far from its player");
+                    var tether = mine.FirstOrDefault(r => r["kind"] == "ac" && r["id"] == "0x23" && r["p"].Split(',') is var p && p[1] == $"0x{TetherId.Plasmasphere:X}" && p[2] == $"0x{holders[k]}");
+                    Assert.That(tether is null ? (float?)null : ShownRun.Time(tether), Is.EqualTo(36.45f).Within(0.05f), $"{what}: its tether to its player");
+                    Assert.That(mine.Where(r => r["kind"] == "ac" && r["id"] == "0x2F").Select(ShownRun.Time).FirstOrDefault(), Is.EqualTo(42.89f).Within(0.05f), $"{what}: its tether down");
+                    Assert.That(mine.Any(r => (r["kind"] == "despawn" || r["kind"] == "ac" && r["id"] == "0xE") && ShownRun.Time(r) > at && ShownRun.Time(r) <= at + 2f), Is.True,
+                        $"{what}: down within 2s of going off");
+                    var zone = zones.Where(z => ShownRun.Time(z) >= at && ShownRun.Time(z) <= at + 1f)
+                        .MinBy(z => Vector2.Distance(new(ShownRun.Number(z, "x") - 100f, ShownRun.Number(z, "z") - 100f), apart[orbs[k]].Player));
+                    Assert.That(zone, Is.Not.Null, $"{what}: its zone");
+                    if (zone is not null)
+                        Assert.That(Vector2.Distance(new(ShownRun.Number(zone, "x") - 100f, ShownRun.Number(zone, "z") - 100f), apart[orbs[k]].Player),
+                            Is.LessThan(1.1f), $"{what}: its zone this far from its player");
+                }
+            });
+        }
+    }
+
+    // The sim sets an orb off within a yalm of its player; the client heard where it was at most one
+    // ActorMove, 0.2s at the orbs' 3.8y/s, earlier.
+    private const float OrbToldTouching = 1.8f;
+
+    // Orb 0 held off its player until the orbs burst: it goes off on its own at 55.1s, aimed at them,
+    // over the whole party, and only they die of it.
+    [Test]
+    public void AnOrbNobodyReachesBurstsOnItsPlayer()
+    {
+        PartyRole? holder = null;
+        string? orb = null;
+        var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            PlayerRole = PhysRangedDps,
+            StopAt = 58f,
+            WriteArtifactsOnFailure = false,
+            Overrides = o => Pin((TeaP3AlexanderPrimeStateOverrides)o),
+            Probe = p =>
+            {
+                if (p.Time < 42f || p.Time > 55.05f || State(p).Objects.Plasmaspheres[0] is not { IsActive: true } sphere) return;
+                holder ??= State(p).OrbHolders[0];
+                orb ??= TeaShown.Id(sphere);
+                sphere.SetPosition(new Placement(new Vector3(0f, 0f, -19f), 0f));
+            },
+        });
+        var bursts = shown.Of("ability", ActionId.Burst).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(bursts.Select(r => (r["actor"], r["target"])), Is.EqualTo(new[] { (orb, shown.IdOf(holder!.Value)) }));
+            Assert.That(bursts.Select(ShownRun.Time), Is.All.EqualTo(55.1f).Within(0.05f));
+            Assert.That(bursts.SelectMany(ShownRun.Hits), Is.EquivalentTo(shown.Seats.Keys));
+            Assert.That(shown.Run.Deaths.Select(d => (d.Role, d.ActionId)), Is.EqualTo(new[] { (holder!.Value, (uint?)ActionId.Burst) }), shown.Run.ToString);
+        });
+    }
+
+    // The client plays each slash along Cruise Chaser's facing: on any roll and either side, his model
+    // faces along each of his three swords as it goes out, and the three cut three ways onto three players.
+    [Test]
+    public void CruiseChasersThreeSwordsCutThreeWays([Values] bool alexanderPrimeNorth)
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            string? cruiseChaser = null;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 89f,
+                Overrides = o => ((TeaP3AlexanderPrimeStateOverrides)o).AlexanderPrimeNorth = alexanderPrimeNorth,
+                Probe = p => cruiseChaser ??= State(p).Objects.CruiseChaser is { } chaser ? TeaShown.Id(chaser) : null,
+            });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            TeaShown.SwordsCutThreeWays(shown.Rows, cruiseChaser!, ActionId.AlphaSwordP3, $"seed {seed}");
+        }
+    }
+
+
+    // On any roll: the four crystal players marked at 43.96s, each crystal dropped where its player
+    // stood at 49.01s, all four shattered by the heart, which turns gold and succeeds at 75.95s.
+    [Test]
+    public void EveryCrystalLandsUnderItsPlayerAndTheHeartShattersIt()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            var dropped = new Dictionary<string, Vector2>();
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 77f,
+                Probe = p =>
+                {
+                    if (!p.Crossed(49.01f)) return;
+                    foreach (var role in State(p).CrystalHolders) dropped[TeaShown.Id(p.Member(role))] = Flat(p.Member(role)!.Position);
+                },
+            });
+            var what = $"seed {seed}";
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var crystals = shown.Of("spawn", BNpcBaseId.JudgmentCrystal).ToList();
+            var heart = shown.Of("spawn", BNpcBaseId.TrueHeart).Single()["actor"];
+            Assert.Multiple(() =>
+            {
+                Assert.That(shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x22" && r["p"].StartsWith($"0x{LockonId.JudgmentCrystal:X},"))
+                    .Select(r => r["actor"]), Is.EquivalentTo(dropped.Keys), $"{what}: the crystal markers");
+                Assert.That(shown.Of("ability", ActionId.JudgmentCrystalAoe).SelectMany(ShownRun.Hits).Distinct(), Is.SupersetOf(dropped.Keys), what);
+                Assert.That(crystals, Has.Count.EqualTo(4), what);
+                foreach (var crystal in crystals)
+                {
+                    var spot = new Vector2(ShownRun.Number(crystal, "x") - 100f, ShownRun.Number(crystal, "z") - 100f);
+                    Assert.That(dropped.Values.Min(d => Vector2.Distance(d, spot)), Is.LessThan(0.05f), $"{what}: a crystal where nobody stood");
+                    Assert.That(shown.Rows.Count(r => r["kind"] == "ability" && r["id"] == ActionId.Tetrashatter.ToString() && r["actor"] == crystal["actor"]),
+                        Is.EqualTo(1), $"{what}: the crystal at {spot} shattered");
+                }
+                Assert.That(shown.Of("cast", ActionId.TetrashatterFail).Concat(shown.Of("ability", ActionId.TetrashatterFail)), Is.Empty, what);
+                Assert.That(shown.Rows.Where(r => r["kind"] == "status_gain" && r["actor"] == heart && r["id"] == StatusId.EnigmaCodexHeart.ToString()), Is.Not.Empty, $"{what}: the gold heart");
+                Assert.That(shown.Rows.Where(r => r["kind"] == "ability" && r["actor"] == heart && r["id"] == ActionId.TrueHeartSuccess.ToString()).Select(ShownRun.Time),
+                    Is.EqualTo(new[] { 75.95f }).Within(0.35f), what);
+            });
+        }
+    }
+
+    // Each Inception debuff shows on the players the roll gave it, from 66.84s to 79.82s, with the
+    // Restraining Order pair tethered for as long.
+    [Test]
+    public void InceptionDebuffsShowOnTheirRolledPlayers()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            TeaP3AlexanderPrimeState? state = null;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 81f,
+                Probe = p => state ??= State(p),
+            });
+            var what = $"seed {seed}";
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            List<string> On(ushort status, string kind) => shown.Of(kind, status).Select(r => r["actor"]).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(On(StatusId.RestrainingOrder, "status_gain"), Is.EquivalentTo(new[] { shown.IdOf(state!.RestrainingOrderTank), shown.IdOf(state.RestrainingOrderDps) }), what);
+                Assert.That(On(StatusId.SharedSentence, "status_gain"), Is.EquivalentTo(new[] { shown.IdOf(state!.SharedSentence) }), what);
+                Assert.That(On(StatusId.AggravatedAssault, "status_gain"), Is.EquivalentTo(state!.AggravatedAssault.Select(shown.IdOf)), what);
+                foreach (var status in new[] { StatusId.RestrainingOrder, StatusId.SharedSentence, StatusId.AggravatedAssault })
+                {
+                    Assert.That(shown.Of("status_gain", status).Select(ShownRun.Time), Is.All.EqualTo(66.84f).Within(0.05f), $"{what}: {status} on");
+                    Assert.That(shown.Of("status_lose", status).Select(ShownRun.Time), Is.All.EqualTo(79.82f).Within(0.05f), $"{what}: {status} off");
+                    Assert.That(On(status, "status_lose"), Is.EquivalentTo(On(status, "status_gain")), $"{what}: {status} off");
+                }
+                var tethers = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x23" && r["p"].StartsWith($"0x0,0x{TetherId.RestrainingOrder:X},")).ToList();
+                Assert.That(tethers.Select(r => (r["actor"], r["p"].Split(',')[2])), Is.EqualTo(new[] { (shown.IdOf(state!.RestrainingOrderDps), "0x" + shown.IdOf(state.RestrainingOrderTank)) }), what);
+                Assert.That(tethers.Select(ShownRun.Time), Is.All.EqualTo(66.84f).Within(0.05f), what);
+            });
+        }
+    }
+
+    // On any roll: each number's marker on the player the roll gave it, and Cruise Chaser's eight hits
+    // in number order, each on its number alone with his model facing along it.
+    [Test]
+    public void EveryNumberIsMarkedOnItsPlayerAndHitInTurn()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            TeaP3AlexanderPrimeState? state = null;
+            string? cruiseChaser = null;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 157f,
+                Probe = p =>
+                {
+                    state ??= State(p);
+                    cruiseChaser ??= State(p).Objects.CruiseChaser is { } chaser ? TeaShown.Id(chaser) : null;
+                },
+            });
+            var what = $"seed {seed}";
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var numbers = state!.Numbers.Select(shown.IdOf).ToList();
+            var markers = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x22").Select(r => r["p"].Split(','))
+                .Where(p => LimitCutLockons.Contains(Convert.ToUInt32(p[0], 16))).ToList();
+            var rows = shown.Rows.Where(r => r["actor"] == cruiseChaser).ToList();
+            var hits = rows.Where(r => r["kind"] == "ability" && (r["id"] == ActionId.AlphaSword.ToString() || r["id"] == ActionId.SuperBlasstyChargeP3.ToString())).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(markers.Select(p => (Array.IndexOf(LimitCutLockons, Convert.ToUInt32(p[0], 16)), p[1][2..])),
+                    Is.EquivalentTo(numbers.Select((id, k) => (k, id))), $"{what}: the number markers");
+                Assert.That(hits.Select(h => ShownRun.Hits(h).Single()), Is.EqualTo(numbers), $"{what}: each hit on its number alone, in turn");
+                TeaShown.FacesEachHitOnScreen(shown.Rows, cruiseChaser!, [ActionId.AlphaSword, ActionId.SuperBlasstyChargeP3], what);
+            });
+        }
+    }
+
+    // Alexander Prime and the robots never lose HP on the client: only the True Heart, the orbs and the
+    // crystals do, in the whole phase.
+    [Test]
+    public void OnlyTheHeartOrbsAndCrystalsLoseHp()
+    {
+        var dropped = new HashSet<uint>();
+        var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            Probe = p =>
+            {
+                var client = (FakeBattleCharas)Natives.BattleCharas;
+                foreach (var enemy in p.World.Children.OfType<SimEnemy>())
+                    if (client.Find(enemy.EntityId) is { } actor && actor.Health < actor.MaxHealth)
+                        dropped.Add(enemy.BNpcBaseId);
+            },
+        });
+        Assert.That(shown.Run.Passed, shown.Run.ToString);
+        Assert.That(dropped, Is.SubsetOf(new[] { BNpcBaseId.TrueHeart, BNpcBaseId.Plasmasphere, BNpcBaseId.JudgmentCrystal }));
+    }
+
+    // On any roll: Alexander Prime's Sacrament goes off from the rolled spot 21.5y out, his model facing
+    // the centre.
+    [Test]
+    public void AlexanderPrimeTakesTheRolledSacramentSpot()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            TeaP3AlexanderPrimeState? state = null;
+            string? boss = null;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 87f,
+                Probe = p =>
+                {
+                    state ??= State(p);
+                    boss ??= State(p).Objects.AlexanderPrime is { } prime ? TeaShown.Id(prime) : null;
+                },
+            });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var spot = Flat(Geometry.OnCompass(22.5f + 45f * state!.SacramentSpot, 21.5f));
+            var sacrament = shown.Rows.Where(r => r["actor"] == boss && r["kind"] == "ability" && r["id"] == ActionId.SacramentInception.ToString() && ShownRun.Time(r) < 87f).ToList();
+            Assert.That(sacrament, Has.Count.EqualTo(1), $"seed {seed}: his Sacrament");
+            Assert.Multiple(() =>
+            {
+                Assert.That(Vector2.Distance(new(ShownRun.Number(sacrament[0], "x") - 100f, ShownRun.Number(sacrament[0], "z") - 100f), spot), Is.LessThan(0.05f),
+                    $"seed {seed}: off spot {state.SacramentSpot}");
+                Assert.That(TeaShown.Angle(TeaShown.FacingOnScreen(shown.Rows, boss!, sacrament[0]), MathF.Atan2(-spot.X, -spot.Y)), Is.LessThan(MathF.PI / 18f),
+                    $"seed {seed}: facing away from the centre");
+            });
+        }
+    }
+
+    // On any roll: the Enumeration markers on their two rolled players at 160.51s.
+    [Test]
+    public void TheEnumerationsMarkTheirRolledPlayers()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            TeaP3AlexanderPrimeState? state = null;
+            var shown = ShownRun.Execute(typeof(TeaP3AlexanderPrimeScenario), 0, seed, new ScenarioRunOptions { StopAt = 167f, Probe = p => state ??= State(p) });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var marked = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x22" && r["p"].StartsWith($"0x{LockonId.Enumeration:X},")).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(marked.Select(r => r["actor"]), Is.EquivalentTo(state!.Enumerations.Select(shown.IdOf)), $"seed {seed}");
+                Assert.That(marked.Select(ShownRun.Time), Is.All.EqualTo(160.51f).Within(0.05f), $"seed {seed}");
+            });
+        }
     }
 
     [Test]

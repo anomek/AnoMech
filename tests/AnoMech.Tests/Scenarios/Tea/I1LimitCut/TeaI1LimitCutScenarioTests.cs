@@ -412,6 +412,164 @@ public class TeaI1LimitCutScenarioTests
         Assert.That(lines.Select(At), Is.EqualTo(new[] { 0.11f, 31.14f }).Within(0.05f));
     }
 
+    private static TeaI1LimitCutState State(ScenarioProbe p) => p.Game.Catalog.Scenarios.OfType<TeaI1LimitCutScenario>().Single().LastState!;
+
+    private static readonly float[] HitTimes = [12.64f, 14.14f, 17.31f, 18.80f, 21.95f, 23.42f, 26.58f, 28.05f];
+
+    // On any roll: each number's marker on the player the roll gave it, from 3.19s 0.03s apart, and
+    // Cruise Chaser's eight hits in number order and on time, each on its number alone with his model
+    // facing along it.
+    [Test]
+    public void EveryNumberIsMarkedOnItsPlayerAndHitInTurn()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            TeaI1LimitCutState? state = null;
+            string? cruiseChaser = null;
+            var shown = ShownRun.Execute(typeof(TeaI1LimitCutScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 29f,
+                Probe = p =>
+                {
+                    state ??= State(p);
+                    cruiseChaser ??= State(p).Objects.CruiseChaser is { } chaser ? TeaShown.Id(chaser) : null;
+                },
+            });
+            var what = $"seed {seed}";
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var numbers = state!.Numbers.Select(shown.IdOf).ToList();
+            var markers = shown.Rows.Where(r => r["kind"] is "ac" or "ac_self" && r["id"] == "0x22").ToList();
+            var rows = shown.Rows.Where(r => r["actor"] == cruiseChaser).ToList();
+            var hits = rows.Where(r => r["kind"] == "ability" && (r["id"] == ActionId.AlphaSword.ToString() || r["id"] == ActionId.SuperBlasstyCharge.ToString())).ToList();
+            Assert.Multiple(() =>
+            {
+                Assert.That(markers.Select(r => r["p"].Split(',')[..2]), Is.EqualTo(numbers.Select((id, k) => new[] { $"0x{LimitCutLockons[k]:X}", $"0x{id}" })),
+                    $"{what}: the number markers, in order");
+                Assert.That(markers.Select(ShownRun.Time), Is.EqualTo(Enumerable.Range(0, 8).Select(k => 3.19f + 0.03f * k)).Within(0.05f), what);
+                Assert.That(hits.Select(h => h["id"]), Is.EqualTo(Enumerable.Range(0, 8).Select(k => (k % 2 == 0 ? ActionId.AlphaSword : ActionId.SuperBlasstyCharge).ToString())), what);
+                Assert.That(hits.Select(h => ShownRun.Hits(h).Single()), Is.EqualTo(numbers), $"{what}: each hit on its number alone, in turn");
+                Assert.That(hits.Select(ShownRun.Time), Is.EqualTo(HitTimes).Within(0.05f), what);
+                TeaShown.FacesEachHitOnScreen(shown.Rows, cruiseChaser!, [ActionId.AlphaSword, ActionId.SuperBlasstyCharge], what);
+            });
+        }
+    }
+
+    private static readonly float[] WaveTimes = [5.27f, 7.49f, 9.69f, 11.90f, 14.05f, 16.25f, 18.49f, 20.68f, 22.83f, 25.07f];
+
+    // From each first axis: every wave's two blasts 14y out either side, on time, each wave 45 degrees
+    // clockwise of the last, the second run starting over on the first axis, waves 5 and 10 the centre.
+    [Test]
+    public void EveryHawkBlasterWaveGoesOffWhereItShould([Values(0, 1, 2, 3)] int axis)
+    {
+        var shown = ShownRun.Execute(typeof(TeaI1LimitCutScenario), 0, Random.Shared.Next(), new ScenarioRunOptions
+        {
+            StopAt = 26f,
+            Overrides = o => ((TeaI1LimitCutStateOverrides)o).FirstBlasterAxis = axis,
+        });
+        Assert.That(shown.Run.Passed, shown.Run.ToString);
+        var blasts = shown.Of("ability", ActionId.HawkBlaster).ToList();
+        Assert.Multiple(() =>
+        {
+            for (var wave = 0; wave < WaveTimes.Length; wave++)
+            {
+                var these = blasts.Where(b => MathF.Abs(ShownRun.Time(b) - WaveTimes[wave]) < 0.05f).ToList();
+                Vector2[] spots = wave is 4 or 9
+                    ? [Vector2.Zero]
+                    : [OnCompass((axis + wave % 5) * 45f, Geometry.BlasterRadius), OnCompass((axis + wave % 5) * 45f + 180f, Geometry.BlasterRadius)];
+                foreach (var spot in spots)
+                    Assert.That(these.Any(b => Vector2.Distance(new(ShownRun.Number(b, "x") - 100f, ShownRun.Number(b, "z") - 100f), spot) < 0.05f), Is.True,
+                        $"wave {wave + 1}: no blast at {spot}");
+                Assert.That(these.All(b => spots.Any(spot => Vector2.Distance(new(ShownRun.Number(b, "x") - 100f, ShownRun.Number(b, "z") - 100f), spot) < 0.05f)), Is.True,
+                    $"wave {wave + 1}: a blast off its spots");
+            }
+            Assert.That(blasts, Has.Count.EqualTo(18));
+        });
+    }
+
+    // The pair whose turn it isn't stands between the baits and the wall at every hit on its side,
+    // on any roll: numbers 1, 2, 5 and 6 bait on one side, 3, 4, 7 and 8 on the other.
+    [Test]
+    public void ThePairNotBaitingOnEachSideHugsTheWall()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            var radii = new Dictionary<(int Hit, int Number), float>();
+            var shown = ShownRun.Execute(typeof(TeaI1LimitCutScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 29f,
+                Probe = p =>
+                {
+                    for (var k = 0; k < HitTimes.Length; k++)
+                    {
+                        if (!p.Crossed(HitTimes[k])) continue;
+                        var number = k + 1;
+                        var other = number switch { 1 or 2 => 5, 5 or 6 => 1, 3 or 4 => 7, _ => 3 };
+                        foreach (var waiting in new[] { other, other + 1 })
+                            radii[(number, waiting)] = Flat(p.Member(State(p).Numbers[waiting - 1])!.Position).Length();
+                    }
+                },
+            });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            Assert.That(radii.Where(r => r.Value < OnTheWall).Select(r => $"#{r.Key.Number} {r.Value:F2}y out at #{r.Key.Hit}'s hit"), Is.Empty, $"seed {seed}");
+        }
+    }
+
+    // On a 20y arena, past the 13-14y the baits take.
+    private const float OnTheWall = 15f;
+
+    // Each bot follows its number's real track round the circle at the speed that keeps it on time:
+    // few sharp turns or stops shorter than half a second, as they now run. A bot walking from point
+    // to point instead turns and stutters at every one.
+    [Test]
+    public void BotsCircleWithoutSharpTurnsOrStutters()
+    {
+        foreach (var seed in TeaShown.Seeds())
+        {
+            var tracks = new Dictionary<PartyRole, List<(float T, Vector2 At)>>();
+            var shown = ShownRun.Execute(typeof(TeaI1LimitCutScenario), 0, seed, new ScenarioRunOptions
+            {
+                StopAt = 30f,
+                Probe = p =>
+                {
+                    if (p.Time < 6f) return;
+                    foreach (var role in PerRole.All)
+                        if (p.Member(role) is { } member && p.World.Party.IsBotDriven(member))
+                            (tracks.TryGetValue(role, out var track) ? track : tracks[role] = []).Add((p.Time, Flat(member.Position)));
+                },
+            });
+            Assert.That(shown.Run.Passed, shown.Run.ToString);
+            var (sharp, stutters) = (0, 0);
+            foreach (var track in tracks.Values)
+            {
+                var steps = Enumerable.Range(1, (track.Count - 1) / StepFrames).Select(i => (track[i * StepFrames].At - track[(i - 1) * StepFrames].At) / (track[i * StepFrames].T - track[(i - 1) * StepFrames].T)).ToList();
+                for (var i = 1; i < steps.Count; i++)
+                    if (steps[i - 1].Length() > 2f && steps[i].Length() > 2f
+                        && Angle(MathF.Atan2(steps[i - 1].X, steps[i - 1].Y), MathF.Atan2(steps[i].X, steps[i].Y)) > MathF.PI / 4f)
+                        sharp++;
+                var still = 0;
+                foreach (var step in steps)
+                {
+                    if (step.Length() < 0.8f) still++;
+                    else
+                    {
+                        if (still is > 0 and <= 3) stutters++;
+                        still = 0;
+                    }
+                }
+            }
+            Assert.Multiple(() =>
+            {
+                Assert.That(sharp, Is.LessThanOrEqualTo(15), $"seed {seed}: turns past 45 degrees in 0.15s");
+                Assert.That(stutters, Is.LessThanOrEqualTo(40), $"seed {seed}: stops under half a second");
+            });
+        }
+    }
+
+    // 0.15s of frames.
+    private const int StepFrames = 9;
+
+    private static float Angle(float a, float b) => MathF.Abs(MathF.IEEERemainder(a - b, MathF.Tau));
+
     [Test]
     public void ReplayStateRoundTrips()
     {
