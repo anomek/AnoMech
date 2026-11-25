@@ -72,9 +72,8 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private Dictionary<PartyRole, Vector3> sentTo = new();
     private Dictionary<PartyRole, int> claimedSide = new();
     private bool sidesLocked;
-    private readonly bool?[] seenOutFirst = new bool?[2];
     private Dictionary<PartyRole, Vector3> planned = new();
-    private Dictionary<SimEnemy, (float Start, Vector3 Origin, Vector3 Direction)> geirskogulLines = new();
+    private Dictionary<SimEnemy, float> geirskogulLines = new();
     private HashSet<PartyRole> heldOutOfLines = new();
 
     public void Run(DsrP3NidhoggState stateParam, SimWorld worldParam)
@@ -86,7 +85,6 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         sentTo = new();
         claimedSide = new();
         sidesLocked = false;
-        seenOutFirst[0] = seenOutFirst[1] = null;
         planned = new();
         geirskogulLines = new();
         heldOutOfLines = new();
@@ -99,18 +97,20 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         ai.Move(23.5f, SignalIntendedSides);
         world.Events.Add(24.5f, LockClaimedSides);
         ai.Move(24.6f, () => ByRole(role => Order(role) == 1 ? JumpSpot(role) : Stack()), arrivalTime: 32.8f, leaveNow: true);
-        world.Events.Add(25.8f, () => ReadWheelOrder(0));
         world.Events.Add(32.9f, () => FaceArrowJumpers(1));
         ai.Move(33.6f, () => ByRole(role => FirstRoundWheel(role, 0)), arrivalTime: 36.7f, leaveNow: true);
         ai.Move(37.1f, () => ByRole(role => FirstRoundWheel(role, 1)), arrivalTime: 39.7f, leaveNow: true);
         world.Events.Add(40.0f, DodgeGeirskogulLines);
+        world.Events.Add(42.53f, () => StartGeirskogulLines(DiveTowers(1)));
+        world.Events.Add(52.54f, () => StartGeirskogulLines(DiveTowers(2)));
+        world.Events.Add(63.54f, () => StartGeirskogulLines(DiveTowers(3)));
+        world.Events.Add(82.72f, () => StartGeirskogulLines(UntetheredCounterTowers()));
         ai.Move(40.1f, () => ByRole(FirstRoundBaitsAndSecondJumpers), arrivalTime: 42.3f, leaveNow: true);
         ai.Move(42.7f, () => ByRole(role => Order(role) == 3 ? InsideOwnSide(role) : null));
         world.Events.Add(42.9f, () => FaceArrowJumpers(2));
         ai.Move(43.5f, () => ByRole(SecondRoundSoaks), arrivalTime: 49.6f, leaveNow: true);
         ai.Move(44.0f, () => ByRole(role => Order(role) == 3 ? Stack() : null));
         ai.Move(47.1f, () => ByRole(role => Order(role) == 3 ? JumpSpot(role) : null));
-        world.Events.Add(47.3f, () => ReadWheelOrder(1));
         ai.Move(52.7f, () => ByRole(role => IsSideFirst(role) ? Stack() : null), arrivalTime: 54.8f, leaveNow: true);
         world.Events.Add(53.9f, () => FaceArrowJumpers(3));
         ai.Move(55.1f, () => ByRole(role => ThirdRoundWheel(role, 2)), arrivalTime: 58.2f, leaveNow: true);
@@ -131,8 +131,8 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         ai.Move(87.4f, () => ByRole(Idle));
 
         ai.Move(106.8f, () => ByRole(role => role == PartyRole.MainTank ? null : At(North, CleaveDodgeRadius)));
-        ai.Move(108.2f, () => ByRole(role => role == PartyRole.MainTank ? null : BehindNidhogg()), sprint: true);
-        ai.Move(108.3f, () => ByRole(role => role == PartyRole.MainTank ? BehindNidhogg() : null), sprint: true);
+        ai.Move(108.2f, () => ByRole(role => role == PartyRole.MainTank ? null : BehindSouthFacingNidhogg()), sprint: true);
+        ai.Move(108.3f, () => ByRole(role => role == PartyRole.MainTank ? BehindSouthFacingNidhogg() : null), sprint: true);
     }
 
     private int Order(PartyRole role) => state.Order[role];
@@ -152,6 +152,14 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         return boss.Position - facing * CleaveDodgeRadius;
     }
 
+    private Vector3 BehindSouthFacingNidhogg()
+    {
+        var boss = Nidhogg()?.Position ?? Vector3.Zero;
+        var facing = Compass.Point(Compass.S, 1f) - boss;
+        facing.Y = 0f;
+        return facing.LengthSquared() < 0.01f ? At(North, CleaveDodgeRadius) : boss - Vector3.Normalize(facing) * CleaveDodgeRadius;
+    }
+
     private Vector3 AcrossFromMainTank()
     {
         var boss = Nidhogg()?.Position ?? Vector3.Zero;
@@ -163,17 +171,11 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
 
     private static Vector3 Stack() => At(North, StackRadius);
 
-    private bool OutAt(int wheel) => (wheel % 2 == 0) == (seenOutFirst[wheel / 2] ?? true);
+    private bool OutAt(int wheel) => (wheel % 2 == 0) == state.OutFirst[wheel / 2];
 
     private SimEnemy? Nidhogg() => world.Children.OfType<SimEnemy>().FirstOrDefault(e => e.BNpcBaseId == DsrConstants.BNpcBaseId.NidhoggP3 && !e.Dead);
 
     private IEnumerable<SimEnemy> Clones() => world.Children.OfType<SimEnemy>().Where(e => e.BNpcBaseId == DsrConstants.BNpcBaseId.NidhoggClone && !e.Dead);
-
-    private void ReadWheelOrder(int cast)
-    {
-        if (Nidhogg() is { } boss && boss.CastActionId is DsrConstants.ActionId.GnashAndLash or DsrConstants.ActionId.LashAndGnash)
-            seenOutFirst[cast] = boss.CastActionId == DsrConstants.ActionId.GnashAndLash;
-    }
 
     private Vector3 StackForWheel(int wheel) => At(North, OutAt(wheel) ? OutRadius : InRadius);
 
@@ -334,27 +336,10 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private static int NearestCounterTower(Vector3 position)
         => Enumerable.Range(0, 4).MinBy(i => Vector3.DistanceSquared(DsrP3NidhoggState.CounterTower(i), position));
 
-    private int[] SoakersShownOnCounterTowers()
-    {
-        var soakers = new[] { 2, 2, 2, 2 };
-        foreach (var clone in Clones())
-        {
-            var shown = Array.IndexOf(DsrConstants.ActionId.DarkdragonDiveForSoakers, clone.CastActionId);
-            if (shown >= 0) soakers[NearestCounterTower(clone.Position)] = shown + 1;
-        }
-        return soakers;
-    }
-
-    private int? TetheredCounterTower()
-    {
-        var boss = Nidhogg();
-        return state.SoulTethers.Where(t => !ReferenceEquals(t.Source, boss)).Select(t => (int?)NearestCounterTower(t.Source.Position)).FirstOrDefault();
-    }
-
     private void AssignCounterTowers()
     {
         counterTower = new Dictionary<PartyRole, int>(HomeCounterTower);
-        var soakers = SoakersShownOnCounterTowers();
+        var soakers = state.CounterTowerSoakers;
         var leavers = new List<PartyRole>();
         for (var tower = 0; tower < 4; tower++)
             if (soakers[tower] == 1)
@@ -385,7 +370,7 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private void AssignCounterBaits()
     {
         if (counterTower.Count == 0) AssignCounterTowers();
-        var tethered = TetheredCounterTower();
+        var tethered = state.TetherTower;
         var spots = Enumerable.Range(0, 4).Where(t => t != tethered)
             .Select(t => At(Compass.BearingOf(DsrP3NidhoggState.CounterTower(t)), CounterBaitRadius)).ToList();
         var candidates = Enum.GetValues<PartyRole>().Where(r => !IsTank(r) && world.Party.Get(r) is { } m && m.IsAlive()).ToList();
@@ -414,15 +399,25 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private Vector3 HeadingFor(SimCharacter member) =>
         member is ISimPartyMember { Role: var role } && sentTo.TryGetValue(role, out var spot) ? spot : member.Position;
 
+    private IEnumerable<Vector3> DiveTowers(int order) => state.DiveTowers.GetValueOrDefault(order) ?? [];
+
+    private IEnumerable<Vector3> UntetheredCounterTowers()
+        => Enumerable.Range(0, 4).Where(t => t != state.TetherTower).Select(DsrP3NidhoggState.CounterTower);
+
+    private void StartGeirskogulLines(IEnumerable<Vector3> towers)
+    {
+        var now = world.Events.Elapsed;
+        foreach (var tower in towers)
+            if (Clones().MinBy(c => Vector3.DistanceSquared(c.Position, tower)) is { } clone)
+                geirskogulLines.TryAdd(clone, now);
+    }
+
     private void DodgeGeirskogulLines()
     {
         var now = world.Events.Elapsed;
-        foreach (var clone in Clones())
-            if (clone.CastActionId == DsrConstants.ActionId.Geirskogul && !geirskogulLines.ContainsKey(clone))
-                geirskogulLines[clone] = (now, clone.Position, new Vector3(MathF.Sin(clone.Rotation), 0f, MathF.Cos(clone.Rotation)));
-        var live = geirskogulLines.Values
-            .Where(l => now >= l.Start + BaiterLeavesWithin && now < l.Start + GeirskogulDangerSeconds)
-            .Select(l => (l.Origin, l.Direction)).ToList();
+        var live = geirskogulLines
+            .Where(l => !l.Key.Dead && now >= l.Value + BaiterLeavesWithin && now < l.Value + GeirskogulDangerSeconds)
+            .Select(l => (l.Key.Position, new Vector3(MathF.Sin(l.Key.Rotation), 0f, MathF.Cos(l.Key.Rotation)))).ToList();
 
         foreach (var role in Enum.GetValues<PartyRole>())
         {

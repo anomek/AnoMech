@@ -95,6 +95,8 @@ public static class DsrActions
     {
         Effects = [Damage(Lethal)],
         Timing = new() { DamageDelay = 1.19f },
+        // Retail shows the line only for a moment as the cast ends; the clone's wind-up is the tell.
+        Cast = new() { OmenDelay = 4f },
         DeathExplanation = "in a Geirskogul line; each is aimed at whoever is closest to its clone when it starts",
     };
 

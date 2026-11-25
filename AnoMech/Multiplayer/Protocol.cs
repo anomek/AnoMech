@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
+using AnoMech.Scenarios.Dsr.P3Nidhogg;
 using AnoMech.Scenarios.Top;
 using AnoMech.Scenarios.Umad.P1TeleTrouncing;
 using AnoMech.Scenarios.Umad.P2Forsaken;
@@ -60,6 +61,8 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
+[JsonDerivedType(typeof(DsrP3NidhoggAiReplayStateMessage), "dsrP3NidhoggAiReplayState")]
+[JsonDerivedType(typeof(DsrP3NidhoggDiveTowersUpdateMessage), "dsrP3NidhoggDiveTowersUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
@@ -355,3 +358,11 @@ public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> R
 // Peer -> host: a step of this player's own action (IUserActions.Acted), which the host shows on
 // the peer's seat for the rest of the party. Target names an actor as a GamePacket does.
 public sealed record ActedMessage(Guid PeerId, PlayerActionStep Step, ActionType ActionType, uint ActionId, uint Target, float CastSeconds) : MpMessage, IPeerMessage;
+
+public sealed record DsrP3NidhoggAiReplayStateMessage(
+    Dictionary<PartyRole, int> Order, Dictionary<PartyRole, JumpKind> Jump, int[] OrdersWithArrows,
+    bool[] OutFirst, int[] CounterTowerSoakers, int TetherTower) : MpMessage, IScenarioReplayStateMessage;
+
+// Dive from Grace towers by order, as x,y,z triples, once each round's jumps land: they go where the
+// jumpers stood, which only the host knows.
+public sealed record DsrP3NidhoggDiveTowersUpdateMessage(Dictionary<int, float[]> Towers) : MpMessage, IScenarioMidRunUpdateMessage;

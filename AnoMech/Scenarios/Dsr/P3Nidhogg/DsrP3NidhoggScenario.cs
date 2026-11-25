@@ -7,6 +7,7 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Dsr.DsrConstants;
 using Actions = AnoMech.Scenarios.Dsr.DsrActions;
 
@@ -16,17 +17,21 @@ namespace AnoMech.Scenarios.Dsr.P3Nidhogg;
 // of jumps, the towers they leave, and the Geirskogul lines each tower's clone aims at whoever is
 // closest when it starts), two Drachenlance cleaves, and the four counted towers with the Soul
 // Tether busters.
-public sealed class DsrP3NidhoggScenario : IScenario
+public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
 {
     public string Name => "Nidhogg";
     public IPhase Phase => DsrZone.P3;
     public bool SupportsSolo => true;
+    public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats =>
         [new DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing.West), new DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing.East)];
 
     public void DrawSettings() => settingsWindow.Draw();
+    public bool HasPerPlayerSettings => true;
+    public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
     public object SettingsOverrides => settingsWindow.Overrides;
+    public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly DsrP3NidhoggSettingsWindow settingsWindow = new();
 
     private static readonly ushort[] OrderStatus = [StatusId.FirstInLine, StatusId.SecondInLine, StatusId.ThirdInLine];
@@ -34,6 +39,9 @@ public sealed class DsrP3NidhoggScenario : IScenario
 
     private SimWorld world = null!;
     private DsrP3NidhoggState state = null!;
+    public DsrP3NidhoggState? LastState { get; private set; }
+    // Edge-triggers BuildMidRunUpdateMessage.
+    private int broadcastDiveTowerRounds;
     private SimEnemy? nidhogg;
     private readonly Dictionary<PartyRole, SimEnemy> jumpClones = new();
     private readonly Dictionary<int, List<SimEnemy>> diveClones = new();
@@ -42,7 +50,9 @@ public sealed class DsrP3NidhoggScenario : IScenario
     public void Run(SimWorld worldParam, int? selectedAi)
     {
         world = worldParam;
-        state = new DsrP3NidhoggState(world.Rng, settingsWindow.Overrides);
+        state = new DsrP3NidhoggState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
+        LastState = state;
+        broadcastDiveTowerRounds = 0;
         jumpClones.Clear();
         diveClones.Clear();
         counterClones.Clear();
@@ -332,5 +342,53 @@ public sealed class DsrP3NidhoggScenario : IScenario
         Dismiss(counterClones);
         nidhogg?.Despawn();
         nidhogg = null;
+    }
+
+    public MpMessage? BuildReplayStateMessage()
+        => LastState is { } s
+            ? new DsrP3NidhoggAiReplayStateMessage(
+                new Dictionary<PartyRole, int>(s.Order), new Dictionary<PartyRole, JumpKind>(s.Jump), s.OrdersWithArrows.ToArray(),
+                s.OutFirst.ToArray(), s.CounterTowerSoakers.ToArray(), s.TetherTower)
+            : null;
+
+    public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
+    {
+        if (message is not DsrP3NidhoggAiReplayStateMessage msg || aiIndex < 0 || aiIndex >= AiStrats.Count) return null;
+        var shadowState = DsrP3NidhoggState.FromNetworkReplay(
+            msg.Order, msg.Jump, msg.OrdersWithArrows, msg.OutFirst, msg.CounterTowerSoakers, msg.TetherTower);
+        if (shadowState == null) return null;
+        world = replayWorld;
+        ((IScenarioAi<DsrP3NidhoggState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
+        return shadowState;
+    }
+
+    public MpMessage? BuildMidRunUpdateMessage()
+    {
+        if (LastState is not { } s || s.DiveTowers.Count == broadcastDiveTowerRounds) return null;
+        broadcastDiveTowerRounds = s.DiveTowers.Count;
+        return new DsrP3NidhoggDiveTowersUpdateMessage(
+            s.DiveTowers.ToDictionary(e => e.Key, e => e.Value.SelectMany(t => new[] { t.X, t.Y, t.Z }).ToArray()));
+    }
+
+    public void ApplyMidRunUpdate(object shadowStateObj, MpMessage message)
+    {
+        if (shadowStateObj is not DsrP3NidhoggState shadowState || message is not DsrP3NidhoggDiveTowersUpdateMessage update) return;
+        foreach (var (order, coords) in update.Towers)
+        {
+            if (order is < 1 or > 3 || coords.Length % 3 != 0 || coords.Length > 3 * DsrP3NidhoggState.OrderSize(order) || !coords.All(float.IsFinite))
+                continue;
+            shadowState.DiveTowers[order] = coords.Chunk(3).Select(c => new Vector3(c[0], c[1], c[2])).ToList();
+        }
+    }
+
+    // A peer's tethers are its own mirrors of the host's, so its Soul Tethers are read off the world.
+    public void RefreshLiveHandles(object shadowStateObj, IReadOnlyDictionary<int, SimEnemy> peerEnemies)
+    {
+        if (shadowStateObj is not DsrP3NidhoggState shadowState) return;
+        shadowState.SoulTethers.Clear();
+        shadowState.SoulTethers.AddRange(world.Children.OfType<SimTether>()
+            .Where(t => t.IsActive && t.TetherId == TetherId.SoulTether && t.A is SimEnemy)
+            .Select(t => ((SimEnemy)t.A!, t))
+            .OrderBy(t => t.Item1.BNpcBaseId == BNpcBaseId.NidhoggP3 ? 0 : 1));
     }
 }
