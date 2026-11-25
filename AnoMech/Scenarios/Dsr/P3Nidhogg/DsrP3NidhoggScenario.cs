@@ -12,7 +12,7 @@ using Actions = AnoMech.Scenarios.Dsr.DsrActions;
 
 namespace AnoMech.Scenarios.Dsr.P3Nidhogg;
 
-// DSR P3 from Nidhogg's arrival to the Revenge of the Horde enrage: Dive from Grace (three rounds
+// DSR P3 from Nidhogg's arrival to the second Drachenlance: Dive from Grace (three rounds
 // of jumps, the towers they leave, and the Geirskogul lines each tower's clone aims at whoever is
 // closest when it starts), two Drachenlance cleaves, and the four counted towers with the Soul
 // Tether busters.
@@ -89,7 +89,7 @@ public sealed class DsrP3NidhoggScenario : IScenario
         world.Events.Add(65.70f, AutoAttack);
         world.Events.Add(68.82f, AutoAttack);
 
-        world.Events.Add(70.07f, () => Drachenlance(atMainTank: true));
+        world.Events.Add(70.07f, () => Drachenlance(first: true));
         world.Events.Add(71.60f, () => Dismiss(diveClones[3]));
         world.Events.Add(74.60f, SpawnCounterClones);
         world.Events.Add(75.10f, RaiseCounterTowers);
@@ -102,10 +102,8 @@ public sealed class DsrP3NidhoggScenario : IScenario
         world.Events.Add(98.52f, AutoAttack);
         world.Events.Add(101.64f, AutoAttack);
         world.Events.Add(104.76f, AutoAttack);
-        world.Events.Add(108.05f, () => Drachenlance(atMainTank: false));
-        // The enrage is cast for show only: a kill ends the phase before it lands.
-        world.Events.Add(113.06f, () => nidhogg?.Cast(ActionId.RevengeOfTheHorde, animationLock: 1f));
-        world.Events.Add(127.00f, DespawnAll);
+        world.Events.Add(108.05f, () => Drachenlance(first: false));
+        world.Events.Add(113.00f, DespawnAll);
     }
 
     public void OnActionResolved(ActionResolved resolved)
@@ -272,14 +270,23 @@ public sealed class DsrP3NidhoggScenario : IScenario
         clones.Clear();
     }
 
-    // The first is aimed at the main tank; the second always points south.
-    private void Drachenlance(bool atMainTank)
+    private const float DrachenlanceCleaveBar = 3.2f;
+
+    // The first is aimed at a random player, then Nidhogg turns back to his tank; the second always
+    // points south.
+    private void Drachenlance(bool first)
     {
         if (nidhogg is not { } boss) return;
-        if (!atMainTank) boss.Face(Compass.Point(Compass.S, 1f));
-        else if (MainTank is { } tank && tank.IsAlive()) boss.Face(tank);
+        if (!first) boss.Face(Compass.Point(Compass.S, 1f));
+        else if (state.FirstDrachenlanceTargetIn(world.Party, boss.Position) is { } target)
+            boss.Face(target);
         boss.Cast(ActionId.Drachenlance, animationLock: 1f);
-        boss.CastFromHelper(Actions.DrachenlanceCleave);
+        var aim = boss.Placement();
+        world.Events.Add(DrachenlanceCleaveBar, () =>
+        {
+            nidhogg?.CastFromHelper(Actions.DrachenlanceCleave, at: aim);
+            if (first && MainTank is { } tank && tank.IsAlive()) nidhogg?.Face(tank);
+        });
     }
 
     // The client creates a spawned actor a few frames later and drops a cast sent before then, so

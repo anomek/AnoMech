@@ -37,6 +37,8 @@ public sealed class DsrP3NidhoggState
     // Soakers per tower, NE, SE, SW, NW.
     public IReadOnlyList<int> CounterTowerSoakers { get; }
     public int TetherTower { get; }
+    // Who the first Drachenlance is aimed at.
+    public PartyRole FirstDrachenlanceTarget { get; }
 
     // The Dive from Grace towers, by order, filled in as each round's jumps land.
     public Dictionary<int, List<Vector3>> DiveTowers { get; } = new();
@@ -63,7 +65,12 @@ public sealed class DsrP3NidhoggState
         OutFirst = [overrides.FirstOutFirst ?? rng.NextBool(), overrides.SecondOutFirst ?? rng.NextBool()];
         CounterTowerSoakers = rng.Shuffle(CounterTowerShapes[overrides.CounterTowerShape ?? rng.Next(CounterTowerShapes.Length)]).ToList();
         TetherTower = rng.Next(4);
+        FirstDrachenlanceTarget = rng.NextRole();
     }
+
+    // The rolled player, or whoever stands closest to Nidhogg if they're dead.
+    public SimCharacter? FirstDrachenlanceTargetIn(SimParty party, Vector3 nidhogg) =>
+        party.Get(FirstDrachenlanceTarget) is { } rolled && rolled.IsAlive() ? rolled : party.Find.Closest(nidhogg);
 
     public List<PartyRole> InOrder(int order) => Order.Where(e => e.Value == order).Select(e => e.Key).OrderBy(r => r).ToList();
 

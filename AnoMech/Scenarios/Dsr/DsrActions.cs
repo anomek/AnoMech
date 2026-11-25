@@ -98,8 +98,10 @@ public static class DsrActions
         DeathExplanation = "in a Geirskogul line; each is aimed at whoever is closest to its clone when it starts",
     };
 
+    // Sent with no cast bar, so the client draws no omen; the scenario fires it when the bar would end.
     public static readonly EnemyAction DrachenlanceCleave = new(ActionId.DrachenlanceCleave)
     {
+        Cast = new() { CastSecondsOverride = 0f },
         Area = new() { Size = MathF.PI / 4f },
         Effects = [Damage(Lethal)],
         DeathExplanation = "in front of Nidhogg for Drachenlance",
