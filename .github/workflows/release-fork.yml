@@ -1,0 +1,113 @@
+name: Release mekfork
+
+# Builds the plugin, publishes it as a GitHub release and updates repo.json, the custom plugin
+# repository Dalamud reads from:
+#   https://raw.githubusercontent.com/<owner>/<repo>/<default branch>/repo.json
+# Multiplayer only admits players whose plugin DLL is byte-identical, so everyone in a session
+# must be on the same release. Run this between raid nights, not during one.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-fork
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  INTERNAL_NAME: AnoMech
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - name: Only release from the default branch
+        if: github.ref_name != github.event.repository.default_branch
+        shell: pwsh
+        run: |
+          Write-Error "Run this workflow from '${{ github.event.repository.default_branch }}', not '${{ github.ref_name }}'."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive -Force dalamud.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      # Major.minor.patch follows the upstream csproj; the revision is this workflow's run number,
+      # so every release is newer than the last and Dalamud offers it as an update.
+      - name: Pick version
+        id: version
+        shell: pwsh
+        run: |
+          $csproj = Get-Content "$env:INTERNAL_NAME/$env:INTERNAL_NAME.csproj" -Raw
+          $m = [regex]::Match($csproj, '<Version>\s*([0-9]+)\.([0-9]+)\.([0-9]+)')
+          if (-not $m.Success) { throw "No <Version> in the csproj" }
+          $v = "$($m.Groups[1].Value).$($m.Groups[2].Value).$($m.Groups[3].Value).${{ github.run_number }}"
+          Write-Host "Releasing v$v"
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        run: dotnet build ${{ env.INTERNAL_NAME }}/${{ env.INTERNAL_NAME }}.csproj --configuration Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Write repo.json
+        id: package
+        shell: pwsh
+        run: |
+          $dir = "$env:INTERNAL_NAME/bin/x64/Release/$env:INTERNAL_NAME"
+          $zip = "$dir/latest.zip"
+          $manifestPath = "$dir/$env:INTERNAL_NAME.json"
+          if (-not (Test-Path $zip)) { throw "Build produced no $zip" }
+          if (-not (Test-Path $manifestPath)) { throw "Build produced no $manifestPath" }
+
+          $v = "${{ steps.version.outputs.version }}"
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.AssemblyVersion -ne $v) { throw "Built AssemblyVersion $($manifest.AssemblyVersion) is not $v" }
+
+          # Pinned to this release's tag, so repo.json and the zip it points at always agree.
+          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/latest.zip"
+          $extra = [ordered]@{
+            DownloadLinkInstall = $url
+            DownloadLinkUpdate  = $url
+            DownloadLinkTesting = $url
+            IsHide              = $false
+            IsTestingExclusive  = $false
+            LastUpdate          = [string][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          }
+          foreach ($k in $extra.Keys) { $manifest | Add-Member -NotePropertyName $k -NotePropertyValue $extra[$k] -Force }
+
+          ConvertTo-Json -InputObject @($manifest) -Depth 10 | Set-Content -Path repo.json -Encoding utf8NoBOM
+          Get-Content repo.json
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $v = "${{ steps.version.outputs.version }}"
+          gh release create "v$v" "${{ steps.package.outputs.zip }}" --target "${{ github.sha }}" --title "v$v" --generate-notes
+
+      - name: Publish repo.json
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $branch = "${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repo.json
+          git commit -m "Publish v${{ steps.version.outputs.version }} to repo.json"
+          git pull --rebase origin $branch
+          git push origin "HEAD:$branch"

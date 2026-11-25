@@ -1,11 +1,11 @@
 {
     "Author": "Anomek",
-    "Name": "AnoMech",
+    "Name": "AnoMech (mekfork)",
     "MinimumDalamudVersion": "15.0.3.5",
-    "Punchline": "Another FFXIV mechanics simulator. Go to an inn and start practice.",
+    "Punchline": "AnoMech with multiplayer enabled, for practicing with your static. Go to an inn and start practice.",
     "Description": "Spawns fake party members and bosses client-side so you can practice raid mechanics without a full party.",
-    "RepoUrl": "https://github.com/anomek/AnoMech",
-    "IconUrl": "https://raw.githubusercontent.com/anomek/AnoMech/master/images/icon.png",
+    "RepoUrl": "https://github.com/brickseverywherestudios/mekfork",
+    "IconUrl": "https://raw.githubusercontent.com/brickseverywherestudios/mekfork/master/images/icon.png",
     "Tags": [
         "top",
         "umad",

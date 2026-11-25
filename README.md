@@ -21,6 +21,29 @@ While simulating:
  
 
 
+## mekfork: multiplayer for statics
+
+This fork turns on AnoMech's multiplayer (still experimental upstream) so a static can practice
+together.
+
+### Installing
+1. In game, open `/xlsettings` → **Experimental**.
+2. Under **Custom Plugin Repositories**, paste
+   `https://raw.githubusercontent.com/brickseverywherestudios/mekfork/master/repo.json`,
+   tick **Enabled**, click **+**, then **Save and Close**.
+3. If you have the official AnoMech installed, uninstall it in `/xlplugins` first. Only one copy
+   may be loaded.
+4. In `/xlplugins`, search for **AnoMech (mekfork)** and install it.
+
+### Playing together
+Everyone must be on the **same version** (shown in the AnoMech window title), or they won't be let
+into the session. Update in `/xlplugins` before raid night.
+
+1. Everyone goes to an inn room and opens `/anomech`.
+2. One person clicks **Multiplayer** → **Host** and shares the session code.
+3. Everyone else clicks **Multiplayer**, types the code and clicks **Join**.
+4. The host picks a scenario and starts it.
+
 ## Installation
 
 See: https://github.com/anomek/MyDalamudPlugins
