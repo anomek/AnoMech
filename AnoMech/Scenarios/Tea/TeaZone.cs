@@ -34,7 +34,7 @@ public sealed class TeaZone : IZone
     // Every restart sets each arena slot on its own rather than in one snapshot.
     public void Run(SimWorld world)
     {
-        world.EnforceArenaBoundary(Geometry.ArenaRadius);
+        world.EnforceArenaBoundary(new CircleArena(Geometry.ArenaRadius));
         for (var i = 0; i < ArenaStates.Length; i++)
         {
             var state = ArenaStates[i];

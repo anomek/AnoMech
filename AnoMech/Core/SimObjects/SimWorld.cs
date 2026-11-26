@@ -150,14 +150,10 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void PlaceWaymarks(IReadOnlyList<Waymark> layout)
         => children.GetOrAdd(() => new SimWaymarks(Coordinates)).Place(layout);
 
-    // Per-frame arena fence at `radius` from ScenarioOrigin. Kills any active
-    // party member (player included) who leaves the ring.
-    public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
-        => children.SetSingleton(new SimArenaBoundary(Party, radius, cause));
-
-    // As EnforceArenaBoundary, for a square arena `halfWidth` from ScenarioOrigin along each axis.
-    public void EnforceSquareArenaBoundary(float halfWidth, string cause = "Walked out of arena")
-        => children.SetSingleton(new SimArenaBoundary(Party, halfWidth, cause, square: true));
+    // Per-frame arena fence centered on ScenarioOrigin. Kills any active
+    // party member (player included) who leaves `shape`.
+    public void EnforceArenaBoundary(IArenaShape shape, string cause = "Walked out of arena")
+        => children.SetSingleton(new SimArenaBoundary(Party, shape, cause));
 
     // Where the server stops an NPC a knockback pushes: a circle this far from ScenarioOrigin. Set by
     // the zone for the run; without it a push goes its full distance.
@@ -190,7 +186,7 @@ public sealed class SimWorld : ISimObject, IDisposable
     // True when `local` (scenario-local) is outside the active arena fence; false
     // when the current scenario enforces no boundary.
     public bool IsOutsideArena(Vector3 local)
-        => children.Singleton<SimArenaBoundary>()?.IsOutside(local) ?? false;
+        => children.Singleton<SimArenaBoundary>()?.Shape.IsOutside(local) ?? false;
 
     // A scenario message the whole party should see (which arrow was missed, why everyone just
     // died). Printed here and mirrored to peers, which have no other channel for mid-run text.

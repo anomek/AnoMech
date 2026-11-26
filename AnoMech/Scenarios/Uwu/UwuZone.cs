@@ -29,7 +29,7 @@ public sealed class UwuZone : IZone
 
     public void Run(SimWorld world)
     {
-        world.EnforceArenaBoundary(UwuConstants.Geometry.ArenaRadius);
+        world.EnforceArenaBoundary(new CircleArena(UwuConstants.Geometry.ArenaRadius));
         world.StopNpcKnockbacksAt(UwuConstants.Geometry.NpcKnockbackStopRadius);
     }
 

@@ -25,5 +25,5 @@ public sealed class TopZone : IZone
     public DutyInitData DutyInitData => TopReplayData.DutyInitData;
 
 
-    public void Run(SimWorld world) => world.EnforceArenaBoundary(Geometry.ArenaRadius);
+    public void Run(SimWorld world) => world.EnforceArenaBoundary(new CircleArena(Geometry.ArenaRadius));
 }

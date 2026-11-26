@@ -6,6 +6,7 @@ using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
+using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using static AnoMech.Scenarios.Uwu.UwuConstants;
 using static AnoMech.Scenarios.Uwu.UwuUtils;
@@ -85,7 +86,7 @@ public sealed class UwuP3TitanGaolsScenario : IScenario
         world.Events.Add(5.60f, LandOnEdge);
         world.Events.Add(5.67f, Geocrush);
         world.Events.Add(5.67f, () => UwuZone.Instance.TitanArena?.PlayBeat(1, 0x2));
-        world.Events.Add(9.70f, () => world.EnforceArenaBoundary(FirstShrinkRadius, ShrunkenFloorDeath));
+        world.Events.Add(9.70f, () => world.EnforceArenaBoundary(new CircleArena(FirstShrinkRadius), ShrunkenFloorDeath));
         world.Events.Add(11.02f, () => TitanTargetable(true));
         world.Events.Add(11.05f, () => titan?.Cast(ActionId.BoulderTitan, animationLock: 2.1f));
 

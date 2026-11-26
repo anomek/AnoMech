@@ -12,7 +12,7 @@ public sealed class UcobZone : IZone
     public static readonly Phase P5 = new(Instance, "P5", 32, 499,
         init: world =>
         {
-            world.EnforceArenaBoundary(UcobConstants.Geometry.P5ArenaRadius);
+            world.EnforceArenaBoundary(new CircleArena(UcobConstants.Geometry.P5ArenaRadius));
             world.Events.Add(ArenaBeatAt, () => Instance.p5Arena?.PlayBeat(4, 0x8));
         });
 

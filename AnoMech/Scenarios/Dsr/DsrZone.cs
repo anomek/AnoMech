@@ -12,7 +12,7 @@ public sealed class DsrZone : IZone
     // The weather picks the arena: every phase's floor is in the one layout, each in an OB set shown
     // only under its own weathers. 66 shows P3's square r1fz_e00 floor.
     public static readonly Phase P3 = new(Instance, "P3", 66, DsrConstants.BgmId.Freefall,
-        init: world => world.EnforceSquareArenaBoundary(DsrConstants.Geometry.P3ArenaHalfWidth, "Went past the arena's edge."));
+        init: world => world.EnforceArenaBoundary(new SquareArena(DsrConstants.Geometry.P3ArenaHalfWidth), "Went past the arena's edge."));
 
     public string Name => "Dragonsong's Reprise";
     public uint TerritoryId => 968;
