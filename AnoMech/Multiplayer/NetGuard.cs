@@ -10,7 +10,6 @@ internal static class NetGuard
 {
     public const int MaxStringLength = 192;
     public const int MaxReportedEnemies = 256;
-    public const int MaxPendingMapCalls = 512;
     public const int MaxMapEffectSlots = 128;
     // Bound how long a burst can hold the framework thread.
     public const int MaxQueuedMessages = 8192;

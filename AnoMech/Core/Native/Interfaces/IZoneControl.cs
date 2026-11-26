@@ -17,6 +17,11 @@ public interface IZoneControl : IDisposable
 
     bool IsActive { get; }
 
+    // Enter returns while the zone still loads; until this is true the zone drops map effects,
+    // director updates and boss lines. `mapEffects`: also wait for the zone's map-effect table,
+    // which a zone without map effects may never get.
+    bool IsReady(bool mapEffects);
+
     // Every frame, inside a session or not: the start gate's timers and the session's safety nets.
     void TickGuard();
 

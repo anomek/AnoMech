@@ -11,6 +11,8 @@ internal sealed class FakeZoneControl(FakeCharacter player, SimTimeline timeline
 
     public bool IsActive { get; private set; }
 
+    public bool IsReady(bool mapEffects) => IsActive;
+
     public bool IsInInn() => !IsActive;
 
     public string? StartBlockedReason(out string? settling)

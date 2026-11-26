@@ -152,7 +152,6 @@ internal sealed class PeerNatives
         public void Despawn() { }
     }
 
-    // Taken as applied, so the caller's retry doesn't keep it.
     private sealed class PeerMapEffects(PeerNatives natives) : IMapEffects
     {
         public bool Loaded
@@ -205,6 +204,7 @@ internal sealed class PeerNatives
         public string? StartBlockedReason(out string? settling) => Real.StartBlockedReason(out settling);
         public void EndSpeedBuffs() => Real.EndSpeedBuffs();
         public bool IsActive => Real.IsActive;
+        public bool IsReady(bool mapEffects) => Real.IsReady(mapEffects);
         public void TickGuard() => Real.TickGuard();
         public bool Enter(uint territoryId, Vector3 playerSpawn) => Real.Enter(territoryId, playerSpawn);
         public void Revert() => Real.Revert();

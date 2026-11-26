@@ -73,6 +73,14 @@ public sealed unsafe partial class ZoneControl : IZoneControl
 
     public bool IsActive { get; private set; }
 
+    // Gated on IsActive: outside a stay the director is a real duty's.
+    public bool IsReady(bool mapEffects)
+    {
+        if (!IsActive) return false;
+        var director = InstanceContentDirectorHelper.ReadyContentDirector(EventFramework.Instance());
+        return director != null && (!mapEffects || director->MapEffects != null);
+    }
+
     private readonly SessionSave sessionSave = new();
     private readonly LevelSync levelSync = new();
 

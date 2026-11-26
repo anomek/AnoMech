@@ -31,6 +31,8 @@ public sealed class InstanceSession
     // False once the native zone went away without a Leave.
     public bool IsLoaded => Natives.Zone.IsActive;
 
+    public bool IsReady => Natives.Zone.IsReady(mapEffects: Zone.DutyInitData.MapEffectSnapshot.Count > 0);
+
     private InstanceSession(SimWorld world, IZone zone, Vector3 playerSpawnLocal, SessionMode mode)
     {
         this.world = world;

@@ -58,11 +58,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     // An effect waiting for its caster holds back the results that name it.
     private readonly Dictionary<uint, uint> waitingEffects = new();
     private readonly Dictionary<uint, (Queue<GamePacket> Packets, int Frames)> waiting = new();
-    // Map effects, director updates and boss lines, in the host's order, each retried until the
-    // zone takes it.
-    private readonly Queue<(GamePacket Packet, int QueuedAt)> arena = new();
-    private int arenaFrames;
-    private int frame;
 
     public IReadOnlyDictionary<int, SimEnemy> Enemies
         => spawned.Where(s => s.Value.Enemy != null).ToDictionary(s => (int)s.Key, s => s.Value.Enemy!);
@@ -70,7 +65,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     public IReadOnlyDictionary<int, SimEventObject> Props
         => spawned.Where(s => s.Value.Prop != null).ToDictionary(s => (int)s.Key, s => s.Value.Prop!);
 
-    public int Waiting => waiting.Values.Sum(w => w.Packets.Count) + arena.Count;
+    public int Waiting => waiting.Values.Sum(w => w.Packets.Count);
 
     // A copy spawned here: its entity id, and the host actor it stands for.
     public event Action<uint, uint>? Copied;
@@ -105,7 +100,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             case SpawnNpcPacket p: SpawnNpc(p); return;
             case SpawnObjPacket p: SpawnObject(p); return;
             case MapEffectPacket or MapEffectSnapshotPacket or DirectorUpdatePacket or BattleTalkPacket:
-                QueueArena(packet);
+                ApplyArena(packet);
                 return;
             case DirectorDataPacket p:
                 if (p.Data.Length <= MaxDirectorDataBytes) natives.RealDirector.SetDirectorData(p.Sequence, p.Unknown, p.Data);
@@ -128,7 +123,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
 
     public void Tick()
     {
-        frame++;
         foreach (var actor in waiting.Keys.ToList())
         {
             var (packets, frames) = waiting[actor];
@@ -144,7 +138,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             if (packets.Count == 0) waiting.Remove(actor);
             else waiting[actor] = (packets, frames + 1);
         }
-        DrainArena();
     }
 
     // Past MaxWaitFrames a named actor still missing is no target, and a packet whose own actor
@@ -170,7 +163,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         tethers.Clear();
         waiting.Clear();
         waitingEffects.Clear();
-        arena.Clear();
         effectSequences.Clear();
         effectOrder.Clear();
         statusSources.Clear();
@@ -494,7 +486,9 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
 
     // ── The arena ────────────────────────────────────────────────────────────
 
-    private void QueueArena(GamePacket packet)
+    // A peer reports in only once its zone has loaded (Game.ZoneIn), and the host starts only
+    // after that, so the zone takes these as they come.
+    private void ApplyArena(GamePacket packet)
     {
         switch (packet)
         {
@@ -513,36 +507,15 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
                 packet = t with { DurationMs = MaxBattleTalkMilliseconds };
                 break;
         }
-        if (arena.Count >= NetGuard.MaxPendingMapCalls) return;
-        arena.Enqueue((packet, frame));
-        DrainArena();
-    }
-
-    private void DrainArena()
-    {
-        while (arena.TryPeek(out var queued))
+        var taken = packet switch
         {
-            var (packet, queuedAt) = queued;
-            if (packet is BattleTalkPacket late && frame - queuedAt > MapController.BattleTalkMaxFrames)
-            {
-                DiagnosticLog.Warn($"[Multiplayer] Peer: dropped BattleTalk text {late.TextId} -- {frame - queuedAt} frames late would mistime its cue.");
-                arena.Dequeue();
-                arenaFrames = 0;
-                continue;
-            }
-            var taken = packet switch
-            {
-                MapEffectPacket m => natives.RealMap.Apply(m.PacketFlags, m.Index),
-                MapEffectSnapshotPacket s => natives.RealMap.ApplySnapshot(s.States, s.ZoneIn),
-                DirectorUpdatePacket d => natives.RealDirector.ProcessDirectorUpdate(d.Category, d.Arg1, d.Arg2, d.Arg3, d.Arg4, d.Arg5, d.Arg6),
-                BattleTalkPacket t => natives.RealDirector.BattleTalk(t.SpeakerNameId, t.TextId, t.DurationMs, SpeakerOf(t.Speaker)),
-                _ => true,
-            };
-            if (!taken && ++arenaFrames < MaxWaitFrames) return;
-            if (!taken) DiagnosticLog.Warn($"[Multiplayer] Peer: gave up applying the host's {packet.GetType().Name} -- the zone never took it.");
-            arena.Dequeue();
-            arenaFrames = 0;
-        }
+            MapEffectPacket m => natives.RealMap.Apply(m.PacketFlags, m.Index),
+            MapEffectSnapshotPacket s => natives.RealMap.ApplySnapshot(s.States, s.ZoneIn),
+            DirectorUpdatePacket d => natives.RealDirector.ProcessDirectorUpdate(d.Category, d.Arg1, d.Arg2, d.Arg3, d.Arg4, d.Arg5, d.Arg6),
+            BattleTalkPacket t => natives.RealDirector.BattleTalk(t.SpeakerNameId, t.TextId, t.DurationMs, SpeakerOf(t.Speaker)),
+            _ => true,
+        };
+        if (!taken) DiagnosticLog.Warn($"[Multiplayer] Peer: the zone refused the host's {packet.GetType().Name}.");
     }
 
     private void Haters(HatersPacket p)

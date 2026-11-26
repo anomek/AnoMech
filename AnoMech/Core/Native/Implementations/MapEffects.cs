@@ -45,13 +45,11 @@ internal sealed unsafe class MapEffects : IMapEffects
             + $"item before=({Format(before)}) after=({Format(after)}).");
     }
 
-    // Returns false when the zone/director isn't ready yet (async load still in
-    // flight) so MapController can retry instead of silently losing the call.
     public bool Apply(uint packetFlags, byte index)
     {
         if (!TryGetReadyDirector(out var framework, out var module)) return false;
         // ProcessMapEffect writes into MapEffects->Items[index], and index can come off the
-        // network. Not ready reads like any other not-ready case, so the caller retries.
+        // network.
         if (!IsIndexInRange(module, index)) return false;
         var packet = new MapEffectPacket
         {
@@ -83,16 +81,11 @@ internal sealed unsafe class MapEffects : IMapEffects
         return true;
     }
 
-    // Both handlers drop the packet silently while the director's vfunc 3 returns false; checking
-    // it first turns that into a retry.
     private bool TryGetReadyDirector(out EventFramework* framework, out ContentDirector* module)
     {
-        module = null;
         framework = EventFramework.Instance();
-        if (!Loaded || framework == null) return false;
-        module = framework->DirectorModule.ActiveContentDirector;
-        return module != null
-            && ((delegate* unmanaged<ContentDirector*, byte>)(*(nint**)module)[3])(module) != 0;
+        module = Loaded ? InstanceContentDirectorHelper.ReadyContentDirector(framework) : null;
+        return module != null;
     }
 
     public void LogAllSlots(string label)

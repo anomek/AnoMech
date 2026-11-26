@@ -550,6 +550,7 @@ internal sealed class PacketRecorder
         public string? StartBlockedReason(out string? settling) => Real.StartBlockedReason(out settling);
         public void EndSpeedBuffs() => Real.EndSpeedBuffs();
         public bool IsActive => Real.IsActive;
+        public bool IsReady(bool mapEffects) => Real.IsReady(mapEffects);
         public void TickGuard() => Real.TickGuard();
         public bool Enter(uint territoryId, Vector3 playerSpawn) => Real.Enter(territoryId, playerSpawn);
         public void Revert() => Real.Revert();
