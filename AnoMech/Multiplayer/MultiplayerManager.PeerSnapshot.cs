@@ -55,29 +55,24 @@ public sealed partial class MultiplayerManager
         pendingSelfPoseSend = Send(pose);
     }
 
-    public void ReportAppliedEnemyStatus(IReadOnlyList<SimEnemy> enemies, ushort statusId, float duration, ushort param)
+    // What our presses put on a party member the host acts on, or on an enemy, goes to the host's
+    // copy too.
+    private void ReportStatusGained(PeerProxy proxy, ushort statusId, ushort stacks, float duration)
     {
-        if (IsHost || relay is not { IsConnected: true } || replay is null || enemies.Count == 0) return;
-        var hostIds = enemies.Select(replay.HostActorOf).Where(id => id != PacketActor.None).ToList();
-        if (hostIds.Count == 0) return;
-        DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on the host's enemies [{string.Join(",", hostIds.Select(id => $"0x{id:X}"))}].");
-        _ = Send(new PeerAppliedEnemyStatusMessage(MyPeerId, hostIds, statusId, duration, param));
-    }
-
-    public void ReportAppliedRoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, ushort param)
-    {
-        if (IsHost || relay is not { IsConnected: true } || roles.Count == 0) return;
-        DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on roles [{string.Join(",", roles)}] to host.");
-        _ = Send(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration, param));
-    }
-
-    // True when the host now owns the cleanse: its copy holds the statuses.
-    public bool ReportDispelled(PartyRole role)
-    {
-        if (IsHost || relay is not { IsConnected: true } || replay is null) return false;
-        DiagnosticLog.Info($"[Multiplayer] Peer: reporting a cleanse on role {role} to host.");
-        _ = Send(new PeerDispelledMessage(MyPeerId, role));
-        return true;
+        if (IsHost || relay is not { IsConnected: true } || replay is null) return;
+        var world = Plugin.Game.World;
+        if (world.Party.FilledSlots().FirstOrDefault(s => ReferenceEquals(s.member.Proxy, proxy)) is (var role, not null))
+        {
+            if (!ReportedStatuses.Contains(statusId)) return;
+            DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on role {role} to host.");
+            _ = Send(new PeerAppliedRoleStatusMessage(MyPeerId, [role], statusId, duration, stacks));
+        }
+        else if (world.Children.OfType<SimEnemy>().FirstOrDefault(e => ReferenceEquals(e.Proxy, proxy)) is { } enemy
+                 && replay.HostActorOf(enemy) is var hostId && hostId != PacketActor.None)
+        {
+            DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on the host's enemy 0x{hostId:X}.");
+            _ = Send(new PeerAppliedEnemyStatusMessage(MyPeerId, [hostId], statusId, duration, stacks));
+        }
     }
 
     // ---- Host: applying a peer's reported pose to their puppet -------------
@@ -131,7 +126,11 @@ public sealed partial class MultiplayerManager
         // Our own seed, as each client rolls: a peer's bot replays the host's rolls from its
         // replay state, never from a stream it shares with the host.
         peerRunParams = new RunScenarioParams(scenario, new LobbyPartyProvider(this, isPeer: true), null, Session.SelectedWaymark, NextSeed());
-        peerNatives ??= PeerNatives.Install();
+        if (peerNatives == null)
+        {
+            peerNatives = PeerNatives.Install();
+            peerNatives.StatusGained += ReportStatusGained;
+        }
         if (replay == null)
         {
             replay = new PacketReplay(peerNatives, Plugin.Game.World, myRole);

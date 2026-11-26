@@ -43,6 +43,10 @@ public sealed partial class MultiplayerManager
         // emptied its copy.
         if (acted.Step == PlayerActionStep.Resolved && LimitBreakHandler.IsLimitBreak(acted.ActionId))
             Plugin.Game.World.Party.LimitBreak.Spend();
+        // The peer's copy of the party lacks the run's statuses, so the host's picks what comes off.
+        if (acted.Step == PlayerActionStep.Resolved && Plugin.Game.World.Party.Get(seat) is { } caster
+            && caster is ISimPartyMember { ClassJob: var job } && Esuna.CanCleanse(job))
+            JobActions.ApplyDispel(caster, acted.ActionId, (ulong)(HostObjectOf(acted.Target) ?? caster.GameObjectId));
     }
 
     // As the server shows a seat's own action to the party: its cast bar, the cast's cancel, the

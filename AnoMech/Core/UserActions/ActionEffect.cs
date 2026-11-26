@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using AnoMech.Core.EnemyActions;
-using AnoMech.Core.Game.Party;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
@@ -60,31 +57,11 @@ internal sealed class StatusEffect(ushort statusId, float duration, int stacks =
     {
         ctx.Caster.RemoveStatus(statusId);
         ctx.Caster.AddStatusParam(statusId, stacks, duration);
-        if (ctx.Caster is ISimPartyMember member) HostReport.RoleStatus([member.Role], statusId, duration, stacks);
     }
-}
-
-// A peer runs no scenario logic: the host decides who lives, from the statuses on its own copy
-// of each character. Only the statuses the host acts on (mitigation, knockback immunity) and
-// Sprint, which every other client shows, are sent, with what a scenario reacts to: a provoke,
-// an enemy's first hit, a cleanse.
-internal static class HostReport
-{
-    public static bool IsReported(ushort statusId)
-        => Mitigation.ByStatusId.ContainsKey(statusId) || Array.IndexOf(EnemyActionContext.KnockbackImmunityStatuses, statusId) >= 0 || statusId == JobActions.SprintStatus;
-
-    public static void RoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, int stacks)
-    {
-        if (IsReported(statusId))
-            Plugin.Multiplayer?.ReportAppliedRoleStatus(roles, statusId, duration, (ushort)stacks);
-    }
-
-    public static bool Dispelled(PartyRole role) => Plugin.Multiplayer?.ReportDispelled(role) ?? false;
 }
 
 // Leaf: remove the first dispellable status (Status sheet CanDispel) from each friendly recipient.
-// The status is picked at the press and comes off 1.11s later, as the game's does. On a peer the
-// host's copy, which holds the statuses, does both.
+// The status is picked at the press and comes off 1.11s later, as the game's does.
 internal sealed class DispelEffect : IActionEffect
 {
     private const float Delay = 1.11f;
@@ -92,8 +69,7 @@ internal sealed class DispelEffect : IActionEffect
     public void Apply(ActionContext ctx)
     {
         foreach (var member in ActionTargets.Friendly(ctx))
-            if (member is not ISimPartyMember slot || !HostReport.Dispelled(slot.Role))
-                Dispel(member);
+            Dispel(member);
     }
 
     public static void Dispel(SimCharacter member)
@@ -110,14 +86,11 @@ internal sealed class TargetStatusEffect(ushort statusId, float duration, int st
 {
     public void Apply(ActionContext ctx)
     {
-        var roles = new List<PartyRole>();
         foreach (var member in ActionTargets.Friendly(ctx))
         {
             member.RemoveStatus(statusId);
             member.AddStatusParam(statusId, stacks, duration);
-            if (member is ISimPartyMember slot) roles.Add(slot.Role);
         }
-        HostReport.RoleStatus(roles, statusId, duration, stacks);
     }
 }
 
@@ -126,13 +99,11 @@ internal sealed class EnemyStatusEffect(ushort statusId, float duration, int sta
 {
     public void Apply(ActionContext ctx)
     {
-        var enemies = ActionTargets.Hostile(ctx);
-        foreach (var enemy in enemies)
+        foreach (var enemy in ActionTargets.Hostile(ctx))
         {
             enemy.RemoveStatus(statusId);
             enemy.AddStatusParam(statusId, stacks, duration);
         }
-        Plugin.Multiplayer?.ReportAppliedEnemyStatus(enemies, statusId, duration, (ushort)stacks);
     }
 }
 

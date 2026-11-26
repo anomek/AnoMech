@@ -268,7 +268,7 @@ public sealed partial class MultiplayerManager
                 var who = Session.NameOf(applied.PeerId);
                 if (Session.RoleOf(applied.PeerId) is not { } reporter) break;
                 var sprint = applied.StatusId == JobActions.SprintStatus;
-                if (!HostReport.IsReported(applied.StatusId))
+                if (!ReportedStatuses.Contains(applied.StatusId))
                 {
                     DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported role status {applied.StatusId}, which the host doesn't act on -- dropping.");
                     break;
@@ -288,26 +288,6 @@ public sealed partial class MultiplayerManager
                     member.AddStatusParam(applied.StatusId, applied.Param, duration);
                     DiagnosticLog.Info($"[Multiplayer] Host: applied {who}'s reported status {applied.StatusId} (duration={duration:F1}) to role {role}.");
                 }
-                break;
-            }
-            // Only a cleanser's own press.
-            case PeerDispelledMessage dispelled when IsHost:
-            {
-                var who = Session.NameOf(dispelled.PeerId);
-                if (Session.RoleOf(dispelled.PeerId) is not { } casterRole || !Enum.IsDefined(dispelled.Role)
-                    || Plugin.Game.World.Party.Get(casterRole) is not ISimPartyMember caster) break;
-                if (!Esuna.CanCleanse(caster.ClassJob))
-                {
-                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported a cleanse from role {casterRole}, whose job has none -- dropping.");
-                    break;
-                }
-                if (Plugin.Game.World.Party.Get(dispelled.Role) is not { } member)
-                {
-                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported a cleanse on role {dispelled.Role}, but that slot is empty -- dropping.");
-                    break;
-                }
-                DispelEffect.Dispel(member);
-                DiagnosticLog.Info($"[Multiplayer] Host: {who} (role {casterRole}) cleansed role {dispelled.Role}.");
                 break;
             }
 

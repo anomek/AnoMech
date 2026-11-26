@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
@@ -747,6 +748,15 @@ internal static unsafe class JobActions
         if (!Actions.TryGetValue(actionId, out var effects)) return;
         var ctx = new ActionContext(actionId, targetId, caster, rng);
         foreach (var effect in effects) effect.Apply(ctx);
+    }
+
+    // Only the cleanse the action makes, for a copy of the world that holds the statuses but
+    // didn't see the rest of the press.
+    public static void ApplyDispel(SimCharacter caster, uint actionId, ulong targetId)
+    {
+        if (!Actions.TryGetValue(actionId, out var effects)) return;
+        var ctx = new ActionContext(actionId, targetId, caster, System.Random.Shared);
+        foreach (var effect in effects.OfType<DispelEffect>()) effect.Apply(ctx);
     }
 
     public static void ApplyAutoAttack(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)

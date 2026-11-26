@@ -88,7 +88,6 @@ internal sealed unsafe class BardStateHandler : IUserActionHandler
         {
             enemy.RemoveStatus(dot);
             enemy.AddStatusParam(dot, 0, DotSeconds);
-            Plugin.Multiplayer?.ReportAppliedEnemyStatus([enemy], dot, DotSeconds, 0);
         }
     }
 
