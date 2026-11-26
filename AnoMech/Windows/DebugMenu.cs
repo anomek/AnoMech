@@ -35,7 +35,6 @@ internal sealed unsafe class DebugMenu
     private readonly ActorControlDebug actorControlDebug = new();
     private readonly LockReplayDebug lockReplayDebug = new();
     private readonly PacketCaptureDebug packetCaptureDebug = new();
-    private readonly PreloadActionTmbTap preloadActionTmbTap = new();
 
     public DebugMenu(Plugin plugin)
     {
@@ -52,7 +51,6 @@ internal sealed unsafe class DebugMenu
         recastTimesHook?.Dispose();
         positionLogActionEffectHook?.Disable();
         positionLogActionEffectHook?.Dispose();
-        preloadActionTmbTap.Dispose();
         packetCaptureDebug.Dispose();
     }
 

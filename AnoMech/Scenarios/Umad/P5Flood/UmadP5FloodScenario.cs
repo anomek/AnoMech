@@ -9,7 +9,6 @@ using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Umad.UmadConstants;
-using AnoMech.Core.Native.Interfaces;
 
 namespace AnoMech.Scenarios.Umad.P5Flood;
 
@@ -143,12 +142,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         world.Events.Add(lastResolve + DespawnBuffer, DespawnAll);
     }
 
-    // Host and peer alike: a peer's wave helpers replay the same gimmick timelines.
-    public void RunInstanceEvents(SimWorld instanceWorld)
-    {
-        Natives.TimelinePreload.Preload(WaveTimelines, "UmadP5Flood");
-    }
-
     public MpMessage? BuildReplayStateMessage()
         => LastState is { } s
             ? new UmadP5FloodAiReplayStateMessage(s.NeSwReversed, s.NwSeReversed, s.NeSwFirst, s.StartQuadrant, s.RotationClockwise)
@@ -212,15 +205,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         if (target is null) return;
         kefka?.CastFromHelper(UmadActions.ChaoticFlood, target, at: new Placement(Vector3.Zero, MathF.PI));
     }
-
-    // The gimmick timelines this mechanic plays (LoadType 0: not resident, not in Kefka's own
-    // set); every run put 10690 in the base slot with its clock stuck at 0.00 before dropping it.
-    private static readonly (ushort Id, string Key)[] WaveTimelines =
-    [
-        (10690, "mon_sp/gimmick/z5r2_boss2_gimmick02"),                    // FloodAOE AnimationEnd: the wave
-        (10692, "mon_sp/gimmick/z5r2_boss2_gimmick04"),                    // ChaoticFlood AnimationEnd: the stack burst
-        (1378, "mon_sp/gimmick/monster_hanyou_hitclip_nomi_saisoku"),      // FloodTelegraph AnimationEnd
-    ];
 
     private void DespawnAll() => kefka?.Despawn();
 }

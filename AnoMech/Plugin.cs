@@ -128,6 +128,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             ModelContainerPointers.Initialize();
             PacketDispatcherPointers.Initialize();
             ResolvedStringPointers.Initialize();
+            TerritoryResidentPointers.Initialize();
 
             Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
             // The diagnostic log's own header is written before any hook exists, so it alone

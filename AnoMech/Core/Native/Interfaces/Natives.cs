@@ -13,7 +13,6 @@ public static class Natives
     public static ILocalPlayerInput PlayerInput { get; internal set; } = null!;
     public static IUserActions UserActions { get; internal set; } = null!;
 
-    public static IActionTimelinePreload TimelinePreload { get; internal set; } = null!;
 
     public static IZoneControl Zone { get; internal set; } = null!;
     public static IMapEffects MapEffects { get; internal set; } = null!;

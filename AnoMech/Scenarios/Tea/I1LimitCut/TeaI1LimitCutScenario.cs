@@ -6,7 +6,6 @@ using AnoMech.Core;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
-using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Tea.TeaConstants;
@@ -106,14 +105,8 @@ public sealed class TeaI1LimitCutScenario : IMultiplayerReplayable
     // P2's music starts with J Kick.
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
-        Natives.TimelinePreload.Preload(BlastTimelines, "TeaI1LimitCut");
         instanceWorld.Events.Add(32.26f, () => instanceWorld.SwitchBgm(Bgm.P2));
     }
-
-    private static readonly (ushort Id, string Key)[] BlastTimelines =
-    [
-        (7587, "mon_sp/gimmick/d2az_boss_gimmick06"),
-    ];
 
     public MpMessage? BuildReplayStateMessage()
         => LastState is { } s ? new TeaI1LimitCutAiReplayStateMessage(s.Numbers.ToArray(), s.FirstBlasterAxis) : null;

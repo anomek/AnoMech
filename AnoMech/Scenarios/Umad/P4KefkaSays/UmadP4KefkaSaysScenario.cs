@@ -11,7 +11,6 @@ using AnoMech.Core.Map;
 using AnoMech.Core.SimObjects;
 using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Umad.UmadConstants;
-using AnoMech.Core.Native.Interfaces;
 
 namespace AnoMech.Scenarios.Umad.P4KefkaSays;
 
@@ -72,16 +71,9 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         Run_AccelerationBomb();
     }
 
-    // First played on a fresh actor, where an unloaded timeline can drop (see ActionTimelinePreload).
-    private static readonly (ushort Id, string Key)[] NeoExdeathTimelines =
-    [
-        (TimelineId.NeoExdeathShow, "mon_sp/m0418/show/mon_sp001"),
-    ];
-
     // Scheduled by host and peer alike, so each client fakes its own tank's LB3 gauge.
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
-        Natives.TimelinePreload.Preload(NeoExdeathTimelines, "UmadP4KefkaSays");
         instanceWorld.Party.LimitBreak.Set(3f);
     }
 

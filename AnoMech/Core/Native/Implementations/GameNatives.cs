@@ -13,7 +13,6 @@ internal static class GameNatives
         Natives.EventObjects = new EventObjects();
         Natives.PlayerInput = new LocalPlayerInputHooks(Plugin.GameInterop);
         Natives.UserActions = new UserActions.UserActions(Natives.PlayerInput);
-        Natives.TimelinePreload = new ActionTimelinePreload();
         Natives.MapEffects = new MapEffects();
         Natives.Zone = new ZoneControl();
         Natives.Layout = new LayoutFunctions();

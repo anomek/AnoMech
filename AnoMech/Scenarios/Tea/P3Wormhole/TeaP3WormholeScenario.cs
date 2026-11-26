@@ -7,7 +7,6 @@ using AnoMech.Core.EnemyActions;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Party;
-using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Multiplayer;
 using static AnoMech.Scenarios.Tea.TeaConstants;
@@ -163,25 +162,6 @@ public sealed class TeaP3WormholeScenario : IMultiplayerReplayable
     }
 
     public void Tick(float delta, float elapsed) { }
-
-    public void RunInstanceEvents(SimWorld instanceWorld) => Natives.TimelinePreload.Preload(HelperTimelines, "TeaP3Wormhole");
-
-    // The helpers' and adds' hits play gimmick timelines (LoadType 0), which an actor drops unless
-    // they are already loaded. UNVERIFIED in game.
-    private static readonly (ushort Id, string Key)[] HelperTimelines =
-    [
-        (1378, "mon_sp/gimmick/monster_hanyou_hitclip_nomi_saisoku"),
-        (1604, "mon_sp/gimmick/ultima_ultimadan_sakuretu"),
-        (4716, "mon_sp/gimmick/d2a6_boss_gimmick12"),
-        (4722, "mon_sp/gimmick/d2a6_boss_gimmick15"),
-        (5027, "mon_sp/gimmick/d2ac2_boss_gimmick05"),
-        (5029, "mon_sp/gimmick/d2ac2_boss_gimmick06"),
-        (5031, "mon_sp/gimmick/d2ac2_boss_gimmick07"),
-        (5037, "mon_sp/gimmick/d2ac2_boss_gimmick10"),
-        (5041, "mon_sp/gimmick/d2ac2_boss_gimmick12"),
-        (5057, "mon_sp/gimmick/d2ab2_boss_gimmick05"),
-        (7563, "mon_sp/gimmick/d2az_boss_gimmick02"),
-    ];
 
     public MpMessage? BuildReplayStateMessage()
         => LastState is { } s

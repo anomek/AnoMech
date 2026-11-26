@@ -59,7 +59,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private bool peerRunStarted;
     // From our run's start until it is up, nothing more is taken from the host: the host set its
     // own run up before sending any of it, and its packets need that setup here too (the run's
-    // strings and files, its preloads).
+    // strings and files).
     private bool peerRunStartPending;
     private RunScenarioParams? peerRunParams;
     // The host's packets that came before our entry completed.

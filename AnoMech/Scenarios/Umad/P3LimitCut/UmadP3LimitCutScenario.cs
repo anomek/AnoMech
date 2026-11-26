@@ -13,7 +13,6 @@ using AnoMech.Scenarios.Umad.P3BlackHole;
 
 namespace AnoMech.Scenarios.Umad.P3LimitCut;
 
-using AnoMech.Core.Native.Interfaces;
 using static UmadConstants;
 using static UmadP3LimitCutState;
 
@@ -138,7 +137,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
 
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
-        Natives.TimelinePreload.Preload(CloneTimelines, "UmadP3LimitCut");
         instanceWorld.Party.LimitBreak.Set(3f);
     }
 
@@ -169,14 +167,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         shadow.Objects.Chaos ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.ChaosP3);
         shadow.Objects.Exdeath ??= peerEnemies.Values.FirstOrDefault(e => e.BNpcBaseId == BNpcBaseId.Exdeath);
     }
-
-    // The "hide" set's mon_sp003/mon_sp004 materialise the clone out of its dissolve; a timeline
-    // that never comes up leaves it frozen white and translucent. Both key spellings, as Flood needed.
-    private static readonly (ushort Id, string Key)[] CloneTimelines =
-    [
-        (4575, "mon_sp/m0462/hide/mon_sp003"),
-        (4576, "mon_sp/m0462/hide/mon_sp004"),
-    ];
 
     // The bosses are held at the wind crystal, and the cyclone and thunder helpers sit on it.
     private Vector3 WindCrystalPos => OnCircle(SpotHeading(state.BossSpot), 14f);

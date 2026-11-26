@@ -6,7 +6,7 @@ using AnoMech.Core;
 namespace AnoMech.Scenarios;
 
 // Carries the host's scenario overrides to every peer, so the knobs a peer's own code reads
-// (IScenario.RunInstanceEvents' preloads, anything else outside the host-only Run) match what
+// (IScenario.RunInstanceEvents, anything else outside the host-only Run) match what
 // the host set. ScenarioSettingsSummary shows the same values; this is what makes them true.
 //
 // The JSON is host-controlled, so it is never deserialized into anything but the peer's own

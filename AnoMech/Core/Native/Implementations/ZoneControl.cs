@@ -657,16 +657,21 @@ public sealed unsafe partial class ZoneControl : IZoneControl
             Plugin.Log.Information("[ZoneControl] Step 3: InitDirector (Skipped)");
         }
 
-        Plugin.Log.Information("[ZoneControl] Step 4: LoadZone (native)");
+        // Retail's StartTerritoryTransition makes this call right before LoadZone, which the sim calls
+        // directly. The inn has no Resident row, so the call on the way back unloads the zone's.
+        Plugin.Log.Information("[ZoneControl] Step 4: Resident preload");
+        TerritoryResidentPointers.RequestTerritory(TerritoryResidentPointers.Preloader, territory);
+
+        Plugin.Log.Information("[ZoneControl] Step 5: LoadZone (native)");
         GameMainPointers.LoadZone(gm, territory, 0, 0, 1);
 
-        Plugin.Log.Information("[ZoneControl] Step 5: SetupTerritoryType");
+        Plugin.Log.Information("[ZoneControl] Step 6: SetupTerritoryType");
         eventFramework->SetTerritoryTypeId((ushort)territory);
 
-        Plugin.Log.Information("[ZoneControl] Step 6: SyncClientState");
+        Plugin.Log.Information("[ZoneControl] Step 7: SyncClientState");
         SyncClientStateTerritoryType((ushort)territory);
 
-        Plugin.Log.Information("[ZoneControl] Step 7: SetPosition");
+        Plugin.Log.Information("[ZoneControl] Step 8: SetPosition");
         SetLocalPlayerPosition(playerPos, rotation);
 
         Plugin.Log.Information("[ZoneControl] LoadZone complete");
