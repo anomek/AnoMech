@@ -155,6 +155,10 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void EnforceArenaBoundary(float radius, string cause = "Walked out of arena")
         => children.SetSingleton(new SimArenaBoundary(Party, radius, cause));
 
+    // As EnforceArenaBoundary, for a square arena `halfWidth` from ScenarioOrigin along each axis.
+    public void EnforceSquareArenaBoundary(float halfWidth, string cause = "Walked out of arena")
+        => children.SetSingleton(new SimArenaBoundary(Party, halfWidth, cause, square: true));
+
     // Where the server stops an NPC a knockback pushes: a circle this far from ScenarioOrigin. Set by
     // the zone for the run; without it a push goes its full distance.
     public float? NpcKnockbackStopRadius { get; private set; }
