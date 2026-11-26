@@ -82,7 +82,6 @@ public sealed class UltimateAnnihilationScenario : IScenario
         world.Events.Add(0f, () => utils.SpawnArenaFloor());
         world.Events.Add(0f, SpawnBosses);
         world.Events.Add(0f, GiveThermalLow);
-        world.Events.Add(0.6f, AwakenBosses);
         world.Events.Add(0.6f, UltimaTargetsMainTank);
 
         world.Events.Add(2.50f, () => ultima?.Cast(ActionId.UltimateAnnihilation, animationLock: 4.5f));
@@ -176,7 +175,7 @@ public sealed class UltimateAnnihilationScenario : IScenario
     private SimCharacter? Get(PartyRole role) => party.Get(role);
 
     private SimEnemy? SpawnEnemy(uint baseId, uint nameId, uint layoutId, Placement placement, bool targetable, bool visible, EnemyListMode enemyList,
-        byte? modeAttributeFlags = null, uint? displayFlags = null) =>
+        byte? modeAttributeFlags = null, uint? displayFlags = null, IReadOnlyList<SpawnStatus>? statuses = null, byte animationState = 0) =>
         world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: baseId,
             NameId: nameId,
@@ -187,25 +186,21 @@ public sealed class UltimateAnnihilationScenario : IScenario
             Placement: placement,
             InitialModeAttributeFlags: modeAttributeFlags,
             DisplayFlags: displayFlags,
-            LayoutId: layoutId));
+            LayoutId: layoutId,
+            Statuses: statuses,
+            AnimationState: animationState));
 
     private SimEnemy? SpawnHiddenPrimal(uint baseId, uint nameId, uint layoutId) =>
-        SpawnEnemy(baseId, nameId, layoutId, new Placement(Vector3.Zero, 0f), false, false, EnemyListMode.Never);
+        SpawnEnemy(baseId, nameId, layoutId, new Placement(Vector3.Zero, 0f), false, false, EnemyListMode.Never,
+            statuses: UwuUtils.WokenAtSpawn(isUltima: false), animationState: UwuUtils.AwakenedAnimationState);
 
     private void SpawnBosses()
     {
-        ultima = SpawnEnemy(BNpcBaseId.UltimaWeapon, BNpcNameId.UltimaWeapon, BNpcLayoutId.UltimaWeapon, UltimaNorth, true, true, EnemyListMode.Always, 0x11);
+        ultima = SpawnEnemy(BNpcBaseId.UltimaWeapon, BNpcNameId.UltimaWeapon, BNpcLayoutId.UltimaWeapon, UltimaNorth, true, true, EnemyListMode.Always, 0x11,
+            statuses: UwuUtils.WokenAtSpawn(isUltima: true), animationState: UwuUtils.AwakenedAnimationState);
         garuda = SpawnHiddenPrimal(BNpcBaseId.Garuda, BNpcNameId.Garuda, BNpcLayoutId.Garuda);
         ifrit = SpawnHiddenPrimal(BNpcBaseId.Ifrit, BNpcNameId.Ifrit, BNpcLayoutId.Ifrit);
         titan = SpawnHiddenPrimal(BNpcBaseId.Titan, BNpcNameId.Titan, BNpcLayoutId.Titan);
-    }
-
-    private void AwakenBosses()
-    {
-        utils.Awaken(ultima, true);
-        utils.Awaken(garuda, false);
-        utils.Awaken(ifrit, false);
-        utils.Awaken(titan, false);
     }
 
     private void GiveThermalLow()

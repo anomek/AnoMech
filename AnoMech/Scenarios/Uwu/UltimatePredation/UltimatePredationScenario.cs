@@ -99,7 +99,9 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                     Placement: new Placement(
                         new Vector3(0, 0, -10),
                         0),
-                    InitialModeAttributeFlags: 0x11)
+                    InitialModeAttributeFlags: 0x11,
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: true),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
 
             garuda = world.SpawnEnemy(
@@ -113,7 +115,9 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                     Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
 
             ifrit = world.SpawnEnemy(
@@ -128,7 +132,9 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                     DisplayFlags: 0x60008,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
 
             var titan = world.SpawnEnemy(
@@ -143,19 +149,12 @@ public class UltimatePredationScenario : IMultiplayerReplayable
                     DisplayFlags: 0x60008,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
             );
 
             state.ScenarioObjects.Titan = titan;
-        });
-
-        // Once the engine has created the actors; an ActorControl sent before that is dropped.
-        world.Events.Add(0.5f, () =>
-        {
-            utils.Awaken(ultima, true);
-            utils.Awaken(garuda, false);
-            utils.Awaken(ifrit, false);
-            utils.Awaken(titan, false);
         });
     }
 

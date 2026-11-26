@@ -58,6 +58,7 @@ public static class TopActions
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Timing = new() { DamageDelay = 0.76f },
         Effects =
         [
@@ -69,6 +70,7 @@ public static class TopActions
 
     public static readonly EnemyAction PilePitch = new(ActionId.PilePitch)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Timing = new() { DamageDelay = 0.8f },
         Effects = [Damage(MagicVulns, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
     };
@@ -183,12 +185,14 @@ public static class TopActions
     // -- Delta-specific --
     public static readonly EnemyAction RunMiDeltaVersion = new(ActionId.RunMiDeltaVersion)
     {
+        Cast = new() { AnimationLock = 3.1f },
         Timing = new() { DamageDelay = 1.15f },
         Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction DeltaExplosion = new(ActionId.DeltaExplosion)
     {
+        Cast = new() { AnimationLock = 2.1f },
         Timing = new() { DamageDelay = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
@@ -204,13 +208,14 @@ public static class TopActions
 
     private static EnemyAction SwivelCannon(uint actionId, float rotation) => new(actionId)
     {
-        Cast = new() { OmenDelay = 8.5f, Rotation = rotation },
+        Cast = new() { OmenDelay = 8.0f, Rotation = rotation, AnimationLock = 3.1f },
         Area = new() { Size = Geometry.SwivelCannonHalfAngle },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction HwTetherBreak = new(ActionId.HwTetherBreak)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Timing = new() { DamageDelay = 0.63f },
         Effects =
         [
@@ -222,6 +227,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherFail = new(ActionId.HwTetherFail)
     {
+        Cast = new() { AnimationLock = 1.1f },
         Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
@@ -320,7 +326,7 @@ public static class TopActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Timing = new() { DamageDelay = 0.64f },
-        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 2.5f)],
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
     };
 
     public static readonly EnemyAction WaveCannonWildCharge = new(ActionId.WaveCannonWildCharge)

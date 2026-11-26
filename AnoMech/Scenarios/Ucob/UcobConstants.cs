@@ -52,6 +52,11 @@ public class UcobConstants
         public const uint BahamutPrime = 3210;
     }
 
+    public class BNpcLayoutId
+    {
+        public const uint BahamutPrime = 0x6BDC32;
+    }
+
     public class StatusId
     {
         public const ushort LohsDaih = 1437;

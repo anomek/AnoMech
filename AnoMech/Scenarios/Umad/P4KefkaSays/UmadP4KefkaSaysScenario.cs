@@ -88,13 +88,13 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
     private void Run_InstanceEvents()
     {
         // [1.36s] 33|800375D2|80000027|1F|02|1BDB|40004142|5f5214a2bc97cd97
-        world.Events.Add(1.45f, () => world.Map.DirectorUpdate(0x80000027U, 0x1FU, 0x2U, 0x1BDBU, 0x40004142U));
+        world.Events.Add(1.45f, () => PlayKefkaLine(0x1F));
         // [9.50s] 33|800375D2|80000027|20|02|1BDB|40004142|f8e7da06e555fe6f
-        world.Events.Add(9.50f, () => world.Map.DirectorUpdate(0x80000027U, 0x20U, 0x2U, 0x1BDBU, 0x40004142U));
+        world.Events.Add(9.50f, () => PlayKefkaLine(0x20));
         // [103.36s] 33|800375D2|80000027|04|02|1BDB|40004142|33182e2038e021ee
-        world.Events.Add(103.36f, () => world.Map.DirectorUpdate(0x80000027U, 0x4U, 0x2U, 0x1BDBU, 0x40004142U));
+        world.Events.Add(103.36f, () => PlayKefkaLine(0x4));
         // [119.94s] 33|800375D2|80000027|21|02|1BDB|40004142|2b29864def0a7636
-        world.Events.Add(119.94f, () => world.Map.DirectorUpdate(0x80000027U, 0x21U, 0x2U, 0x1BDBU, 0x40004142U));
+        world.Events.Add(119.94f, () => PlayKefkaLine(0x21));
     }
 
     private void Run_OtherDebuffs()
@@ -118,7 +118,8 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
         world.Events.Add(40.99f, () => party.ForEachActive(c => c.AddStatus(state.ChaosMysteries[1].Cast.Status, state.ChaosMysteries[1].Cast.DurationSecond)));
         
         ushort[] debuffsw3 = [StatusId.BeyondDeath, StatusId.AllaganField];
-        world.Events.Add(51.67f, () => state.Wave3.ForEach((i, c) => c.AddStatus(debuffsw3[i%2], 15f)));
+        float[] durationw3 = [14f, 15f];
+        world.Events.Add(51.67f, () => state.Wave3.ForEach((i, c) => c.AddStatus(debuffsw3[i%2], durationw3[i%2])));
         world.Events.Add(51.67f, () => state.Wave3.ForEach((i, c) => c.AddStatus(state.Wounds[i]? StatusId.WhiteWound : StatusId.BlackWound)));
         world.Events.Add(66.64f, () => party.ForEachActive(c => c.RemoveStatus(StatusId.WhiteWound)));
         world.Events.Add(66.64f, () => party.ForEachActive(c => c.RemoveStatus(StatusId.BlackWound)));
@@ -407,5 +408,11 @@ public sealed class UmadP4KefkaSaysScenario : IMultiplayerReplayable
             msg.Antilight0IsWhite, msg.NeoExdeathDirectionRadians);
         ((IScenarioAi<UmadP4KefkaSaysState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
         return shadowState;
+    }
+
+    // The battle talk names its speaker by entity id.
+    private void PlayKefkaLine(uint line)
+    {
+        if (kefka is { } boss) world.Map.DirectorUpdate(0x80000027U, line, 0x2U, BNpcNameId.Kefka, boss.EntityId);
     }
 }

@@ -124,6 +124,7 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         common.ModelAttributeFlags = config.InitialModeAttributeFlags ?? 0;
         common.ModelState = config.ModelState;
         common.ModelScaleId = config.ModelScale;
+        common.AnimationState = config.AnimationState;
         if (config.Appearance is { } appearance) WriteAppearance(&packet.Common, appearance);
         if (config.Statuses is { } statuses) WriteStatuses(&packet.Common, statuses);
         return packet;

@@ -114,7 +114,7 @@ public sealed record DirectorDataPacket(byte Sequence, byte Unknown, byte[] Data
 
 public sealed record CommencePacket : GamePacket;
 
-public sealed record BattleTalkPacket(uint SpeakerNameId, uint TextId, uint DurationMs) : GamePacket;
+public sealed record BattleTalkPacket(uint SpeakerNameId, uint TextId, uint DurationMs, uint Speaker) : GamePacket;
 
 public sealed record HatersPacket(List<HaterPacket> Haters) : GamePacket;
 

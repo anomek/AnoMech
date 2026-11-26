@@ -133,6 +133,7 @@ public sealed class TopP2PartySynergyScenario : IMultiplayerReplayable
     {
         world.Events.Add(0f, () => omegaF = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x10, BNpcBaseId: BNpcBaseId.OmegaF, NameId: BNpcNameId.OmegaM_1DD3, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.OmegaF, Placement: new Placement(new Vector3(3f, 0f, 0f), MathF.PI))));
         world.Events.Add(1f, () => omegaF?.AddStatus(StatusId.OmegaF, stacks: (ushort)491, overrideStacks: true));
+        world.Events.Add(1.88f, () => omegaF?.BattleTalk(BattleTalkId.PartyMemberGeneration, 6000, shownAs: BNpcNameId.OmegaF));
         world.Events.Add(1.92f, () => omegaF?.Cast(ActionId.PartySynergyF, animationLock: 3.1f));
         world.Events.Add(7.98f, () => omegaF?.SetTargetable(false));
         world.Events.Add(8.02f, () => omegaF?.PlayActionTimeline(ActionTimelineId.WarpStart));

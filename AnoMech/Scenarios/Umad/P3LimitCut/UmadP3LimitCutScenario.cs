@@ -17,7 +17,7 @@ using AnoMech.Core.Native.Interfaces;
 using static UmadConstants;
 using static UmadP3LimitCutState;
 
-// Dancing Mad P3 "Limit Cut". Scenario time 0 is 8.0s before Chaos starts casting Umbra Smash,
+// Dancing Mad P3 "Limit Cut". Scenario time 0 is 8.2s before Chaos starts casting Umbra Smash,
 // the earliest start inside this mechanic (the previous resolve is 9.2s before).
 public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
 {
@@ -86,6 +86,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             state.Objects.Chaos?.Follow(party.Get(PartyRole.MainTank));
             state.Objects.Exdeath?.Follow(party.Get(PartyRole.OffTank));
         });
+        world.Events.Add(1.988f, () => PlayKefkaLine(0x18));
         foreach (var at in ChaosAutoAt)
             world.Events.Add(at, () => state.Objects.Chaos?.Cast(UmadActions.ChaosAutoAttack, party.Get(PartyRole.MainTank)));
         foreach (var at in ExdeathAutoAt)
@@ -103,8 +104,9 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
         // every real wave both tanks were inside it, Exdeath frozen 5.5y further out).
         world.Events.Add(7.8f, () => state.Objects.Chaos?.Follow());
         world.Events.Add(7.928f, () => state.Objects.Exdeath?.Follow());
-        world.Events.Add(8.0f, StartUmbraSmash);
+        world.Events.Add(8.22f, StartUmbraSmash);
         world.Events.Add(8.128f, () => state.Objects.Exdeath?.Cast(UmadActions.VacuumWave));
+        world.Events.Add(8.981f, () => PlayKefkaLine(0x2F));
         for (var k = 0; k < 8; k++)
         {
             var clone = k;
@@ -126,6 +128,7 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             world.Events.Add(PrepareChargeAt[k], () => PrepareCharge(clone));
             world.Events.Add(ChargeAt[k], () => ResolveCharge(clone));
         }
+        world.Events.Add(31.059f, () => PlayKefkaLine(0x19));
         world.Events.Add(33.29f, () => state.Objects.Exdeath?.Follow());
         world.Events.Add(33.49f, () => state.Objects.Exdeath?.Cast(ActionId.ThunderIII_Cast, animationLock: 3.1f));
         world.Events.Add(38.57f, ResolveThunder);
@@ -137,9 +140,12 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     {
         Natives.TimelinePreload.Preload(CloneTimelines, "UmadP3LimitCut");
         instanceWorld.Party.LimitBreak.Set(3f);
-        instanceWorld.Events.Add(1.988f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x18U, 0x2U, 0x1BDBU, 0x4000EFB9U));
-        instanceWorld.Events.Add(8.981f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x2FU, 0x2U, 0x1BDBU, 0x4000EFB9U));
-        instanceWorld.Events.Add(31.059f, () => instanceWorld.Map.DirectorUpdate(0x80000027U, 0x19U, 0x2U, 0x1BDBU, 0x4000EFB9U));
+    }
+
+    // The battle talk names its speaker by entity id.
+    private void PlayKefkaLine(uint line)
+    {
+        if (state.Objects.Kefka is { } boss) world.Map.DirectorUpdate(0x80000027U, line, 0x2U, BNpcNameId.Kefka, boss.EntityId);
     }
 
     public MpMessage? BuildReplayStateMessage()
@@ -191,7 +197,9 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             BNpcBaseId: BNpcBaseId.KefkaP3, NameId: BNpcNameId.Kefka, Level: 100,
             Targetable: false, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
             LayoutId: BNpcLayoutId.KefkaP3,
-            Placement: new Placement(new Vector3(0f, 0f, -10f), 0f)));
+            Placement: new Placement(new Vector3(0f, 0f, -10f), 0f),
+            Statuses: [new SpawnStatus(StatusId.KefkaTrance, 0x1FF)],
+            AnimationState: 1));
         objects.Chaos = world.SpawnEnemy(new EnemySpawnConfig(
             BNpcBaseId: BNpcBaseId.ChaosP3, NameId: BNpcNameId.Chaos, Level: 100,
             Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
@@ -209,7 +217,8 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
                 BNpcBaseId: BNpcBaseId.KefkaCloneP3, NameId: BNpcNameId.Kefka, Level: 100,
                 Targetable: false, EnemyList: EnemyListMode.Never, Visibility: SpawnVisibility.HiddenUntilShown,
                 LayoutId: BNpcLayoutId.KefkaCloneP3,
-                Placement: new Placement(Vector3.Zero, 0f)));
+                Placement: new Placement(Vector3.Zero, 0f),
+                AnimationState: 1));
         // Cyclone's caster-side VFX needs a real skeleton; the real 9020 helpers have none.
         for (var i = 0; i < 8; i++)
             cycloneHelpers[i] = world.SpawnEnemy(new EnemySpawnConfig(
@@ -222,12 +231,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
             EObjId = EObjId.WindCrystal, LayoutId = WindCrystalLayoutId, TargetableStatus = 5, Arg2 = EObjId.WindCrystalArg2,
             Placement = new Placement(WindCrystalPos, hold + MathF.PI),
         });
-
-        // Set once the draw objects exist.
-        world.Events.Add(0.5f, () =>
-        {
-            objects.Kefka?.SetAnimationState(0, 1);
-        });
     }
 
     // No Epic/Fated sides: stripped 44.3s before the Umbra cast.
@@ -236,7 +239,6 @@ public sealed class UmadP3LimitCutScenario : IMultiplayerReplayable
     {
         world.Events.Add(0.1f, () =>
         {
-            state.Objects.Kefka?.AddStatusParam(StatusId.KefkaTrance, 0x1FF);
             foreach (var role in Enum.GetValues<PartyRole>())
             {
                 if (party.Get(role) is not { } member) continue;

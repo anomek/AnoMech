@@ -75,7 +75,9 @@ public record struct EnemySpawnConfig(
     IReadOnlyList<SpawnStatus>? Statuses = null,
     byte ModelState = 0,
     // ModelScale row; retail sends 0 for most BNpcs.
-    byte ModelScale = 0);
+    byte ModelScale = 0,
+    // What SetAnimationState sets, already in place at spawn: 4 bits per slot.
+    byte AnimationState = 0);
 
 public readonly record struct SpawnStatus(ushort StatusId, ushort Param = 0);
 
@@ -334,6 +336,12 @@ public sealed class SimEnemy : SimNpc
 
     public void CastFromHelper(uint actionId, CastTarget target = default, Placement? at = null, float animationLock = 0.6f) =>
         CastFromHelper(new EnemyAction(actionId) { Cast = new() { AnimationLock = animationLock } }, target, at);
+
+    // A line (InstanceContentTextData textId) this enemy says. Retail names the speaker after the
+    // form it is in, which can differ from its spawn NameId (TOP's Omega in its Omega-F form):
+    // shownAs is that BNpcName.
+    public void BattleTalk(uint textId, uint durationMs, uint? shownAs = null) =>
+        world.Map.BattleTalk(shownAs ?? SpawnConfig.NameId, textId, durationMs, EntityId);
 
     // Interrupts the cast still on its bar: neither its effect nor its mechanics go out.
     public void CancelCast(CastCancelReason reason)

@@ -11,7 +11,9 @@ namespace AnoMech.Tests;
 //   Out        CSV path
 //   Strat, Seed
 //   Overrides  "Name=value|Name=value" (`dotnet test` eats `;`) onto the scenario's SettingsOverrides: a static member of the
-//              property's type (Direction=E), an enum name, a number or bool, or a comma list or tuple of those.
+//              property's type (Direction=E), an enum name, a number or bool, or a comma list or tuple of those. A list
+//              element that is itself a list goes in brackets (ConeTargets=[MainTank],[OffTank,CasterDps,MeleeDpsA],null);
+//              a dictionary is Key:value pairs (Debuffs=MainTank:LongSupport,OffTank:ShortSupport).
 public class ScenarioTimelineExportTests
 {
     [Explicit]
@@ -67,16 +69,28 @@ public class ScenarioTimelineExportTests
     {
         type = Nullable.GetUnderlyingType(type) ?? type;
         if (text == "null") return null;
+        if (text.StartsWith('[') && text.EndsWith(']')) text = text[1..^1];
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple`"))
         {
             var fields = type.GetGenericArguments();
-            var parts = text.Split(',', StringSplitOptions.TrimEntries);
-            if (parts.Length != fields.Length) throw new ArgumentException($"{text}: expected {fields.Length} values.");
+            var parts = SplitTopLevel(text);
+            if (parts.Count != fields.Length) throw new ArgumentException($"{text}: expected {fields.Length} values.");
             return Activator.CreateInstance(type, fields.Select((f, i) => Parse(f, parts[i])).ToArray());
+        }
+        if (DictionaryTypes(type) is var (keyType, valueType))
+        {
+            var dictionary = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(keyType, valueType))!;
+            foreach (var pair in SplitTopLevel(text))
+            {
+                var colon = pair.IndexOf(':');
+                if (colon < 0) throw new ArgumentException($"{pair}: expected Key:value.");
+                dictionary[Parse(keyType, pair[..colon].Trim())!] = Parse(valueType, pair[(colon + 1)..].Trim());
+            }
+            return dictionary;
         }
         if (type != typeof(string) && ElementType(type) is { } element)
         {
-            var items = text.Split(',', StringSplitOptions.TrimEntries).Select(t => Parse(element, t)).ToArray();
+            var items = SplitTopLevel(text).Select(t => Parse(element, t)).ToArray();
             var array = Array.CreateInstance(element, items.Length);
             for (var i = 0; i < items.Length; i++) array.SetValue(items[i], i);
             return type.IsArray || type.IsInterface ? array : Activator.CreateInstance(type, array);
@@ -89,6 +103,35 @@ public class ScenarioTimelineExportTests
         if (type.GetConstructor([typeof(float)]) is { } fromFloat)
             return fromFloat.Invoke([float.Parse(text, CultureInfo.InvariantCulture)]);
         return Convert.ChangeType(text, type, CultureInfo.InvariantCulture);
+    }
+
+    // Commas inside brackets belong to a nested list.
+    private static List<string> SplitTopLevel(string text)
+    {
+        var parts = new List<string>();
+        var (depth, start) = (0, 0);
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '[') depth++;
+            else if (text[i] == ']') depth--;
+            else if (text[i] == ',' && depth == 0)
+            {
+                parts.Add(text[start..i].Trim());
+                start = i + 1;
+            }
+        }
+        parts.Add(text[start..].Trim());
+        return parts;
+    }
+
+    private static (Type Key, Type Value)? DictionaryTypes(Type type)
+    {
+        if (!type.IsGenericType) return null;
+        var definition = type.GetGenericTypeDefinition();
+        if (definition != typeof(IReadOnlyDictionary<,>) && definition != typeof(IDictionary<,>) && definition != typeof(Dictionary<,>))
+            return null;
+        var arguments = type.GetGenericArguments();
+        return (arguments[0], arguments[1]);
     }
 
     private static Type? ElementType(Type type)

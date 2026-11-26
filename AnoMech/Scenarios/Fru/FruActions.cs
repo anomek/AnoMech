@@ -374,7 +374,7 @@ public static class FruActions
     {
         Cast = new() { AnimationLock = 2.8f },
         Effects = [Damage(VulnerableTo(StatusId.PhysicalVulnerabilityUp, requiredMitigation: 1f), TankBuster)],
-        Timing = new() { DamageDelay = 1.16f },
+        Timing = new() { DamageDelay = 1.30f },
     };
 
     public static readonly EnemyAction AkhMornUsurperHit = new(ActionId.AkhMornUsurperHit)

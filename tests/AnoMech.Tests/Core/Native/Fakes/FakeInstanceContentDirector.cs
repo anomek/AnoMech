@@ -18,10 +18,10 @@ internal sealed class FakeInstanceContentDirector(FakeZoneControl zone, SimTimel
 
     public void Commence() => timeline.Add("commence");
 
-    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId)
     {
         if (zone.IsActive)
-            timeline.Add("battle_talk", id: textId.ToString(), name: "BattleTalk", detail: $"speaker={speakerNameId} duration_ms={durationMs}");
+            timeline.Add("battle_talk", actor: speakerEntityId, id: textId.ToString(), name: "BattleTalk", detail: $"speaker={speakerNameId} duration_ms={durationMs}");
         return zone.IsActive;
     }
 }

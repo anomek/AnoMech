@@ -43,6 +43,7 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
 
         world.Events.Add(0f, SpawnActors);
         world.Events.Add(1f, () => pandora?.SetTarget(world.Party.Get(PartyRole.MainTank), follow: false));
+        world.Events.Add(1.16f, PandoraBattleTalk);
         world.Events.Add(1.3f, () => pandora?.Cast(ActionId.ParadiseRegained, animationLock: 3.1f));
         world.Events.Add(TowerShowAt(0), () => ShowTower(0));
         world.Events.Add(7.27f, () => BattleTalk(0x27, RyneBattleTalk));
@@ -109,6 +110,11 @@ public sealed class FruP5ParadiseRegainedScenario : IScenario
     }
 
     private void BattleTalk(uint line, uint speaker) => world.Map.DirectorUpdate(0x80000027U, line, 0x2U, speaker, NoActor);
+
+    private void PandoraBattleTalk()
+    {
+        if (pandora is { } boss) world.Map.DirectorUpdate(0x80000027U, 0x23U, 0x2U, BNpcNameId.Pandora, boss.EntityId);
+    }
 
     private void FaceTank(PartyRole role)
     {

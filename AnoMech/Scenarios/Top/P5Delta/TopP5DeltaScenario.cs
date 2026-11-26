@@ -65,6 +65,7 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
             ((IScenarioAi<TopP5DeltaState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0.1f, SpawnOmega);
+        world.Events.Add(1.9f, () => omega?.BattleTalk(BattleTalkId.UnknownAugmentation, 6000));
         world.Events.Add(2f, () => omega?.Cast(Actions.RunMiDeltaVersion));
         world.Events.Add(2.1f, SpawnDeltaAdds);
         // Delta arena transition animation (index 0x07) — real game fires these
@@ -78,10 +79,10 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
         world.Events.Add(10.1f, SpawnOpticalUnit);
         world.Events.Add(10.2f, RevealDeltaAdds);
         world.Events.Add(10f, () => omega?.SetTargetable(false));
-        world.Events.Add(17.3f, () => beetle?.Cast(ActionId.PeripheralSynthesis));
+        world.Events.Add(17.3f, () => beetle?.Cast(ActionId.PeripheralSynthesis, animationLock: 3.1f));
         world.Events.Add(18.25f, SpawnRocketPunches);
         world.Events.Add(19.05f, () => rocketPunches?.ForEach(punch => punch?.ActorControl.PopIn()));
-        world.Events.Add(20.3f, () =>finalHelper?.Cast(ActionId.ArchivePeripheral));
+        world.Events.Add(20.3f, () =>finalHelper?.Cast(ActionId.ArchivePeripheral, animationLock: 3.1f));
         world.Events.Add(23.5f, SpawnArmUnits);               // Archive Peripheral fires t=20.30s
         world.Events.Add(25.3f, MarkArmUnitRotations);        // +1s after arm spawn
         world.Events.Add(25.5f, () => armUnits?.ForEach(unit => unit?.SetVisibleInEnemyList(true)));
@@ -157,7 +158,8 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
             Targetable: true,
             InitialModeAttributeFlags: 0x10,
             LayoutId: BNpcLayoutId.OmegaMDynamis,
-            Placement: new Placement(Vector3.Zero, MathF.PI)));
+            Placement: new Placement(Vector3.Zero, MathF.PI),
+            Statuses: [new SpawnStatus(StatusId.OmegaM)]));
     }
 
     private void SpawnDeltaAdds()
@@ -282,8 +284,8 @@ public sealed class TopP5DeltaScenario : IMultiplayerReplayable
 
     private void StartMonitors()
     {
-        omega?.Cast(ActionId.BeyondDefense);
-        finalHelper?.Cast(state.OmegaMonitorSide.DeltaOversampledWaveCannonActionId);
+        omega?.Cast(ActionId.BeyondDefense, animationLock: 0.2f);
+        finalHelper?.Cast(state.OmegaMonitorSide.DeltaOversampledWaveCannonActionId, animationLock: 3.1f);
 
         var playerMonitor = party.Get(state.TetherOrder[state.PlayerMonitorIndex])!;
         playerMonitor.AddStatus(state.PlayerMonitorSide.MonitorDebuffId);

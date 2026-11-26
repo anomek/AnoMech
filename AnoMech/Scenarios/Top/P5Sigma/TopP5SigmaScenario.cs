@@ -107,10 +107,10 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
 
     private void Run_Omega_M_4000A63C()
     {
-        world.Events.Add(0f, () => omegaM = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaMDynamis, NameId: BNpcNameId.OmegaMDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.OmegaMDynamis, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x32)));
-        world.Events.Add(0.1f, () => omegaM?.AddStatus(StatusId.OmegaM));
+        world.Events.Add(0f, () => omegaM = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.OmegaMDynamis, NameId: BNpcNameId.OmegaMDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.OmegaMDynamis, Placement: new Placement(new Vector3(0.000f, 0.000f, 5.000f), MathF.PI), InitialModeAttributeFlags: 0x32, Statuses: [new SpawnStatus(StatusId.OmegaM)])));
         world.Events.Add(0.1f, () => omegaM?.SetTarget(party.Get(PartyRole.MainTank), follow: false));
         world.Events.Add(2.46f, () => omegaM?.Cast(ActionId.Teleport7b42, Vector3.Zero, animationLock: 1.1f));
+        world.Events.Add(3.65f, () => omegaM?.BattleTalk(BattleTalkId.AmplificationInconsistent, 6000));
         world.Events.Add(3.75f, () => omegaM?.Cast(Actions.RunMiSigmaVersion));
         world.Events.Add(11.82f, () => omegaM?.SetTargetable(false));
         world.Events.Add(11.87f, () => omegaM?.PlayActionTimeline(ActionTimelineId.WarpStart));

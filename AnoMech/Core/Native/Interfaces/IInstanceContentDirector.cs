@@ -10,7 +10,7 @@ public interface IInstanceContentDirector
     void Commence();
 
     // The server's BattleTalk packet: a boss line (InstanceContentTextData textId) in the BattleTalk
-    // box under BNpcName speakerNameId, voiced, for durationMs. False while there is no director
-    // yet; the caller retries.
-    bool BattleTalk(uint speakerNameId, uint textId, uint durationMs);
+    // box under BNpcName speakerNameId, voiced, for durationMs, said by speakerEntityId (0 for a
+    // line no actor says). False while there is no director yet; the caller retries.
+    bool BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId);
 }

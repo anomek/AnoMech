@@ -118,6 +118,7 @@ public sealed class UwuP3TitanGaolsScenario : IScenario
         world.Events.Add(39.09f, AutoAttackMainTank);
         world.Events.Add(39.09f, FollowMainTank);
         world.Events.Add(42.10f, AutoAttackMainTank);
+        world.Events.Add(44.12f, () => titan?.BattleTalk(BattleTalkId.AllMyFury, 4000));
         world.Events.Add(45.00f, FailUnlessTitanAwakened);
     }
 

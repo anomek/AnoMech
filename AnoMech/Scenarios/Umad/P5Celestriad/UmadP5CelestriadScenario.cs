@@ -59,6 +59,7 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
             ((IScenarioAi<UmadP5CelestriadState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0f, SpawnKefka);
+        world.Events.Add(0.93f, () => PlayKefkaLine(0x27));
         world.Events.Add(1.0f, () => kefka?.Cast(ActionId.Celestriad, animationLock: 3.1f));
         world.Events.Add(6.1f, ApplyDebuffs);
         world.Events.Add(6.22f, SpawnAllTowers);
@@ -97,6 +98,7 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
             Targetable: true,
             EnemyList: EnemyListMode.Always,
             Visibility: SpawnVisibility.Visible,
+            LayoutId: BNpcLayoutId.KefkaP5,
             Placement: new Placement(Vector3.Zero, MathF.PI)));
     }
 
@@ -188,5 +190,11 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
         if (shadowState == null) return null;
         ((IScenarioAi<UmadP5CelestriadState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
         return shadowState;
+    }
+
+    // The battle talk names its speaker by entity id.
+    private void PlayKefkaLine(uint line)
+    {
+        if (kefka is { } boss) world.Map.DirectorUpdate(0x80000027U, line, 0x2U, BNpcNameId.Kefka, boss.EntityId);
     }
 }

@@ -53,7 +53,6 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
             ((IScenarioAi<UcobP5ExaflaresState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0f, SpawnBahamut);
-        world.Events.Add(0.5f, () => bahamut?.AddStatusParam(StatusId.LohsDaih, LohsDaihTransformation));
         world.Events.Add(UcobP5ExaflaresState.BossCastAt,
             () => bahamut?.Cast(Actions.Exaflare));
         foreach (var line in state.Lines) LaunchLine(line);
@@ -79,7 +78,9 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
             Targetable: true,
             EnemyList: EnemyListMode.Always,
             Visibility: SpawnVisibility.Visible,
-            Placement: new Placement(Vector3.Zero, 0f)));
+            Placement: new Placement(Vector3.Zero, 0f),
+            LayoutId: BNpcLayoutId.BahamutPrime,
+            Statuses: [new SpawnStatus(StatusId.LohsDaih, (ushort)LohsDaihTransformation)]));
     }
 
     private void AutoAttackMainTank(byte variation)

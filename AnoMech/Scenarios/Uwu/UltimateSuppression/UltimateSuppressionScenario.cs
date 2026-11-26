@@ -150,7 +150,9 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Placement: new Placement(
                         new Vector3(0, 0, -10),
                         0),
-                    InitialModeAttributeFlags: 0x11)
+                    InitialModeAttributeFlags: 0x11,
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: true),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
 
             garuda = world.SpawnEnemy(
@@ -164,10 +166,10 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     Visibility: SpawnVisibility.HiddenUntilShown,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
-
-            garuda?.AddStatusParam(StatusId.Woken, 0);
 
             ifrit = world.SpawnEnemy(
                 new EnemySpawnConfig(
@@ -181,10 +183,10 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     DisplayFlags: 0x60008,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
                 );
-
-            ifrit?.AddStatusParam(StatusId.Woken, 0);
 
             titan = world.SpawnEnemy(
                 new EnemySpawnConfig(
@@ -198,10 +200,10 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
                     DisplayFlags: 0x60008,
                     Placement: new Placement(
                         new Vector3(0, 0, 0),
-                        0))
+                        0),
+                    Statuses: UwuUtils.WokenAtSpawn(isUltima: false),
+                    AnimationState: UwuUtils.AwakenedAnimationState)
             );
-
-            titan?.AddStatusParam(StatusId.Woken, 0);
 
             chirada = world.SpawnEnemy(
                 new EnemySpawnConfig(
@@ -240,15 +242,6 @@ public class UltimateSuppressionScenario : IMultiplayerReplayable
 
             mt?.AddStatus(StatusId.ThermalLow);
             healer?.AddStatus(StatusId.ThermalLow);
-        });
-
-        // Once the engine has created the actors; an ActorControl sent before that is dropped.
-        world.Events.Add(0.5f, () =>
-        {
-            utils.Awaken(ultima, true);
-            utils.Awaken(garuda, false);
-            utils.Awaken(ifrit, false);
-            utils.Awaken(titan, false);
         });
     }
 

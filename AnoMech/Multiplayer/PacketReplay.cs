@@ -249,6 +249,9 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         return spawned.GetValueOrDefault(actor)?.Object?.EntityId ?? NoTarget;
     }
 
+    // A line no actor here says goes out with retail's 0, not NoTarget.
+    private uint SpeakerOf(uint actor) => EntityOf(actor) is var entityId && entityId != NoTarget ? entityId : 0;
+
     private GameObjectId? ObjectIdOf(uint actor)
     {
         if (actor == PacketActor.None) return null;
@@ -532,7 +535,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
                 MapEffectPacket m => natives.RealMap.Apply(m.PacketFlags, m.Index),
                 MapEffectSnapshotPacket s => natives.RealMap.ApplySnapshot(s.States, s.ZoneIn),
                 DirectorUpdatePacket d => natives.RealDirector.ProcessDirectorUpdate(d.Category, d.Arg1, d.Arg2, d.Arg3, d.Arg4, d.Arg5, d.Arg6),
-                BattleTalkPacket t => natives.RealDirector.BattleTalk(t.SpeakerNameId, t.TextId, t.DurationMs),
+                BattleTalkPacket t => natives.RealDirector.BattleTalk(t.SpeakerNameId, t.TextId, t.DurationMs, SpeakerOf(t.Speaker)),
                 _ => true,
             };
             if (!taken && ++arenaFrames < MaxWaitFrames) return;

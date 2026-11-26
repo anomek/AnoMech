@@ -107,6 +107,7 @@ internal sealed class FakeBattleCharas : IBattleCharas
                     + $"level={config.Level} battalion={(config.IsHostile ? 4 : 0)} targetable={(config.Targetable ? 1 : 0)} enemy_list={config.EnemyList}"
                     + (config.InitialModeAttributeFlags is { } flags ? $" mode_attr=0x{flags:X}" : "")
                     + (config.ModelState != 0 ? $" model_state=0x{config.ModelState:X}" : "")
+                    + (config.AnimationState != 0 ? $" animation_state=0x{config.AnimationState:X}" : "")
                     + (config.ModelScale != 0 ? $" model_scale={config.ModelScale}" : "")
                     + (AppearanceText(config.Appearance) is { Length: > 0 } appearance ? $" appearance={appearance}" : ""));
         foreach (var status in config.Statuses ?? [])

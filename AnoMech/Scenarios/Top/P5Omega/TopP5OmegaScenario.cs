@@ -147,13 +147,12 @@ public sealed class TopP5OmegaScenario : IMultiplayerReplayable
 
     private void Run_Omega_M_4000A63C()
     {
-        world.Events.Add(0, () => omegaM = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x32, BNpcBaseId: BNpcBaseId.OmegaMDynamis, NameId: BNpcNameId.OmegaMDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.OmegaMDynamis, Placement: new Placement(new Vector3(-000f, -0.000f, 0.000f), MathF.PI))));
-        world.Events.Add(0.5f, () =>
+        world.Events.Add(0, () =>
         {
-            omegaM?.AddStatusParam(StatusId.OmegaF, 492);
+            omegaM = world.SpawnEnemy(new EnemySpawnConfig(InitialModeAttributeFlags: 0x32, BNpcBaseId: BNpcBaseId.OmegaMDynamis, NameId: BNpcNameId.OmegaMDynamis, Level: 90, Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible, LayoutId: BNpcLayoutId.OmegaMDynamis, Placement: new Placement(new Vector3(-000f, -0.000f, 0.000f), MathF.PI), Statuses: [new SpawnStatus(StatusId.OmegaF, 492)], ModelState: 0xB));
             if (omegaM is not null) omegaM.HelperName = BNpcNameId.OmegaFDynamis;
-            omegaM?.SetModelState(0xB);
         });
+        world.Events.Add(1.05f, () => omegaM?.BattleTalk(BattleTalkId.BeginHypothesis, 6000, shownAs: BNpcNameId.OmegaFDynamis));
         world.Events.Add(1.15f, () => omegaM?.Cast(Actions.RunMiOmegaVersion));
         var target = party.Get(PartyRole.MainTank) ?? party.Get(party.PlayerRole);
         world.Events.Add(6f, () => omegaM?.Follow(target));

@@ -66,7 +66,7 @@ public sealed class MapController
 
     private struct PendingBattleTalk
     {
-        public uint SpeakerNameId, TextId, DurationMs;
+        public uint SpeakerNameId, TextId, DurationMs, SpeakerEntityId;
         public int FramesLeft;
     }
 
@@ -168,7 +168,7 @@ public sealed class MapController
         for (int i = 0; i < pendingBattleTalks.Count; i++)
         {
             var pending = pendingBattleTalks[i];
-            if (Natives.Director.BattleTalk(pending.SpeakerNameId, pending.TextId, pending.DurationMs))
+            if (Natives.Director.BattleTalk(pending.SpeakerNameId, pending.TextId, pending.DurationMs, pending.SpeakerEntityId))
             {
                 pendingBattleTalks.RemoveAt(i);
                 i--;
@@ -258,15 +258,16 @@ public sealed class MapController
         }
     }
 
-    // A boss line (IInstanceContentDirector.BattleTalk); retried like DirectorUpdate.
-    public void BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    // A line no actor says (IInstanceContentDirector.BattleTalk); an enemy's own goes through
+    // SimEnemy.BattleTalk. Retried like DirectorUpdate.
+    public void BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId = 0)
     {
         if (!InSim(nameof(BattleTalk))) return;
-        if (!Natives.Director.BattleTalk(speakerNameId, textId, durationMs)
+        if (!Natives.Director.BattleTalk(speakerNameId, textId, durationMs, speakerEntityId)
             && TryReserveRetrySlot(pendingBattleTalks.Count, "BattleTalk"))
         {
             DiagnosticLog.Warn($"[MapEffect] BattleTalk text={textId} not ready yet -- queued for retry.");
-            pendingBattleTalks.Add(new PendingBattleTalk { SpeakerNameId = speakerNameId, TextId = textId, DurationMs = durationMs, FramesLeft = BattleTalkMaxFrames });
+            pendingBattleTalks.Add(new PendingBattleTalk { SpeakerNameId = speakerNameId, TextId = textId, DurationMs = durationMs, SpeakerEntityId = speakerEntityId, FramesLeft = BattleTalkMaxFrames });
         }
     }
 }

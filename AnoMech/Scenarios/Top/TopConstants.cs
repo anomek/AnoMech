@@ -114,6 +114,14 @@ public static class TopConstants
         public const uint AlphaOmega = 12256;
     }
 
+    public static class BattleTalkId
+    {
+        public const uint PartyMemberGeneration = 35803;
+        public const uint UnknownAugmentation = 35817;
+        public const uint AmplificationInconsistent = 35818;
+        public const uint BeginHypothesis = 35819;
+    }
+
     public static class EObjId
     {
         public const uint EventObj1EA1A1 = 2007457;

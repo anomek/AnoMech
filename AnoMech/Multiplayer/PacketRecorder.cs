@@ -321,10 +321,10 @@ internal sealed class PacketRecorder
 
     private void RecordWorld(GamePacket packet) => Add(packet);
 
-    private void RecordBattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    private void RecordBattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId)
     {
         if (Recording) SimAssets.WarnIfUnknown(SimAssetKind.BattleTalk, textId, "BattleTalk");
-        Add(new BattleTalkPacket(speakerNameId, textId, durationMs));
+        Add(new BattleTalkPacket(speakerNameId, textId, durationMs, ActorOf(speakerEntityId)));
     }
 
     private void RecordHaters(IReadOnlyList<Hater> haters)
@@ -525,10 +525,10 @@ internal sealed class PacketRecorder
             recorder.RecordWorld(new CommencePacket());
         }
 
-        public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+        public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId)
         {
-            if (!recorder.realDirector.BattleTalk(speakerNameId, textId, durationMs)) return false;
-            recorder.RecordBattleTalk(speakerNameId, textId, durationMs);
+            if (!recorder.realDirector.BattleTalk(speakerNameId, textId, durationMs, speakerEntityId)) return false;
+            recorder.RecordBattleTalk(speakerNameId, textId, durationMs, speakerEntityId);
             return true;
         }
     }

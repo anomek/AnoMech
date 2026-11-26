@@ -82,6 +82,11 @@ public class UwuConstants
         public const uint Ultimaplasm = 2324;
     }
 
+    public class BattleTalkId
+    {
+        public const uint AllMyFury = 19314;
+    }
+
     public class ActionId
     {
         public const uint MistralSongBoss = 11074;

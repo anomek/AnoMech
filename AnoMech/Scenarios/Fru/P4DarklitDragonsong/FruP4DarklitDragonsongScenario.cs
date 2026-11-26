@@ -60,6 +60,7 @@ public sealed class FruP4DarklitDragonsongScenario : IScenario
         world.Events.Add(0f, SpawnActors);
         world.Events.Add(1f, () => usurper?.SetTarget(world.Party.Get(PartyRole.MainTank), follow: false));
         world.Events.Add(1f, () => oracle?.SetTarget(world.Party.Get(PartyRole.OffTank), follow: false));
+        world.Events.Add(1.47f, () => BattleTalk(usurper, 0x5, UsurperBattleTalk));
         world.Events.Add(1.5f, () => usurper?.ActorControl.Transform(UsurperDragonBNpcState));
         world.Events.Add(1.5f, () => usurper?.AddStatusParam(TransfigurationStatus, UsurperDragonTransformation));
         world.Events.Add(1.5f, () => usurper?.SetModelState(4));

@@ -53,7 +53,7 @@ internal static unsafe class InstanceContentDirectorHelper
 
     // Same readiness contract as ProcessDirectorUpdate; a line the handler can't show is taken, so
     // nothing retries it.
-    public static bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    public static bool BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId)
     {
         if (Plugin.Game?.World.Map.IsInInstance != true)
         {
@@ -70,7 +70,7 @@ internal static unsafe class InstanceContentDirectorHelper
             DiagnosticLog.Warn($"[EventFrameworkHelper.BattleTalk] signature not found -- text {textId} not shown.");
             return true;
         }
-        handle(eventFramework, director->GetEventId(), NoTarget, (byte)ObjectKind.BattleNpc, speakerNameId, textId, durationMs, 0, 0, null, 0);
+        handle(eventFramework, director->GetEventId(), speakerEntityId, (byte)ObjectKind.BattleNpc, speakerNameId, textId, durationMs, 0, 0, null, 0);
         return true;
     }
 

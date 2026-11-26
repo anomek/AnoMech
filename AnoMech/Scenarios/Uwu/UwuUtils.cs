@@ -57,9 +57,16 @@ public class UwuUtils(SimWorld world)
     public void Awaken(SimEnemy? enemy, bool isUltima)
     {
         enemy?.RemoveStatus(StatusId.AetheriallyCharged);
-        enemy?.AddStatusParam(StatusId.Woken, isUltima ? 97 : 0);
-        enemy?.SetAnimationState(0, 1);
+        enemy?.AddStatusParam(StatusId.Woken, WokenParam(isUltima));
+        enemy?.SetAnimationState(0, AwakenedAnimationState);
     }
+
+    // An enemy already awakened when the scenario starts spawns that way.
+    public static SpawnStatus[] WokenAtSpawn(bool isUltima) => [new(StatusId.Woken, WokenParam(isUltima))];
+
+    public const byte AwakenedAnimationState = 1;
+
+    private static ushort WokenParam(bool isUltima) => isUltima ? (ushort)97 : (ushort)0;
 
     // Five rains, each dropped where its target stood at `targetOffset`; `onTargeted` learns each spot then.
     public void FeatherRain(Func<SimEnemy?> getCaster, float targetOffset, float castOffset,

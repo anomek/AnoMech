@@ -61,7 +61,7 @@ public class TeaI1LimitCutScenarioTests
     [Test]
     public void DiesWalkingIntoWall()
         => LimitCut(MeleeDpsB)
-            .TeleportAt(1f, to: new(0, 20.5f))
+            .TeleportAt(2f, to: new(0, 20.5f))
             .ShouldKill(TheEnvironment, MeleeDpsB);
 
     // The far end of the first pair, on each axis.
@@ -72,40 +72,40 @@ public class TeaI1LimitCutScenarioTests
     public void DiesToFirstHawkBlasters(int axis)
         => Negative<TeaI1LimitCutScenario>(MeleeDpsB)
             .Overrides<TeaI1LimitCutStateOverrides>(o => Pin(o, axis))
-            .TeleportAt(5f, to: OnCompass(axis * 45f + 180f, 14f))
+            .TeleportAt(6f, to: OnCompass(axis * 45f + 180f, 14f))
             .ShouldKill(ActionId.HawkBlaster, MeleeDpsB);
 
     [Test]
     public void DiesToCentreHawkBlaster()
         => LimitCut(PhysRangedDps)
-            .TeleportAt(13.8f, to: new(0, 0))
+            .TeleportAt(14.8f, to: new(0, 0))
             .ShouldKill(ActionId.HawkBlaster, PhysRangedDps);
 
     // Wave 6 lands on wave 1's E/W again, not on the next axis round.
     [Test]
     public void SecondRunOfHawkBlastersStartsOverOnFirstAxis()
         => LimitCut(MeleeDpsB)
-            .TeleportAt(16f, to: new(14, 0))
+            .TeleportAt(17f, to: new(14, 0))
             .ShouldKill(ActionId.HawkBlaster, MeleeDpsB);
 
     [Test]
     public void AlphaSwordOnAlreadyVulnerableOddKills()
         => LimitCut(ShieldHealer)
-            .At(12.3f, p => p.Member(ShieldHealer)!.AddStatus(StatusId.PhysicalVulnerabilityUp, 17f))
+            .At(13.3f, p => p.Member(ShieldHealer)!.AddStatus(StatusId.PhysicalVulnerabilityUp, 17f))
             .ShouldKill(ActionId.AlphaSword, ShieldHealer);
 
     [Test]
     public void SuperBlasstyChargeOnAlreadyVulnerableEvenKills()
         => LimitCut(MainTank)
-            .At(13.8f, p => p.Member(MainTank)!.AddStatus(StatusId.PhysicalVulnerabilityUp, 17f))
+            .At(14.8f, p => p.Member(MainTank)!.AddStatus(StatusId.PhysicalVulnerabilityUp, 17f))
             .ShouldKill(ActionId.SuperBlasstyCharge, MainTank);
 
     // OT, already vulnerable, steps in front of H2 as H2 takes #1.
     [Test]
     public void StandingInFrontOfOddWhileVulnerableDiesToAlphaSword()
         => LimitCut(OffTank)
-            .FreezeAt(12.3f)
-            .At(12.4f, p =>
+            .FreezeAt(13.3f)
+            .At(13.4f, p =>
             {
                 var odd = p.Member(ShieldHealer)!;
                 var offTank = p.Member(OffTank)!;
@@ -118,8 +118,8 @@ public class TeaI1LimitCutScenarioTests
     [Test]
     public void StandingInSuperBlasstyChargeWhileVulnerableDies()
         => LimitCut(OffTank)
-            .FreezeAt(13.9f)
-            .At(14.0f, p =>
+            .FreezeAt(14.9f)
+            .At(15.0f, p =>
             {
                 var offTank = p.Member(OffTank)!;
                 offTank.AddStatus(StatusId.PhysicalVulnerabilityUp, 17f);
@@ -132,15 +132,15 @@ public class TeaI1LimitCutScenarioTests
     [Test]
     public void SuperBlasstyChargeThrowsEvenFacingAwayOffArena()
         => LimitCut(MainTank)
-            .FreezeAt(10.9f)
-            .At(13.9f, p => StandOutsideCruiseChaser(p, MainTank, facingCruiseChaser: false))
+            .FreezeAt(11.9f)
+            .At(14.9f, p => StandOutsideCruiseChaser(p, MainTank, facingCruiseChaser: false))
             .ShouldKill(TheEnvironment, MainTank);
 
     // Past the arc's 68° outer bound.
     [Test]
     public void EvenFacing72DegreesOffCruiseChaserIsThrownOffArena()
         => LimitCut(MainTank)
-            .FreezeAt(10.9f)
-            .At(13.9f, p => StandOutsideCruiseChaser(p, MainTank, facingOffDegrees: 72f))
+            .FreezeAt(11.9f)
+            .At(14.9f, p => StandOutsideCruiseChaser(p, MainTank, facingOffDegrees: 72f))
             .ShouldKill(TheEnvironment, MainTank);
 }

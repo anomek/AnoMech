@@ -13,6 +13,6 @@ internal sealed class InstanceContentDirector : IInstanceContentDirector
 
     public void Commence() => InstanceContentDirectorHelper.Commence();
 
-    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
-        => InstanceContentDirectorHelper.BattleTalk(speakerNameId, textId, durationMs);
+    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs, uint speakerEntityId)
+        => InstanceContentDirectorHelper.BattleTalk(speakerNameId, textId, durationMs, speakerEntityId);
 }

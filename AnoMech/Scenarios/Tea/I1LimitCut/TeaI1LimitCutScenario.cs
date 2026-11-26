@@ -52,48 +52,48 @@ public sealed class TeaI1LimitCutScenario : IMultiplayerReplayable
             ((IScenarioAi<TeaI1LimitCutState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0f, SpawnActors);
-        world.Events.Add(0.11f, () => world.Map.BattleTalk(BNpcNameId.CruiseChaser, BattleTalkId.DesignationBlassty, 4000));
+        world.Events.Add(1.11f, () => state.Objects.CruiseChaser?.BattleTalk(BattleTalkId.DesignationBlassty, 4000));
 
-        limitCut.MarkNumbersAt(3.19f);
+        limitCut.MarkNumbersAt(4.19f);
 
-        HawkBlasterAt(5.27f, wave: 0);
-        HawkBlasterAt(7.49f, wave: 1);
-        HawkBlasterAt(9.69f, wave: 2);
-        limitCut.WarpBehindAt(11.55f, number: 1);
-        HawkBlasterAt(11.90f, wave: 3);
-        limitCut.HitAt(12.64f, number: 1);
-        HawkBlasterAt(14.05f, wave: 4);
-        limitCut.HitAt(14.14f, number: 2);
-        limitCut.WarpBehindAt(16.16f, number: 3);
-        HawkBlasterAt(16.25f, wave: 5);
-        limitCut.HitAt(17.31f, number: 3);
-        HawkBlasterAt(18.49f, wave: 6);
-        limitCut.HitAt(18.80f, number: 4);
-        HawkBlasterAt(20.68f, wave: 7);
-        limitCut.WarpBehindAt(20.80f, number: 5);
-        limitCut.HitAt(21.95f, number: 5);
-        HawkBlasterAt(22.83f, wave: 8);
-        limitCut.HitAt(23.42f, number: 6);
-        HawkBlasterAt(25.07f, wave: 9);
-        limitCut.WarpBehindAt(25.50f, number: 7);
-        limitCut.HitAt(26.58f, number: 7);
-        limitCut.HitAt(28.05f, number: 8);
+        HawkBlasterAt(6.27f, wave: 0);
+        HawkBlasterAt(8.49f, wave: 1);
+        HawkBlasterAt(10.69f, wave: 2);
+        limitCut.WarpBehindAt(12.55f, number: 1);
+        HawkBlasterAt(12.90f, wave: 3);
+        limitCut.HitAt(13.64f, number: 1);
+        HawkBlasterAt(15.05f, wave: 4);
+        limitCut.HitAt(15.14f, number: 2);
+        limitCut.WarpBehindAt(17.16f, number: 3);
+        HawkBlasterAt(17.25f, wave: 5);
+        limitCut.HitAt(18.31f, number: 3);
+        HawkBlasterAt(19.49f, wave: 6);
+        limitCut.HitAt(19.80f, number: 4);
+        HawkBlasterAt(21.68f, wave: 7);
+        limitCut.WarpBehindAt(21.80f, number: 5);
+        limitCut.HitAt(22.95f, number: 5);
+        HawkBlasterAt(23.83f, wave: 8);
+        limitCut.HitAt(24.42f, number: 6);
+        HawkBlasterAt(26.07f, wave: 9);
+        limitCut.WarpBehindAt(26.50f, number: 7);
+        limitCut.HitAt(27.58f, number: 7);
+        limitCut.HitAt(29.05f, number: 8);
 
-        limitCut.EndAt(30.09f);
-        world.Events.Add(31.14f, () =>
+        limitCut.EndAt(31.09f);
+        world.Events.Add(32.14f, () =>
         {
-            world.Map.BattleTalk(BNpcNameId.BruteJustice, BattleTalkId.BruteJusticeArrives, 4000);
+            bruteJustice?.BattleTalk(BattleTalkId.BruteJusticeArrives, 4000);
             bruteJustice?.SetPosition(new Placement(new Vector3(-6f, 0f, 0f), 0f));
             state.Objects.CruiseChaser?.SetPosition(new Placement(new Vector3(4f, 0f, 0f), 0f));
         });
-        world.Events.Add(31.26f, () =>
+        world.Events.Add(32.26f, () =>
         {
             bruteJustice?.Cast(TeaActions.JKick);
             state.Objects.CruiseChaser?.PlayActionTimeline(ActionTimelineId.WarpEnd);
             world.Map.SetWeather(Weather.FairSkiesP2, transition: 1f);
             world.Map.AddEffect(0x00020004, 7);
         });
-        world.Events.Add(34.29f, () =>
+        world.Events.Add(35.29f, () =>
         {
             foreach (var boss in new[] { bruteJustice, state.Objects.CruiseChaser })
             {
@@ -107,7 +107,7 @@ public sealed class TeaI1LimitCutScenario : IMultiplayerReplayable
     public void RunInstanceEvents(SimWorld instanceWorld)
     {
         Natives.TimelinePreload.Preload(BlastTimelines, "TeaI1LimitCut");
-        instanceWorld.Events.Add(31.26f, () => instanceWorld.SwitchBgm(Bgm.P2));
+        instanceWorld.Events.Add(32.26f, () => instanceWorld.SwitchBgm(Bgm.P2));
     }
 
     private static readonly (ushort Id, string Key)[] BlastTimelines =

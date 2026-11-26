@@ -47,7 +47,7 @@ public sealed class UmadP5ForsakenNull : IScenario
     private void Run_InstanceEvents()
     {
         // [3.13s] 33|800375D2|80000027|28|02|1BDB|4001DE6B|81b98a9e11ebe369
-        world.Events.Add(3.13f, () => world.Map.DirectorUpdate(0x80000027U, 0x28U, 0x2U, 0x1BDBU, 0x4001DE6BU));
+        world.Events.Add(3.13f, () => PlayKefkaLine(0x28));
         // [15.20s] 257|800375D2|00200010|1D|||14051e89b75ace01
         world.Events.Add(15.20f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x1D));
         // [18.85s] 257|800375D2|00200010|1C|||51c9f7d96335d692
@@ -55,7 +55,7 @@ public sealed class UmadP5ForsakenNull : IScenario
         // [18.85s] 257|800375D2|00200010|14|||d487524d344c544a
         world.Events.Add(18.85f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x14));
         // [21.30s] 33|800375D2|80000027|29|02|1BDB|4001DE6B|28d4b7f730510ce1
-        world.Events.Add(21.30f, () => world.Map.DirectorUpdate(0x80000027U, 0x29U, 0x2U, 0x1BDBU, 0x4001DE6BU));
+        world.Events.Add(21.30f, () => PlayKefkaLine(0x29));
         // [23.40s] 257|800375D2|00200010|1E|||c13acb2fee546bff
         world.Events.Add(23.40f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x1E));
         // [27.05s] 257|800375D2|00200010|19|||d9ab9336679476bf
@@ -63,7 +63,7 @@ public sealed class UmadP5ForsakenNull : IScenario
         // [27.05s] 257|800375D2|00200010|1A|||1d4bae009b12e7fe
         world.Events.Add(27.05f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x1A));
         // [29.46s] 33|800375D2|80000027|2A|02|1BDB|4001DE6B|484089def11a49ca
-        world.Events.Add(29.46f, () => world.Map.DirectorUpdate(0x80000027U, 0x2AU, 0x2U, 0x1BDBU, 0x4001DE6BU));
+        world.Events.Add(29.46f, () => PlayKefkaLine(0x2A));
         // [31.55s] 257|800375D2|00200010|1F|||26f185c5902905be
         world.Events.Add(31.55f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x1F));
         // [35.20s] 257|800375D2|00200010|16|||0d7e4e057f572640
@@ -71,7 +71,7 @@ public sealed class UmadP5ForsakenNull : IScenario
         // [35.20s] 257|800375D2|00200010|1B|||eae254037e80b74e
         world.Events.Add(35.20f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x1B));
         // [37.61s] 33|800375D2|80000027|2B|02|1BDB|4001DE6B|81cbb1ea4bbb5da3
-        world.Events.Add(37.61f, () => world.Map.DirectorUpdate(0x80000027U, 0x2BU, 0x2U, 0x1BDBU, 0x4001DE6BU));
+        world.Events.Add(37.61f, () => PlayKefkaLine(0x2B));
         // [39.70s] 257|800375D2|00200010|20|||e52c8be7d1995ac8
         world.Events.Add(39.70f, () => world.Map.AddEffect(packetFlags: 0x00200010U, index: (byte)0x20));
         // [43.35s] 257|800375D2|00200010|18|||da77070d76149fcc
@@ -89,7 +89,7 @@ public sealed class UmadP5ForsakenNull : IScenario
         // [48.61s] 257|800375D2|00080004|20|||2add94f66a25aa2e
         world.Events.Add(48.61f, () => world.Map.AddEffect(packetFlags: 0x00080004U, index: (byte)0x20));
         // [52.13s] 33|800375D2|80000027|2C|02|1BDB|4001DE6B|776d1541c7b6c741
-        world.Events.Add(52.13f, () => world.Map.DirectorUpdate(0x80000027U, 0x2CU, 0x2U, 0x1BDBU, 0x4001DE6BU));
+        world.Events.Add(52.13f, () => PlayKefkaLine(0x2C));
     }
 
     private void Run_PlayerLockons()
@@ -209,5 +209,11 @@ public sealed class UmadP5ForsakenNull : IScenario
         {
             public const uint X_A1 = 161;
         }
+    }
+
+    // The battle talk names its speaker by entity id.
+    private void PlayKefkaLine(uint line)
+    {
+        if (kefka is { } boss) world.Map.DirectorUpdate(0x80000027U, line, 0x2U, Constants.BNpcNameId.Kefka, boss.EntityId);
     }
 }

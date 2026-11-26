@@ -43,8 +43,9 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
 
         world.Events.Add(0f, SpawnOracle);
         world.Events.Add(0.87f, StopTime);
+        world.Events.Add(0.87f, () => OracleBattleTalk(0xC));
         world.Events.Add(1f, () => oracle?.Cast(Actions.UltimateRelativity));
-        world.Events.Add(5.9f, OracleBattleTalk);
+        world.Events.Add(5.9f, () => OracleBattleTalk(0xD));
         world.Events.Add(AssignAt, AssignDebuffs);
         world.Events.Add(AssignAt, SpawnHourglasses);
         world.Events.Add(15f, TetherHourglasses);
@@ -77,9 +78,9 @@ public sealed class FruP3UltimateRelativityScenario : IScenario
         world.Map.AddEffect(MapEffect.FreezeFloor, MapEffect.OracleStage);
     }
 
-    private void OracleBattleTalk()
+    private void OracleBattleTalk(uint line)
     {
-        if (oracle is { } boss) world.Map.DirectorUpdate(0x80000027U, 0xDU, 0x2U, BNpcNameId.Oracle, boss.EntityId);
+        if (oracle is { } boss) world.Map.DirectorUpdate(0x80000027U, line, 0x2U, BNpcNameId.Oracle, boss.EntityId);
     }
 
     private void SpawnOracle()

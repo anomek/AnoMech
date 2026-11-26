@@ -282,7 +282,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         world.Events.Add(14.42f, () => SpawnArrowBursts(first: true));
         world.Events.Add(15.29f, SpawnArrowObjects);
         world.Events.Add(17.43f, () => SpawnArrowBursts(first: false));
-        world.Events.Add(18.32f, SpawnArrowObjects);
+        world.Events.Add(18.20f, SpawnArrowObjects);
 
         world.Events.Add(15.58f, () => PlayKefkaLine(0x3U));
 
