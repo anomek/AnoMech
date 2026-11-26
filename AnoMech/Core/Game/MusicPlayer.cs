@@ -17,6 +17,9 @@ internal sealed class MusicPlayer : IDisposable
     private const float FadeInSeconds = 1f;
     private readonly long fadeInFrames;
     private long framesPlayed;
+    private long fadeOutStart = -1;
+    private long fadeOutFrames;
+    private readonly long latencyFrames;
     private float[] samples = [];
     private readonly object gate = new();
     private volatile float volume;
@@ -26,6 +29,12 @@ internal sealed class MusicPlayer : IDisposable
     {
         get => volume;
         set => volume = Math.Clamp(value, 0f, 1f);
+    }
+
+    // True once the fade's last frame has left the output buffer.
+    public bool FadedOut
+    {
+        get { lock (gate) return disposed || (fadeOutStart >= 0 && framesPlayed >= fadeOutStart + fadeOutFrames + latencyFrames); }
     }
 
     public double PositionSeconds
@@ -44,6 +53,7 @@ internal sealed class MusicPlayer : IDisposable
         fadeInFrames = (long)(FadeInSeconds * reader.SampleRate);
         Volume = initialVolume;
         output = new WaveOutEvent { DesiredLatency = 200 };
+        latencyFrames = (long)output.DesiredLatency * reader.SampleRate / 1000;
         output.Init(new RawSourceWaveStream(new PcmStream(this), new WaveFormat(reader.SampleRate, 16, reader.Channels)));
     }
 
@@ -74,6 +84,16 @@ internal sealed class MusicPlayer : IDisposable
             error = $"{e.GetType().Name}: {e.Message}";
             player?.Dispose();
             return null;
+        }
+    }
+
+    public void FadeOut(float seconds)
+    {
+        lock (gate)
+        {
+            if (disposed || fadeOutStart >= 0) return;
+            fadeOutStart = framesPlayed;
+            fadeOutFrames = Math.Max(1L, (long)(seconds * reader.SampleRate));
         }
     }
 
@@ -123,7 +143,9 @@ internal sealed class MusicPlayer : IDisposable
             for (var i = 0; i < count; i++)
             {
                 var frame = framesPlayed + i / channels;
-                buffer[i] *= frame < fadeInFrames ? v * frame / fadeInFrames : v;
+                var gain = frame < fadeInFrames ? v * frame / fadeInFrames : v;
+                if (fadeOutStart >= 0) gain *= Math.Clamp(1f - (float)(frame - fadeOutStart) / fadeOutFrames, 0f, 1f);
+                buffer[i] *= gain;
             }
             framesPlayed += count / channels;
         }

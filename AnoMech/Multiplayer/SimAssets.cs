@@ -11,7 +11,7 @@ using AnoMech.Core.UserActions;
 
 namespace AnoMech.Multiplayer;
 
-internal enum SimAssetKind { Action, BNpcBase, EObj, Tether, Layout, EventId, ModelChara }
+internal enum SimAssetKind { Action, BNpcBase, EObj, Tether, Layout, EventId, ModelChara, BattleTalk }
 
 // An allowlist for the raw engine ids a peer receives from the host. It is disabled (AllowAll):
 // UNVERIFIED whether a missing BNpcBase/ModelChara/EObj/layout id crashes a client at all, and
@@ -39,6 +39,7 @@ internal static class SimAssets
         [SimAssetKind.Layout] = ["LayoutId"],
         [SimAssetKind.EventId] = ["EventId"],
         [SimAssetKind.ModelChara] = ["ModelCharaId"],
+        [SimAssetKind.BattleTalk] = ["BattleTalkId"],
     };
 
     private static Dictionary<SimAssetKind, HashSet<ulong>>? numbers;

@@ -222,7 +222,7 @@ internal sealed class SimulatedMotion : CharacterMotion, INavigated
         else
         {
             if (gates.MovementLocked) navigator.DropUnforced();
-            navigator.Tick(deltaSeconds, held: gates.AnimationLocked);
+            navigator.Tick(deltaSeconds, held: gates.AnimationLocked, gates.SpeedFactor);
         }
 
         model.Flush(deltaSeconds);

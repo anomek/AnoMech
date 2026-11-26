@@ -374,6 +374,16 @@ internal unsafe class PacketDispatcherPointers
 
     public delegate void HandleDirectorVarsPacketDelegate(uint directorId, byte sequence, byte unknown, byte* data, ulong length);
 
+    // Where the BattleTalk packet lands: shows the line in the BattleTalk box and plays its voice.
+    // speakerKind is the speaker's ObjectKind, which picks the sheet speakerNameId is read from
+    // (BattleNpc: BNpcName). Nullable so a patch that moves it costs the lines, not the plugin.
+    [Signature("40 53 55 56 48 81 EC C0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 B0 00 00 00 F7 05 ?? ?? ?? ?? FD FF FF FF", UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]
+    public static HandleBattleTalkPacketDelegate? HandleBattleTalkPacket { get; private set; }
+
+    public delegate void HandleBattleTalkPacketDelegate(
+        EventFramework* framework, uint directorId, ulong speakerEntityId, byte speakerKind, uint speakerNameId,
+        uint textId, uint durationMs, uint unknown1, uint unknown2, uint* textArgs, byte textArgCount);
+
     public const string HandleUpdateRecastTimesPacketSignature = "48 89 5C 24 08 57 48 83 EC 20 48 8B DA 33 FF 90 F3 0F 10 9B 40 01 00 00";
 
     [Signature(HandleUpdateRecastTimesPacketSignature, UseFlags = SignatureUseFlags.Pointer, ScanType = ScanType.Text)]

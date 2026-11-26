@@ -65,7 +65,8 @@ internal sealed class GameData : IGameData
 
     public StatusRow? Status(ushort statusId)
         => Plugin.DataManager.GetExcelSheet<LuminaStatus>().TryGetRow(statusId, out var row)
-            ? new StatusRow(statusId, row.Name.ExtractText(), row.LockMovement, row.LockActions, row.LockControl, row.MaxStacks)
+            ? new StatusRow(statusId, row.Name.ExtractText(), row.LockMovement, row.LockActions, row.LockControl, row.MaxStacks, row.ParamEffect,
+                row.CanDispel)
             : null;
 
     public TerritoryTypeRow? TerritoryType(uint territoryId)

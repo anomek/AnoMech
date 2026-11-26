@@ -76,7 +76,8 @@ internal sealed class DataminingGameData(FakeRsvFunctions rsv) : IGameData
 
     public StatusRow? Status(ushort statusId)
         => Statuses.Value.Row(statusId) is { } row
-            ? new StatusRow(statusId, Resolve(row.Text("Name")) ?? "", row.Bool("LockMovement"), row.Bool("LockActions"), row.Bool("LockControl"), row.Byte("MaxStacks"))
+            ? new StatusRow(statusId, Resolve(row.Text("Name")) ?? "", row.Bool("LockMovement"), row.Bool("LockActions"), row.Bool("LockControl"), row.Byte("MaxStacks"),
+                row.Byte("ParamEffect"), row.Bool("CanDispel"))
             : null;
 
     public TerritoryTypeRow? TerritoryType(uint territoryId)

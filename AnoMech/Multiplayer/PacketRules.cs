@@ -81,5 +81,5 @@ internal static class PacketRules
 
     // ProcessDirectorUpdate is where the server's own instance-state packets land, so only these
     // are taken from the host.
-    public static readonly IReadOnlySet<uint> DirectorCategories = new HashSet<uint> { 0x80000004, 0x8000000D, 0x80000027, 0x80000028 };
+    public static readonly IReadOnlySet<uint> DirectorCategories = new HashSet<uint> { 0x40000007, 0x80000004, 0x8000000D, 0x80000027, 0x80000028 };
 }

@@ -257,9 +257,6 @@ public sealed class SimEnemy : SimNpc
         }
     }
 
-    // AnimLock (8) is the mode the client holds an actor in while an action animation plays.
-    public void SetMode(CharacterModes mode, byte param = 0) => ActorControl.SetMode(mode, param);
-
     private void TickPacketSpawnCheckpoints()
     {
         if (PacketSpawnPending || PacketSpawnFailed) return;

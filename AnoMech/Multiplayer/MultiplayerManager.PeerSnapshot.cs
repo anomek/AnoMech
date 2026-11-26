@@ -71,6 +71,15 @@ public sealed partial class MultiplayerManager
         _ = Send(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration, param));
     }
 
+    // True when the host now owns the cleanse: its copy holds the statuses.
+    public bool ReportDispelled(PartyRole role)
+    {
+        if (IsHost || relay is not { IsConnected: true } || replay is null) return false;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting a cleanse on role {role} to host.");
+        _ = Send(new PeerDispelledMessage(MyPeerId, role));
+        return true;
+    }
+
     // ---- Host: applying a peer's reported pose to their puppet -------------
 
     private void OnSelfPoseReceived(SelfPoseMessage msg)

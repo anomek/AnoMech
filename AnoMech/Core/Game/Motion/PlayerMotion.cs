@@ -219,7 +219,7 @@ internal sealed class PlayerMotion : CharacterMotion, INavigated
         }
         TickForcedFollow(deltaSeconds);
         if (!DebugBotControl.Enabled || gates.MovementLocked) navigator.DropUnforced();
-        navigator.Tick(deltaSeconds, held: IsHeld || gates.AnimationLocked);
+        navigator.Tick(deltaSeconds, held: IsHeld || gates.AnimationLocked, gates.SpeedFactor);
     }
 
     // The client owns its player's position, so the walk goes in as movement input and the game

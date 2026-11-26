@@ -10,6 +10,8 @@ internal sealed class SimBgm : ISimObject
     // Called once seated: replacing a track despawns (resets) the previous one first.
     internal void Play(ushort bgmId, float secondsIn) => Natives.Bgm.Play(bgmId, secondsIn);
 
+    internal void Switch(ushort bgmId) => Natives.Bgm.Switch(bgmId);
+
     public void Tick(float deltaSeconds) => Natives.Bgm.Tick(deltaSeconds);
 
     public void Despawn() => Natives.Bgm.Reset();

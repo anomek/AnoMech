@@ -184,6 +184,9 @@ internal sealed class PeerNatives
         {
             if (!natives.HostOwnsArena) natives.RealDirector.Commence();
         }
+
+        public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+            => natives.HostOwnsArena || natives.RealDirector.BattleTalk(speakerNameId, textId, durationMs);
     }
 
     private sealed class PeerHaterList(PeerNatives natives) : IHaterList

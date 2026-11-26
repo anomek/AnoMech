@@ -92,7 +92,7 @@ public sealed class EnemyActionContext
         if (who.AddStatus(statusId, duration + delay, stacks, overrideStacks: false, sourceObject: default, broadcastAddEvent: false, hidden: revealAt > 0f,
                 appliedBy: (Action, Caster)) is not { Slot: >= 0 } status) return;
         status.ShownAsFrom(Caster);
-        Outcome(who).StatusGains.Add((statusId, entryParam));
+        if (!SimOnlyStatus.Is(statusId)) Outcome(who).StatusGains.Add((statusId, entryParam));
         if (status.Hidden) hiddenStatuses.Add((status, revealAt));
     }
 

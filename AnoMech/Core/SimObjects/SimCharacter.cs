@@ -51,7 +51,7 @@ public abstract class SimCharacter : ISimObject, IPositioned
         statusList.Update(deltaSeconds);
         FlushStatusList();
         Casting.Tick(deltaSeconds);
-        Motion.Tick(deltaSeconds, new MotionGates(this.IsAlive(), MovementLocked, AnimationLock));
+        Motion.Tick(deltaSeconds, new MotionGates(this.IsAlive(), MovementLocked, AnimationLock, SpeedFactor()));
         confusedChaseHold = MathF.Max(0f, confusedChaseHold - deltaSeconds);
     }
 
@@ -334,6 +334,8 @@ public abstract class SimCharacter : ISimObject, IPositioned
         statusList.Where(s => s.IsActive).Select(s => (s.StatusId, s.Stacks, s.RemainingTime)).ToList();
 
     public IReadOnlyList<SimStatus> ActiveStatuses => statusList.Where(s => s.IsActive).ToList();
+
+    private float SpeedFactor() => MovementSpeed.Factor(statusList);
 
     // A status's Lock* flags don't stop anyone client-side: the local player only through the
     // server's conditions (SimPlayer), doppels not at all, so the sheet is read here.

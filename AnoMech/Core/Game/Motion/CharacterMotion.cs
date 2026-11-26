@@ -4,8 +4,8 @@ using AnoMech.Core.SimObjects;
 namespace AnoMech.Core.Game.Motion;
 
 // What the owning character's state allows this tick. The character checks its own gates, so a
-// motion never reaches back into it.
-internal readonly record struct MotionGates(bool Alive, bool MovementLocked, bool AnimationLocked);
+// motion never reaches back into it. SpeedFactor scales ordered walks (MovementSpeed).
+internal readonly record struct MotionGates(bool Alive, bool MovementLocked, bool AnimationLocked, float SpeedFactor = 1f);
 
 // A character's place in the world: the authoritative position mechanics read, the walking a strat
 // or scenario orders (MoveTo, Follow, Intercept, TurnTo), and the forced moves a mechanic makes.

@@ -175,7 +175,8 @@ internal sealed class Navigator(INavigated walker)
     }
 
     // held: an animation lock roots the walker in place for now; the order resumes after.
-    public void Tick(float deltaSeconds, bool held)
+    // speedFactor scales every order's speed: the walker's statuses' (MovementSpeed).
+    public void Tick(float deltaSeconds, bool held, float speedFactor = 1f)
     {
         if (held)
         {
@@ -202,13 +203,14 @@ internal sealed class Navigator(INavigated walker)
         var dx = dest2.X - cur.X;
         var dz = dest2.Y - cur.Z;
         var distSq = dx * dx + dz * dz;
-        var step = speed * deltaSeconds;
+        var walkSpeed = speed * speedFactor;
+        var step = walkSpeed * deltaSeconds;
 
         if (distSq <= step * step || step <= 0f)
         {
             var rot = finalRotation ?? (distSq > 1e-6f ? MathF.Atan2(dx, dz) : walker.Rotation);
             var arrival = new Vector3(dest2.X, dest.Y, dest2.Y);
-            walker.Step(arrival, arrival, speed, arrived: true);
+            walker.Step(arrival, arrival, walkSpeed, arrived: true);
             walker.Turn(rot);
             finalRotation = null;
             Stop();
@@ -220,11 +222,11 @@ internal sealed class Navigator(INavigated walker)
             // A no-op (returns `desired`) when the field is empty or nothing blocks.
             var heading = walker.Obstacles.Steer(new Vector2(cur.X, cur.Z), desired, dist, ref steerSide);
             var next = new Vector3(cur.X + heading.X * step, cur.Y, cur.Z + heading.Y * step);
-            var lead = speed * ModelSync.LeadSeconds;
+            var lead = walkSpeed * ModelSync.LeadSeconds;
             var glide = lead >= dist
                 ? new Vector3(dest2.X, dest.Y, dest2.Y)
                 : new Vector3(cur.X + heading.X * lead, cur.Y, cur.Z + heading.Y * lead);
-            walker.Step(next, glide, speed, arrived: false);
+            walker.Step(next, glide, walkSpeed, arrived: false);
             if (walker.TurnsAlongPath) walker.Turn(MathF.Atan2(heading.X, heading.Y));
         }
     }

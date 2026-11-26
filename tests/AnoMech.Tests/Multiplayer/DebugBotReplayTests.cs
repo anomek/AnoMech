@@ -62,16 +62,22 @@ public partial class DebugBotReplayTests
     }
 
     // The scheduled time as AiManager logs it, so both clients' lines for one move name it alike.
+    // A move made at once after the start is a reaction to what that client was shown (a doll
+    // near a boss), which a peer sees a delivery later than the host, so only the scheduled ones
+    // have to match.
     private static List<Move> Moves(TestClient client, PartyRole seat)
     {
         var moves = new List<Move>();
         foreach (var line in client.Log.Lines)
-            if (AiMove().Match(line) is { Success: true } move && move.Groups["role"].Value == seat.ToString())
+            if (AiMove().Match(line) is { Success: true } move && move.Groups["role"].Value == seat.ToString()
+                && !(move.Groups["at"].Value == "0.0" && double.Parse(move.Groups["t"].Value, CultureInfo.InvariantCulture) > ReactionAfter))
                 moves.Add(new Move(move.Groups["at"].Value,
                     new Vector2(float.Parse(move.Groups["x"].Value, CultureInfo.InvariantCulture), float.Parse(move.Groups["z"].Value, CultureInfo.InvariantCulture))));
         return moves;
     }
 
-    [GeneratedRegex(@"\[AiManager\] Move@(?<at>[\d.]+): (?<role>\w+) \([-\d.]+,[-\d.]+\) -> \([-\d.]+,[-\d.]+\) for \((?<x>-?[\d.]+),(?<z>-?[\d.]+)\)")]
+    private const double ReactionAfter = 1.0;
+
+    [GeneratedRegex(@"t=\s*(?<t>[\d.]+) .*\[AiManager\] Move@(?<at>[\d.]+): (?<role>\w+) \([-\d.]+,[-\d.]+\) -> \([-\d.]+,[-\d.]+\) for \((?<x>-?[\d.]+),(?<z>-?[\d.]+)\)")]
     private static partial Regex AiMove();
 }

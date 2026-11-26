@@ -59,10 +59,13 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UcobP5ExaflaresAiReplayStateMessage), "ucobP5ExaflaresAiReplayState")]
 [JsonDerivedType(typeof(UmadP5CelestriadAiReplayStateMessage), "umadP5CelestriadAiReplayState")]
 [JsonDerivedType(typeof(UltimateSuppressionAiReplayStateMessage), "ultimateSuppressionAiReplayState")]
+[JsonDerivedType(typeof(TeaI1LimitCutAiReplayStateMessage), "teaI1LimitCutAiReplayState")]
+[JsonDerivedType(typeof(TeaP3WormholeAiReplayStateMessage), "teaP3WormholeAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaBeyondDefenseUpdateMessage), "topP5DeltaBeyondDefenseUpdate")]
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
+[JsonDerivedType(typeof(PeerDispelledMessage), "peerDispelled")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 [JsonDerivedType(typeof(ActedMessage), "acted")]
 [JsonDerivedType(typeof(StreamStateMessage), "streamState")]
@@ -296,6 +299,14 @@ public sealed record UltimateSuppressionAiReplayStateMessage(
     PartyRole LightPillar, PartyRole[] MistralSongs, PartyRole[] Eruptions,
     PartyRole Gaol, PartyRole FlamingCrush, int[] SuppressionSpotOrder) : MpMessage, IScenarioReplayStateMessage;
 
+// The numbers and the first Hawk Blaster axis; a dead number's retarget is the host's alone.
+public sealed record TeaI1LimitCutAiReplayStateMessage(PartyRole[] Numbers, int FirstBlasterAxis) : MpMessage, IScenarioReplayStateMessage;
+
+// Every roll; the chakrams' and Incinerating Heat's targets are picked live and the peer reads them
+// off its own screen.
+public sealed record TeaP3WormholeAiReplayStateMessage(
+    bool BruteJusticeNorthWest, bool PuddlesMirrored, PartyRole[] Numbers, PartyRole[] Enumerations) : MpMessage, IScenarioReplayStateMessage;
+
 // InFirst is TopP6WaveCannon2Ai's entire read set.
 public sealed record TopP6WaveCannon2AiReplayStateMessage(bool InFirst) : MpMessage, IScenarioReplayStateMessage;
 
@@ -351,6 +362,9 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<uint> Enemi
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration, ushort Param = 0) : MpMessage, IPeerMessage;
+
+// Peer -> host: this player's cleanse (Esuna) landed on Role; the host's copy picks what comes off.
+public sealed record PeerDispelledMessage(Guid PeerId, PartyRole Role) : MpMessage, IPeerMessage;
 
 // Peer -> host: a step of this player's own action (IUserActions.Acted), which the host shows on
 // the peer's seat for the rest of the party. Target names an actor as a GamePacket does.

@@ -1,6 +1,8 @@
 namespace AnoMech.Core.Native.Interfaces;
 
 // Excel sheets and game files. Rows are our own records, not Lumina's: tests have no game files.
+// A new column of a sheet that already has a row record goes on that record, not on a new
+// per-column method here.
 public interface IGameData
 {
     ActionRow? Action(uint actionId);
