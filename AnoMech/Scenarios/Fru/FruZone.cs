@@ -37,5 +37,5 @@ public sealed class FruZone : IZone
 
     public DutyInitData DutyInitData => FruReplayData.DutyInitData;
 
-    public void Run(SimWorld world) => world.EnforceArenaBoundary(Geometry.ArenaRadius);
+    public void Run(SimWorld world) => world.EnforceArenaBoundary(new CircleArena(Geometry.ArenaRadius));
 }

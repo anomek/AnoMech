@@ -48,8 +48,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
     internal const float ResolveDelayAfterTelegraph = 6.05f;
     private const float StackLeadBeforeWaves = 0.12f;
     internal const int TickCount = 4;
-    // The last wave's travel-and-fade window, sized generously.
-    private const float DespawnBuffer = 6.0f;
 
     // From the real ActionEffect headers: helper actions 1.1s, FloodCast 3.1s. Sent as 0, the
     // caster dropped out of its action state the frame the effect fired and the 3s caster-bound
@@ -137,9 +135,6 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
             if (!solo) world.Events.Add(tResolve - StackLeadBeforeWaves, ResolveChaoticFlood);
             world.Events.Add(tResolve, () => ResolveWaves(a, b, rotation));
         }
-
-        var lastResolve = FirstTelegraphAt + (TickCount - 1) * TelegraphStagger + ResolveDelayAfterTelegraph;
-        world.Events.Add(lastResolve + DespawnBuffer, DespawnAll);
     }
 
     public MpMessage? BuildReplayStateMessage()
@@ -205,6 +200,4 @@ public sealed class UmadP5FloodScenario : IMultiplayerReplayable
         if (target is null) return;
         kefka?.CastFromHelper(UmadActions.ChaoticFlood, target, at: new Placement(Vector3.Zero, MathF.PI));
     }
-
-    private void DespawnAll() => kefka?.Despawn();
 }

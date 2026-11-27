@@ -1,40 +1,36 @@
-using System.Numerics;
 using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Core.Map;
 
 // Per-frame arena fence. Walks every active party member each tick (player
 // included, since SimParty exposes the player slot through ActiveMembers) and
-// kills anyone whose XZ distance from `center` exceeds `radius`. Geometry is
-// XZ-plane only — Y is ignored, matching how scenarios reason about positions.
+// kills anyone outside the shape.
 //
 // One per world: SimWorld.EnforceArenaBoundary replaces any previous boundary.
 internal sealed class SimArenaBoundary : ISimObject
 {
     private readonly SimParty party;
-    private readonly float radiusSq;
+    private readonly IArenaShape shape;
     private readonly string cause;
 
     public bool IsAlive => true;
     public bool IsActive => true;
 
-    internal SimArenaBoundary(SimParty party, float radius, string cause)
+    internal SimArenaBoundary(SimParty party, IArenaShape shape, string cause)
     {
         this.party = party;
-        this.radiusSq = radius * radius;
+        this.shape = shape;
         this.cause = cause;
     }
 
-    // XZ distance test against the kill radius; shared by the per-frame fence and
-    // external callers (teleport-to-spawn on reset) so they always agree.
-    internal bool IsOutside(Vector3 local) => local.X * local.X + local.Z * local.Z > radiusSq;
+    internal IArenaShape Shape => shape;
 
     public void Tick(float deltaSeconds)
     {
-        // Member positions are scenario-local; the boundary is centered on local zero.
+        // Member positions are scenario-local; the shape is centered on local zero.
         foreach (var member in party.ActiveMembers())
         {
-            if (!IsOutside(member.Position)) continue;
+            if (!shape.IsOutside(member.Position)) continue;
             member.Die(SimCharacterDeathExtensions.Environment, cause);
         }
     }

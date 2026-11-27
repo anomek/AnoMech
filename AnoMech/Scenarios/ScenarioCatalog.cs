@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Scenarios.Dsr.P3Nidhogg;
 using AnoMech.Scenarios.Fru.P2DiamondDust;
 using AnoMech.Scenarios.Fru.P2LightRampant;
 using AnoMech.Scenarios.Fru.P3Apocalypse;
@@ -97,9 +98,10 @@ public sealed class ScenarioCatalog
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
         new TopP6WaveCannon2Scenario(),
-        new UwuP3TitanGaolsScenario(),
+        new DsrP3NidhoggScenario(),
         new TeaI1LimitCutScenario(),
         new TeaP3WormholeScenario(),
+        new UwuP3TitanGaolsScenario(),
         new UltimatePredationScenario(),
         new UltimateAnnihilationScenario(),
         new UltimateSuppressionScenario(),

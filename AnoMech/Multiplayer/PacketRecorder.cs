@@ -287,7 +287,7 @@ internal sealed class PacketRecorder
             Add(new SpawnNpcPacket(entityId, config.BNpcBaseId, config.NameId, config.Level, config.Targetable, config.EnemyList,
                 config.Visibility, config.ModelCharaId, config.InitialModeAttributeFlags, config.DisplayFlags, config.Engaged, config.LayoutId,
                 config.IsHostile, placement.Position.X, placement.Position.Y, placement.Position.Z, placement.Rotation,
-                config.ModelState, config.ModelScale, config.Appearance, config.Statuses?.ToList()));
+                config.ModelState, config.ModelScale, config.Appearance, config.Statuses?.ToList(), config.AnimationState));
         }
         return new RecordingBattleChara(chara, this, entityId);
     }
