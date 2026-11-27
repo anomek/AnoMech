@@ -253,11 +253,11 @@ internal static unsafe class JobActions
         new(JobId.BlackMage, BlmPolyglot, 30f, decay: false),     // Polyglot: +1/30s (real gen needs active Enochian; approximated as always-on in-sim)
     ];
 
-    public const uint Sprint = 3, ArmsLength = 7548, Surecast = 7559;
+    public const uint Sprint = 3, ArmsLength = 7548, Surecast = 7559, Provoke = 7533;
     public const ushort SprintStatus = 50;
 
     // Resolved even with the module off: they change how a mechanic plays out, not just a rotation.
-    private static readonly HashSet<uint> AlwaysResolved = [Sprint, ArmsLength, Surecast];
+    private static readonly HashSet<uint> AlwaysResolved = [Sprint, ArmsLength, Surecast, Provoke];
 
     private static readonly Dictionary<uint, IActionEffect[]> Actions = new()
     {
@@ -296,6 +296,7 @@ internal static unsafe class JobActions
         // Tank role
         [7531] = [Status(1191, 20f)],   // Rampart
         [7535] = [EnemyStatus(1193, 15f)],   // Reprisal
+        [Provoke] = [new ProvokeEffect()],
 
         // Cleanses
         [7568] = [Dispel()],   // Esuna
@@ -753,10 +754,17 @@ internal static unsafe class JobActions
     // Only the cleanse the action makes, for a copy of the world that holds the statuses but
     // didn't see the rest of the press.
     public static void ApplyDispel(SimCharacter caster, uint actionId, ulong targetId)
+        => ApplyOnly<DispelEffect>(caster, actionId, targetId);
+
+    // Only the provoke, for the copy of the world whose enemies run the fight.
+    public static void ApplyProvoke(SimCharacter caster, uint actionId, ulong targetId)
+        => ApplyOnly<ProvokeEffect>(caster, actionId, targetId);
+
+    private static void ApplyOnly<T>(SimCharacter caster, uint actionId, ulong targetId) where T : IActionEffect
     {
         if (!Actions.TryGetValue(actionId, out var effects)) return;
         var ctx = new ActionContext(actionId, targetId, caster, System.Random.Shared);
-        foreach (var effect in effects.OfType<DispelEffect>()) effect.Apply(ctx);
+        foreach (var effect in effects.OfType<T>()) effect.Apply(ctx);
     }
 
     public static void ApplyAutoAttack(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)

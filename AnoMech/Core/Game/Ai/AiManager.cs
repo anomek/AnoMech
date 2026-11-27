@@ -83,6 +83,17 @@ public sealed class AiManager
         }, file, line);
     }
 
+    // A human in the seat provokes for themselves. The enemy is looked up when it fires: adds
+    // spawn mid-run.
+    public void Provoke(float time, PartyRole role, Func<SimEnemy?> enemy, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        world.Events.Add(time, () =>
+        {
+            if (world.Party.Get(role) is ISimPartyMember member && enemy() is { } target)
+                member.UseAction(JobActions.Provoke, target);
+        }, file, line);
+    }
+
     public void Automarker(float time, Func<Dictionary<PartyRole, Sign>> mapping, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {
         world.Events.Add(time, () =>

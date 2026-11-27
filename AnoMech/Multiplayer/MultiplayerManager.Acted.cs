@@ -47,6 +47,10 @@ public sealed partial class MultiplayerManager
         if (acted.Step == PlayerActionStep.Resolved && Plugin.Game.World.Party.Get(seat) is { } caster
             && caster is ISimPartyMember { ClassJob: var job } && Esuna.CanCleanse(job))
             JobActions.ApplyDispel(caster, acted.ActionId, (ulong)(HostObjectOf(acted.Target) ?? caster.GameObjectId));
+        // The bosses run on the host only, so only its copy can turn on the provoker.
+        if (acted.Step == PlayerActionStep.Resolved && acted.ActionId == JobActions.Provoke
+            && Plugin.Game.World.Party.Get(seat) is { } provoker && HostObjectOf(acted.Target) is { } provoked)
+            JobActions.ApplyProvoke(provoker, acted.ActionId, (ulong)provoked);
     }
 
     // As the server shows a seat's own action to the party: its cast bar, the cast's cancel, the

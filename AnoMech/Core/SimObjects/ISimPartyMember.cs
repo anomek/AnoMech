@@ -26,8 +26,8 @@ public interface ISimPartyMember : ISimObject, IPositioned
     byte ClassJob { get; }
 
     // A no-op for humans, who press their own buttons; only bots use actions, including a debug bot
-    // in the local player's seat.
-    void UseAction(uint actionId) { }
+    // in the local player's seat. No target = the bot itself.
+    void UseAction(uint actionId, SimCharacter? target = null) { }
 }
 
 // Bridges the party-member death model onto SimCharacter-typed call sites. Party

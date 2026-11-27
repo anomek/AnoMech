@@ -107,6 +107,15 @@ internal sealed class EnemyStatusEffect(ushort statusId, float duration, int sta
     }
 }
 
+// Leaf: the enemy the action hits turns on the caster (Provoke).
+internal sealed class ProvokeEffect : IActionEffect
+{
+    public void Apply(ActionContext ctx)
+    {
+        foreach (var enemy in ActionTargets.Hostile(ctx)) enemy.Provoke(ctx.Caster);
+    }
+}
+
 // Wrapper: apply the inner effects only when the action lands as a valid combo continuation.
 internal sealed class ComboEffect(IActionEffect[] inner) : IActionEffect
 {

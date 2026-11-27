@@ -235,15 +235,25 @@ public sealed class SimEnemy : SimNpc
         manualInEnemyList = inEnemyList;
     }
 
+    // Nothing reads it on its own: a cast aims at it only when the scenario passes it.
+    public SimCharacter? Target { get; private set; }
+
+    private bool provokable;
+    private bool followsTarget = true;
+    private float followSpeed = 6f;
+
     /// <summary>
     /// Sets the target of this <see cref="SimEnemy"/>.
     /// </summary>
-    /// <remarks>For now, this is purely visual and does not contain any logic relating to auto-attacks or similar.</remarks>
+    /// <remarks>A provokable enemy (<see cref="SetProvokable"/>) changes it again when a tank provokes it.</remarks>
     /// <param name="target">The <see cref="SimCharacter.GameObjectId"/> will be retrieved and used as the TargetId. If <see langword="null"/>, then the target is cleared.</param>
     /// <param name="follow">If <paramref name="target"/> is valid, this will determine if the <see cref="SimEnemy"/> should now follow <paramref name="target"/> or not.</param>
     /// <param name="speed">If <paramref name="target"/> is valid and <paramref name="follow"/> is <see langword="true"/>, this will be the speed that the <see cref="SimEnemy"/> will follow the <paramref name="target"/></param>
     public void SetTarget(SimCharacter? target, bool follow = true, float speed = 6f)
     {
+        Target = target;
+        followsTarget = follow;
+        followSpeed = speed;
         if (target == null)
         {
             ActorControl.ClearTarget();
@@ -254,9 +264,18 @@ public sealed class SimEnemy : SimNpc
 
             if (follow)
             {
-                Follow(target);
+                Follow(target, speed);
             }
         }
+    }
+
+    // Off by default: the scenario picks every target itself.
+    public void SetProvokable(bool provokable) => this.provokable = provokable;
+
+    // The provoker takes the target, followed as the last SetTarget asked.
+    internal void Provoke(SimCharacter by)
+    {
+        if (provokable && !Dead && by != Target) SetTarget(by, followsTarget, followSpeed);
     }
 
     private void TickPacketSpawnCheckpoints()

@@ -27,9 +27,9 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     public byte ClassJob => Proxy.ClassJob;
 
-    public void UseAction(uint actionId)
+    public void UseAction(uint actionId, SimCharacter? target = null)
     {
-        if (DebugBotControl.Enabled && !Dead && !ActionsLocked) JobActions.ApplyEffects(this, actionId, (ulong)GameObjectId, Random.Shared);
+        if (DebugBotControl.Enabled && !Dead && !ActionsLocked) JobActions.ApplyEffects(this, actionId, (ulong)(target ?? this).GameObjectId, Random.Shared);
     }
 
     public override void Tick(float deltaSeconds)
