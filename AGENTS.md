@@ -121,6 +121,11 @@ communicate that with user and try to verify first.
 - **Debuff that goes off when it runs out:** drive it from `OnStatusLost` only when something can
   remove, cleanse or pass the debuff, or when its holder's death changes what happens. A plain
   countdown nothing interacts with stays a timeline step at its expiry time.
+- **No end-of-scenario cleanup.** Don't end the timeline with a step that despawns the bosses,
+  helpers, props or tethers (`DespawnAll`). `ScenarioSession.End` despawns the whole world when
+  the run ends, and the run is judged done once `Events` runs dry, so a trailing cleanup step only
+  stretches the run and wipes the arena before the player has looked at it. Despawn mid-fight only
+  where retail does (a helper leaving after its warp, a puddle fading out).
 - **Avoid scenario state.** Every field a scenario fills mid-run is something to reset, keep in
   sync and reason about. Read what the event already carries instead (a tether's `TetherId`, a
   status's `Stacks`, a resolve's `Origin` and `Hits`), and pass values through the closure of a

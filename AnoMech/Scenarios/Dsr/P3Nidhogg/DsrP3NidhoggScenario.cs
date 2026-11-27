@@ -13,15 +13,14 @@ using Actions = AnoMech.Scenarios.Dsr.DsrActions;
 
 namespace AnoMech.Scenarios.Dsr.P3Nidhogg;
 
-// DSR P3 from Nidhogg's arrival to the second Drachenlance: Dive from Grace (three rounds
-// of jumps, the towers they leave, and the Geirskogul lines each tower's clone aims at whoever is
-// closest when it starts), two Drachenlance cleaves, and the four counted towers with the Soul
-// Tether busters.
+// DSR P3 from Nidhogg's arrival to the auto-attack after the Soul Tether busters: Dive from Grace
+// (three rounds of jumps, the towers they leave, and the Geirskogul lines each tower's clone aims at
+// whoever is closest), the Drachenlance cleave, and the four counted towers with the Soul Tether
+// busters.
 public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
 {
     public string Name => "Nidhogg";
     public IPhase Phase => DsrZone.P3;
-    public bool SupportsSolo => true;
     public bool SupportsMultiplayer => true;
 
     public IReadOnlyList<IScenarioAi> AiStrats =>
@@ -43,6 +42,7 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
     // Edge-triggers BuildMidRunUpdateMessage.
     private int broadcastDiveTowerRounds;
     private SimEnemy? nidhogg;
+    private readonly List<SimEnemy> clones = new();
     private readonly Dictionary<PartyRole, SimEnemy> jumpClones = new();
     private readonly Dictionary<int, List<SimEnemy>> diveClones = new();
     private readonly List<SimEnemy> counterClones = new();
@@ -53,6 +53,7 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
         state = new DsrP3NidhoggState(world.Rng, world.Party.PlayerRole, settingsWindow.Overrides);
         LastState = state;
         broadcastDiveTowerRounds = 0;
+        clones.Clear();
         jumpClones.Clear();
         diveClones.Clear();
         counterClones.Clear();
@@ -60,60 +61,70 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
             ((IScenarioAi<DsrP3NidhoggState>)AiStrats[idx]).Run(state, world);
 
         world.Events.Add(0.00f, PlacePlayersInCenter);
+        world.Events.Add(0.00f, () => world.Map.BattleTalk(BNpcNameId.WanderingMinstrel, BattleTalkId.MinstrelBeforeNidhogg, 5000));
         world.Events.Add(0.50f, SpawnNidhogg);
-        world.Events.Add(3.00f, () => nidhogg?.Cast(ActionId.FinalChorus));
-        world.Events.Add(5.28f, Engage);
-        world.Events.Add(5.32f, () => nidhogg?.Cast(Actions.FinalChorus));
+        world.Events.Add(0.50f, SpawnClones);
+        world.Events.Add(3.00f, () => nidhogg?.Cast(ActionId.FinalChorus, animationLock: 5.1f));
+        world.Events.Add(3.00f, () => nidhogg?.SetVisibleInEnemyList(true));
+        world.Events.Add(3.37f, () => nidhogg?.SetTarget(MainTank, follow: false));
+        world.Events.Add(3.97f, () => nidhogg?.VoiceLine(VoiceLineId.NidhoggArrives));
+        world.Events.Add(3.97f, () => nidhogg?.BattleTalk(BattleTalkId.NidhoggArrives, 4000));
+        world.Events.Add(5.28f, () => nidhogg?.SetTargetable(true));
+        world.Events.Add(5.32f, () => nidhogg?.CastFromHelper(Actions.FinalChorus));
+        world.Events.Add(8.05f, () => nidhogg?.Face(MainTank));
+        world.Events.Add(10.02f, () => nidhogg?.BattleTalk(BattleTalkId.NidhoggTaunt, 4000));
         world.Events.Add(10.17f, AutoAttack);
         world.Events.Add(13.29f, AutoAttack);
         world.Events.Add(16.41f, AutoAttack);
 
-        world.Events.Add(18.51f, () => nidhogg?.Cast(ActionId.DiveFromGrace, animationLock: 1f));
+        world.Events.Add(18.42f, () => nidhogg?.VoiceLine(VoiceLineId.DiveFromGrace));
+        world.Events.Add(18.51f, () => nidhogg?.Cast(ActionId.DiveFromGrace, animationLock: 2.1f));
         world.Events.Add(18.51f, MarkOrders);
         world.Events.Add(24.25f, MarkJumps);
         world.Events.Add(25.64f, () => CastGnashAndLash(0));
-        world.Events.Add(33.12f, () => SpawnJumpClones(1));
+        world.Events.Add(33.16f, () => PlaceJumpClones(1));
         world.Events.Add(33.32f, () => Jump(1));
         world.Events.Add(33.48f, () => EyeOfTheTyrant(1));
-        world.Events.Add(34.32f, () => DismissJumpClones(1));
         world.Events.Add(36.94f, () => Wheel(0));
+        world.Events.Add(37.28f, () => MoveDiveClonesToTowers(1));
         world.Events.Add(37.42f, () => RaiseDiveTowers(1));
         world.Events.Add(39.99f, () => Wheel(1));
+        world.Events.Add(41.63f, () => AimGeirskogul(diveClones[1]));
         world.Events.Add(42.53f, () => Geirskogul(diveClones[1]));
-        world.Events.Add(43.13f, () => SpawnJumpClones(2));
+        world.Events.Add(43.23f, () => PlaceJumpClones(2));
         world.Events.Add(43.33f, () => Jump(2));
-        world.Events.Add(44.33f, () => DismissJumpClones(2));
         world.Events.Add(47.15f, () => CastGnashAndLash(1));
+        world.Events.Add(47.29f, () => MoveDiveClonesToTowers(2));
         world.Events.Add(47.43f, () => RaiseDiveTowers(2));
-        world.Events.Add(50.60f, () => Dismiss(diveClones[1]));
+        world.Events.Add(49.13f, () => Hide(diveClones[1]));
+        world.Events.Add(51.64f, () => AimGeirskogul(diveClones[2]));
         world.Events.Add(52.54f, () => Geirskogul(diveClones[2]));
-        world.Events.Add(54.11f, () => SpawnJumpClones(3));
+        world.Events.Add(54.22f, () => PlaceJumpClones(3));
         world.Events.Add(54.31f, () => Jump(3));
         world.Events.Add(54.99f, () => EyeOfTheTyrant(3));
-        world.Events.Add(55.31f, () => DismissJumpClones(3));
+        world.Events.Add(58.28f, () => MoveDiveClonesToTowers(3));
         world.Events.Add(58.42f, () => RaiseDiveTowers(3));
         world.Events.Add(58.45f, () => Wheel(2));
-        world.Events.Add(60.60f, () => Dismiss(diveClones[2]));
+        world.Events.Add(59.14f, () => Hide(diveClones[2]));
         world.Events.Add(61.48f, () => Wheel(3));
+        world.Events.Add(62.64f, () => AimGeirskogul(diveClones[3]));
         world.Events.Add(63.54f, () => Geirskogul(diveClones[3]));
         world.Events.Add(65.70f, AutoAttack);
         world.Events.Add(68.82f, AutoAttack);
 
-        world.Events.Add(70.07f, () => Drachenlance(first: true));
-        world.Events.Add(71.60f, () => Dismiss(diveClones[3]));
-        world.Events.Add(74.60f, SpawnCounterClones);
+        world.Events.Add(69.60f, FaceFirstDrachenlanceTarget);
+        world.Events.Add(70.07f, Drachenlance);
+        world.Events.Add(70.09f, () => Hide(diveClones[3]));
+        world.Events.Add(74.93f, PlaceCounterClones);
         world.Events.Add(75.10f, RaiseCounterTowers);
+        world.Events.Add(75.20f, () => nidhogg?.Face(MainTank));
         world.Events.Add(79.80f, TetherSouls);
-        world.Events.Add(82.72f, () => Geirskogul(counterClones.Where((_, i) => i != state.TetherTower).ToList()));
+        world.Events.Add(81.72f, () => ListInEnemyList(counterClones));
+        world.Events.Add(81.72f, () => AimGeirskogul(UntetheredCounterClones()));
+        world.Events.Add(82.72f, () => Geirskogul(UntetheredCounterClones()));
         world.Events.Add(87.16f, SoulTether);
-        world.Events.Add(90.80f, () => Dismiss(counterClones));
+        world.Events.Add(89.25f, () => Hide(counterClones));
         world.Events.Add(92.28f, AutoAttack);
-        world.Events.Add(95.40f, AutoAttack);
-        world.Events.Add(98.52f, AutoAttack);
-        world.Events.Add(101.64f, AutoAttack);
-        world.Events.Add(104.76f, AutoAttack);
-        world.Events.Add(108.05f, () => Drachenlance(first: false));
-        world.Events.Add(113.00f, DespawnAll);
     }
 
     public void OnActionResolved(ActionResolved resolved)
@@ -138,27 +149,37 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
             NameId: BNpcNameId.Nidhogg,
             Level: Level,
             Targetable: false,
-            EnemyList: EnemyListMode.Always,
+            EnemyList: EnemyListMode.Manual,
             Visibility: SpawnVisibility.HiddenUntilShown,
-            Placement: new Placement(Vector3.Zero, 0f)));
+            Placement: new Placement(Vector3.Zero, 0f),
+            LayoutId: LayoutId.NidhoggP3,
+            Appearance: Appearance.Nidhogg,
+            Statuses: [new SpawnStatus(StatusId.HeartOfMan)]));
     }
 
-    private SimEnemy? SpawnClone(Placement placement, SpawnVisibility visibility = SpawnVisibility.Visible) => world.SpawnEnemy(new EnemySpawnConfig(
-        BNpcBaseId: BNpcBaseId.NidhoggClone,
-        NameId: BNpcNameId.Nidhogg,
-        Level: Level,
-        Targetable: false,
-        EnemyList: EnemyListMode.Never,
-        Visibility: visibility,
-        Placement: placement));
+    // Every jump and tower is one of these seven, teleported into place: the client drops what a
+    // freshly spawned actor is sent. Each is seen only in its own actions' animations.
+    private void SpawnClones()
+    {
+        for (var i = 0; i < 7; i++)
+            if (world.SpawnEnemy(new EnemySpawnConfig(
+                    BNpcBaseId: BNpcBaseId.NidhoggClone,
+                    NameId: BNpcNameId.Nidhogg,
+                    Level: Level,
+                    Targetable: false,
+                    EnemyList: EnemyListMode.Manual,
+                    Visibility: SpawnVisibility.HiddenUntilShown,
+                    Placement: new Placement(new Vector3(23f, 0f, 4f), 0f),
+                    LayoutId: LayoutId.NidhoggClone,
+                    Appearance: Appearance.Nidhogg)) is { } clone)
+                clones.Add(clone);
+    }
+
+    // The highest-numbered clone not already out, as retail picks them.
+    private SimEnemy? FreeClone() => clones.LastOrDefault(clone =>
+        !jumpClones.ContainsValue(clone) && !diveClones.Values.Any(round => round.Contains(clone)) && !counterClones.Contains(clone));
 
     private SimCharacter? MainTank => world.Party.Get(PartyRole.MainTank);
-
-    private void Engage()
-    {
-        nidhogg?.SetTargetable(true);
-        nidhogg?.SetTarget(MainTank, follow: false);
-    }
 
     private void AutoAttack()
     {
@@ -199,51 +220,49 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
     };
 
     private void CastGnashAndLash(int cast)
-        => nidhogg?.Cast(state.OutFirst[cast] ? ActionId.GnashAndLash : ActionId.LashAndGnash, animationLock: 1f);
+        => nidhogg?.Cast(state.OutFirst[cast] ? ActionId.GnashAndLash : ActionId.LashAndGnash, animationLock: 0.2f);
 
-    // Each jump lands on its target; the tower it leaves goes where they stand, or 14y ahead of or
-    // behind them along their facing for an arrow.
+    // The jump lands where the jumper stands as its clone is placed, facing their way, or away from
+    // them for Elusive Jump.
+    private void PlaceJumpClones(int order)
+    {
+        foreach (var role in state.InOrder(order))
+            if (world.Party.Get(role) is { } member && member.IsAlive() && FreeClone() is { } clone)
+            {
+                var turn = state.Jump[role] == JumpKind.Backward ? MathF.PI : 0f;
+                clone.TeleportTo(new Placement(member.Position, member.Rotation + turn));
+                jumpClones[role] = clone;
+            }
+    }
+
+    // The jump's clone stays for its tower: where it landed, or 14y ahead of it for an arrow.
     private void Jump(int order)
     {
-        var clones = diveClones[order] = new List<SimEnemy>();
+        var dives = diveClones[order] = new List<SimEnemy>();
         var towers = state.DiveTowers[order] = new List<Vector3>();
         foreach (var role in state.InOrder(order))
         {
             if (world.Party.Get(role) is not { } member) continue;
             member.RemoveStatus(OrderStatus[order - 1]);
             member.RemoveStatus(JumpStatus(state.Jump[role]));
-            if (!member.IsAlive()) continue;
+            if (!jumpClones.Remove(role, out var clone) || !member.IsAlive()) continue;
             var kind = state.Jump[role];
-            var sign = kind switch { JumpKind.Forward => 1f, JumpKind.Backward => -1f, _ => 0f };
-            var facing = new Vector3(MathF.Sin(member.Rotation), 0f, MathF.Cos(member.Rotation));
-            var tower = member.Position + sign * DsrP3NidhoggState.ArrowTowerOffset * facing;
-            towers.Add(tower);
-            if (jumpClones.GetValueOrDefault(role) is { } jumpClone)
-            {
-                jumpClone.TeleportTo(new Placement(member.Position, member.Rotation));
-                jumpClone.Cast(JumpAction(kind), member);
-            }
-            if (SpawnClone(new Placement(tower, member.Rotation), SpawnVisibility.HiddenUntilShown) is { } clone) clones.Add(clone);
+            var offset = kind == JumpKind.High ? 0f : DsrP3NidhoggState.ArrowTowerOffset;
+            var facing = new Vector3(MathF.Sin(clone.Rotation), 0f, MathF.Cos(clone.Rotation));
+            towers.Add(clone.Position + offset * facing);
+            dives.Add(clone);
+            clone.Cast(JumpAction(kind), member);
         }
     }
 
-    // A jump's clone is seen only in its jump's own animation, which shows and hides it. The client
-    // drops a cast sent the frame an actor spawns, so each is spawned hidden a moment early.
-    // UNVERIFIED: the animation's length.
-    private void SpawnJumpClones(int order)
+    private void MoveDiveClonesToTowers(int order)
     {
-        foreach (var role in state.InOrder(order))
-            if (world.Party.Get(role) is { } member && SpawnClone(new Placement(member.Position, member.Rotation), SpawnVisibility.HiddenUntilShown) is { } clone)
-                jumpClones[role] = clone;
+        var dives = diveClones[order];
+        for (var i = 0; i < dives.Count; i++)
+            if (Vector3.Distance(dives[i].Position, state.DiveTowers[order][i]) > 0.1f)
+                dives[i].TeleportTo(new Placement(state.DiveTowers[order][i], dives[i].Rotation));
     }
 
-    private void DismissJumpClones(int order)
-    {
-        foreach (var role in state.InOrder(order))
-            if (jumpClones.Remove(role, out var clone)) clone.Despawn();
-    }
-
-    // No clone is seen between a jump and its tower's dive.
     private void RaiseDiveTowers(int order)
     {
         foreach (var clone in diveClones[order]) clone.Cast(Actions.DarkdragonDive);
@@ -264,48 +283,55 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
         nidhogg?.Cast(gnashing ? Actions.GnashingWheel : Actions.LashingWheel);
     }
 
-    // Each line is aimed at whoever is closest to its clone as the cast starts.
-    private void Geirskogul(IReadOnlyList<SimEnemy> clones)
+    // Each line is aimed at whoever is closest to its clone just under a second before the cast.
+    private void AimGeirskogul(IReadOnlyList<SimEnemy> aimers)
     {
-        foreach (var clone in clones)
-        {
+        ListInEnemyList(aimers);
+        foreach (var clone in aimers)
             if (world.Party.Find.Closest(clone.Position) is { } bait) clone.Face(bait);
-            clone.Cast(Actions.Geirskogul);
-        }
     }
 
-    private static void Dismiss(List<SimEnemy> clones)
+    private static void Geirskogul(IReadOnlyList<SimEnemy> aimers)
     {
-        foreach (var clone in clones) clone.Despawn();
-        clones.Clear();
+        foreach (var clone in aimers) clone.Cast(Actions.Geirskogul);
     }
 
-    private const float DrachenlanceCleaveBar = 3.2f;
-
-    // The first is aimed at a random player, then Nidhogg turns back to his tank; the second always
-    // points south.
-    private void Drachenlance(bool first)
+    private static void ListInEnemyList(IEnumerable<SimEnemy> listed)
     {
-        if (nidhogg is not { } boss) return;
-        if (!first) boss.Face(Compass.Point(Compass.S, 1f));
-        else if (state.FirstDrachenlanceTargetIn(world.Party, boss.Position) is { } target)
-            boss.Face(target);
-        boss.Cast(ActionId.Drachenlance, animationLock: 1f);
-        var aim = boss.Placement();
-        world.Events.Add(DrachenlanceCleaveBar, () =>
+        foreach (var clone in listed) clone.SetVisibleInEnemyList(true);
+    }
+
+    private static void Hide(List<SimEnemy> spent)
+    {
+        foreach (var clone in spent)
         {
-            nidhogg?.CastFromHelper(Actions.DrachenlanceCleave, at: aim);
-            if (first && MainTank is { } tank && tank.IsAlive()) nidhogg?.Face(tank);
-        });
+            clone.SetVisibleInEnemyList(false);
+            clone.PlayActionTimeline(ActionTimelineId.WarpStart);
+        }
+        spent.Clear();
     }
 
-    // The client creates a spawned actor a few frames later and drops a cast sent before then, so
-    // the clones arrive ahead of their towers, hidden until their dive's own animation shows them.
-    private void SpawnCounterClones()
+    private List<SimEnemy> UntetheredCounterClones() => counterClones.Where((_, i) => i != state.TetherTower).ToList();
+
+    private void FaceFirstDrachenlanceTarget()
+    {
+        if (nidhogg is { } boss && state.FirstDrachenlanceTargetIn(world.Party, boss.Position) is { } target) boss.Face(target);
+    }
+
+    private void Drachenlance()
+    {
+        nidhogg?.Cast(ActionId.Drachenlance, animationLock: 2.1f);
+        nidhogg?.CastFromHelper(Actions.DrachenlanceCleave);
+    }
+
+    private void PlaceCounterClones()
     {
         for (var i = 0; i < 4; i++)
-            if (SpawnClone(new Placement(DsrP3NidhoggState.CounterTower(i), 0f).Face(Vector3.Zero), SpawnVisibility.HiddenUntilShown) is { } clone)
+            if (FreeClone() is { } clone)
+            {
+                clone.TeleportTo(new Placement(DsrP3NidhoggState.CounterTower(i), 0f).Face(Vector3.Zero));
                 counterClones.Add(clone);
+            }
     }
 
     private void RaiseCounterTowers()
@@ -330,18 +356,6 @@ public sealed class DsrP3NidhoggScenario : IMultiplayerReplayable
             tether.Despawn();
         }
         state.SoulTethers.Clear();
-    }
-
-    private void DespawnAll()
-    {
-        foreach (var (_, tether) in state.SoulTethers) tether.Despawn();
-        state.SoulTethers.Clear();
-        foreach (var clone in jumpClones.Values) clone.Despawn();
-        jumpClones.Clear();
-        foreach (var clones in diveClones.Values) Dismiss(clones);
-        Dismiss(counterClones);
-        nidhogg?.Despawn();
-        nidhogg = null;
     }
 
     public MpMessage? BuildReplayStateMessage()

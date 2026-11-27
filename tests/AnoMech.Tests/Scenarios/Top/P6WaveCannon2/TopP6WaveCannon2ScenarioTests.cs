@@ -14,7 +14,7 @@ namespace AnoMech.Tests;
 //   11.91 on, every 2s, rolling lines |c - line| < 2.5:
 //         In first  ±7.5 / ±7.5 ±12.5 / ±2.5 ±17.5 / ±2.5 / ±7.5 / ±12.5 / ±17.5
 //         Out first ±7.5 / ±2.5 ±7.5 / ±2.5 ±12.5 / ±7.5 ±17.5 / ±12.5 / ±17.5
-//   19.07 proteans on MT (0,-11), OT (0,11), RH (-11,0), SH (11,0); 21.07 on M1 (-9,9), M2 (9,9), R (9,-9), C (-9,-9).
+//   19.07 proteans on MT (0,-11), OT (0,11), RH (-11,0), SH (11,0); 21.00 on M1 (-9,9), M2 (9,9), R (9,-9), C (-9,-9).
 //   27.40 Wild Charge on MT, with MT OT at (0,9) and the rest at (0,11).
 public class TopP6WaveCannon2ScenarioTests
 {

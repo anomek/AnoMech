@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using AnoMech.Core.Game.Party;
 using Dalamud.Bindings.ImGui;
 
@@ -29,6 +30,10 @@ public sealed class DsrP3NidhoggSettingsWindow
             DrawChoices("wheel2", ["Out first", "In first"], [true, false], Overrides.SecondOutFirst, v => Overrides.SecondOutFirst = v);
             SettingsGrid.Row("Tower counts:");
             DrawChoices("towers", ["2-2-2-2", "1-1-2-4", "1-1-3-3", "1-2-2-3"], [0, 1, 2, 3], Overrides.CounterTowerShape, v => Overrides.CounterTowerShape = v);
+            SettingsGrid.Row("Tethered tower:");
+            DrawChoices("tether", ["NE", "SE", "SW", "NW"], [0, 1, 2, 3], Overrides.TetherTower, v => Overrides.TetherTower = v);
+            SettingsGrid.Row("Drachenlance on:");
+            DrawChoices("lance", PerRole.All.Select(SettingsGrid.RoleLabel).ToArray(), PerRole.All, Overrides.FirstDrachenlanceTarget, v => Overrides.FirstDrachenlanceTarget = v);
             if (solo) DrawPlayerRows();
             SettingsGrid.End();
         }
@@ -64,6 +69,8 @@ public sealed class DsrP3NidhoggSettingsWindow
         Overrides.FirstOutFirst = null;
         Overrides.SecondOutFirst = null;
         Overrides.CounterTowerShape = null;
+        Overrides.TetherTower = null;
+        Overrides.FirstDrachenlanceTarget = null;
     }
 
     private void ResetPerPlayer()

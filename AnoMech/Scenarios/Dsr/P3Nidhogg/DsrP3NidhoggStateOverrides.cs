@@ -12,6 +12,9 @@ public sealed class DsrP3NidhoggStateOverrides
     public bool? SecondOutFirst { get; set; }
     // Index into DsrP3NidhoggState.CounterTowerShapes.
     public int? CounterTowerShape { get; set; }
+    // Which counted tower's clone tethers instead of aiming a line: 0 NE, 1 SE, 2 SW, 3 NW.
+    public int? TetherTower { get; set; }
+    public PartyRole? FirstDrachenlanceTarget { get; set; }
 
     // Dive from Grace number, 1 to 3.
     public PerRoleSetting<int> Order { get; set; } = new();

@@ -98,13 +98,13 @@ public sealed class ScenarioCatalog
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
         new TopP6WaveCannon2Scenario(),
-        new UwuP3TitanGaolsScenario(),
+        new DsrP3NidhoggScenario(),
         new TeaI1LimitCutScenario(),
         new TeaP3WormholeScenario(),
+        new UwuP3TitanGaolsScenario(),
         new UltimatePredationScenario(),
         new UltimateAnnihilationScenario(),
         new UltimateSuppressionScenario(),
         new UcobP5ExaflaresScenario(),
-        new DsrP3NidhoggScenario(),
     ]);
 }

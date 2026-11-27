@@ -129,7 +129,7 @@ public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
         {
             var i = index;
             world.Events.Add(19.07f, () => CastProtean(state.ProteanOrder.Get(i)));
-            world.Events.Add(21.07f, () => CastProtean(state.ProteanOrder.Get(i + 4)));
+            world.Events.Add(21.00f, () => CastProtean(state.ProteanOrder.Get(i + 4)));
         }
     }
 

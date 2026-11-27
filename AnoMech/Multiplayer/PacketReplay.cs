@@ -278,7 +278,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         var placement = new Placement(position, NetGuard.Rotation(p.Rotation));
         var config = new EnemySpawnConfig(p.BNpcBaseId, p.NameId, p.Level, p.Targetable, p.EnemyList, p.Visibility,
             world.Coordinates.ToLocal(placement), p.ModelCharaId, p.InitialModeAttributeFlags, p.DisplayFlags, p.Engaged, p.LayoutId, p.IsHostile,
-            p.Appearance, p.Statuses is { } statuses ? NetGuard.Cap(statuses, SpawnStatuses).ToList() : null, p.ModelState, p.ModelScale);
+            p.Appearance, p.Statuses is { } statuses ? NetGuard.Cap(statuses, SpawnStatuses).ToList() : null, p.ModelState, p.ModelScale, p.AnimationState);
         if (natives.RealCharas.SpawnBattleNpcFromPacket(config, placement, out var entityId) is not { } chara)
         {
             DiagnosticLog.Warn($"[Multiplayer] Peer: the host's BNpcBase {p.BNpcBaseId} (0x{p.Actor:X}) didn't spawn here -- its packets will be dropped.");

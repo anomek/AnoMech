@@ -64,8 +64,8 @@ public sealed class DsrP3NidhoggState
 
         OutFirst = [overrides.FirstOutFirst ?? rng.NextBool(), overrides.SecondOutFirst ?? rng.NextBool()];
         CounterTowerSoakers = rng.Shuffle(CounterTowerShapes[overrides.CounterTowerShape ?? rng.Next(CounterTowerShapes.Length)]).ToList();
-        TetherTower = rng.Next(4);
-        FirstDrachenlanceTarget = rng.NextRole();
+        TetherTower = overrides.TetherTower ?? rng.Next(4);
+        FirstDrachenlanceTarget = overrides.FirstDrachenlanceTarget ?? rng.NextRole();
     }
 
     private DsrP3NidhoggState(

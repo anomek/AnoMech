@@ -76,7 +76,6 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
         world.Events.Add(27.10f, () => SpendTowers(2));
         world.Events.Add(27.10f, () => ResolveTowers(2));
         world.Events.Add(27.39f, () => ResolveChoice(2));
-        world.Events.Add(29.44f, DespawnAll);
     }
 
     // UNVERIFIED delay: no pull leaves a Celestriad tower unsoaked.
@@ -160,13 +159,6 @@ public sealed class UmadP5CelestriadScenario : IMultiplayerReplayable
             var tower = state.AllTowers[towerIndex];
             kefka?.CastFromHelper(tower.Element.Tower, at: new Placement(tower.Position, 0f));
         }
-    }
-
-    private void DespawnAll()
-    {
-        foreach (var tower in towers) tower?.Despawn();
-        towers.Clear();
-        kefka?.Despawn();
     }
 
     public MpMessage? BuildReplayStateMessage()

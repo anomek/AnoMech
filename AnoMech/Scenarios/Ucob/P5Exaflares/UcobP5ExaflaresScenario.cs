@@ -32,8 +32,6 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
     public object SettingsOverrides => settingsWindow.Overrides;
     private readonly UcobP5ExaflaresSettingsWindow settingsWindow = new();
 
-    private const float DespawnAfterLastHit = 4f;
-
     private UcobP5ExaflaresState state = null!;
 
     // Polled by the multiplayer host; null until Run has rolled the pattern.
@@ -56,7 +54,6 @@ public sealed class UcobP5ExaflaresScenario : IMultiplayerReplayable
         world.Events.Add(UcobP5ExaflaresState.BossCastAt,
             () => bahamut?.Cast(Actions.Exaflare));
         foreach (var line in state.Lines) LaunchLine(line);
-        world.Events.Add(state.LastHitAt + DespawnAfterLastHit, () => bahamut?.Despawn());
         
         if (!solo)
         {

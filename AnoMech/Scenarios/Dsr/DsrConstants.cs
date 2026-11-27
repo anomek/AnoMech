@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using AnoMech.Core.Game;
+using AnoMech.Core.SimObjects;
 
 namespace AnoMech.Scenarios.Dsr;
 
@@ -43,6 +44,31 @@ public static class DsrConstants
     {
         // The boss and its clones are both named Nidhogg.
         public const uint Nidhogg = 3458;
+        public const uint WanderingMinstrel = 4494;
+    }
+
+    public static class LayoutId
+    {
+        public const uint NidhoggP3 = 0x87DFFD;
+        public const uint NidhoggClone = 0x87DFFF;
+    }
+
+    public static class Appearance
+    {
+        public static readonly NpcAppearance Nidhogg = new(MainHand: 0x100011F49);
+    }
+
+    public static class VoiceLineId
+    {
+        public const uint NidhoggArrives = 8201236;
+        public const uint DiveFromGrace = 8201234;
+    }
+
+    public static class BattleTalkId
+    {
+        public const uint MinstrelBeforeNidhogg = 32624;
+        public const uint NidhoggArrives = 32607;
+        public const uint NidhoggTaunt = 32608;
     }
 
     public static class ActionId
@@ -79,6 +105,8 @@ public static class DsrConstants
         public const ushort ElusiveJumpTarget = 2757;
         public const ushort FireResistanceDownII = 2902;
         public const ushort PhysicalVulnerabilityUp = 2940;
+        public const ushort HeartOfMan = 2746;
+        public const ushort SoulTetherVuln = SimOnlyStatus.First + 0;
     }
 
     public static class LockonId
@@ -91,6 +119,13 @@ public static class DsrConstants
     public static class TetherId
     {
         public const ushort SoulTether = 84;
+    }
+
+    public static class KnockbackId
+    {
+        // UNVERIFIED: a stand-in row with the right feel (a very fast push far past the arena's edge).
+        // Retail's row has never been captured.
+        public const uint DiveFromGraceJump = 6;
     }
 }
 

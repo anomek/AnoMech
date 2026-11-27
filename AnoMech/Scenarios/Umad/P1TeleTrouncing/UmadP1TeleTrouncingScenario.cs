@@ -361,7 +361,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
         // [52.68s] Boss goes untargetable; the P2 actors spawn 2.2s later in the real fight.
         world.Events.Add(52.68f, EndP1);
-        world.Events.Add(55.00f, DespawnGazeProps);
 
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<UmadP1TeleTrouncingState>)AiStrats[idx]).Run(state, world);
@@ -948,22 +947,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         }
         world.Obstacles.Clear();
         DiagnosticLog.Info("[UmadP1TeleTrouncing] P1 complete -- boss untargetable, mechanic finished.");
-    }
-
-    private void DespawnGazeProps()
-    {
-        gazeStatueNormal?.Despawn();
-        gazeStatueNormal = null;
-        gazeStatueInverted?.Despawn();
-        gazeStatueInverted = null;
-        gazeAnimStatueNormal?.Despawn();
-        gazeAnimStatueNormal = null;
-        gazeAnimStatueInverted?.Despawn();
-        gazeAnimStatueInverted = null;
-        foreach (var prop in earlierStatues) prop.Despawn();
-        earlierStatues.Clear();
-        foreach (var statue in tetherStatues.Values) statue.Despawn();
-        tetherStatues.Clear();
     }
 
     private static ushort PrimaryStatusId(TelePortentDirection direction) => direction switch

@@ -28,14 +28,16 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private const float JumpRadius = 7.5f;
     private const float SecondJumpRadius = 11f;
     private const float TowerReach = 4f;
-    private const float DiveBaitBeyondTower = 4.5f;
+    private const float DiveBaitBeyondTower = 1f;
     private const float SecondTowerSoakBeyond = 3f;
     private const float CounterBaitRadius = 16f;
+    private const float CounterBaitBeyondTower = 1f;
     private const float TankSpotRadius = 3f;
     private const float IdleRadius = 4f;
     private const float CleaveDodgeRadius = 6f;
     private const float InterceptDistance = 1.5f;
-    private const float WestIdleRadius = 7f;
+    private const float AfterDivesRadius = 7f;
+    private const float SideIdleRadius = 8f;
     private const float FirstSignalRadius = 6f;
     private const float SecondSignalRadius = 8f;
     private const float ThirdSignalRadius = 11f;
@@ -56,6 +58,8 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     private static readonly float West = 3f * MathF.PI / 2f;
     private static readonly float NorthWest = 7f * MathF.PI / 4f;
     private static readonly float NorthEast = MathF.PI / 4f;
+    private static readonly float SouthEast = 3f * MathF.PI / 4f;
+    private static readonly float SouthWest = 5f * MathF.PI / 4f;
 
     private static readonly Dictionary<PartyRole, int> HomeCounterTower = new()
     {
@@ -99,40 +103,41 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         ai.Move(24.6f, () => ByRole(role => Order(role) == 1 ? JumpSpot(role) : Stack()), arrivalTime: 32.8f);
         world.Events.Add(32.9f, () => FaceArrowJumpers(1));
         ai.Move(33.6f, () => ByRole(role => FirstRoundWheel(role, 0)), arrivalTime: 36.7f);
-        ai.Move(37.1f, () => ByRole(role => FirstRoundWheel(role, 1)), arrivalTime: 39.7f);
+        ai.Move(37.1f, () => ByRole(role => Order(role) == 3 ? FirstRoundWheel(role, 1) : null), arrivalTime: 39.5f);
+        ai.Move(37.1f, () => ByRole(role => Order(role) == 3 ? null : FirstRoundWheel(role, 1)), arrivalTime: 39.7f);
         world.Events.Add(40.0f, DodgeGeirskogulLines);
         world.Events.Add(42.53f, () => StartGeirskogulLines(DiveTowers(1)));
         world.Events.Add(52.54f, () => StartGeirskogulLines(DiveTowers(2)));
         world.Events.Add(63.54f, () => StartGeirskogulLines(DiveTowers(3)));
         world.Events.Add(82.72f, () => StartGeirskogulLines(UntetheredCounterTowers()));
-        ai.Move(40.1f, () => ByRole(FirstRoundBaitsAndSecondJumpers), arrivalTime: 42.3f);
-        ai.Move(42.7f, () => ByRole(role => Order(role) == 3 ? InsideOwnSide(role) : null));
+        ai.Move(40.1f, () => ByRole(role => Order(role) == 3 ? FirstRoundBait(role) : null), arrivalTime: 41.63f);
+        ai.Move(40.1f, () => ByRole(role => Order(role) switch { 2 => JumpSpot(role), 1 => Stack(), _ => null }), arrivalTime: 42.8f);
+        ai.Move(41.8f, () => ByRole(role => Order(role) == 3 ? InsideOwnSide(role) : null));
         world.Events.Add(42.9f, () => FaceArrowJumpers(2));
         ai.Move(43.5f, () => ByRole(SecondRoundSoaks), arrivalTime: 49.6f);
-        ai.Move(44.0f, () => ByRole(role => Order(role) == 3 ? Stack() : null));
-        ai.Move(47.1f, () => ByRole(role => Order(role) == 3 ? JumpSpot(role) : null));
+        ai.Move(47.1f, () => ByRole(role => Order(role) == 3 ? JumpSpot(role) : null), arrivalTime: 53.7f);
         ai.Move(52.7f, () => ByRole(role => IsSideFirst(role) ? Stack() : null), arrivalTime: 54.8f);
         world.Events.Add(53.9f, () => FaceArrowJumpers(3));
         ai.Move(55.1f, () => ByRole(role => ThirdRoundWheel(role, 2)), arrivalTime: 58.2f);
-        ai.Move(58.6f, () => ByRole(role => ThirdRoundWheel(role, 3)), arrivalTime: 61.3f);
-        ai.Move(61.6f, () => ByRole(ThirdRoundBaits), arrivalTime: 63.3f);
-        ai.Move(63.7f, () => ByRole(role => role == PartyRole.MainTank ? TankSpot() : At(NorthWest, WestIdleRadius)), arrivalTime: 65.5f);
+        ai.Move(58.6f, () => ByRole(role => ThirdRoundTower(role) is null ? null : ThirdRoundWheel(role, 3)), arrivalTime: 60.5f);
+        ai.Move(58.6f, () => ByRole(role => ThirdRoundTower(role) is null ? ThirdRoundWheel(role, 3) : null), arrivalTime: 61.3f);
+        ai.Move(61.6f, () => ByRole(ThirdRoundBaits), arrivalTime: 62.64f);
+        ai.Move(62.8f, () => ByRole(LeaveLastTower));
+        ai.Move(63.7f, () => ByRole(role => role == PartyRole.MainTank && ThirdRoundTower(role) is null ? At(NorthEast, TankSpotRadius) : null), arrivalTime: 65.7f);
+        ai.Move(63.7f, () => ByRole(role => role != PartyRole.MainTank && ThirdRoundTower(role) is null ? Stack() : null), arrivalTime: 67.5f);
 
-        ai.Move(68.2f, () => ByRole(role => role == PartyRole.MainTank ? null : AcrossFromMainTank()));
-        ai.Move(70.6f, () => ByRole(role => role == PartyRole.MainTank ? null : BehindNidhogg()), sprint: true);
-        ai.Move(70.7f, () => ByRole(role => role == PartyRole.MainTank ? BehindNidhogg() : null), sprint: true);
-        ai.Move(73.8f, () => ByRole(HomeCounterTowerSpot), arrivalTime: 76.5f);
+        ai.Move(70.1f, () => ByRole(role => role == PartyRole.MainTank ? null : BehindNidhogg()), arrivalTime: 73.0f);
+        ai.Move(70.2f, () => ByRole(role => role == PartyRole.MainTank ? BehindNidhogg() : null), arrivalTime: 73.0f);
+        ai.Move(73.8f, () => ByRole(HomeCounterTowerSpot));
         ai.Move(75.6f, () => ByRole(CounterTowerSoak), arrivalTime: 79.8f);
-        ai.Move(80.2f, () => ByRole(TakeTetherOrBaitOrWait), arrivalTime: 82.5f);
+        ai.Move(80.2f, () => ByRole(CounterBait), arrivalTime: 81.72f);
+        ai.Move(80.2f, () => ByRole(TakeTetherOrWait));
         ai.Move(81.4f, () => ByRole(TanksTakeTethers));
+        ai.Move(81.8f, () => ByRole(LeaveCounterBait));
         ai.Move(82.6f, () => ByRole(TanksTakeTethers));
         ai.Move(83.8f, () => ByRole(TanksTakeTethers));
         ai.Move(85.0f, () => ByRole(TanksTakeTethers));
-        ai.Move(87.4f, () => ByRole(Idle));
-
-        ai.Move(106.8f, () => ByRole(role => role == PartyRole.MainTank ? null : At(North, CleaveDodgeRadius)));
-        ai.Move(108.2f, () => ByRole(role => role == PartyRole.MainTank ? null : BehindSouthFacingNidhogg()), sprint: true);
-        ai.Move(108.3f, () => ByRole(role => role == PartyRole.MainTank ? BehindSouthFacingNidhogg() : null), sprint: true);
+        ai.Move(87.4f, () => ByRole(AfterTowers));
     }
 
     private int Order(PartyRole role) => state.Order[role];
@@ -152,22 +157,26 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         return boss.Position - facing * CleaveDodgeRadius;
     }
 
-    private Vector3 BehindSouthFacingNidhogg()
+    private Vector3? AfterTowers(PartyRole role) => role switch
     {
-        var boss = Nidhogg()?.Position ?? Vector3.Zero;
-        var facing = Compass.Point(Compass.S, 1f) - boss;
-        facing.Y = 0f;
-        return facing.LengthSquared() < 0.01f ? At(North, CleaveDodgeRadius) : boss - Vector3.Normalize(facing) * CleaveDodgeRadius;
+        PartyRole.MainTank => TankSpot(),
+        PartyRole.OffTank => At(South, IdleRadius),
+        _ => OwnCounterTowerSide(role),
+    };
+
+    // Straight out of the line once the clones have aimed: the MT to whichever tank spot is nearer,
+    // the others to SW or SE.
+    private Vector3? LeaveLastTower(PartyRole role)
+    {
+        if (ThirdRoundTower(role) is not { } tower) return null;
+        var west = tower.X < -1f;
+        return role == PartyRole.MainTank
+            ? At(west ? NorthWest : NorthEast, TankSpotRadius)
+            : At(west ? SouthWest : SouthEast, AfterDivesRadius);
     }
 
-    private Vector3 AcrossFromMainTank()
-    {
-        var boss = Nidhogg()?.Position ?? Vector3.Zero;
-        if (world.Party.Get(PartyRole.MainTank) is not { } tank || !tank.IsAlive()) return BehindNidhogg();
-        var toTank = tank.Position - boss;
-        toTank.Y = 0f;
-        return toTank.LengthSquared() < 0.01f ? BehindNidhogg() : boss - Vector3.Normalize(toTank) * CleaveDodgeRadius;
-    }
+    private Vector3 OwnCounterTowerSide(PartyRole role)
+        => At(counterTower.GetValueOrDefault(role, HomeCounterTower[role]) <= 1 ? East : West, SideIdleRadius);
 
     private static Vector3 Stack() => At(North, StackRadius);
 
@@ -281,26 +290,25 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         _ => null,
     };
 
-    private static Vector3 SoakForWheel(Vector3 tower, bool outside)
+    // Coming from the north stack, an out goes no further round than the southern intercardinals: the
+    // south tower is soaked on the next wheel.
+    private static Vector3 SoakForWheel(Vector3 tower, bool outside, bool fromNorthStack)
     {
         var towerRadius = new Vector2(tower.X, tower.Z).Length();
         var radius = Math.Clamp(outside ? OutRadius : InRadius, towerRadius - TowerReach, towerRadius + TowerReach);
         var safe = outside ? radius > WheelEdge + WheelMargin : radius < WheelEdge - WheelMargin;
-        return safe ? At(Compass.BearingOf(tower), radius) : tower;
+        var bearing = outside && fromNorthStack ? Math.Clamp(Compass.BearingOf(tower), -3f * MathF.PI / 4f, 3f * MathF.PI / 4f) : Compass.BearingOf(tower);
+        return safe ? At(bearing, radius) : tower;
     }
 
     private static Vector3 Beyond(Vector3 tower, float distance)
         => At(Compass.BearingOf(tower), new Vector2(tower.X, tower.Z).Length() + distance);
 
     private Vector3? FirstRoundWheel(PartyRole role, int wheel)
-        => Order(role) == 3 && FirstRoundTower(role) is { } tower ? SoakForWheel(tower, OutAt(wheel)) : StackForWheel(wheel);
+        => Order(role) == 3 && FirstRoundTower(role) is { } tower ? SoakForWheel(tower, OutAt(wheel), wheel == 0) : StackForWheel(wheel);
 
-    private Vector3? FirstRoundBaitsAndSecondJumpers(PartyRole role) => Order(role) switch
-    {
-        3 => FirstRoundTower(role) is { } tower ? Beyond(tower, DiveBaitBeyondTower) : Stack(),
-        2 => JumpSpot(role),
-        _ => Stack(),
-    };
+    private Vector3? FirstRoundBait(PartyRole role)
+        => FirstRoundTower(role) is { } tower ? Beyond(tower, DiveBaitBeyondTower) : Stack();
 
     private Vector3? SecondRoundSoaks(PartyRole role)
     {
@@ -309,7 +317,7 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
     }
 
     private Vector3? ThirdRoundWheel(PartyRole role, int wheel)
-        => ThirdRoundTower(role) is { } tower ? SoakForWheel(tower, OutAt(wheel)) : StackForWheel(wheel);
+        => ThirdRoundTower(role) is { } tower ? SoakForWheel(tower, OutAt(wheel), wheel == 2) : StackForWheel(wheel);
 
     private Vector3? ThirdRoundBaits(PartyRole role)
         => ThirdRoundTower(role) is { } tower ? Beyond(tower, DiveBaitBeyondTower) : Stack();
@@ -358,11 +366,29 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
 
     private static int FlexPreference(int clockwiseSteps) => clockwiseSteps switch { 1 => 0, 3 => 1, _ => 2 };
 
-    private Vector3? TakeTetherOrBaitOrWait(PartyRole role)
+    private Vector3? CounterBait(PartyRole role)
+    {
+        if (IsTank(role)) return null;
+        if (counterBait.Count == 0) AssignCounterBaits();
+        if (!counterBait.TryGetValue(role, out var bait)) return null;
+        sentTo[role] = bait;
+        return bait;
+    }
+
+    private Vector3? LeaveCounterBait(PartyRole role)
+    {
+        if (!counterBait.ContainsKey(role)) return null;
+        var spot = OwnCounterTowerSide(role);
+        sentTo[role] = spot;
+        return spot;
+    }
+
+    private Vector3? TakeTetherOrWait(PartyRole role)
     {
         if (IsTank(role)) return TakeTether(role);
         if (counterBait.Count == 0) AssignCounterBaits();
-        var spot = counterBait.TryGetValue(role, out var bait) ? bait : At(South, CleaveDodgeRadius);
+        if (counterBait.ContainsKey(role)) return null;
+        var spot = OwnCounterTowerSide(role);
         sentTo[role] = spot;
         return spot;
     }
@@ -372,14 +398,18 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         if (counterTower.Count == 0) AssignCounterTowers();
         var tethered = state.TetherTower;
         var spots = Enumerable.Range(0, 4).Where(t => t != tethered)
-            .Select(t => At(Compass.BearingOf(DsrP3NidhoggState.CounterTower(t)), CounterBaitRadius)).ToList();
+            .Select(t => At(Compass.BearingOf(DsrP3NidhoggState.CounterTower(t)), DsrP3NidhoggState.CounterTowerRadius + CounterBaitBeyondTower)).ToList();
         var candidates = Enum.GetValues<PartyRole>().Where(r => !IsTank(r) && world.Party.Get(r) is { } m && m.IsAlive()).ToList();
-        var pairs = spots.SelectMany(spot => candidates.Select(role => (spot, role, distance: Vector3.Distance(world.Party.Get(role)!.Position, spot))))
+        var pairs = spots.SelectMany(spot => candidates.Select(role => (spot, role, distance: Vector3.Distance(SoakingAt(role), spot))))
             .OrderBy(p => p.distance).ThenBy(p => p.role);
         foreach (var (spot, role, _) in pairs)
             if (!counterBait.ContainsKey(role) && !counterBait.ContainsValue(spot))
                 counterBait[role] = spot;
     }
+
+    // A bot's own tower rather than where its jitter left it, so every client picks the same baiters.
+    private Vector3 SoakingAt(PartyRole role)
+        => IsHumanDriven(role) ? world.Party.Get(role)!.Position : DsrP3NidhoggState.CounterTower(counterTower[role]);
 
     private Vector3? TanksTakeTethers(PartyRole role) => IsTank(role) ? TakeTether(role) : null;
 
@@ -409,7 +439,7 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
         var now = world.Events.Elapsed;
         foreach (var tower in towers)
             if (Clones().MinBy(c => Vector3.DistanceSquared(c.Position, tower)) is { } clone)
-                geirskogulLines.TryAdd(clone, now);
+                geirskogulLines[clone] = now;
     }
 
     private void DodgeGeirskogulLines()
@@ -448,7 +478,7 @@ public sealed class DsrP3NidhoggAi(DsrP3NidhoggAi.ArrowFacing arrowFacing) : ISc
 
     private void ResumeIfHeld(PartyRole role, SimCharacter bot, Vector3 destination)
     {
-        if (heldOutOfLines.Remove(role)) bot.MoveTo(destination, AiManager.SprintSpeed);
+        if (heldOutOfLines.Remove(role)) bot.MoveTo(destination, AiManager.RunSpeed);
     }
 
     private static (Vector3 Origin, Vector3 Direction)? InLine(List<(Vector3 Origin, Vector3 Direction)> lines, Vector3 point, float margin)
