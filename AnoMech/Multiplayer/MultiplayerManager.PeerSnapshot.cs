@@ -250,7 +250,7 @@ public sealed partial class MultiplayerManager
     // The players' seats as the host has them; a bot's seat moves with its packets instead.
     private void OnRolesSnapshotReceived(RolesSnapshotMessage snap)
     {
-        if (!PeerInRun) return;
+        if (!PeerInStay) return;
         foreach (var r in NetGuard.Cap(snap.Roles, Enum.GetValues<PartyRole>().Length))
             if (r.Role != MyClaimedRole && Plugin.Game.World.Party.Get(r.Role) is SimNetworkPuppet puppet
                 && NetGuard.TryPosition(r.X, r.Y, r.Z, out var position))
