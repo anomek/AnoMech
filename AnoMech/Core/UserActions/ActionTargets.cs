@@ -49,7 +49,7 @@ internal static class ActionTargets
         => (action = Natives.Data.Action(actionId)) != null;
 
     // An AoE reaches a target whose hitbox edge is inside it, not just its centre.
-    private static bool InRange(SimCharacter caster, SimCharacter target, float range)
+    public static bool InRange(SimCharacter caster, SimCharacter target, float range)
     {
         var dx = target.Position.X - caster.Position.X;
         var dz = target.Position.Z - caster.Position.Z;

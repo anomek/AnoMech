@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using AnoMech.Core.Native.Implementations;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
@@ -85,13 +87,47 @@ internal sealed class DispelEffect : IActionEffect
 internal sealed class TargetStatusEffect(ushort statusId, float duration, int stacks = 0) : IActionEffect
 {
     public void Apply(ActionContext ctx)
+        => StatusRipple.Grant(ctx.Caster, ActionTargets.Friendly(ctx), statusId, duration, stacks);
+}
+
+// Leaf: grant a status to the other party members within `radius` of the caster, for a self-cast
+// action whose sheet row doesn't carry the radius it covers (Temperance).
+internal sealed class PartyStatusEffect(ushort statusId, float duration, float radius) : IActionEffect
+{
+    public void Apply(ActionContext ctx)
     {
-        foreach (var member in ActionTargets.Friendly(ctx))
+        if (Plugin.Game is not { } game) return;
+        var members = game.World.Party.ActiveMembers()
+            .Where(m => !ReferenceEquals(m, ctx.Caster) && ActionTargets.InRange(ctx.Caster, m, radius));
+        StatusRipple.Grant(ctx.Caster, members, statusId, duration, 0);
+    }
+}
+
+// A party-wide grant lands nearest first, one member at a time, as retail's pop-ups ripple out
+// from the caster instead of all appearing on one frame.
+internal static class StatusRipple
+{
+    // UNVERIFIED: the gap between two members' pop-ups.
+    private const float StepSeconds = 0.1f;
+
+    public static void Grant(SimCharacter caster, IEnumerable<SimCharacter> members, ushort statusId, float duration, int stacks)
+    {
+        var ordered = members.OrderBy(m => Vector2.DistanceSquared(Flat(m), Flat(caster))).ToList();
+        for (var i = 0; i < ordered.Count; i++)
         {
-            member.RemoveStatus(statusId);
-            member.AddStatusParam(statusId, stacks, duration);
+            var member = ordered[i];
+            if (i == 0 || Plugin.Game is not { } game) Land(member, statusId, duration, stacks);
+            else game.Events.Add(i * StepSeconds, () => { if (member.IsActive) Land(member, statusId, duration, stacks); });
         }
     }
+
+    private static void Land(SimCharacter member, ushort statusId, float duration, int stacks)
+    {
+        member.RemoveStatus(statusId);
+        member.AddStatusParam(statusId, stacks, duration);
+    }
+
+    private static Vector2 Flat(SimCharacter c) => new(c.Position.X, c.Position.Z);
 }
 
 // Leaf: debuff the enemies the action hits (Reprisal).

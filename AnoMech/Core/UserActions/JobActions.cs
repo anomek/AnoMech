@@ -499,7 +499,10 @@ internal static unsafe class JobActions
         [16531] = [Gauge(WhmBloodLily, 1)],   // Afflatus Solace
         [16534] = [Gauge(WhmBloodLily, 1)],   // Afflatus Rapture
         [136]   = [Status(157, 15f), Status(3879, 30f, 3)],   // Presence of Mind → self-haste + Sacred Sight (3 stk)
-        [16536] = [Status(3881, 30f)],   // Temperance → Divine Grace (enables Divine Caress)
+        [16536] = [Status(1872, 20f), PartyStatus(1873, 20f, 50f), Status(3881, 30f)],   // Temperance (party within 50y) + Divine Grace
+        [37011] = [TargetStatus(3903, 10f)],   // Divine Caress
+        [7433]  = [TargetStatus(1219, 10f)],   // Plenary Indulgence → Confession
+        [25861] = [TargetStatus(2708, 8f)],    // Aquaveil
         [120]   = [Random(0.15f, Status(155, 15f))],   // Cure → Freecure (15%)
 
         // DNC — Feathers only (50% procs); Esprit is buff-gated, not modelled
@@ -627,6 +630,8 @@ internal static unsafe class JobActions
         [37034] = [Gauge(SgeEukrasia, -1)],               // Eukrasian Prognosis II
         [37035] = [Status(3898, 20f), Status(3899, 20f)], // Philosophia + Eudaimonia
         [24309] = [Gauge(SgeAddersgall, 1)],              // Rhizomata → +1 Addersgall (passive fill in TimedGauges)
+        [24298] = [TargetStatus(2618, 15f), TargetStatus(2938, 15f)],   // Kerachole + Kerakeia
+        [24310] = [TargetStatus(3003, 20f), TargetStatus(3365, 30f)],   // Holos + Holosakos
     };
 
     // What one landed auto-attack swing does, per job.
@@ -841,6 +846,7 @@ internal static unsafe class JobActions
     private static IActionEffect SetGauge(ResourceGauge gauge, int value) => new SetGaugeEffect(gauge, value);
     private static IActionEffect Status(ushort statusId, float duration, int stacks = 0) => new StatusEffect(statusId, duration, stacks);
     private static IActionEffect TargetStatus(ushort statusId, float duration, int stacks = 0) => new TargetStatusEffect(statusId, duration, stacks);
+    private static IActionEffect PartyStatus(ushort statusId, float duration, float radius) => new PartyStatusEffect(statusId, duration, radius);
     private static IActionEffect EnemyStatus(ushort statusId, float duration, int stacks = 0) => new EnemyStatusEffect(statusId, duration, stacks);
     private static IActionEffect Dispel() => new DispelEffect();
     private static IActionEffect Combo(params IActionEffect[] inner) => new ComboEffect(inner);

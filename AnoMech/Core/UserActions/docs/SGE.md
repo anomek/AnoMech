@@ -20,7 +20,7 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Icarus | 24295 | ➖ | |
 | Druochole | 24296 | ✅ | −1 Addersgall. |
 | Dyskrasia | 24297 | ➖ | |
-| Kerachole | 24298 | ✅ | −1 Addersgall. |
+| Kerachole | 24298 | ✅ | −1 Addersgall; Kerachole (2618, 15s, 10% mitigation) + Kerakeia (2938, 15s) on the party in range. |
 | Ixochole | 24299 | ✅ | −1 Addersgall. |
 | Zoe | 24300 | ➖ | |
 | Pepsis | 24301 | ➖ | |
@@ -32,7 +32,7 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Phlegma II | 24307 | ➖ | |
 | Eukrasian Dosis II | 24308 | ✅ | Consumes Eukrasia (in clear list); at cap resolves to 24314. |
 | Rhizomata | 24309 | ✅ | +1 Addersgall. |
-| Holos | 24310 | ➖ | |
+| Holos | 24310 | ✅ | Holos (3003, 20s, 10% mitigation) + Holosakos barrier (3365, 30s) on the party in range. |
 | Panhaima | 24311 | ➖ | |
 | Dosis III | 24312 | ➖ | |
 | Phlegma III | 24313 | ➖ | |
