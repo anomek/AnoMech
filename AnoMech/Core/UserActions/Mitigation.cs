@@ -69,6 +69,18 @@ public readonly record struct Mitigation(
         [2684] = new(Damage: 0.15f),   // Clarity of Corundum
         [1839] = new(Magic: 0.10f, Physical: 0.05f),   // Heart of Light
         [1931] = new(Damage: 0.80f),   // Gunmetal Soul
+
+        // WHM
+        [1872] = new(Damage: 0.10f),   // Temperance (the caster's)
+        [1873] = new(Damage: 0.10f),   // Temperance (the party's)
+        [1219] = new(Damage: 0.10f),   // Confession (Plenary Indulgence)
+        [2708] = new(Damage: 0.15f),   // Aquaveil
+        [3903] = new(ShieldPotency: 400f),   // Divine Caress
+
+        // SGE
+        [2618] = new(Damage: 0.10f),   // Kerachole
+        [3003] = new(Damage: 0.10f),   // Holos
+        [3365] = new(ShieldPotency: 300f),   // Holosakos
     };
 
     // The single damage reduction that would let a full-HP target survive the same hit, 0..1:

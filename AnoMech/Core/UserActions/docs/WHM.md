@@ -28,19 +28,19 @@ _✅ works · ⚠️ partial · ❌ not simulated · ➖ nothing to simulate (pu
 | Tetragrammaton | 3570 | ➖ | |
 | Stone IV | 7431 | ➖ | |
 | Divine Benison | 7432 | ➖ | |
-| Plenary Indulgence | 7433 | ➖ | Party status, no self-gate. |
+| Plenary Indulgence | 7433 | ✅ | Confession (1219, 10s) on the party in range; 10% mitigation. |
 | Dia | 16532 | ➖ | |
 | Glare | 16533 | ➖ | |
 | Afflatus Misery | 16535 | ✅ | −3 Blood Lily (cost 56); full-bloom gate reads the gauge. |
 | Afflatus Rapture | 16534 | ✅ | −1 Lily (cost 57), +1 Blood Lily. |
-| Temperance | 16536 | ✅ | Grants Divine Grace (3881, 30s). |
+| Temperance | 16536 | ✅ | Temperance on self (1872) and the party within 50y (1873), 20s, 10% mitigation; grants Divine Grace (3881, 30s). |
 | Glare III | 25859 | ➖ | |
 | Holy III | 25860 | ➖ | Stun is on the enemy. |
-| Aquaveil | 25861 | ➖ | |
+| Aquaveil | 25861 | ✅ | Aquaveil (2708, 8s) on the target; 15% mitigation. |
 | Liturgy of the Bell | 25862 | ➖ | |
 | Glare IV | 37009 | ✅ | Consumes 1 Sacred Sight (3879) per cast. |
 | Medica III | 37010 | ➖ | |
-| Divine Caress | 37011 | ✅ | Consumes Divine Grace (3881). |
+| Divine Caress | 37011 | ⚠️ | Consumes Divine Grace (3881); barrier (3903, 10s) on the party in range. Divine Aura on expiry not granted. |
 
 ## Traits
 | Trait | Status | Note |
