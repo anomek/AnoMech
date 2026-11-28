@@ -83,6 +83,8 @@ public sealed class ScenarioSession
     // Raised once, when the timeline ran dry and stayed so with the run not failed. clean: no
     // mistake marked either.
     public event Action<bool>? Finished;
+    // Raised once, when a failed run is over: frozen after a death, or its timeline ran dry.
+    public event Action? FailureSettled;
     public event Action<string>? MechanicFailed;
 
     private ScenarioSession(SimWorld world, InstanceSession instance, RunScenarioParams run, IReadOnlyList<PartySlot?> roster)
@@ -204,7 +206,7 @@ public sealed class ScenarioSession
         resultReported = true;
         if (HasFailed)
         {
-            PrintFailureSummary();
+            SettleFailure();
             return;
         }
         var clean = lastMistakeElapsed is null;
@@ -242,10 +244,11 @@ public sealed class ScenarioSession
         PlayMark(MechanicFailureActionId);
     }
 
-    private void PrintFailureSummary()
+    private void SettleFailure()
     {
         var lines = string.Join("; ", issues.Select(i => $"{i.Description} ({i.Time:F1}s)"));
         Plugin.ChatGui.Print(new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[AnoMech] Run failed: {lines}" });
+        FailureSettled?.Invoke();
     }
 
     private void PlayMark(uint actionId)
@@ -271,7 +274,7 @@ public sealed class ScenarioSession
         world.Events.Add(FreezeDelaySeconds, () =>
         {
             Paused = true;
-            PrintFailureSummary();
+            SettleFailure();
         });
     }
 

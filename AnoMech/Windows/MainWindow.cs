@@ -908,7 +908,9 @@ public unsafe class MainWindow : Window, IDisposable
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(mpActive
                 ? MpDisabledReason
-                : "Restart the same scenario immediately after a successful run. A failed run turns this back off.");
+                : practice.AutoDisableAutoRestart
+                    ? "Restart the same scenario immediately after a successful run. A failed run turns this back off."
+                    : "Restart the same scenario after every run, failed or not (Settings: Disable auto-restart on failure is off).");
         ImGui.SameLine();
         ImGui.TextDisabled($"Streak: {practice.Streak}");
     }

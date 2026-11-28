@@ -49,6 +49,16 @@ public class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        var autoDisable = configuration.AutoDisableAutoRestart;
+        if (ImGui.Checkbox("Disable auto-restart on failure", ref autoDisable))
+        {
+            configuration.AutoDisableAutoRestart = autoDisable;
+            configuration.Save();
+            Plugin.Practice.AutoDisableAutoRestart = autoDisable;
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("On: a failed run turns auto-restart off.\nOff: auto-restart stays on and restarts after a failed run too.");
+
         var resultMarks = configuration.EnableMechanicResultMarks;
         if (ImGui.Checkbox("Show mechanic success/failure marks", ref resultMarks))
         {

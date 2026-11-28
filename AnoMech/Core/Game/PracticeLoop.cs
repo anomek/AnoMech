@@ -11,6 +11,8 @@ public sealed class PracticeLoop
     private IScenario? lastScenario;
 
     public bool AutoRestart { get; set; }
+    // Off: a failed run restarts like a clean one instead of turning AutoRestart off.
+    public bool AutoDisableAutoRestart { get; set; } = true;
     public int Streak { get; private set; }
 
     public PracticeLoop(Game game)
@@ -18,6 +20,7 @@ public sealed class PracticeLoop
         this.game = game;
         game.RunStarted += OnRunStarted;
         game.RunFinished += OnRunFinished;
+        game.RunFailed += RestartIfStillOn;
         game.PartyMemberKilled += OnPartyMemberKilled;
         game.MechanicFailed += _ => EndStreak();
     }
@@ -35,6 +38,11 @@ public sealed class PracticeLoop
     private void OnRunFinished(bool clean)
     {
         if (clean) Streak++;
+        RestartIfStillOn();
+    }
+
+    private void RestartIfStillOn()
+    {
         if (AutoRestart && lastRun is { } p)
             game.StartScenario(p);
     }
@@ -44,6 +52,6 @@ public sealed class PracticeLoop
     private void EndStreak()
     {
         Streak = 0;
-        AutoRestart = false;
+        if (AutoDisableAutoRestart) AutoRestart = false;
     }
 }
