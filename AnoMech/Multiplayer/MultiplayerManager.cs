@@ -44,7 +44,7 @@ public sealed partial class MultiplayerManager : IDisposable
     private PeerNatives? peerNatives;
     private PacketReplay? replay;
 
-    // Host: this run's params, pinned at the enter (its seed seated the party), the peers yet to
+    // Host: this run's params, pinned at the enter, the peers yet to
     // enter, and how long its stage has stood.
     private RunScenarioParams? hostRunParams;
     private int? hostSeed;

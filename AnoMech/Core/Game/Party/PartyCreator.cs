@@ -11,21 +11,13 @@ namespace AnoMech.Core.Game.Party;
 internal static class PartyCreator
 {
     private const float RingRadius = 2.5f;
-    private const float RadiusJitter = 0.6f;
-    private const float AngleJitter = 0.4f;
 
-    // The seat's spot on the ring around the scenario origin, facing the centre. Only a bot's is
-    // jittered, so `ring` is drawn from for bots alone, in seat order: a seed reproduces the ring.
-    public static Placement RingPlacement(PartyRole role, PartySlot? slot, Rng ring)
+    // The seat's spot on the ring around the scenario origin, facing the centre. No Rng: the party
+    // is seated before a run's seed exists.
+    public static Placement RingPlacement(PartyRole role)
     {
         var angle = (int)role / 8f * MathF.Tau;
-        var distance = RingRadius;
-        if (slot is BotSlot)
-        {
-            angle += ((float)ring.NextDouble() - 0.5f) * AngleJitter;
-            distance += ((float)ring.NextDouble() - 0.5f) * RadiusJitter;
-        }
-        var local = new Vector3(MathF.Sin(angle) * distance, 0f, MathF.Cos(angle) * distance);
+        var local = new Vector3(MathF.Sin(angle) * RingRadius, 0f, MathF.Cos(angle) * RingRadius);
         return new Placement(local, MathF.Atan2(-local.X, -local.Z));
     }
 

@@ -79,12 +79,11 @@ public sealed class SimParty : ISimObject
     internal void Apply(IReadOnlyList<PartySlot?> roster, SimWorld world)
     {
         this.world = world;
-        var ring = world.Stream("party-spawn");
         for (int i = 0; i < slots.Length; i++)
         {
             var role = (PartyRole)i;
             var slot = roster[i];
-            var placement = PartyCreator.RingPlacement(role, slot, ring);
+            var placement = PartyCreator.RingPlacement(role);
             if (Equals(slot, seated[i]) && slots[i] is { IsActive: true } kept)
             {
                 if (slot is BotSlot) kept.SetPosition(placement);

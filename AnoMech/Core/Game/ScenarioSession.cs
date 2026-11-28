@@ -146,7 +146,6 @@ public sealed class ScenarioSession
         var phase = Scenario.Phase;
         var zone = phase.Zone;
         world.PlaceWaymarks(ResolveWaymarks(zone, run.SelectedWaymark));
-        // Before ApplyParty: the spawn ring draws from the run's party-spawn stream.
         var seed = run.Seed ?? Random.Shared.Next();
         world.Reseed(seed);
         world.Failed += OnMechanicFailed;

@@ -73,7 +73,6 @@ public sealed class Game : IDisposable
             StartScenario(p, resolved);
             return;
         }
-        p = p with { Seed = p.Seed ?? Random.Shared.Next() };
         ZoneIn(zone, mode, refusal =>
         {
             if (refusal != null)
@@ -87,9 +86,7 @@ public sealed class Game : IDisposable
     }
 
     // The stage a run starts on, set before it: the phase applied and the party seated, so the
-    // doppels are standing by the time the run talks to them. p.Seed must be set, and passed to
-    // the StartScenario that follows: the run reseeds to the stream the party was seated from, and
-    // its bots keep their ring spots.
+    // doppels are standing by the time the run talks to them.
     public void PrepareRun(RunScenarioParams p, Action<string?>? resolved = null)
         => Deferred(() =>
         {
@@ -104,7 +101,6 @@ public sealed class Game : IDisposable
         instance?.ApplyPhase(p.Scenario.Phase);
         var player = Natives.BattleCharas.LocalPlayer;
         if (!player.Exists) return;
-        World.Reseed(p.Seed!.Value);
         World.SeatParty(p.Party.Roster(player.ClassJob));
     }
 
