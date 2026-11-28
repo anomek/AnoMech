@@ -29,6 +29,7 @@ public sealed class Game : IDisposable
     // bool: a local run, not a multiplayer one.
     public event Action<RunScenarioParams, bool>? RunStarted;
     public event Action<bool>? RunFinished;
+    public event Action? RunFailed;
     public event Action<string>? MechanicFailed;
     // statusId names the status that killed, for a death no action dealt (DieOfStatus).
     public event Action<PartyRole, string, uint?, ushort?>? PartyMemberKilled;
@@ -153,6 +154,7 @@ public sealed class Game : IDisposable
         EndRun();
         run = next;
         run.Finished += OnRunFinished;
+        run.FailureSettled += OnRunFailed;
         run.MechanicFailed += OnMechanicFailed;
         run.Start();
         RunStarted?.Invoke(p, instance.Mode == SessionMode.Local);
@@ -166,6 +168,7 @@ public sealed class Game : IDisposable
             run = null;
             endedRun = ending;
             ending.Finished -= OnRunFinished;
+            ending.FailureSettled -= OnRunFailed;
             ending.MechanicFailed -= OnMechanicFailed;
             ending.End();
         }
@@ -261,6 +264,7 @@ public sealed class Game : IDisposable
     }
     
     private void OnRunFinished(bool clean) => RunFinished?.Invoke(clean);
+    private void OnRunFailed() => RunFailed?.Invoke();
     private void OnMechanicFailed(string reason) => MechanicFailed?.Invoke(reason);
     
 

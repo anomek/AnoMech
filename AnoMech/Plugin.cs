@@ -80,7 +80,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             GameNatives.Install();
             opcodeUpdater = new OpcodeUpdater();
             Game = new Game();
-            Practice = new PracticeLoop(Game);
+            Practice = new PracticeLoop(Game) { AutoDisableAutoRestart = Config.AutoDisableAutoRestart };
             Multiplayer = new MultiplayerManager();
             Runs = new RunController(Game, Multiplayer);
             if (Config.EnableUserActions) Natives.UserActions.Enable();

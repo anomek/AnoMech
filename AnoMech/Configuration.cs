@@ -17,6 +17,7 @@ public class Configuration : IPluginConfiguration
     public bool SuppressBgm { get; set; } = true;
     public bool EnableMechanicResultMarks { get; set; } = false;
     public bool AutoCollapseWhileRunning { get; set; } = false;
+    public bool AutoDisableAutoRestart { get; set; } = true;
     public string LastSelectedScenario { get; set; } = "";
 
     // The player's own multiplayer server (see AnoMech.Relay.Host/README.md), used instead of
