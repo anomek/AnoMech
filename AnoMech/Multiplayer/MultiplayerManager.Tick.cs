@@ -243,11 +243,26 @@ public sealed partial class MultiplayerManager
         return true;
     }
 
+    // Between runs of one stay everyone is still seated in the arena: keep each player's moves
+    // reaching the others, as during a run.
+    private void TickStay(float deltaSeconds)
+    {
+        if (!Plugin.Game.World.Map.IsInInstance || Plugin.Game.World.Party.Player == null) return;
+        if (!IsHost && !peerEnteredInstance) return;
+        TrackOwnVelocity(deltaSeconds);
+        if (IsHost) BroadcastRoles();
+        else SendSelfPose();
+    }
+
     // The run goes on whether the link is up or not: what it sends meanwhile goes out once the
     // link is back (SessionStream).
     private void TickRun(float deltaSeconds)
     {
-        if (!running) return;
+        if (!running)
+        {
+            TickStay(deltaSeconds);
+            return;
+        }
         TrackOwnVelocity(deltaSeconds);
 
         if (IsHost)

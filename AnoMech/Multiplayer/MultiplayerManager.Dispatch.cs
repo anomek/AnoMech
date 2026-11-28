@@ -124,6 +124,9 @@ public sealed partial class MultiplayerManager
     // act on the real inn.
     private bool PeerInRun => !IsHost && running && peerEnteredInstance && Plugin.Game.World.Map.IsInInstance;
 
+    // In the host's zone, between runs as well as during one.
+    private bool PeerInStay => !IsHost && peerEnteredInstance && Plugin.Game.World.Map.IsInInstance;
+
     private void DispatchCore(MpMessage message, bool isFromHost, uint senderId, Guid senderPeerId)
     {
         if (message is RelayRemovedPeers notice)
